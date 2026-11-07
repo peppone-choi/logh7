@@ -134,6 +134,7 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
     reinterpret_cast<void(__thiscall*)(void*,const char*)>(0x5706e0)(dialog,original);
     AppointmentChoice choice;
     std::wstring body;
+    SupplyQuoteRow supplyConfirmation{};
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     auto fuel=fuelConfirmationText(command);
     if (isWarpConfirmation(command)) {
@@ -145,11 +146,17 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
     auto newline=body.find(L'\n');
     if (newline==std::wstring::npos) return;
     if (const BYTE* supplied=selectedSupplyOutfit()) {
+        rememberSupplyConfirmation({});
         auto name=supplyOutfitName(supplied);
         if (name.empty()) return;
         const auto room=logh::infoWord(supplied,4);
         wchar_t details[180];
-        if(room) swprintf_s(details,L"에 군수물자를 즉시 보급합니다.\n적재 여유 %u · 보유 물자 안에서 이전\nMCP 160 · 부족 시 PCP 320\n이전할 물자가 없으면 비용 없음\n실행하시겠습니까?",room);
+        if(supplyQuotedTarget(logh::infoWord(supplied,8),supplyConfirmation)) {
+            const auto& quote=supplyConfirmation;
+            if(!quote.target || quote.status>=2)swprintf_s(details,L" 군수물자 보급\n%ls",supplyQuotePrice(quote));
+            else swprintf_s(details,L" 군수물자 보급\n이전량 %u · %ls\n%ls",quote.amount,supplyQuotePrice(quote),
+                quote.amount && quote.payment && !quote.status ? L"즉시 이전합니다. 실행하시겠습니까?" : L"실행할 수 있는 보급이 없습니다.");
+        } else if(room) swprintf_s(details,L"에 군수물자를 즉시 보급합니다.\n적재 여유 %u · 보유 물자 안에서 이전\nMCP 160 · 부족 시 PCP 320\n이전할 물자가 없으면 비용 없음\n실행하시겠습니까?",room);
         else wcscpy_s(details,L"의 적재 여유가 없습니다.\n이전량 0 · 비용 없음");
         body=name+details;
     } else if (command && at<unsigned>(command,0x28)==7) {
@@ -197,8 +204,10 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
     // 005706d0 returns the control directly; 005706c0 returns the GUI manager.
     auto element=reinterpret_cast<void*(__thiscall*)(void*,unsigned)>(0x5706d0)(dialog,5);
     auto manager=reinterpret_cast<void*(__thiscall*)(void*)>(0x5706c0)(dialog);
-    if (manager && element && at<BYTE>(element,8))
+    if (manager && element && at<BYTE>(element,8)) {
         reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x503560)(manager,element,body.c_str());
+        if(supplyConfirmation.target)rememberSupplyConfirmation(supplyConfirmation);
+    }
 }
 
 static unsigned __fastcall appointmentInformation(void* dialog, void*, void* row) {

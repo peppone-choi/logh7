@@ -2,7 +2,7 @@ package org.logh7.engine
 
 enum class LogisticsMode { ALLOCATION, REORGANIZATION }
 enum class LogisticsPhase { PREPARE, COMMIT, CANCEL }
-enum class LogisticsRejection { SESSION, IDENTITY, OUTFIT, ACCESS, LOCATION, BUSY, PREPARATION, STOCK, CREW, CP, MODE, STORAGE }
+enum class LogisticsRejection { SESSION, IDENTITY, OUTFIT, ACCESS, LOCATION, BUSY, PREPARATION, STOCK, CREW, CP, MODE, STORAGE, QUOTE_CHANGED }
 data class LogisticsRequest(val account: String, val connection: String, val characterId: Int,
     val country: CountryId?, val generation: Long, val outfitId: Int, val mode: LogisticsMode,
     val phase: LogisticsPhase, val transfer: UnitTransfer = UnitTransfer(), val supplies: Int = 0,

@@ -5,6 +5,7 @@ package org.logh7.protocol
 object CountryIdentityMessages {
     const val MODE=11
     const val REPAIR_QUOTE=1
+    const val SUPPLY_QUOTE=2
     fun reply(query:OutfitPartyMessages.Query,country:Int,nativePower:Int,name:String,calendar:String,
         yearOffset:Int,revision:Long,registered:Boolean):ByteArray {
         require(query.mode==MODE && query.outfit>0 && query.base in 1..65535)
@@ -17,6 +18,6 @@ object CountryIdentityMessages {
         // Mode 11 has no camp or cargo. Keep the existing fuel and production words for older DLLs.
         return OutfitPartyMessages.party(query,2,0,0,emptyList(),emptyList(),1,2,
             fields.mapIndexed {index,value->OutfitPartyMessages.Member(index+1,index,0,value)})
-            .also {it[10]=REPAIR_QUOTE.toByte()}
+            .also {it[10]=(REPAIR_QUOTE or SUPPLY_QUOTE).toByte()}
     }
 }

@@ -9,6 +9,9 @@ import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.engine.NavigationRejection
 import org.logh7.engine.LogisticsRejection
+import org.logh7.engine.CompletenessSupply
+import org.logh7.engine.SupplyCost
+import org.logh7.engine.strategy.CpPool
 import org.logh7.engine.positionIn
 import java.nio.file.Files
 import java.nio.file.Path
@@ -1085,9 +1088,10 @@ class GameExchange(
                         val query = org.logh7.protocol.CompletenessSupplyMessages.query(body)
                         val character = checkNotNull(currentCharacter(identity.account))
                         require(query.character == character.id.toInt()) { "Supply character mismatch" }
+                        val expected=query.expected?.let { SupplyCost(it.amount,if(it.payment==1)CpPool.MCP else CpPool.PCP) }
                         pendingWorld = administration.supplyOutfit(org.logh7.engine.CompletenessSupplyRequest(identity.account,
                             connection, character.id.toInt(), currentProfile(identity.account,character.id.toInt()).country,
-                            checkNotNull(generation), query.from, query.to, character.abilities[1], character.abilities[2])).thenApply { result ->
+                            checkNotNull(generation), query.from, query.to, character.abilities[1], character.abilities[2], expected)).thenApply { result ->
                             val player = checkNotNull(result.player) { "Supply lost its authenticated character" }
                             publication = Publication(character, player, false)
                             val accepted = result.rejection == null
@@ -1102,6 +1106,7 @@ class GameExchange(
                                 LogisticsRejection.BUSY -> "이동·물자 편집 중"
                                 LogisticsRejection.STOCK -> "부대 편성·적재 상태 확인"
                                 LogisticsRejection.STORAGE -> "저장 실패 · 다시 시도"
+                                LogisticsRejection.QUOTE_CHANGED -> "이전량·CP 변경 · 다시 조회"
                                 null -> result.payment?.let {
                                     "${result.transferred} 이전 · ${it.chargedPool} -${it.spent}"
                                 } ?: if (stored.outfits.getValue(reply.from).supplies == 0)
@@ -2261,11 +2266,23 @@ class GameExchange(
                                     val inventory=checkNotNull(stored)
                                     val scope=SupplyDirectoryScope(world.galaxy,currentProfile(identity.account,character.id.toInt()).country,
                                         world.lobbyCountryDefinitions().first)
-                                    val allowed=scope.supply(inventory,character.id.toInt(),query.grid)
-                                            .map { outfit -> org.logh7.protocol.SupplyDirectoryMessages.Outfit(outfit.id,
+                                    val player=if(query.quoteNonce>0)navigation?.snapshot()?.navigators?.get(identity.account)?.takeIf {
+                                        it.characterId==query.character && it.generation==inventory.generation && it.grid==query.grid
+                                    } else null
+                                    val source=player?.let { scope.supplySource(inventory,query.character,query.grid,it.baseId) }
+                                    val targets=if(query.quoteNonce==0)scope.supply(inventory,query.character,query.grid)
+                                        else source?.let { scope.supplyTargets(inventory,it) }.orEmpty()
+                                    val allowed=targets.map { outfit -> org.logh7.protocol.SupplyDirectoryMessages.Outfit(outfit.id,
                                                 outfit.kind.wire,outfit.number,outfit.supplies,org.logh7.engine.OutfitSupplies.visibleCapacity(outfit),
                                                 world.baseWire(world.galaxy.bases.single { it.id==(outfit.position?.baseId ?: outfit.baseId) })) }
-                                    org.logh7.protocol.SupplyDirectoryMessages.response(query,allowed)
+                                    val quotes=if(player!=null && source!=null)targets.map { target ->
+                                        val quote=CompletenessSupply.quote(player,source,target)
+                                        val payment=when(quote.payment?.chargedPool) {CpPool.MCP->1;CpPool.PCP->2;null->0}
+                                        val status=when(quote.rejection) {null->0;LogisticsRejection.CP->1;LogisticsRejection.BUSY->2;else->3}
+                                        org.logh7.protocol.SupplyDirectoryMessages.quote(query,
+                                            org.logh7.protocol.SupplyDirectoryMessages.Quote(source.id,target.id,quote.amount,payment,status))
+                                    } else emptyList()
+                                    quotes+org.logh7.protocol.SupplyDirectoryMessages.response(query,allowed)
                                 }
                                 return null
                             }

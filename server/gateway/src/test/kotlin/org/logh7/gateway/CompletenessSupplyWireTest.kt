@@ -46,11 +46,11 @@ class CompletenessSupplyWireTest {
     private fun request(from:Int=1,to:Int=2)=ByteBuffer.allocate(32).putShort(0x0c01)
         .putInt(-1).putInt(10000).putInt(Int.MAX_VALUE).putInt(Int.MAX_VALUE)
         .putInt(from).putInt(to).putInt(Int.MAX_VALUE).put(0).put(0).array()
-    private fun acknowledge(client:SyntheticClient,accepted:Boolean,notice:String) {
+    private fun acknowledge(client:SyntheticClient,accepted:Boolean,notice:String,mcp:Int=840) {
         val packet=ByteBuffer.wrap(client.receive())
         assertEquals(0x0c01,packet.getShort(4).toInt())
         assertEquals(if(accepted)0 else 1,packet.int)
-        assertEquals(1000,packet.getInt(14));assertEquals(840,packet.getInt(18))
+        assertEquals(1000,packet.getInt(14));assertEquals(mcp,packet.getInt(18))
         if(accepted) assertEquals(1,packet.getInt(22))
         assertEquals(if(accepted)2 else 0,packet.getInt(26))
         assertEquals(if(accepted)1000 else 0,packet.getInt(30))
@@ -64,6 +64,29 @@ class CompletenessSupplyWireTest {
         val packet=ByteBuffer.wrap(client.expect(0x0331))
         assertEquals(1,packet.get(6).toInt());assertEquals(id,packet.getInt(7))
         return packet.getInt(37)
+    }
+    @Test fun optedInNativeDirectoryQuotesThenRejectsAnUnmatchedConfirmation() {
+        val state=State()
+        fixture(state,"quote").use { server ->
+            val client=server.join(server.account(0),true,false).client;start(client)
+            client.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(14).putShort(124)
+                .putShort(0x5351).putShort(99).also {it.putInt(19,2487)}.array())
+            val quote=ByteBuffer.wrap(client.expect(0x1200))
+            assertEquals(0x7f00,quote.getShort(10).toInt())
+            assertEquals(62,quote.getShort(12).toInt())
+            assertEquals(99,quote.getShort(14).toInt())
+            assertEquals(0,quote.getShort(16).toInt())
+            assertEquals(1,quote.getInt(18));assertEquals(1,quote.get(22).toInt())
+            assertEquals(2,quote.getInt(23));assertEquals(1000,quote.getInt(29))
+            val echo=ByteBuffer.wrap(client.expect(0x1200))
+            assertEquals(14,echo.getShort(10).toInt());assertEquals(0,echo.getInt(14))
+            client.expect(0x120b);client.expect(0x1201)
+            val saves=state.saves
+            fun confirmed(amount:Int)=request().also { ByteBuffer.wrap(it).putInt(10,0x53510001).putInt(26,amount) }
+            client.send(confirmed(999));acknowledge(client,false,"이전량·CP 변경 · 다시 조회",1000)
+            assertEquals(saves,state.saves)
+            client.send(confirmed(1000));acknowledge(client,true,"1000 이전 · MCP -160")
+        }
     }
     @Test fun encryptedTransferIgnoresForgedOutcomesAndQueriesStayConsistentAfterReconnect() {
         val state=State()
