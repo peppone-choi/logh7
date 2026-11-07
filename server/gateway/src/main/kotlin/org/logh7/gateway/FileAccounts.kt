@@ -12,11 +12,14 @@ import java.util.Properties
  * ([AccountPassword]) and never listed.
  * Author: Peppone Choi.
  */
-class FileAccounts(private val path: Path) : AbstractMap<String, String>() {
+class FileAccounts(private val path: Path, private val reserveRemovedNames: Boolean = false) : AbstractMap<String, String>() {
     private var loadedAt: java.nio.file.attribute.FileTime? = null
     private var current: Map<String, String> = emptyMap()
 
     companion object {
+        // Older readers accept this hash prefix and reject the deliberately incomplete hash.
+        private const val REMOVED = "pbkdf2-sha256:removed"
+
         /** Native login strings: account 1..30 (no leading @), password 1..10; no separator or control characters. */
         private val name = Regex("[A-Za-z0-9._-]{1,30}")
         private val secret = Regex("[!-~]{1,10}")
@@ -29,21 +32,30 @@ class FileAccounts(private val path: Path) : AbstractMap<String, String>() {
         if (modified != loadedAt) { current = loadTestAccounts(path); loadedAt = modified }
         return current
     }
-    override val entries: Set<Map.Entry<String, String>> get() = fresh().entries
-    override fun get(key: String): String? = fresh()[key]
-    override fun containsKey(key: String): Boolean = fresh().containsKey(key)
+    override val entries: Set<Map.Entry<String, String>> get() = fresh().filterValues { it != REMOVED }.entries
+    override fun get(key: String): String? = fresh()[key]?.takeUnless { it == REMOVED }
+    override fun containsKey(key: String): Boolean = get(key) != null
 
-    @Synchronized fun names(): List<String> = fresh().keys.sorted()
+    @Synchronized fun names(): List<String> = keys.sorted()
 
     @Synchronized fun set(account: String, password: String) {
         require(validName(account) && validPassword(password)) { "invalid account or password" }
         write(fresh() + (account to AccountPassword.hash(password)))
     }
 
+    @Synchronized fun create(account: String, password: String): Boolean {
+        require(validName(account) && validPassword(password)) { "invalid account or password" }
+        val accounts = fresh()
+        if (account in accounts) return false
+        write(accounts + (account to AccountPassword.hash(password)))
+        return true
+    }
+
     @Synchronized fun remove(account: String): Boolean {
         val accounts = fresh()
-        if (account !in accounts) return false
-        write(accounts - account)
+        val stored = accounts[account] ?: return false
+        if (stored == REMOVED) return false
+        write(if (reserveRemovedNames) accounts + (account to REMOVED) else accounts - account)
         return true
     }
 

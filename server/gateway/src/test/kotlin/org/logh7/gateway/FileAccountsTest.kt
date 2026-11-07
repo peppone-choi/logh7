@@ -36,4 +36,27 @@ class FileAccountsTest {
             assertFailsWith<IllegalArgumentException>("$name/$password") { accounts.set(name, password) }
         assertTrue(accounts.isEmpty())
     }
+
+    @Test fun registrationNeverReplacesLiveOrRemovedAccounts() {
+        val file = directory.resolve("accounts.properties")
+        Files.writeString(file, "existing=original\n")
+        val accounts = FileAccounts(file, reserveRemovedNames = true)
+        assertFalse(accounts.create("existing", "other"))
+        assertEquals("original", accounts["existing"])
+
+        java.util.concurrent.Executors.newFixedThreadPool(2).use { pool ->
+            val attempts = listOf("first", "second").associateWith { password ->
+                pool.submit<Boolean> { accounts.create("new", password) }
+            }
+            val winner = attempts.entries.single { it.value.get() }.key
+            assertTrue(AccountPassword.matches(checkNotNull(accounts["new"]), winner))
+        }
+        assertTrue(accounts.remove("new"))
+        val reloaded = FileAccounts(file)
+        assertNull(reloaded["new"])
+        assertEquals(listOf("existing"), reloaded.names())
+        assertFalse(reloaded.create("new", "newpass"))
+        reloaded.set("new", "reset")
+        assertTrue(AccountPassword.matches(checkNotNull(reloaded["new"]), "reset"))
+    }
 }

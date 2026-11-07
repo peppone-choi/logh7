@@ -13,6 +13,7 @@ import org.logh7.gateway.WorldBootstrap
 import org.logh7.engine.Galaxy
 import org.logh7.ops.startOpsApi
 import org.logh7.ops.OpsAudit
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 
@@ -20,7 +21,26 @@ fun main() {
     val environment=RuntimeEnvironment.load()
     val sessions=SessionRuntimeConfiguration.load(environment)
     val directory=environment["LOGH7_SESSIONS_FILE"]?.takeIf {it.isNotBlank()}?.let {org.logh7.gateway.GameSessionDirectory()}
-    val accounts=environment["LOGH7_ACCOUNTS_FILE"]?.let {org.logh7.gateway.FileAccounts(Path.of(it)).also {file->file.names()}}
+    val registrationPort = environment["LOGH7_REGISTRATION_PORT"]?.let { configured ->
+        val port = configured.toIntOrNull()
+        require(port != null && port in 1..65535) { "LOGH7_REGISTRATION_PORT must be in 1..65535" }
+        port
+    }
+    val accountPath = environment["LOGH7_ACCOUNTS_FILE"]?.let(Path::of)
+    if (registrationPort != null) {
+        requireNotNull(accountPath) { "LOGH7_REGISTRATION_PORT requires LOGH7_ACCOUNTS_FILE" }
+        for (key in listOf("LOGH7_OPS_USERS_FILE", "LOGH7_OPS_TOKEN_FILE")) {
+            environment[key]?.let {
+                val opsPath = Path.of(it)
+                require(!Files.exists(opsPath) || !Files.isSameFile(accountPath, opsPath)) {
+                    "Registration must use an account file separate from $key"
+                }
+            }
+        }
+    }
+    val accounts = accountPath?.let {
+        org.logh7.gateway.FileAccounts(it, reserveRemovedNames = registrationPort != null).also { file -> file.names() }
+    }
     val runtimes=ArrayDeque<AutoCloseable>()
     fun closeAll()=synchronized(runtimes) {
         var failure:Throwable?=null
@@ -39,6 +59,10 @@ fun main() {
         sessions.forEach {
             it.stateDirectory?.let(java.nio.file.Files::createDirectories)
             runtimes.addFirst(startGameRuntime(it.environment,directory,it.id,it.name,accounts,fame,worldIdentities))
+        }
+        if (registrationPort != null) {
+            runtimes.addFirst(startPlayerRegistration(registrationPort, checkNotNull(accounts)))
+            println("LOGH7 player registration API: 127.0.0.1:$registrationPort")
         }
         Runtime.getRuntime().addShutdownHook(Thread {closeAll()})
         CountDownLatch(1).await()
@@ -205,6 +229,13 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         // LOGH7_OPS_TOKEN_FILE suits container secrets; a trailing newline in the file is not part of the token.
         val opsToken = environment["LOGH7_OPS_TOKEN"]?.takeIf { it.isNotEmpty() }
             ?: environment["LOGH7_OPS_TOKEN_FILE"]?.let { java.nio.file.Files.readString(Path.of(it)).trim() }?.takeIf { it.isNotEmpty() }
+        val opsUsersFile = environment["LOGH7_OPS_USERS_FILE"]
+        if (environment["LOGH7_REGISTRATION_PORT"] != null) {
+            require(opsToken != null || !opsUsersFile.isNullOrBlank()) {
+                "Player registration requires authenticated ops access"
+            }
+            require(audit != null) { "Player registration requires LOGH7_OPS_AUDIT_FILE for account management" }
+        }
         // LOGH7_BACKUP_DIR enables live backups (operator button); LOGH7_BACKUP_INTERVAL_MINUTES schedules them.
         val backups = environment["LOGH7_BACKUP_DIR"]?.let { dir ->
             ScheduledBackups(engine, org.logh7.persistence.LiveStateBackup(
@@ -273,7 +304,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         }
         val ops = startOpsApi(engine, engine, port = opsPort, audit = audit, token = opsToken,
             host = environment["LOGH7_OPS_BIND"] ?: "127.0.0.1",
-            users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
+            users = opsUsersFile?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
             countryColors=countryColors,
             countryDefinitions=countryDefinitions,countryImages=imageStore,
             facilityDefinitions=facilityStore,publishedFacilities=facilities,
