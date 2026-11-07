@@ -163,6 +163,12 @@ static bool installReturnSettings() {
     const unsigned groups[] = {0x54f64d, 0x54f846, 0x54f925, 0x54f9c7, 0x54fa69,
         0x54fb18, 0x54fbba, 0x54fc58, 0x54ffa4, 0x5501e5};
     const BYTE oldGroup = 106, newGroup = 101;
+    // The in-game exit prompt reads group 107 ("base", "unit"); the CD catalogue has it in 102.
+    const unsigned exitLookups[] = {0x54eda9, 0x54edd7};
+    const BYTE exitLookup[] = {0x6a, 107, 0xb9, 0x00, 0x74, 0x21, 0x02};
+    const BYTE exitGroup = 102;
+    for (unsigned address : exitLookups)
+        if (memcmp(reinterpret_cast<void*>(address), exitLookup, sizeof(exitLookup))) return false;
     for (unsigned address : groups)
         if (*reinterpret_cast<BYTE*>(address) != oldGroup) return false;
     for (unsigned i = 0; i < _countof(calls); ++i)
@@ -175,5 +181,7 @@ static bool installReturnSettings() {
     }
     for (unsigned address : groups)
         if (!patchBytes(reinterpret_cast<void*>(address), &oldGroup, &newGroup, 1)) return false;
+    for (unsigned address : exitLookups)
+        if (!patchBytes(reinterpret_cast<void*>(address + 1), &exitLookup[1], &exitGroup, 1)) return false;
     return true;
 }
