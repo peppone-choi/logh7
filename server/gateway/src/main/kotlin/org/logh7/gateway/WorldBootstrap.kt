@@ -374,6 +374,33 @@ class WorldBootstrap(val galaxy: Galaxy,
         require(owners.size <= 350) { "Too many public bases" }
         return owners
     }
+    /**
+     * Fleet affiliations the authenticated [viewer] may already see: every outfit on the viewer's current grid
+     * (any country) plus the viewer's own country's outfits anywhere, and pirate fleets on the current grid only.
+     * Foreign off-grid outfits are left out, identical to "no such outfit". Actual country is separate from the
+     * native power/camp display bytes; an unregistered owner fails like 031f.
+     */
+    internal fun outfitAffiliationOwners(stocks: org.logh7.engine.PlanetStocks, viewer: org.logh7.engine.Navigator):
+        List<org.logh7.protocol.OutfitAffiliationMessages.Owner> {
+        require(stocks.generation == viewer.generation) { "Stale generation" }
+        val countries=countryCatalog
+        val own=viewer.country
+        val outfits=stocks.outfits.values.filter { it.positionIn(galaxy).grid == viewer.grid || (own != null && it.country == own) }
+            .map { org.logh7.protocol.OutfitAffiliationMessages.Owner(it.id, it.country.value,
+                countries.nativePower(org.logh7.engine.Allegiance.Country(it.country)), org.logh7.engine.CoupActions.outfitCamp(stocks, it)) }
+        val pirates=stocks.social.pirates.fleets.values.filter { it.grid == viewer.grid }.map {
+            org.logh7.protocol.OutfitAffiliationMessages.Owner(org.logh7.engine.PirateActions.OUTFIT_BASE + it.id, 0,
+                org.logh7.engine.PirateActions.POWER, 0) }
+        return outfits + pirates
+    }
+    fun outfitAffiliations(query: OutfitPartyMessages.Query, stocks: org.logh7.engine.PlanetStocks,
+        viewer: org.logh7.engine.Navigator): List<ByteArray> {
+        require(query.mode == org.logh7.protocol.OutfitAffiliationMessages.MODE && query.outfit in 1..65535 &&
+            query.base>=0) { "Invalid outfit affiliation query" }
+        // The grid is the viewer's authenticated position, never a client-chosen one.
+        return org.logh7.protocol.OutfitAffiliationMessages.replies(query, viewer.grid, stocks.generation,
+            outfitAffiliationOwners(stocks, viewer)).map { LoginMessages.sessionMessage(0x032f, it) }
+    }
     fun baseAffiliations(query: org.logh7.protocol.OutfitPartyMessages.Query, stocks: org.logh7.engine.PlanetStocks? = null): List<ByteArray> {
         require(query.mode == BaseAffiliationMessages.MODE && query.outfit == 0 && query.base in 1..65535) { "Invalid affiliation query" }
         return BaseAffiliationMessages.replies(query, baseAffiliationOwners(stocks)).map { LoginMessages.sessionMessage(0x032f, it) }

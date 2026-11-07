@@ -4,6 +4,7 @@
 #include "country_catalog_data.h"
 #include "country_metadata.h"
 #include "base_affiliation.h"
+#include "outfit_affiliation.h"
 static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
@@ -71,6 +72,11 @@ static void pollCountryPaint(void* world) {
             if(baseAffiliationCache.world==world)for(unsigned i=0;i<baseAffiliationCache.value.count;++i)add(baseAffiliationCache.value.rows[i].country);
             ReleaseSRWLockShared(&baseAffiliationLock);
             for(const auto& country:logh::countryDisplays)add(country.id);
+            AcquireSRWLockShared(&outfitAffiliationLock);
+            if(outfitAffiliationCache.world==world)for(const auto& row:outfitAffiliationCache.rows) {
+                if(count>=353)break;add(row.country);
+            }
+            ReleaseSRWLockShared(&outfitAffiliationLock);
             inbox.pending=ids[(inbox.cursor/2)%count];inbox.mode=4+inbox.cursor++%2;
         }
         if(inbox.pending) {

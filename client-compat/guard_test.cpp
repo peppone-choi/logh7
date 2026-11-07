@@ -7,6 +7,7 @@
 #include "country_colors_data.h"
 #include "country_metadata.h"
 #include "base_affiliation.h"
+#include "outfit_affiliation_data.h"
 #include "country_icon_data.h"
 #include "creation_menu_data.h"
 #include "lobby_empty_data.h"
@@ -899,7 +900,45 @@ static int baseAffiliationTest() {
     if(draft.value.count!=350 || draft.value.find(350)->country!=0x7fffffff)return 1046;
     return 0;
 }
+static int outfitAffiliationTest() {
+    BYTE record[24+10*36]={};
+    auto frame=[&](unsigned kind,unsigned number,unsigned count,unsigned cursor=800000) {
+        memset(record,0,sizeof(record));*reinterpret_cast<unsigned*>(record)=65535;*reinterpret_cast<unsigned*>(record+4)=cursor;
+        record[8]=13;record[9]=2;record[20]=static_cast<BYTE>(count);
+        *reinterpret_cast<unsigned*>(record+12)=kind;*reinterpret_cast<unsigned*>(record+16)=number;
+    };
+    auto member=[&](unsigned slot,unsigned id,unsigned camp,unsigned power,const wchar_t* text) {
+        auto p=record+24+slot*36;*reinterpret_cast<unsigned*>(p)=id;p[4]=static_cast<BYTE>(camp);p[5]=static_cast<BYTE>(power);
+        p[6]=static_cast<BYTE>(wcslen(text)+1);memcpy(p+8,text,(wcslen(text)+1)*2);
+    };
+    const wchar_t* fields[]={L"FA1",L"60",L"800060",L"1",L"2487",L"922337203685",L"4775807",L"",L"",L""};
+    auto header=[&]() {frame(0,0,10);for(unsigned i=0;i<10;++i)member(i,i+1,i,0,fields[i]);};
+    logh::OutfitAffiliationDraft draft;draft.begin(65535,800000,2487);
+    header();record[0]^=1;if(draft.accept(record,sizeof(record)))return 1050;record[0]^=1;
+    fields[4]=L"2488";header();if(draft.accept(record,sizeof(record)))return 1051;fields[4]=L"2487";
+    header();if(draft.accept(record,sizeof(record)-1) || draft.accept(record,sizeof(record))!=1)return 1052;
+    for(unsigned batch=0;batch<6;++batch) {
+        frame(1,batch,10);
+        for(unsigned i=0;i<10;++i)member(i,800001+batch*10+i,i%2,3,i%2 ? L"43" : L"42");
+        if(!batch) {record[24+36]=record[24];if(draft.accept(record,sizeof(record)))return 1053;record[24+36]++;}
+        if(draft.accept(record,sizeof(record))!=(batch==5 ? 2 : 1))return 1054;
+    }
+    if(draft.page.count!=60 || !draft.page.more || draft.page.next!=800060 || draft.page.generation!=0x7fffffffffffffffULL ||
+        draft.page.rows[59].country!=43 || draft.accept(record,sizeof(record)))return 1055;
+    draft.begin(65535,800000,2487);fields[1]=L"1";fields[3]=L"0";header();if(draft.accept(record,sizeof(record))!=1)return 1056;
+    frame(1,0,1);member(0,800001,0,4,L"0");if(draft.accept(record,sizeof(record)) || draft.received)return 1057;
+    member(0,800060,0,4,L"0");if(draft.accept(record,sizeof(record))!=2 || draft.page.rows[0].power!=4)return 1058;
+    draft.begin(65535,800000,2487);fields[1]=L"0";fields[2]=L"800000";header();
+    if(draft.accept(record,sizeof(record))!=2 || draft.page.count)return 1059;
+    draft.begin(65535,800000,2487);fields[3]=L"1";header();if(draft.accept(record,sizeof(record)))return 1060;
+    draft.begin(65535,800000,2487);fields[1]=L"1";fields[2]=L"2147483647";fields[3]=L"0";header();
+    if(draft.accept(record,sizeof(record))!=1)return 1061;
+    frame(1,0,1);member(0,0x7fffffff,0,3,L"42");
+    if(draft.accept(record,sizeof(record))!=2 || draft.page.rows[0].id!=0x7fffffff)return 1062;
+    return 0;
+}
 static int runGuard(int argc, wchar_t** argv) {
+    if(int result=outfitAffiliationTest())return result;
     if(int result=baseAffiliationTest())return result;
     if(int result=facilityGuideTest())return result;
     if(int result=lobbyCountryDataTest())return result;
