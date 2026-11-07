@@ -19,6 +19,7 @@
 static volatile LONG status = 0;
 static int lastGrid = -1;
 static ULONGLONG autoViewAt = 0;
+static bool wasInSpot = false;
 static bool patchBytes(void* target, const void* expected, const void* replacement, SIZE_T size) {
     if (memcmp(target, expected, size)) return false;
     DWORD previous = 0;
@@ -509,18 +510,22 @@ static void __fastcall drawLayout(void* map, void*, char) {
     if (ownGrid < 0 || ownGrid >= 5000) return;
     auto kind = reinterpret_cast<int(__cdecl*)(int, int)>(0x4d35b0);
     int mode = at<int>(map, 4);
-    if (ownGrid != lastGrid) {
+    const bool inSpot = at<int>(world, 0x4c) > 0; // own character slot +0x0c, spot +0x40
+    const bool enteredSpot = inSpot && !wasInSpot;
+    wasInSpot = inSpot;
+    if (ownGrid != lastGrid || enteredSpot) {
         lastGrid = ownGrid;
         autoViewAt = GetTickCount64() + 750;
     }
-    if (autoViewAt && GetTickCount64() >= autoViewAt && (mode == 1 || mode == 4)) {
+    const bool autoViewReady = autoViewAt && GetTickCount64() >= autoViewAt;
+    if (autoViewReady && inSpot && mode == 8) autoViewAt = 0;
+    if (autoViewReady && (mode == 1 || mode == 4)) {
         autoViewAt = 0;
         at<int>(map, 0x18) = ownGrid % 100;
         at<int>(map, 0x1c) = ownGrid / 100;
         auto setMode = reinterpret_cast<void(__thiscall*)(void*, int)>(0x4d5030);
-        // A persisted room must resume its native background, rather than the system map.
-        int spot = at<int>(world, 0x4c); // own character slot +0x0c, spot +0x40
-        setMode(map, spot > 0 ? 8 : (kind(ownGrid % 100, ownGrid / 100) == 3 ? 4 : 1));
+        // A move from orbit into a room can change the spot without changing grids.
+        setMode(map, inSpot ? 8 : (kind(ownGrid % 100, ownGrid / 100) == 3 ? 4 : 1));
         at<int>(map, 0x18) = ownGrid % 100;
         at<int>(map, 0x1c) = ownGrid / 100;
         float center[3] = {};
