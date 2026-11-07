@@ -141,14 +141,16 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
             // Settle capitals first each day; recipients share only today's real surplus in stable base-id order.
             val order=(capitals.values.sorted()+bases.keys.sorted()).distinct()
             val countryDefinitions=CountryCatalogLoader.current()
+            val bombs=initialized.social.justice.bombs.values.groupBy(Bomb::base)
             repeat(Math.toIntExact(days - initialized.producedDays)) {day->
                 val dayEnd=Math.addExact(startSeconds,Math.multiplyExact(initialized.producedDays+day+1,86400L))
                 for(id in order) {
                     val previousDay=bases.getValue(id)
                     var next=previousDay
                     val base=galaxy.conditions.getValue(id)
-                    // U-17: a sabotaged base keeps collecting taxes but produces nothing until the stop ends.
-                    val stopped=EspionageActions.disabled(initialized,id,Math.multiplyExact(initialized.producedDays+day+1,86400L))
+                    // Production catches up before combat explodes pending bombs, so include their historical intervals.
+                    val stopped=EspionageActions.disabled(initialized,id,dayEnd) ||
+                        bombs[id].orEmpty().any {EspionageActions.stopsProductionAt(it,dayEnd)}
                     val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
                     val lord=initialized.strategic.fiefs[id]
                     if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)

@@ -42,7 +42,7 @@ object ProductionActions {
     const val BUILD_DAYS=30L
     const val QUOTE_PHASE=1
     enum class Yard { MISSING, BUILDING, PAUSED, ACTIVE }
-    data class Progress(val yard:Yard,val buildingUntil:Long,val order:ShipOrder?,val stock:Int)
+    data class Progress(val yard:Yard,val buildingUntil:Long,val order:ShipOrder?,val stock:Int,val automaticPausedUntil:Long)
     data class Quote(val base:Int,val mcp:Int,val hours:Int=0,val treasury:Long=0,val mineral:Long=0,
         val supplies:Long=0,val food:Int=0,val adults:Int=0,val progress:Progress?=null)
 
@@ -106,7 +106,8 @@ object ProductionActions {
                 else -> Yard.MISSING
             }
             val count=if(i.command==SHIP)stock.units.ships.entries.sumOf {(stack,quantity)->if(stack.kind==i.value)quantity else 0} else 0
-            quote=cost.copy(progress=Progress(yard,buildingUntil,prod.orders[base],count))
+            quote=cost.copy(progress=Progress(yard,buildingUntil,prod.orders[base],count,
+                EspionageActions.productionPausedUntil(s,base,now)))
         }
         when(i.command) {
             BUILD -> {

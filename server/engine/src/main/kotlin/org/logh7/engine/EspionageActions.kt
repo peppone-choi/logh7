@@ -62,7 +62,8 @@ object EspionageActions {
         if(due.isEmpty() && seen.isEmpty() && j.infiltrations.none {it.value.until<=now} && j.disabled.none {it.value<=now})return s
         val disabled=LinkedHashMap(j.disabled.filterValues {it>now})
         for(b in due.sortedBy {it.character}) {
-            disabled[b.base]=maxOf(disabled[b.base] ?: 0,b.explodesAt+DISABLED_DAYS*Justice.DAY)
+            val resumesAt=productionResumesAt(b)
+            if(resumesAt>now)disabled[b.base]=maxOf(disabled[b.base] ?: 0,resumesAt)
             for((key,n) in players.entries.toList())if(n.baseId==b.base && n.spotId==b.spot)
                 players[key]=n.hull?.let {n.copy(hull=it.copy(woundedUntil=maxOf(it.woundedUntil,b.explodesAt+Justice.WOUND_SECONDS)))} ?: n
         }
@@ -85,6 +86,15 @@ object EspionageActions {
         return next
     }
     fun disabled(s:PlanetStocks,base:Int,seconds:Long)=(s.social.justice.disabled[base] ?: 0)>seconds
+    private fun productionResumesAt(bomb:Bomb)=(bomb.explodesAt+DISABLED_DAYS*Justice.DAY).coerceAtMost(0xffffffffL)
+    fun stopsProductionAt(bomb:Bomb,seconds:Long)=seconds in bomb.explodesAt until productionResumesAt(bomb)
+    fun productionPausedUntil(s:PlanetStocks,base:Int,seconds:Long):Long {
+        val justice=s.social.justice
+        val active=justice.disabled[base]?.takeIf {it>seconds} ?: 0
+        val pending=justice.bombs.values.asSequence().filter {it.base==base && stopsProductionAt(it,seconds)}
+            .maxOfOrNull(::productionResumesAt) ?: 0
+        return maxOf(active,pending)
+    }
 
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>,
         catalog:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
