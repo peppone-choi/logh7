@@ -169,8 +169,8 @@ enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_G
     CREW, STAR_SYSTEM_NOT_ADJACENT }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false, val supportReadyAt: Long? = null,
-    /** A reserved warp reached its execution time; [warpRejected] keeps the fleet at its origin. */
-    val completedWarp: Boolean = false, val warpRejected: Boolean = false,
+    /** A reserved warp reached its execution time; [warpCancellation] gives the reason the fleet stayed at its origin. */
+    val completedWarp: Boolean = false, val warpCancellation: NavigationRejection? = null,
     val supportNotifications: List<TacticalSupportResult> = emptyList(),
     val tacticalMotions: Map<Int,TacticalMotion> = emptyMap(),val postureReadyAt:Long?=null,val groundReadyAt:Long?=null,
     val commandReadyAt:Long?=null,val commandNotifications:List<TacticalCommandResult> = emptyList())
@@ -190,9 +190,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         var completedFuel = false
         var completedDock = false
         var completedWarp = false
-        var warpRejected = false
+        var warpCancellation: NavigationRejection? = null
         fun reject(reason: NavigationRejection) = NavigationResult(null, previous = current, rejection = reason,
-            completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
+            completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
         val member = session.participants[request.account] ?: return reject(NavigationRejection.SESSION)
         if (session.ended != null || member.country in session.eliminated || session.generation != request.generation ||
             (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
@@ -278,22 +278,28 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         }
         fun warpCruise(origin: Int, target: Int) = Math.toIntExact((WarpCourse.cruiseCost(origin, target).toLong() *
             policy.cruiseCost + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID)
-        fun warpPossible(player: Navigator, target: Int): Boolean {
+        fun warpObstacle(player: Navigator, target: Int): NavigationRejection? {
             val reach = maxOf(abs(target % 100 - player.grid % 100), abs(target / 100 - player.grid / 100))
-            return WarpPreconditions.evaluate(WarpContext(player.cruise, galaxy.kind(target) == GridKind.STAR_SYSTEM,
-                reach == 1)) == WarpDecision.ALLOWED && player.cruise >= warpCruise(player.grid, target)
+            return when (WarpPreconditions.evaluate(WarpContext(player.cruise, galaxy.kind(target) == GridKind.STAR_SYSTEM,
+                reach == 1))) {
+                WarpDecision.STAR_SYSTEM_NOT_ADJACENT -> NavigationRejection.STAR_SYSTEM_NOT_ADJACENT
+                WarpDecision.INSUFFICIENT_CRUISE -> NavigationRejection.CRUISE
+                WarpDecision.ALLOWED -> if (player.cruise < warpCruise(player.grid, target)) NavigationRejection.CRUISE else null
+            }
         }
-        /** Execution start re-checks the destination; the paid CP is not refunded (design 2026-10-30). */
-        fun executeWarp(player: Navigator, target: Int): Navigator {
-            val enterable = enterableFrom(player, movingUnits, soloShip)
-            if (!warpPossible(player, target) || !enterable(target)) { warpRejected = true; return player }
+        fun executeWarp(player: Navigator, target: Int, enterable: (Int) -> Boolean): Navigator {
             // The salt changes with every completed move, so a rejected attempt cannot be retried for a new roll.
             val arrival = WarpCourse.arrival(galaxy, player.grid, target,
                 session.generation * 0x9E3779B1L xor (player.characterId.toLong() shl 20) xor player.moves, enterable)
             return contact(player.copy(grid = arrival, cruise = player.cruise - warpCruise(player.grid, target),
                 moves = Math.addExact(player.moves, 1), motion = null))
         }
-        val before = dueWarp?.let { executeWarp(settled, it) } ?: settled
+        val before = if (dueWarp == null) settled else {
+            // The reserved route is rechecked at execution without refunding the paid CP.
+            val enterable = enterableFrom(settled, movingUnits, soloShip)
+            warpCancellation = warpObstacle(settled, dueWarp) ?: NavigationRejection.GRID.takeUnless { enterable(dueWarp) }
+            if (warpCancellation == null) executeWarp(settled, dueWarp, enterable) else settled
+        }
         if (persist && existing != before) commit(request.account, before, session.generation)
         current = before
         if (wounded && (request.destination != null || request.place != null || request.supplyFuel ||
@@ -398,11 +404,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             }
             val after = before.copy(returnBase = target)
             if (persist && after != before) commit(request.account, after, session.generation)
-            return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
+            return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
         }
         val destination = request.destination
         if (destination == null && request.place == null && !request.supplyFuel) {
-            return NavigationResult(before, existing, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
+            return NavigationResult(before, existing, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
         }
         if (before.cpPaused) return reject(NavigationRejection.TACTICAL)
         if (before.fuelReadyAt != null) return reject(NavigationRejection.SUPPLYING)
@@ -422,14 +428,14 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (job.completesAtGameMillis / 1000 > 0xffffffffL) return reject(NavigationRejection.CLOCK)
             val after = before.copy(fuelReadyAt = job.completesAtGameMillis / 1000, strategy = pipeline.checkpoint()).paidWith(pipeline.balance)
             if (persist) commit(request.account, after, session.generation)
-            return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
+            return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
         }
         if (request.place != null) {
             if (destination != null) return reject(NavigationRejection.BASE)
             val moved = movePlace(request, before, now, stocks,countries)
             val result = moved.copy(player=moved.player?.let(::contact))
             if (persist) result.player?.let { commit(request.account, it, session.generation) }
-            return result.copy(completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpRejected = warpRejected)
+            return result.copy(completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
         }
         if (before.baseId != 0 || before.spotId != 0) return reject(NavigationRejection.EMBARKED)
         if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
@@ -439,11 +445,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val dx = abs(destination % 100 - before.grid % 100)
         val dy = abs(destination / 100 - before.grid / 100)
         if (dx * dx + dy * dy > policy.maximumRange * policy.maximumRange) return reject(NavigationRejection.RANGE)
-        val warp = WarpPreconditions.evaluate(WarpContext(before.cruise, galaxy.kind(destination) == GridKind.STAR_SYSTEM,
-            maxOf(dx, dy) == 1))
         // Cruise is light-years (CD p.31); policy.cruiseCost is the cost of one 100-ly grid.
-        if (warp == WarpDecision.STAR_SYSTEM_NOT_ADJACENT) return reject(NavigationRejection.STAR_SYSTEM_NOT_ADJACENT)
-        if (warp != WarpDecision.ALLOWED || !warpPossible(before, destination)) return reject(NavigationRejection.CRUISE)
+        warpObstacle(before, destination)?.let { return reject(it) }
         val enterable = enterableFrom(before, movingUnits, soloShip)
         if (!enterable(destination)) return reject(NavigationRejection.GRID)
         // W p.68: CP and execution wait grow with distance. 40 per started 100 ly (CD help: x4 at most) and
@@ -461,15 +464,14 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val after = before.copy(warpTarget = destination, strategy = pipeline.checkpoint()).paidWith(pipeline.balance)
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock,
-                completedWarp = completedWarp, warpRejected = warpRejected)
+                completedWarp = completedWarp, warpCancellation = warpCancellation)
         }
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), cost, CpPool.MCP)
         if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
-        val after = executeWarp(before.paidWith(payment.balance),
-            destination)
+        val after = executeWarp(before.paidWith(payment.balance), destination, enterable)
         if (persist) commit(request.account, after, session.generation)
         return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock,
-            completedWarp = completedWarp, warpRejected = warpRejected)
+            completedWarp = completedWarp, warpCancellation = warpCancellation)
     }
     /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
     private fun ownBase(country:CountryId?,owner:Allegiance,camp:Int)=country!=null && owner==Allegiance.Country(country) && camp==0

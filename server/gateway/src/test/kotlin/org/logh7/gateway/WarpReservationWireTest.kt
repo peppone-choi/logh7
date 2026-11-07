@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.NavigationMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
@@ -19,8 +20,8 @@ class WarpReservationWireTest {
         repeat(300) { val message = ByteBuffer.wrap(client.receive()); if (message.getShort(4).toInt() == opcode) return message }
         error("Missing 0x%04x".format(opcode))
     }
-    private fun warp(client: SyntheticClient, grid: Int) {
-        val request = NavigationMessages.accepted(NavigationMessages.Warp(10000, 59, grid, 0, 5), 0, 0, 0)
+    private fun warp(client: SyntheticClient, grid: Int, character: Int = 10000, card: Int = 59) {
+        val request = NavigationMessages.accepted(NavigationMessages.Warp(character, card, grid, 0, 5), 0, 0, 0)
         client.send(request.copyOfRange(4, request.size))
     }
 
@@ -42,6 +43,71 @@ class WarpReservationWireTest {
             assertEquals(2588, moved.getInt(14)); assertEquals(858, moved.getInt(29))
             val stored = fixture.engine.snapshot().navigators.values.single()
             assertEquals(2588, stored.grid); assertNull(stored.warpTarget); assertEquals(920, stored.mcp)
+        }
+    }
+
+    @Test fun blockedReservationExplainsTheCancellationAndAllowsAnotherWarp() = blockedReservation(reconnecting = false)
+
+    @Test fun blockedReservationDuringLoginWaitsForTheNativeGridBootstrap() = blockedReservation(reconnecting = true)
+
+    private fun blockedReservation(reconnecting: Boolean) = runBlocking<Unit> {
+        val base = GalaxyBase(1177, 2015, 80, 0, "Alliance", 0, 20f, 86400, 0, 0f, 2f)
+        val world = Galaxy(galaxy.systems.map { it.copy(power = if (it.grid == 2487) 2 else 3) }, listOf(base), galaxy.starts)
+        var players = mapOf("load-001" to Navigator(1, 10001, Power.ALLIANCE, 2587, 1000, 1000, 1000))
+        var stocks = ActiveShips.initialize(PlanetStocks(1, 0, mapOf(1177 to PlanetStock(1177, 3, 0, 100, 200, 300)),
+            mapOf(1 to OutfitStock(1, 3, OutfitKind.FLEET, 1177, 10, 10001,
+                UnitInventory(mapOf(UnitStack(119) to 1)), position = OutfitPosition(2587))),
+            mapOf(10 to OutfitWarehouse(10, 3, OutfitKind.FLEET, 1177, 1)), deploymentInitialized = true))
+        val navigation = object : NavigationStore {
+            override fun load() = players
+            override fun save(saved: Map<String, Navigator>) { players = saved.toMap() }
+        }
+        val inventory = object : PlanetStockStore {
+            override fun load() = stocks
+            override fun save(saved: PlanetStocks) { stocks = saved }
+        }
+        val committer = object : WorldStateCommitter {
+            override fun saveWorld(navigation: Map<String, Navigator>, inventory: PlanetStocks?) {
+                players = navigation.toMap(); stocks = checkNotNull(inventory)
+            }
+        }
+        LoadFixture(directory, 2, LoadMetrics(), world, ticking = false, stockStore = inventory,
+            navigationStore = navigation, worldStateCommitter = committer,
+            powerByIndex = { if (it == 0) 2 else 3 }).use { fixture ->
+            var pilot = fixture.join(fixture.account(0), true, false).client
+            val rival = fixture.join(fixture.account(1), true, false).client
+            for (client in listOf(pilot, rival)) {
+                client.send(SyntheticClient.opcode(0x0f00)); until(client, 0x0f01)
+            }
+            warp(pilot, 2588)
+            assertEquals(920, until(pilot, 0x0b01).getInt(24))
+            pilot.expect(0x0356)
+            warp(rival, 2588, 10001, 195)
+            assertEquals(2588, until(rival, 0x0b07).getInt(14))
+            assertEquals(OutfitPosition(2588), fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).position)
+            if (reconnecting) {
+                pilot.close()
+                fixture.awaitState(online = 1, connections = 1, participants = 2)
+                pilot = fixture.join(fixture.account(0), false, false).client
+            }
+            fixture.engine.submit(WorldCommand.AdvanceTo(200_000))
+            pilot.send(SyntheticClient.opcode(0x0300))
+            val moved = until(pilot, 0x0b07)
+            assertEquals(2487, moved.getInt(14)); assertEquals(1000, moved.getInt(29))
+            if (reconnecting) {
+                pilot.send(SyntheticClient.opcode(0x0f00)); until(pilot, 0x0f01)
+                pilot.send(SyntheticClient.opcode(0x0f02)); until(pilot, 0x0f03)
+                pilot.send(SyntheticClient.opcode(0x0300)); until(pilot, 0x0301)
+            }
+            val notice = until(pilot, 0x0f1d).array()
+            assertEquals(ChatMessages.Spot(10000, "[워프] 진입 불가·CP 미환불"), ChatMessages.spot(notice.copyOfRange(4, notice.size)))
+            val cancelled = fixture.engine.snapshot().navigators.getValue(fixture.account(0))
+            assertNull(cancelled.warpTarget); assertEquals(920, cancelled.mcp)
+            assertEquals(1000, cancelled.cruise); assertEquals(0L, cancelled.moves)
+            warp(pilot, 2488)
+            assertEquals(2488, until(pilot, 0x0b07).getInt(14))
+            val arrived = fixture.engine.snapshot().navigators.getValue(fixture.account(0))
+            assertEquals(880, arrived.mcp); assertEquals(900, arrived.cruise); assertEquals(1L, arrived.moves)
         }
     }
 }
