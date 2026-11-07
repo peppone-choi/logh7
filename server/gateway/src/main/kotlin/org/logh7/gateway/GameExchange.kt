@@ -1032,6 +1032,12 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
+                        if(party?.mode==org.logh7.protocol.BaseAffiliationMessages.MODE) {
+                            check(worldInitialized)
+                            require(party.outfit==0 && party.base in 1..65535) {"Public base ownership snapshot only"}
+                            pendingWorld=stocks().thenApply {world.baseAffiliations(party,checkNotNull(it))}
+                            return null
+                        }
                         if(party?.mode==org.logh7.protocol.CountryIdentityMessages.MODE) {
                             check(worldInitialized);require(party.outfit==character.id.toInt()) {"Own country identity only"}
                             return handshake.stageAll(listOf(world.countryIdentity(party,

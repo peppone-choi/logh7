@@ -3,10 +3,12 @@
 #include "country_colors_data.h"
 #include "country_catalog_data.h"
 #include "country_metadata.h"
+#include "base_affiliation.h"
 static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
-    ULONGLONG sentAt,pollAt,identityAt;
+    ULONGLONG sentAt,pollAt,identityAt,basesAt;
+    logh::BaseAffiliationDraft bases;
     logh::CountryPaint rows[350];
 } countryPaintInbox={};
 
@@ -20,9 +22,12 @@ static unsigned countryPaintRgb(unsigned country,unsigned field,unsigned fallbac
     ReleaseSRWLockShared(&countryPaintLock);return result;
 }
 static bool receiveCountryPaint(const BYTE* record) {
-    if(record[8]!=4 && record[8]!=5 && record[8]!=11)return false;
+    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12)return false;
     AcquireSRWLockExclusive(&countryPaintLock);
     auto& inbox=countryPaintInbox;logh::CountryPaint paint;
+    if(inbox.pending && inbox.mode==12 && inbox.bases.accept(record,24+10*36)==2) {
+        publishBaseAffiliations(inbox.world,inbox.bases.value);inbox.pending=0;
+    }
     logh::CountryIdentity identity;
     if(inbox.pending && inbox.mode==11 && logh::readCountryIdentity(record,24+10*36,inbox.character,inbox.nonce,identity) && identity.power==inbox.power) {
         publishCountryMetadata(identity.country);publishOwnCountryIdentity(inbox.world,identity);
@@ -41,9 +46,9 @@ static bool receiveCountryPaint(const BYTE* record) {
 }
 static void pollCountryPaint(void* world) {
     auto own=world ? at<BYTE*>(world,8) : nullptr;
-    if(!own || !at<BYTE>(own,0) || !at<BYTE>(world,0x2a58f8)) {
+    if(!own || !at<BYTE>(own,0) || (!at<BYTE>(world,0x2a58f8) && !at<BYTE>(world,0x126718))) {
         AcquireSRWLockExclusive(&countryPaintLock);
-        if(countryPaintInbox.world) {countryPaintInbox.world=nullptr;countryPaintInbox.pending=0;resetCountryMetadata();}
+        if(countryPaintInbox.world) {countryPaintInbox.world=nullptr;countryPaintInbox.pending=0;resetCountryMetadata();resetBaseAffiliations();}
         ReleaseSRWLockExclusive(&countryPaintLock);return;
     }
     unsigned query[3]={};auto now=GetTickCount64();
@@ -53,22 +58,27 @@ static void pollCountryPaint(void* world) {
     if(!character || (power!=2 && power!=3)) {ReleaseSRWLockExclusive(&countryPaintLock);return;}
     if(inbox.world!=world || inbox.session!=session || inbox.character!=character || inbox.power!=power) {
         const unsigned nonce=inbox.nonce;inbox={};inbox.world=world;inbox.session=session;inbox.character=character;inbox.power=power;inbox.nonce=nonce;
-        resetCountryMetadata();
+        resetCountryMetadata();resetBaseAffiliations();
     }
     if(inbox.pending && now-inbox.sentAt>=5000)inbox.pending=0;
     if(!inbox.pending && now>=inbox.pollAt) {
         if(now>=inbox.identityAt) {inbox.pending=character;inbox.mode=11;inbox.identityAt=now+5000;}
+        else if(now>=inbox.basesAt) {inbox.pending=1;inbox.mode=12;inbox.basesAt=now+5000;}
         else if(inbox.ownRegistered) {
-            // shortcut: territory display IDs still come from the shared catalogue; replace with runtime object IDs before admitting new countries.
-            unsigned ids[351]={inbox.ownCountry},count=1;
-            for(const auto& country:logh::countryDisplays)if(country.id!=inbox.ownCountry)ids[count++]=country.id;
+            unsigned ids[353]={inbox.ownCountry},count=1;
+            auto add=[&](unsigned id) {if(!id)return;for(unsigned i=0;i<count;++i)if(ids[i]==id)return;ids[count++]=id;};
+            AcquireSRWLockShared(&baseAffiliationLock);
+            if(baseAffiliationCache.world==world)for(unsigned i=0;i<baseAffiliationCache.value.count;++i)add(baseAffiliationCache.value.rows[i].country);
+            ReleaseSRWLockShared(&baseAffiliationLock);
+            for(const auto& country:logh::countryDisplays)add(country.id);
             inbox.pending=ids[(inbox.cursor/2)%count];inbox.mode=4+inbox.cursor++%2;
         }
         if(inbox.pending) {
             inbox.nonce=(inbox.nonce%65535)+1;inbox.sentAt=now;inbox.pollAt=now+1000;
             query[0]=inbox.pending;query[1]=inbox.nonce;query[2]=inbox.mode;
+            if(inbox.mode==12) {query[0]=0;inbox.bases.begin(inbox.nonce);}
         }
     }
     ReleaseSRWLockExclusive(&countryPaintLock);
-    if(query[0])reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(world,0,0x10,query);
+    if(query[2])reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(world,0,0x10,query);
 }
