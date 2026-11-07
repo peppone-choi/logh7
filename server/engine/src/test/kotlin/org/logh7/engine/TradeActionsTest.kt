@@ -44,6 +44,29 @@ class TradeActionsTest {
         assertEquals(0,st.outfits.getValue(7).supplies);assertEquals(200_001_200L,st.nationalTreasuries[CountryId(2)]);assertEquals(300L,st.nationalTreasuries[CountryId(3)])
         assertEquals(SocialRejection.COOLDOWN,act(TradeActions.CONVOY,44,st.copy(outfits=st.outfits+(7 to st.outfits.getValue(7).copy(supplies=10))),amount=5).rejection)
     }
+    @Test fun aConvoyQuoteIsReadOnlyAndTheSaleRejectsChangedProceedsBeforeCharging() {
+        val s=policy.set(stocks(),OfficeHolding(44,7,10000))
+        val trade=TradeState(tariffs=mapOf(3 to 20),pacts=mapOf(2 to now+100))
+        val priced=s.copy(social=s.social.copy(trade=trade))
+        val payer=a.copy(mcp=0,pcp=640)
+        val identity=StrategyActionRequest("a","a",10000,Power.EMPIRE,1,TradeActions.CONVOY,44,1,target=3,amount=1000)
+        val quote=TradeActions.evaluate(galaxy,SocialRequest(identity,phase=TradeActions.QUOTE_PHASE),session,payer,priced)
+        assertEquals(TradeActions.ConvoyQuote(1440,20),quote.convoyQuote)
+        assertFalse(quote.changed);assertSame(payer,quote.player);assertSame(priced,quote.stocks)
+
+        val confirm=SocialRequest(identity.copy(argument=1440))
+        val repriced=priced.copy(social=priced.social.copy(trade=trade.copy(tariffs=mapOf(3 to 30))))
+        val stale=TradeActions.evaluate(galaxy,confirm,session,payer,repriced)
+        assertEquals(SocialRejection.QUOTE_CHANGED,stale.rejection)
+        assertFalse(stale.changed);assertSame(payer,stale.player);assertSame(repriced,stale.stocks)
+
+        val sold=TradeActions.evaluate(galaxy,confirm,session,payer,priced)
+        assertEquals(1440,sold.found);assertEquals(0,sold.player?.pcp);assertEquals(0,sold.player?.mcp)
+        val after=assertNotNull(sold.stocks)
+        assertEquals(0,after.outfits.getValue(7).supplies)
+        assertEquals(200_001_440L,after.nationalTreasuries[CountryId(2)])
+        assertEquals(360L,after.nationalTreasuries[CountryId(3)])
+    }
     @Test fun buyingIntelligenceReportsTheEnemyCapitalOrSpendsNothingOnFailure() {
         val s=policy.set(stocks(),OfficeHolding(5,1049,10000))
         val r=act(TradeActions.DIPLOMACY,5,s,value=TradeActions.INTELLIGENCE)

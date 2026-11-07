@@ -1764,6 +1764,18 @@ class GameExchange(
                                 val query=org.logh7.protocol.StrategyActionMessages.query(body)
                                 val character=checkNotNull(currentCharacter(identity.account))
                                 require(query.character==character.id.toInt())
+                                if(query.command==org.logh7.engine.TradeActions.CONVOY && query.preview && query.amount>0) {
+                                    val country=currentProfile(identity.account,query.character).country
+                                    val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                        query.character,country,checkNotNull(generation),query.command,query.card,character.rank,
+                                        target=query.target,amount=query.amount.toLong()),phase=org.logh7.engine.TradeActions.QUOTE_PHASE)
+                                    pendingWorld=administration.social(request).thenApply {result ->
+                                        val quote=result.convoyQuote
+                                        org.logh7.protocol.StrategyActionMessages.convoyQuote(query,result.rejection?.let {it.ordinal+1} ?: 0,
+                                            quote?.net ?: 0,quote?.tariff ?: 0,quote?.let {currencyLabel(country)})
+                                    }
+                                    return null
+                                }
                                 if(query.preview) {
                                     pendingWorld=stocks().thenApply {stored ->
                                         val inventory=checkNotNull(stored)
@@ -2032,7 +2044,8 @@ class GameExchange(
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,currentProfile(identity.account,query.character).country,
                                         checkNotNull(generation),query.command,query.card,character.rank,target=query.target,value=query.value,
-                                        base=query.base,amount=query.amount.toLong(),identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())))
+                                        base=query.base,amount=query.amount.toLong(),argument=query.argument,
+                                        identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())))
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val player=checkNotNull(result.player)
                                         val destination=result.defected

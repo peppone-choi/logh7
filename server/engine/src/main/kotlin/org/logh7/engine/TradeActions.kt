@@ -41,6 +41,8 @@ data class TradeState(val routes:Map<Int,TradeRoute> = emptyMap(),
 }
 
 object TradeActions {
+    data class ConvoyQuote(val net:Int,val tariff:Int)
+    const val QUOTE_PHASE=1
     const val TARIFF=17
     const val DIPLOMACY=20
     const val ROUTE=39
@@ -121,6 +123,8 @@ object TradeActions {
         val t=s.social.trade
         // Validate before charging.
         var outfit:OutfitStock?=null
+        var convoyDuty=0L
+        var convoyNet=0L
         when(i.command) {
             ROUTE -> {
                 if(p.baseId==0 || p.mode !in 1..4)return reject(SocialRejection.LOCATION)
@@ -135,8 +139,15 @@ object TradeActions {
                 if(fezzan(g,s)==null)return reject(SocialRejection.TARGET)
                 // U-07: Fezzan's merchant fleets no longer trade with a side that violated its neutrality.
                 if(own in t.violations)return reject(SocialRejection.STALE)
-                if(i.amount<=0 || i.amount>outfit.supplies)return reject(SocialRejection.MAXIMUM)
+                if(i.amount !in 1..65535 || i.amount>outfit.supplies)return reject(SocialRejection.MAXIMUM)
                 if((t.convoys[outfit.id] ?: 0)>now)return reject(SocialRejection.COOLDOWN)
+                val pact=(t.pacts[own] ?: 0)>now
+                val gross=i.amount*3/2*(if(pact)6 else 5)/5
+                val tariff=t.tariff(checkNotNull(counterparty).value)
+                convoyDuty=gross*tariff/100
+                convoyNet=gross-convoyDuty
+                if(r.phase==QUOTE_PHASE)return SocialResult(p,s,convoyQuote=ConvoyQuote(convoyNet.toInt(),tariff))
+                if(i.argument>0 && i.argument.toLong()!=convoyNet)return reject(SocialRejection.QUOTE_CHANGED)
             }
             TARIFF -> if(i.value !in 0..MAX_TARIFF)return reject(SocialRejection.TARGET)
             DIPLOMACY -> {
@@ -161,15 +172,13 @@ object TradeActions {
             }
             CONVOY -> {
                 val o=checkNotNull(outfit)
-                val pact=(t.pacts[own] ?: 0)>now
-                val gross=i.amount*3/2*(if(pact)6 else 5)/5
                 // The other side's tariff takes its cut into the other side's treasury (trade through Fezzan).
-                val other=checkNotNull(counterparty);val duty=gross*t.tariff(other.value)/100;val net=gross-duty
-                val treasuries=s.nationalTreasuries+(i.country to Math.addExact(s.nationalTreasuries[i.country] ?: 0,net))+
-                    (other to Math.addExact(s.nationalTreasuries[other] ?: 0,duty))
+                val other=checkNotNull(counterparty)
+                val treasuries=s.nationalTreasuries+(i.country to Math.addExact(s.nationalTreasuries[i.country] ?: 0,convoyNet))+
+                    (other to Math.addExact(s.nationalTreasuries[other] ?: 0,convoyDuty))
                 val next=s.copy(outfits=s.outfits+(o.id to o.copy(supplies=(o.supplies-i.amount).toInt())),nationalTreasuries=treasuries)
                 return SocialResult(payer,trade(t.copy(convoys=t.convoys+(o.id to now+Justice.DAY)),next),changed=true,outcome=1,
-                    found=minOf(net,0x7fffffffL).toInt())
+                    found=convoyNet.toInt())
             }
             TARIFF -> return SocialResult(payer,trade(t.copy(tariffs=t.tariffs+(own to i.value))),changed=true,outcome=1,found=i.value)
             DIPLOMACY -> {

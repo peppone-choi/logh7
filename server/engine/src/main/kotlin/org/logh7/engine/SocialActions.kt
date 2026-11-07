@@ -43,7 +43,7 @@ data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = em
         justice=justice.detached(),coup=coup.detached(),funds=funds.detached(),goals=goals.detached(),trade=trade.detached(),pirates=pirates.detached(),production=production.detached(),succession=succession.detached())
 }
 data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
-enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE, TARGET }
+enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE, TARGET, QUOTE_CHANGED }
 data class SocialView(val ticket:Int,val base:Int,val influence:Int,val approval:Int,val wait:Long,val last:SpeechReceipt?)
 data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:SocialRejection?=null,
     val changed:Boolean=false,val view:SocialView?=null,val recovery:NavigationResult?=null,val academy:AcademyView?=null,
@@ -57,7 +57,7 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
     /** 亡命: the actual destination whose session record, character and navigation switch together. */
     val defected:CountryId?=null,
     /** 情報工作 report: approval*256+peace of the infiltrated base. */
-    val report:Int=0)
+    val report:Int=0,val convoyQuote:TradeActions.ConvoyQuote?=null)
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,
