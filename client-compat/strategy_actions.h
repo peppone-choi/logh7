@@ -151,7 +151,11 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(command==15 || command==21)sendGoalAction(true);
     if(command==35 || command==36)sendProductionAction(true);
     if(command==233)sendSuccessionAction(true);
-    if(tradeCommand(command)) {tradeReport[0]=0;tradeValue=command==17 ? 10 : 0;tradeCursor=0;if(tradeHasTargets(command))sendTradeAction(true);}
+    if(tradeCommand(command)) {
+        tradeReport[0]=0;tradeValue=command==17 ? 10 : 0;tradeCursor=tradeStep=0;
+        convoyQuotesSupported=false;convoyQuote={};
+        if(tradeHasTargets(command))sendTradeAction(true);
+    }
     else if(coupCommand(command))coupReport[0]=0;
     return 1;
 }

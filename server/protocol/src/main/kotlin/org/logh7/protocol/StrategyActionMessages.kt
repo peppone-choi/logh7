@@ -43,7 +43,8 @@ object StrategyActionMessages {
         // 国家目標 15: target = an enemy base; 統治目標 21: target = a governed planet, value = focus 1..3. Previews list them.
         val goal=command in setOf(15,21)
         // Trade: 17 value = tariff %, 20 value = negotiation 0..2, 39 target = destination base (previews list them),
-        // 40 amount = supplies sold, target = foreign country; 20 value2 also targets a foreign country.
+        // 40 amount = supplies, target = foreign country, argument = quoted net (0 for old clients).
+        // A preview with a nonzero amount requests a quote instead of listing countries.
         val trade=command in setOf(17,20,39,40)
         // U-08 production at the requester's base: 35/36 value = unit kind (previews list kinds), 31..34 confirm only.
         val production=command in 31..36
@@ -91,11 +92,12 @@ object StrategyActionMessages {
         else if(strike)require(!preview && card==0 && base==0 && argument==0 && amount==0 && target==0 && value==0)
         else if(production)require(card in 1..260 && base==0 && argument==0 && amount==0 && target==0 &&
             (if(preview)command in setOf(35,36) && value==0 else value==0 || command in setOf(35,36) && value in 0..199))
-        else if(trade)require(base==0 && argument==0 && when(command) {
+        else if(trade)require(base==0 && (command==40 || argument==0) && when(command) {
             17 -> !preview && card in 1..260 && value in 0..50 && target==0 && amount==0
             20 -> card in 1..260 && amount==0 && (if(preview)value==2 else value in 0..2) && (value==2 || target==0)
             39 -> card==0 && value==0 && amount==0 && (preview || target>0)
-            else -> card in 1..260 && value==0 && (if(preview)amount==0 else amount>0)})
+            else -> card in 1..260 && value==0 && (if(preview)argument==0 && (amount==0 || target>0)
+                else amount>0 && (argument==0 || argument>0 && target>0))})
         else if(goal)require(card in 1..260 && base==0 && argument==0 && amount==0 &&
             (if(preview)value==0 else target>0 && (if(command==15)value==0 else value in 1..3)))
         else if(funds)require(card==0 && base==0 && argument==0 && value in 0..2 && (if(preview)amount==0 else target>0 && amount>0))
@@ -147,6 +149,16 @@ object StrategyActionMessages {
         return AppointmentDirectoryMessages.people(AppointmentDirectoryMessages.Query(q.character,SEARCH,q.command,q.card,q.base,q.raw),characters)
     }
     data class Selection(val id:Int,val name:String,val rank:Int=0)
+    private fun convoyRecord(q:Query,flag:Int,status:Int=0,net:Int=0,tariff:Int=0):ByteArray {
+        val payload=q.raw.copyOf()
+        ByteBuffer.wrap(payload).putShort(10,status.toShort()).put(16,flag.toByte()).putShort(21,tariff.toShort()).putInt(23,net)
+        return LoginMessages.sessionMessage(0x1200,payload)
+    }
+    fun convoyQuote(q:Query,status:Int,net:Int,tariff:Int,currency:StrategyCurrencyLabel?):List<ByteArray> {
+        require(q.command==40 && q.preview && q.amount>0)
+        return currency?.records(q.raw).orEmpty() + convoyRecord(q,20,status,net,tariff) +
+            LoginMessages.sessionMessage(0x1201,byteArrayOf())
+    }
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
     fun selections(q:Query,rows:List<Selection>,fundBalance:Long?=null,currency:StrategyCurrencyLabel?=null):List<ByteArray> {
         require(q.preview && q.command in setOf(10,11,12,13,15,20,21,39,40,35,36,233,19,24,29,65,68,69,70,71,73,74,75,80,81,87,89,95,96,98) && rows.size<=200)
@@ -166,7 +178,8 @@ object StrategyActionMessages {
         }
         require(currency==null || fundBalance!=null)
         // Old clients finish the pending preview at 1202 and safely ignore the following optional labels.
+        val extras=if(q.command==40)listOf(convoyRecord(q,19)) else currency?.records(q.raw).orEmpty()
         return listOf(LoginMessages.sessionMessage(0x1200,header),LoginMessages.sessionMessage(0x1202,bytes.toByteArray())) +
-            currency?.records(q.raw).orEmpty() + LoginMessages.sessionMessage(0x1201,byteArrayOf())
+            extras + LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }
 }
