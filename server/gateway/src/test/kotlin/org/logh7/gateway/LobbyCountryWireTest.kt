@@ -42,11 +42,11 @@ class LobbyCountryWireTest {
         return listOf(header)+(0 until rows).map {fields(client.expect(0x032f),session,nonce*512+offset)}
     }
 
-    private fun assertEmblem(client: SyntheticClient, session: Int, country: Int, slot: Int) {
+    private fun assertEmblem(client: SyntheticClient, session: Int, country: Int, slot: Int, revision: Long = 0) {
         val base = (9 shl 16) or session
         val request = CountryImageMessages.LobbyRequest(OutfitPartyMessages.Query(country, base, 18))
         client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(country).putInt(base).put(18).array())
-        for (frame in CountryImageMessages.lobbyReply(request, 0, slot, null)) {
+        for (frame in CountryImageMessages.lobbyReply(request, revision, slot, null)) {
             assertContentEquals(frame, client.expect(0x032f))
         }
     }
@@ -64,7 +64,8 @@ class LobbyCountryWireTest {
                 assertEquals(listOf("3","자유행성동맹"),frames[2].second.take(2))
                 assertEquals("0",frames[2].second[4])
                 assertEquals("NC2",catalogue(client,1,127,350).single().second[0])
-                assertEmblem(client,1,2,2)
+                val header = frames.first().second
+                assertEmblem(client,1,2,2,(header[4]+header[5]).toLong())
                 assertEmblem(client,7,2,0)
                 // Another session id reveals nothing; the lobby keeps working afterwards.
                 val unknown=catalogue(client,7,4,0)
@@ -76,9 +77,11 @@ class LobbyCountryWireTest {
             lobby(f,1).use {client->client.send(query(1,0,5,mode=7));client.expectClosed()}
             // A game connection that has not created or joined reads only its own world.
             f.game(f.account(2),create=false).use {game->
-                assertEquals(3,catalogue(game,1,9,0).size)
+                val frames = catalogue(game,1,9,0)
+                assertEquals(3,frames.size)
                 assertEquals(1,catalogue(game,2,9,0).size,"another session id is answered empty")
-                assertEmblem(game,1,3,3)
+                val header = frames.first().second
+                assertEmblem(game,1,3,3,(header[4]+header[5]).toLong())
                 assertEmblem(game,2,3,0)
             }
         }
