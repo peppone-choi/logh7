@@ -1,3 +1,5 @@
+import { publicPortalOrigin } from "../portal-config";
+
 const formType = "application/x-www-form-urlencoded";
 const limit = 512;
 
@@ -13,8 +15,12 @@ export async function portalRequest(
   results: Record<number, readonly string[] | RegExp>,
 ) {
   const host = request.headers.get("host") ?? "";
-  if (!/^(127\.0\.0\.1|localhost):\d{1,5}$/.test(host) ||
-      request.headers.get("origin") !== `http://${host}`) {
+  const origin = request.headers.get("origin");
+  const published = publicPortalOrigin();
+  if (published === null) return reply("unavailable", 503);
+  const sameOrigin = published ? host === published.host && origin === published.origin :
+    /^(127\.0\.0\.1|localhost):\d{1,5}$/.test(host) && origin === `http://${host}`;
+  if (!sameOrigin) {
     return reply("forbidden", 403);
   }
   if (request.headers.get("content-type")?.split(";")[0] !== formType) {

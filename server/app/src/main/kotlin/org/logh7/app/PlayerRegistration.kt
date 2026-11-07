@@ -10,8 +10,9 @@ import java.net.URLDecoder
 /** Loopback API for the player portal. Author: Peppone Choi (peppone-choi). */
 internal fun startPlayerRegistration(port: Int, accounts: FileAccounts, nanoTime: () -> Long = System::nanoTime): AutoCloseable {
     val server = HttpServer.create(InetSocketAddress("127.0.0.1", port), 16)
-    val changes = PasswordChangeAttempts(nanoTime)
-    val resets = PasswordChangeAttempts(nanoTime)
+    val registrations = PortalAttempts(nanoTime)
+    val changes = PortalAttempts(nanoTime)
+    val resets = PortalAttempts(nanoTime)
     fun route(path: String, handle: (HttpExchange) -> Pair<Int, String>) = server.createContext(path) { exchange ->
         exchange.use {
             val (status, result) = when {
@@ -38,6 +39,7 @@ internal fun startPlayerRegistration(port: Int, accounts: FileAccounts, nanoTime
         val password = values.getValue("password")
         if (!FileAccounts.validName(account)) 422 to "invalid_account"
         else if (!FileAccounts.validPassword(password)) 422 to "invalid_password"
+        else if (!registrations.allow(account)) 429 to "retry_later"
         else if (accounts.create(account, password)) 201 to "created" else 409 to "duplicate"
     } }
     route("/password") { exchange -> accountForm(exchange, setOf("account", "currentPassword", "newPassword")) { values ->
@@ -103,7 +105,7 @@ private fun accountForm(exchange: HttpExchange, required: Set<String>, handle: (
 }
 
 /** Short local limits before expensive password verification. The global limit also bounds the account map. */
-private class PasswordChangeAttempts(private val nanoTime: () -> Long) {
+private class PortalAttempts(private val nanoTime: () -> Long) {
     private var started = nanoTime()
     private var total = 0
     private val counts = mutableMapOf<String, Int>()
