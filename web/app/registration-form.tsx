@@ -8,7 +8,7 @@ const errors = {
   duplicate: { field: "account", message: "이미 사용 중인 아이디입니다. 다른 아이디를 입력해 주세요." },
   invalid_password: { field: "password", message: "공백 없이 영문, 숫자, 기호로 1~10자를 입력해 주세요." },
   too_large: { field: null, message: "입력이 너무 깁니다. 아이디와 비밀번호의 길이를 확인해 주세요." },
-  unavailable: { field: null, message: "가입 결과를 확인하지 못했습니다. 게임에서 로그인을 먼저 시도하고, 실패하면 다시 가입해 주세요." },
+  unavailable: { field: null, message: "가입 결과를 확인하지 못했습니다. 잠시 후 다시 시도하세요. 이미 사용 중인 아이디라고 나오면 방금 만든 비밀번호로 게임에 로그인해 보세요." },
 } as const;
 type ErrorCode = keyof typeof errors;
 type Result = { kind: "idle" | "pending" } | { kind: "error"; code: ErrorCode } | { kind: "success"; account: string };
@@ -34,6 +34,7 @@ export default function RegistrationForm() {
     const data = new FormData(event.currentTarget);
     const account = String(data.get("account") ?? "");
     const password = String(data.get("password") ?? "");
+    setShowPassword(false);
     setResult({ kind: "pending" });
     try {
       const response = await fetch("/api/register", {
@@ -62,14 +63,23 @@ export default function RegistrationForm() {
         <p className="success-mark" aria-hidden="true">✓</p>
         <h2 ref={successTitle} tabIndex={-1}>계정을 만들었습니다</h2>
         <dl><dt>게임 아이디</dt><dd>{result.account}</dd></dl>
-        <p>게임을 실행하고, 이 아이디와 방금 정한 비밀번호로 로그인하세요.</p>
+        <div className="next-steps">
+          <h3>게임에 로그인하기</h3>
+          <ol>
+            <li>LOGH7 런처에서 가입한 서버의 주소와 로그인 포트를 확인하세요.</li>
+            <li>게임을 실행해 위 아이디와 방금 만든 비밀번호를 입력하세요.</li>
+          </ol>
+        </div>
       </div>
     );
   }
 
   return (
     <form method="post" onSubmit={register} noValidate aria-labelledby="form-title">
-      <h2 id="form-title">플레이어 가입</h2>
+      <div>
+        <h2 id="form-title">계정 정보</h2>
+        <p className="hint form-note">아이디와 비밀번호를 모두 입력하세요.</p>
+      </div>
       <div className="field">
         <label htmlFor="account">게임 아이디</label>
         <input id="account" name="account" ref={accountInput} required readOnly={pending}
@@ -86,16 +96,18 @@ export default function RegistrationForm() {
             required readOnly={pending} autoComplete="new-password" autoCapitalize="none" spellCheck={false}
             onChange={() => clearFieldError("password")} aria-invalid={error?.field === "password" || undefined}
             aria-describedby={error?.field === "password" ? "password-error password-hint" : "password-hint"} />
-          <button type="button" className="reveal" aria-pressed={showPassword}
-            onClick={() => setShowPassword(!showPassword)}>비밀번호 표시</button>
+          <button type="button" className="reveal" aria-pressed={showPassword} disabled={pending}
+            onClick={() => setShowPassword(visible => !visible)}>비밀번호 표시</button>
         </div>
         {error?.field === "password" && <p id="password-error" className="error" role="alert">{error.message}</p>}
         <p id="password-hint" className="hint">1~10자 · 공백 없이 영문, 숫자, 기호</p>
       </div>
-      {error?.field === null && <p className="error" role="alert">{error.message}</p>}
-      <button type="submit" className="submit" aria-disabled={pending || undefined}>
-        {pending ? "계정 만드는 중…" : "계정 만들기"}
-      </button>
+      <div className="submission">
+        <p className="error" role="alert">{error?.field === null ? error.message : ""}</p>
+        <button type="submit" className="submit" aria-disabled={pending || undefined}>
+          {pending ? "계정 만드는 중…" : "계정 만들기"}
+        </button>
+      </div>
       <p className="sr-only" role="status">{pending ? "계정을 만드는 중입니다." : ""}</p>
       <noscript><p className="error">가입하려면 브라우저에서 자바스크립트를 켜고 새로고침해 주세요.</p></noscript>
     </form>
