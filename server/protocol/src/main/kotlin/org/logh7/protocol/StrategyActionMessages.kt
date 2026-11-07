@@ -13,6 +13,7 @@ object StrategyActionMessages {
         val target:Int=0,val base:Int=0,val value:Int=0,val preview:Boolean=false,val amount:Int=0,val argument:Int=0) {
         val hasTradeQuote get()=command==40 || command==39 || command==20 && value==2
         val isTradeQuote get()=preview && hasTradeQuote && (if(command==40)amount>0 else argument==-1)
+        val isProductionQuote get()=preview && command in 31..36 && argument==-1
     }
     fun matches(message:ByteArray)=message.size>=8 && ByteBuffer.wrap(message).let {
         it.getShort(0).toInt()==0x1200 && (it.getShort(6).toInt() and 65535)==SEARCH }
@@ -50,7 +51,7 @@ object StrategyActionMessages {
         // 39 and 20/value2: preview argument -1 quotes the selected target, commit argument is amount + 1.
         // All three retain argument 0 for old clients and directory previews.
         val trade=command in setOf(17,20,39,40)
-        // U-08 production at the requester's base: 35/36 value = unit kind (previews list kinds), 31..34 confirm only.
+        // U-08: value is the unit kind, preview argument -1 quotes, and commit base binds the quoted site.
         val production=command in 31..36
         // U-31 orbital ground attack from the compatibility DLL's commander-tab button: no card, no arguments.
         val strike=command==230
@@ -59,11 +60,11 @@ object StrategyActionMessages {
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
         require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,15,17,19,20,21,31,32,33,34,35,36,39,40,230,233,234,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,95,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || command in setOf(233,10,11,12,13,19,20,29,40,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39,35,36))
+        require(!preview || personnel || command==24 || market || production || command in setOf(233,10,11,12,13,19,20,29,40,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
-        if(!operation && !market && !transport && !proposal && !funds && !trade)require(argument==0 && amount==0)
+        if(!operation && !market && !transport && !proposal && !funds && !trade && !production)require(argument==0 && amount==0)
         if(civic)require(!preview && value in 0..2 && base==0 && argument==0 && amount==0 &&
             card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(command==55)target==0 && card in setOf(59,195) else value!=0 || target>0))
@@ -94,8 +95,10 @@ object StrategyActionMessages {
         else if(succession)require(base==0 && argument==0 && amount==0 && value==0 &&
             (if(command==234)card==0 && target==0 && !preview else card==1 && (preview || target>0)))
         else if(strike)require(!preview && card==0 && base==0 && argument==0 && amount==0 && target==0 && value==0)
-        else if(production)require(card in 1..260 && base==0 && argument==0 && amount==0 && target==0 &&
-            (if(preview)command in setOf(35,36) && value==0 else value==0 || command in setOf(35,36) && value in 0..199))
+        else if(production)require(card in 1..260 && amount==0 && target==0 &&
+            (value==0 || command in 35..36 && value in 0..199) &&
+            if(preview)base==0 && (argument==-1 || argument==0 && command in 35..36 && value==0)
+            else base in 0..65535 && argument==0)
         else if(trade)require(base==0 && when(command) {
             17 -> !preview && card in 1..260 && value in 0..50 && target==0 && amount==0 && argument==0
             20 -> card in 1..260 && amount==0 && (if(preview)value==2 else value in 0..2) &&
@@ -166,6 +169,20 @@ object StrategyActionMessages {
     fun tradeQuote(q:Query,status:Int,amount:Int,tariff:Int,currency:StrategyCurrencyLabel?):List<ByteArray> {
         require(q.isTradeQuote)
         return currency?.records(q.raw).orEmpty() + tradeRecord(q,20,status,amount,tariff) +
+            LoginMessages.sessionMessage(0x1201,byteArrayOf())
+    }
+    fun productionQuote(q:Query,status:Int,base:Int,mcp:Int,hours:Int,treasury:Long,mineral:Long,supplies:Long,
+        food:Int,adults:Int,currency:StrategyCurrencyLabel?):List<ByteArray> {
+        require(q.isProductionQuote && base in 0..65535 && mcp in 0..65535 && hours in 0..65535 &&
+            listOf(treasury,mineral,supplies).all {it in 0..0xffffffffL} && food>=0 && adults>=0)
+        fun row(flag:Int,target:Int,argument:Int,amount:Int,site:Int,result:Int=0):ByteArray {
+            val payload=q.raw.copyOf()
+            ByteBuffer.wrap(payload).putShort(10,result.toShort()).putInt(12,target).put(16,flag.toByte())
+                .putInt(17,argument).putShort(21,amount.toShort()).putInt(23,site)
+            return LoginMessages.sessionMessage(0x1200,payload)
+        }
+        return currency?.records(q.raw).orEmpty() + row(21,mineral.toInt(),supplies.toInt(),0,food) +
+            row(20,adults,treasury.toInt(),hours,(mcp shl 16) or base,status) +
             LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
