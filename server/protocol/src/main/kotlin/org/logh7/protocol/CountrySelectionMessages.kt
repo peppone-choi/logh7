@@ -18,10 +18,10 @@ object CountrySelectionMessages {
         }
     }
     fun request(query:OutfitPartyMessages.Query)=Request(query)
-    fun reply(request:Request,accepted:Boolean,nativePower:Int=0,shipStyle:String=""):ByteArray {
-        require(if(accepted && request.query.mode!=CANCEL)nativePower in 2..3 && shipStyle in setOf("empire","alliance")
-            else nativePower==0 && shipStyle.isEmpty())
-        val fields=listOf("NS1",if(accepted)"1" else "0",nativePower.toString(),shipStyle,"","","","","","")
+    fun reply(request:Request,accepted:Boolean,creationPower:Int=0,shipStyle:String=""):ByteArray {
+        require(if(accepted && request.query.mode!=CANCEL)creationPower in 2..3 && shipStyle in setOf("empire","alliance")
+            else creationPower==0 && shipStyle.isEmpty())
+        val fields=listOf("NS1",if(accepted)"1" else "0",creationPower.toString(),shipStyle,"","","","","","")
         return OutfitPartyMessages.party(request.query,2,0,0,emptyList(),emptyList(),0,0,
             fields.mapIndexed {index,value->OutfitPartyMessages.Member(index+1,index,0,value)})
     }

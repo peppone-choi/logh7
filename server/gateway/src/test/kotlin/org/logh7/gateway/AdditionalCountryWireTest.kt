@@ -35,12 +35,18 @@ class AdditionalCountryWireTest {
                     val account=fixture.account(index)
                     fixture.game(account,false).use {client->
                         val query=ByteBuffer.allocate(11).putShort(0x032e).putInt(country).putInt(65536+1).put(8).array()
-                        client.send(query);assertEquals(listOf("NS1","1","3",if(country==42)"empire" else "alliance"),fields(client.expect(0x032f)).take(4))
-                        var current=CharacterMessages.Generate(0,0,3,3,0,"Country$country","Pilot",18,1,1,1100001,List(8){0},0,0,0,0,0,0,"",0)
+                        val creationPower = if (country == 42) 2 else 3
+                        val origin = if (country == 42) 0 else 3
+                        val face = if (country == 42) 1000001 else 1100001
+                        client.send(query);assertEquals(listOf("NS1","1",creationPower.toString(),if(country==42)"empire" else "alliance"),fields(client.expect(0x032f)).take(4))
+                        var current=CharacterMessages.Generate(0,0,creationPower,origin,0,"Country$country","Pilot",18,1,1,face,List(8){0},0,0,0,0,0,0,"",0)
                         for(category in 0..4) {
                             client.send(SyntheticClient.creationBody(current.copy(category=category,shipName=if(category>=3)"Ship$country" else "")))
                             current=SyntheticClient.generated(client.expect(0x1008))
                         }
+                        assertEquals(creationPower, current.power)
+                        assertEquals(origin, current.origin)
+                        assertEquals(face, current.face)
                         client.send(SyntheticClient.opcode(0x0205));client.expect(0x0206)
                         client.send(SyntheticClient.opcode(0x0f00));var ready=false
                         repeat(300) {if(!ready && ByteBuffer.wrap(client.receive()).getShort(4).toInt()==0x0f01)ready=true}
@@ -60,6 +66,8 @@ class AdditionalCountryWireTest {
                 }
                 val saved=CharacterCreation(directory.resolve("characters.properties")).profiles()
                 assertEquals(listOf(CountryId(42),CountryId(43)),listOf(0,1).map {saved.getValue(fixture.account(it)).country})
+                assertEquals(listOf(3,3), listOf(0,1).map { saved.getValue(fixture.account(it)).character.power })
+                assertEquals(1000001, saved.getValue(fixture.account(0)).character.face)
                 val peers=(0..1).map {index->fixture.game(fixture.account(index),false).also {client->
                     client.send(SyntheticClient.opcode(0x0205));client.expect(0x0206)
                     client.send(SyntheticClient.opcode(0x0f00))

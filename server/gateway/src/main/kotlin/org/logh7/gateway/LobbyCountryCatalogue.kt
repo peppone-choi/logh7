@@ -20,9 +20,10 @@ internal object LobbyCountryCatalogue {
         if(id<=0 || CountryId(id) !in starts)return null
         val country=catalog.countries[id] ?: return null
         val style=catalog.shipStyle(CountryId(id))
+        val creationPower=catalog.families.getValue(country.family).creationPower ?: return null
         if(country.nativePower !in 2..3 || country.nativeCamp!=0 || style.value !in setOf("empire","alliance") ||
             org.logh7.engine.OrganizationOffices.system(CountryId(id),catalog) !in 2..3)return null
-        return CharacterCreation.CountrySelection(CountryId(id),country.nativePower,style)
+        return CharacterCreation.CountrySelection(CountryId(id),country.nativePower,style,creationPower)
     }
 
     class Source(val generation:Long,val snapshot:WorldSnapshot?,

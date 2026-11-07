@@ -15,9 +15,11 @@ class PostgresCountryDefinitions(private val connect:()->Connection):CountryDefi
         val revision=db.rows("SELECT revision FROM nation_definition_revision WHERE singleton=TRUE") {it.getLong(1)}.single()
         val calendars=db.rows("SELECT calendar_key,display_name,year_offset FROM nation_calendar ORDER BY calendar_key LIMIT 351") {
             CountryCalendar(it.getString(1),it.getString(2),it.getInt(3))}
-        val families=db.rows("SELECT * FROM nation_family ORDER BY family_key LIMIT 351") {
+        // Older definition schemas have no creation override, and keep the inherited preset.
+        val families=db.rows("SELECT f.*, to_jsonb(f)->>'creation_style' AS creation_override FROM nation_family f ORDER BY family_key LIMIT 351") {
             CountryFamily(it.getString("family_key"),it.getString("display_name"),it.getString("calendar_key"),
-                it.getString("command_system"),it.getString("rank_system"),it.getString("office_system"),it.getString("peerage_system"),it.getString("ship_style")) to it.getString("currency_key")}
+                it.getString("command_system"),it.getString("rank_system"),it.getString("office_system"),it.getString("peerage_system"),
+                it.getString("ship_style"),it.getString("creation_override")) to it.getString("currency_key")}
         val countries=db.rows("SELECT * FROM nation_country ORDER BY country_id LIMIT 351") {
             val id=it.getLong("country_id");require(id in 1..Int.MAX_VALUE)
             CountryDefinition(id.toInt(),it.getString("country_key"),it.getString("display_name"),it.getString("family_key"),
@@ -56,8 +58,9 @@ class PostgresCountryDefinitions(private val connect:()->Connection):CountryDefi
                     is CountryDefinitionEdit.Country -> (countries.put(edit.value.id,edit.value)==edit.value)
                     is CountryDefinitionEdit.Calendar -> (calendars.put(edit.value.key,edit.value)==edit.value)
                     is CountryDefinitionEdit.Family -> {
+                        val family = if (edit.keepCreationStyle) edit.value.copy(creationStyle = source.families[edit.value.key]?.creationStyle) else edit.value
                         familyCurrencies=familyCurrencies+(edit.value.key to edit.currency)
-                        families.put(edit.value.key,edit.value)==edit.value && before.familyCurrencies[edit.value.key]==edit.currency
+                        families.put(family.key,family)==family && before.familyCurrencies[family.key]==edit.currency
                     }
                 }
                 CountryDefinitionSnapshot(revision,CountryCatalog(calendars.values.toList(),families.values.toList(),countries.values.toList()),before.references,familyCurrencies)
@@ -72,17 +75,21 @@ class PostgresCountryDefinitions(private val connect:()->Connection):CountryDefi
                     }
                     is CountryDefinitionEdit.Calendar -> edit.value.let {c->update(db,"""INSERT INTO nation_calendar (calendar_key,display_name,year_offset) VALUES (?,?,?)
                         ON CONFLICT (calendar_key) DO UPDATE SET display_name=EXCLUDED.display_name,year_offset=EXCLUDED.year_offset""",listOf(c.key,c.name,c.yearOffset))}
-                    is CountryDefinitionEdit.Family -> edit.value.let {f->update(db,"""INSERT INTO nation_family (family_key,display_name,calendar_key,currency_key,command_system,rank_system,office_system,peerage_system,ship_style)
+                    is CountryDefinitionEdit.Family -> families.getValue(edit.value.key).let {f->update(db,"""INSERT INTO nation_family (family_key,display_name,calendar_key,currency_key,command_system,rank_system,office_system,peerage_system,ship_style)
                         VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT (family_key) DO UPDATE SET display_name=EXCLUDED.display_name,calendar_key=EXCLUDED.calendar_key,
                         currency_key=EXCLUDED.currency_key,command_system=EXCLUDED.command_system,rank_system=EXCLUDED.rank_system,
                         office_system=EXCLUDED.office_system,peerage_system=EXCLUDED.peerage_system,ship_style=EXCLUDED.ship_style""",
-                        listOf(f.key,f.name,f.calendar,edit.currency,f.commands,f.ranks,f.offices,f.peerage,f.shipStyle))}
+                        listOf(f.key,f.name,f.calendar,edit.currency,f.commands,f.ranks,f.offices,f.peerage,f.shipStyle))
+                        if (source.families[f.key]?.creationStyle != f.creationStyle) {
+                            update(db,"UPDATE nation_family SET creation_style=? WHERE family_key=?",listOf(f.creationStyle,f.key))
+                        }
+                    }
                 }
                 update(db,"UPDATE nation_definition_revision SET revision=? WHERE singleton=TRUE",listOf(Math.addExact(revision,1)))
                 db.commit();CountryDefinitionOutcome.CHANGED
             } catch(failure:Exception) {
                 rollback(db,failure)
-                if(failure is IllegalArgumentException || failure is SQLException && failure.sqlState in setOf("23503","23505","23514"))CountryDefinitionOutcome.INVALID
+                if(failure is IllegalArgumentException || failure is SQLException && failure.sqlState in setOf("23503","23505","23514","42703"))CountryDefinitionOutcome.INVALID
                 else throw failure
             }
         }

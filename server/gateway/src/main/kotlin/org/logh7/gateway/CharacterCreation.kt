@@ -27,15 +27,19 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     // Current user policy: standard battleship. A later grant policy may supply multiple kinds.
     private val configuredStarters=starterKinds?.mapValues {(_,kinds)->kinds.toList()}
     private val starters get()=configuredStarters ?: styles.mapValues {(_,style)->listOf(Flagships.forType(style.nativePower,0).kind)}
-    /** Country chosen in the lobby for a creation or lottery application. [nativePower] is the display code (2/3)
-     * the client sends as `power`; [shipStyle] is independent of the office family. Null keeps the 2/3 path. */
-    data class CountrySelection(val country:CountryId,val nativePower:Int,val shipStyle:ShipStyleId) {
-        init { require(nativePower in 2..3) { "Invalid native power" }; shipStyle.nativePower }
-        internal fun encoded()="${country.value}:$nativePower:${shipStyle.value}"
+    /** The wizard uses [creationPower]. Once registered the original game uses [nativePower]. */
+    data class CountrySelection(val country:CountryId,val nativePower:Int,val shipStyle:ShipStyleId,
+        val creationPower:Int=nativePower) {
+        init { require(nativePower in 2..3 && creationPower in 2..3) { "Invalid native power" }; shipStyle.nativePower }
+        internal fun encoded(): String {
+            val legacy = "${country.value}:$nativePower:${shipStyle.value}"
+            return if (creationPower == nativePower) legacy else "$legacy:$creationPower"
+        }
         internal companion object {
             fun decoded(value:String)=value.split(':').let {
-                require(it.size==3 && it[0].toInt().toString()==it[0]) { "Invalid country selection" }
-                CountrySelection(CountryId(it[0].toInt()),it[1].toInt(),ShipStyleId(it[2]))
+                require(it.size in 3..4 && it[0].toInt().toString()==it[0]) { "Invalid country selection" }
+                val nativePower = it[1].toInt()
+                CountrySelection(CountryId(it[0].toInt()),nativePower,ShipStyleId(it[2]),it.getOrNull(3)?.toInt() ?: nativePower)
             }
         }
     }
@@ -74,7 +78,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             require(applications.size <= 4096 && (applications.isEmpty() || deadline > 0))
             require(applications.all { (account, ids) -> account !in registered && ids.size in 1..5 &&
                 ids.distinct().size == ids.size && ids.all { id -> originals.any { it.character.id == id &&
-                    applicationSelections[account]?.let {s->s.nativePower==it.character.power} != false } } })
+                    applicationSelections[account]?.let {s->s.creationPower==it.character.power} != false } } })
             require(applicationSelections.keys.all { it in applications }) { "Selection without application" }
         }
     }
@@ -146,7 +150,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         val currentFame=fame(account)
         val selected=selection ?: applicationSelections[account]
         return originals.filter { it.minimumFame <= currentFame && registered.values.none { owned -> owned.character.id == it.character.id } &&
-            (selected == null || it.character.power == selected.nativePower) }
+            (selected == null || it.character.power == selected.creationPower) }
             .map {it.copy(character=KoreanDisplayNames.original(it.character))}
     }
     fun fame(account: String): Int = accountFame[account] ?: 0
@@ -184,7 +188,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             val style=selection?.shipStyle ?: styles.getValue(character.power)
             // The hero keeps its own model unless the chosen style differs; then the same-type model of that style.
             val kind=if(style==ShipStyleId.fromLegacy(character.power))character.shipKind else Flagships.forType(style.nativePower,character.shipType).kind
-            val won=character.copy(generated = false,shipKind=kind)
+            val won=character.copy(generated = false,shipKind=kind,power=selection?.nativePower ?: character.power)
             winners[account] = if(selection==null)profile(won) else CharacterProfile(won,selection.country,selection.shipStyle)
         }
         save(winners, emptyMap(), 0, emptyMap())
@@ -216,11 +220,12 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         require(account !in applications) { "Original-character application pending" }
         require(message.power in 2..3 && message.gender in 0..1)
         // The client's power byte must be the selected country's display code; never substituted with 2/3.
-        require(selection == null || message.power == selection.nativePower) { "Power differs from the selected country" }
+        require(selection == null || message.power == selection.creationPower) { "Power differs from the selected creation preset" }
         require(message.origin in if (message.power == 2) setOf(0, 1, 2, 4) else setOf(3, 4))
         require(message.surname.isNotBlank() && message.givenName.isNotBlank())
         require(message.category in 0..4)
-        if (message.category == 4 && registered[account]?.let { it.character == message &&
+        val storedMessage = if (selection == null) message else message.copy(power = selection.nativePower)
+        if (message.category == 4 && registered[account]?.let { it.character == storedMessage &&
                 (selection == null || it.country == selection.country && it.shipStyle == selection.shipStyle) } == true)
             return CharacterMessages.generateReply(message)
         require(account !in registered) { "Account already owns a character in this session" }
@@ -263,7 +268,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 }
                 4 -> {
                     require(previous.category == 3 && message == previous.copy(category = 4)) { "Registration data changed" }
-                    val profile=if(selection==null)profile(message) else CharacterProfile(message,selection.country,selection.shipStyle)
+                    val profile=if(selection==null)profile(message) else CharacterProfile(storedMessage,selection.country,selection.shipStyle)
                     save(registered + (account to profile))
                     registered[account] = profile
                     println("character registered id=${message.id} power=${message.power}")

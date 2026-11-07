@@ -8,7 +8,14 @@ import org.logh7.engine.strategy.StrategyCatalogLoader
 /** Definitions are separate from runtime membership and native display codes. Author: Peppone Choi (peppone-choi). */
 data class CountryCalendar(val key:String,val name:String,val yearOffset:Int)
 data class CountryFamily(val key:String,val name:String,val calendar:String,val commands:String,
-    val ranks:String,val offices:String,val peerage:String,val shipStyle:String)
+    val ranks:String,val offices:String,val peerage:String,val shipStyle:String,val creationStyle:String?=null) {
+    init { require(creationStyle == null || creationStyle in setOf("empire", "alliance")) }
+    val creationPower: Int? get() = when (creationStyle ?: offices) {
+        "empire" -> 2
+        "alliance" -> 3
+        else -> null
+    }
+}
 data class CountryDefinition(val id:Int,val key:String,val name:String,val family:String,
     val nativePower:Int,val nativeCamp:Int,val assets:String,val calendarOverride:String?=null,val shipStyleOverride:String?=null)
 

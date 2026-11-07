@@ -5,7 +5,8 @@ internal object KoreanDisplayNames {
     /** Only reviewed built-in identities; never translate arbitrary player names. */
     fun original(character: org.logh7.protocol.CharacterMessages.Generate): org.logh7.protocol.CharacterMessages.Generate {
         val source = org.logh7.protocol.OriginalCharacterMessages.localCandidates.singleOrNull {
-            it.character.id == character.id && it.character.power == character.power &&
+            // The saved display side can change when this original joins a different country.
+            it.character.id == character.id &&
                 it.character.surname == character.surname && it.character.givenName == character.givenName
         } ?: return character
         return character.copy(surname = catalogue(source.character.surname), givenName = catalogue(source.character.givenName),

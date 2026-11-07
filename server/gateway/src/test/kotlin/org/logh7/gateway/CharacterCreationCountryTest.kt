@@ -47,6 +47,28 @@ class CharacterCreationCountryTest {
         assertFailsWith<IllegalArgumentException> {store.accept("a",a,s43.copy(nativePower=3))}
     }
 
+    @Test fun imperialWizardAndLotteryCanUseAnAllianceDisplaySlotAndHull() {
+        val selection = s42.copy(creationPower = 2, shipStyle = alliance)
+        val file = dir.resolve("creation-preset.properties")
+        val initial = Clock.fixed(Instant.ofEpochMilli(1000), ZoneOffset.UTC)
+        val store = CharacterCreation(file, clock = initial, lotteryWindowMillis = 10)
+        val generated = create(store, "captain", 2, selection)
+        assertContentEquals(CharacterMessages.generateReply(generated), store.accept("captain",generated,selection))
+        assertEquals(CharacterProfile(generated.copy(power = 3),CountryId(42),alliance),store.profiles().getValue("captain"))
+
+        assertEquals(listOf(1001L), store.candidates("hero",selection).map { it.character.id })
+        assertFailsWith<IllegalArgumentException> { store.apply("hero",listOf(1002L),selection) }
+        store.apply("hero",listOf(1001L),selection)
+        val restored = CharacterCreation(file, clock = initial)
+        assertEquals(selection,restored.applicationSelection("hero"))
+        val settled = CharacterCreation(file, clock = Clock.offset(initial,Duration.ofMillis(20)))
+        val won = settled.profiles().getValue("hero")
+        assertEquals(CountryId(42),won.country)
+        assertEquals(3,won.character.power)
+        assertEquals(alliance,won.shipStyle)
+        assertEquals("키르히아이스",settled.character("hero")?.surname)
+    }
+
     @Test fun aWrongPowerOrAMidFlowChangeIsRejectedNeverSubstituted() {
         val store=CharacterCreation()
         assertFailsWith<IllegalArgumentException> {store.accept("x",request(2,"Wrong"),s42)}
