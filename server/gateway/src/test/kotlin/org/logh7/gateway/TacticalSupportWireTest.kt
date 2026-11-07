@@ -76,6 +76,9 @@ class TacticalSupportWireTest {
                 for(c in clients)assertContentEquals(cancelled,through(c,0x040a))
 
                 fixture.engine.submit(WorldCommand.AdvanceTo(5000))
+                withTimeout(5000) {
+                    while(checkNotNull(fixture.engine.snapshot().session).gameSeconds<now+120)delay(1)
+                }
                 assertNull(savedStocks.outfits.getValue(1).activeShips!!.values.single().support)
                 assertEquals(10000,savedStocks.outfits.getValue(1).supplies)
                 assertEquals(1000,savedPlayers.getValue("load-001").supplies)
