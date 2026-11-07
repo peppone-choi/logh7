@@ -14,6 +14,13 @@ inline WarpRouteFare normalWarpFare(unsigned origin, unsigned target) {
     return {lightYears,40*(intervals<4 ? intervals : 4),intervals-1};
 }
 
+// Mirrors the production NavigationPolicy and the fuel interpolation in Navigation.kt.
+inline unsigned fuelServiceHours(unsigned cruise) {
+    if (cruise>=1000) return 0;
+    const unsigned hours=((1000-cruise)*960+999)/1000;
+    return hours<48 ? 48 : hours;
+}
+
 inline bool appointmentAuthorityCard(unsigned card) {
     return card>=1 && card<=58 || card>=68 && card<=122 ||
         card>=132 && card<=194 || card>=197 && card<=256;

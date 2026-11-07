@@ -1418,6 +1418,9 @@ static int runGuard(int argc, wchar_t** argv) {
         diagonalWarp.lightYears!=142 || diagonalWarp.mcp!=80 || diagonalWarp.waitHours!=1 ||
         longWarp.lightYears!=500 || longWarp.mcp!=160 || longWarp.waitHours!=4 ||
         logh::normalWarpFare(2487,2487).mcp || logh::normalWarpFare(2487,5000).mcp) return 1123;
+    if (logh::fuelServiceHours(1000)!=0 || logh::fuelServiceHours(999)!=48 ||
+        logh::fuelServiceHours(899)!=97 || logh::fuelServiceHours(900)!=96 ||
+        logh::fuelServiceHours(0)!=960) return 1125;
     if (!logh::appointmentAuthorityCard(135) || !logh::appointmentAuthorityCard(1) ||
         logh::appointmentAuthorityCard(0) || logh::appointmentAuthorityCard(195) ||
         logh::appointmentCapitalPower(169)!=3 || logh::appointmentCapitalPower(135)!=3 ||
