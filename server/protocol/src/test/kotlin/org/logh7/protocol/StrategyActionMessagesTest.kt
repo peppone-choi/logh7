@@ -15,7 +15,7 @@ class StrategyActionMessagesTest {
         val q=query(true,-1,0)
         assertTrue(q.isProductionQuote)
         val packets=StrategyActionMessages.productionQuote(q,0,1049,80,720,100_000_000,0,0,0,0,
-            StrategyCurrencyLabel("제국마르크",""),StrategyActionMessages.ProductionProgress(1,0xfffffff0L,32,0xfffffff1L,65536))
+            StrategyCurrencyLabel("제국마르크",""),StrategyActionMessages.ProductionProgress(1,0xfffffff0L,32,0xfffffff1L,65536,0xfedc9876L))
             .map(ByteBuffer::wrap)
         assertEquals(listOf(16,17,18,19,21,20),packets.dropLast(1).map {it.get(22).toInt()})
         val progress=packets[3]
@@ -23,6 +23,8 @@ class StrategyActionMessagesTest {
         assertEquals(0xfffffff1L,progress.getInt(23).toLong() and 0xffffffffL)
         assertEquals(33,progress.getShort(27).toInt())
         assertEquals((1 shl 24)+65536,progress.getInt(29))
+        assertEquals(0xfedc,packets[4].getShort(16).toInt() and 0xffff)
+        assertEquals(0x9876,packets[4].getShort(27).toInt() and 0xffff)
         val result=packets[5]
         assertEquals(100_000_000,result.getInt(23));assertEquals(720,result.getShort(27).toInt())
         assertEquals(1049,result.getShort(31).toInt());assertEquals(80,result.getShort(29).toInt())

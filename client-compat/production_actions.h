@@ -6,12 +6,12 @@ static bool productionCommand(unsigned command) {return command>=31 && command<=
 static bool productionCard(unsigned card) {return card==54 || card==66 || card==190 || card==192;}
 static struct ProductionQuote {
     bool requested,available;
-    unsigned base,mcp,hours,treasury,mineral,supplies,food,adults;
+    unsigned base,mcp,hours,treasury,mineral,supplies,food,adults,automaticPausedUntil;
     wchar_t currency[13],symbol[5];
 } productionQuote;
 static struct {
     bool received,rowReceived,refreshAfterCommit;
-    unsigned yard,buildingUntil,ship,shipReadyAt,stock;
+    unsigned yard,buildingUntil,ship,shipReadyAt,stock,automaticPausedUntil;
     ULONGLONG refreshAt;
 } productionProgress;
 static void sendProductionAction(bool preview,bool quote=false,bool silent=false) {
@@ -83,6 +83,7 @@ static bool readProductionAction(void* record) {
                 productionQuote.mineral=at<unsigned>(record,12);
                 productionQuote.supplies=at<unsigned>(record,20);
                 productionQuote.food=at<unsigned>(record,28);
+                productionQuote.automaticPausedUntil=(reply<<16)|at<unsigned short>(record,24);
             } else if(flag==20) {
                 productionQuote.adults=at<unsigned>(record,12);
                 productionQuote.treasury=at<unsigned>(record,20);
@@ -92,6 +93,7 @@ static bool readProductionAction(void* record) {
                 productionQuote.available=!reply && productionQuote.base;
                 state.pending=false;
                 productionProgress.received=productionProgress.rowReceived && productionQuote.base;
+                productionProgress.automaticPausedUntil=productionQuote.automaticPausedUntil;
                 productionProgress.refreshAfterCommit=false;
                 productionProgress.refreshAt=GetTickCount64()+3000;
                 state.message=reply ? productionRejection(reply,command) : L"비용을 확인한 뒤 실행하세요.";
@@ -143,18 +145,26 @@ static bool updateProductionAction() {
     auto& state=taxWindow;unsigned command=state.strategyCommand;
     const int support=productionQuoteCapability(state.world,state.character);
     static const wchar_t* titles[]={L"시설 건설",L"시설 휴지",L"시설 재가동",L"시설 파기",L"함정 건조",L"모병"};
-    taxText(0,titles[command-31]);
     const StrategyDirectory::Person* row=nullptr;
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)row=&strategyDirectory.people[i];
     wchar_t label[160];bool listed=command==35 || command==36;
+    const auto clock=*reinterpret_cast<BYTE**>(0x7cd028);
+    const unsigned now=clock ? at<unsigned>(clock,0x10) : 0;
+    const unsigned pausedUntil=productionProgress.received ? productionProgress.automaticPausedUntil : 0;
+    if(pausedUntil>now && now) {
+        const unsigned hours=1+(pausedUntil-now-1)/3600;
+        swprintf_s(label,L"%ls · 자동 생산 중단 (%u시간 남음)",titles[command-31],hours);
+        taxText(0,label);
+    } else taxText(0,titles[command-31]);
     if(listed) {if(row)swprintf_s(label,L"%ls: %ls",command==35 ? L"건조할 함종" : L"모병할 병종",row->name);else swprintf_s(label,L"목록이 없습니다.");}
     else swprintf_s(label,L"%ls",command==31 ? L"이 행성에 조병창을 짓습니다." : command==32 ? L"조병창의 자동 함정 생산을 멈춥니다." :
         command==33 ? L"멈춘 조병창을 다시 가동합니다." : L"지은 조병창을 없앱니다.");
     taxText(1,label);
     const bool readyTarget=!listed || row;
     if(support==1 && readyTarget && !state.pending && !productionQuote.requested)sendProductionAction(true,true);
-    else if(support==1 && command!=36 && !state.pending && productionProgress.received &&
-        (productionProgress.refreshAfterCommit || productionProgress.buildingUntil || (command==35 && productionProgress.ship)) &&
+    else if(support==1 && !state.pending && productionProgress.received &&
+        ((pausedUntil && now>=pausedUntil) || (command!=36 && (productionProgress.refreshAfterCommit ||
+            productionProgress.buildingUntil || (command==35 && productionProgress.ship)))) &&
         GetTickCount64()>=productionProgress.refreshAt)sendProductionAction(true,true,true);
     const unsigned mcp=productionQuote.mcp ? productionQuote.mcp : command==36 ? 160 : 80;
     swprintf_s(label,L"MCP %u 또는 PCP %u",mcp,mcp*2);taxText(3,label);

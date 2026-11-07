@@ -70,6 +70,32 @@ class UnitProductionTest {
         assertEquals(1,after.bases.getValue(base).units.ships[UnitStack(32)])
         assertEquals(after,PlanetProduction(galaxy,null,start,policy,restored=after).settle(1,start+5*86400))
     }
+    @Test fun sabotagePausesAutomaticProductionForSevenDaysButStillCollectsTaxesAcrossRestart() {
+        val rules=SessionRules.load()
+        val start=rules.startSeconds
+        val base=1049
+        fun at(day:Int)=start+day*Justice.DAY
+        val existing=PlanetProduction(galaxy,null,start,policy).settle(1,start)
+        val bomb=Bomb(10000,base,10490001,at(2))
+        val armed=existing.copy(social=existing.social.copy(justice=JusticeState(bombs=mapOf(bomb.character to bomb))))
+        val session=SessionSimulation(rules).exportState()
+        fun settleBombs(stocks:PlanetStocks,day:Int)=EspionageActions.settle(galaxy,
+            session.copy(gameMillis=at(day)*1000),mutableMapOf(),stocks)
+        val daily=PlanetProduction(galaxy,null,start,policy,restored=armed)
+        val dayOne=daily.settle(1,at(1)).bases.getValue(base)
+        assertEquals(24,dayOne.units.work["S32"])
+        val dayTwo=daily.settle(1,at(2))
+        val exploded=daily.replace(dayTwo,settleBombs(dayTwo,2))
+        val restarted=PlanetProduction(galaxy,null,start,policy,restored=exploded)
+        val dayEight=restarted.settle(1,at(8)).bases.getValue(base)
+        assertEquals(dayOne,dayEight.copy(treasury=dayOne.treasury))
+        assertTrue(dayEight.treasury>dayOne.treasury)
+        val resumed=settleBombs(restarted.settle(1,at(9)),9)
+        assertEquals(48,resumed.bases.getValue(base).units.work["S32"])
+        val catchUp=PlanetProduction(galaxy,null,start,policy,restored=armed).settle(1,at(9))
+        assertEquals(resumed,settleBombs(catchUp,9))
+        assertTrue(resumed.social.justice.disabled.isEmpty())
+    }
     @Test fun shortagesCapacityAndNeutralOrRebelOwnerDoNotMintUnitsOrChargeFailedBatches() {
         val producer = producer(); val before = initial()
         for (stock in listOf(before.copy(owner=Allegiance.fromLegacy(0)), before.copy(camp = 1),

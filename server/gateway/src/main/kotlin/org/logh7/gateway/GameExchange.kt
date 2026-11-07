@@ -1813,7 +1813,7 @@ class GameExchange(
                                             quote?.mineral ?: 0,quote?.supplies ?: 0,quote?.food ?: 0,quote?.adults ?: 0,
                                             quote?.takeIf {it.treasury>0}?.let {currencyLabel(country)},
                                             quote?.progress?.let {org.logh7.protocol.StrategyActionMessages.ProductionProgress(it.yard.ordinal,
-                                                it.buildingUntil,it.order?.kind,it.order?.readyAt ?: 0,it.stock)})
+                                                it.buildingUntil,it.order?.kind,it.order?.readyAt ?: 0,it.stock,it.automaticPausedUntil)})
                                     }
                                     return null
                                 }
