@@ -39,6 +39,32 @@ class LoadHarnessTest {
         assertTrue(empty.contains("\"count\":0"))
     }
     @Test fun smallLoopbackLifecycleAlwaysRuns() = lifecycle(3, "small")
+    @Test fun operatorCanCloseOnlyTheSelectedAdmittedConnection() {
+        val metrics = LoadMetrics()
+        LoadFixture(output("operator-disconnect"), 2, metrics).use { fixture ->
+            val target = fixture.account(0)
+            val other = fixture.account(1)
+            fixture.join(target, create = true).client.use { first ->
+                fixture.join(other, create = true).client.use { unaffected ->
+                    fixture.awaitState(2, 2, 2)
+                    val old = fixture.gateway.playerConnections().entries.single { it.value == target }.key
+                    assertTrue(fixture.gateway.disconnectPlayer(old).get(5, TimeUnit.SECONDS))
+                    first.expectClosed()
+                    fixture.awaitState(1, 1, 2)
+                    fixture.join(target, create = false).client.use { rejoined ->
+                        fixture.awaitState(2, 2, 2)
+                        val current = fixture.gateway.playerConnections().entries.single { it.value == target }.key
+                        assertNotEquals(old, current)
+                        assertFalse(fixture.gateway.disconnectPlayer(old).get(5, TimeUnit.SECONDS))
+                        fixture.clock(unaffected)
+                        fixture.clock(rejoined)
+                    }
+                }
+            }
+            fixture.awaitState(0, 0, 2)
+            assertTrue(fixture.gateway.playerConnections().isEmpty())
+        }
+    }
     @Test fun fiftyLoopbackClientsWhenExplicitlyEnabled() {
         assumeTrue(System.getenv("LOGH7_LOAD_HARNESS") == "1", "50-client harness requires LOGH7_LOAD_HARNESS=1")
         lifecycle(50, "fifty")

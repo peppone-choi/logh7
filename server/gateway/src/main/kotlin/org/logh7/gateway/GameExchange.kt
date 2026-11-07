@@ -50,7 +50,7 @@ class GameExchange(
     private val characters: CharacterCreation = CharacterCreation(),
     private val gameSeconds: () -> Long = { 0 },
     private val admission: GameAdmission? = null,
-    private val connection: String = java.util.UUID.randomUUID().toString(),
+    internal val connection: String = java.util.UUID.randomUUID().toString(),
     private val expectedGeneration: Long? = admission?.generation,
     private val characterProvider: () -> CharacterCreation = { characters },
     private val world: WorldBootstrap? = null,
@@ -81,6 +81,7 @@ class GameExchange(
     private var lobbyLoggedIn = false
     private var gameLoggedIn = false
     private var gameStarted = false
+    internal fun joinedAccount(): String? = ticket?.account?.takeIf { gameStarted && state == State.AUTHENTICATED }
     private var countrySelection:CharacterCreation.CountrySelection?=null
     private var countrySelectionMode=0
     private fun selectedCountry():CharacterCreation.CountrySelection?=countrySelection?.also {selection->
