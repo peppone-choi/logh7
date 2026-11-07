@@ -5,7 +5,7 @@
 #include "country_metadata.h"
 static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
-    void* world;unsigned pending,mode,nonce,cursor,count,character,power,ownCountry;bool ownRegistered;
+    void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
     ULONGLONG sentAt,pollAt,identityAt;
     logh::CountryPaint rows[350];
 } countryPaintInbox={};
@@ -41,14 +41,18 @@ static bool receiveCountryPaint(const BYTE* record) {
 }
 static void pollCountryPaint(void* world) {
     auto own=world ? at<BYTE*>(world,8) : nullptr;
-    if(!own || !at<BYTE>(own,0) || !at<BYTE>(world,0x2a58f8))return;
+    if(!own || !at<BYTE>(own,0) || !at<BYTE>(world,0x2a58f8)) {
+        AcquireSRWLockExclusive(&countryPaintLock);
+        if(countryPaintInbox.world) {countryPaintInbox.world=nullptr;countryPaintInbox.pending=0;resetCountryMetadata();}
+        ReleaseSRWLockExclusive(&countryPaintLock);return;
+    }
     unsigned query[3]={};auto now=GetTickCount64();
     AcquireSRWLockExclusive(&countryPaintLock);
     auto& inbox=countryPaintInbox;
-    const unsigned character=at<unsigned>(own,0x24),power=at<BYTE>(own,0x28);
+    const unsigned character=at<unsigned>(own,0x24),power=at<BYTE>(own,0x28),session=*reinterpret_cast<unsigned*>(0x2216c3c)&65535;
     if(!character || (power!=2 && power!=3)) {ReleaseSRWLockExclusive(&countryPaintLock);return;}
-    if(inbox.world!=world || inbox.character!=character || inbox.power!=power) {
-        const unsigned nonce=inbox.nonce;inbox={};inbox.world=world;inbox.character=character;inbox.power=power;inbox.nonce=nonce;
+    if(inbox.world!=world || inbox.session!=session || inbox.character!=character || inbox.power!=power) {
+        const unsigned nonce=inbox.nonce;inbox={};inbox.world=world;inbox.session=session;inbox.character=character;inbox.power=power;inbox.nonce=nonce;
         resetCountryMetadata();
     }
     if(inbox.pending && now-inbox.sentAt>=5000)inbox.pending=0;
