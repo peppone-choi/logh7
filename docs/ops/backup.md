@@ -224,3 +224,15 @@ PR #307(main `b4625ee5`)이 국가별 직위·수도를 담는 창고 형식 `LO
 오프라인 `state_backup.py`와 `server_release.py`는 준비 중·저장 장애·인증 실패 등 HTTP 오류 응답도 실행 중으로 취급한다. 시간초과·이름 조회 실패로 정지를 확인할 수 없어도 작업을 거절하며, 연결이 명시적으로 거부된 경우에만 정지로 판단한다. Windows 루프백의 연결 거부가 약 2초 뒤 도착하는 것을 확인해 요청 제한을 5초로 뒀다. `--health ''`로 확인을 생략하는 기존 명시적 옵션은 유지한다. 준비 중 HTTP 503 때문에 백업·원위치 복원·릴리스 전환을 허용하지 않는 것을 실제 루프백 HTTP와 임시 폴더로 검사했다.
 
 검사: 실제 엔진을 사용하는 HTTP 검사에서 첫 공개 전 503·지표 0, 공개 후 200·지표 1과 인물 위치·거점 소유·국고/지방 금고 보존을 확인했다. 운영 API 33개·엔진 헬스 7개·운영 도구 17개가 로컬에서 통과했다. 세계 편집 시험도 준비 완료 뒤 편집을 시작해 충돌·저장 실패 처리를 계속 검사한다. 운영 도구 검사를 서버 CI에 포함했다. PR #272의 전체 서버·PostgreSQL 실DB·컨테이너 CI도 통과했다. 운영 크기 복원 시간과 직무 편지의 원본 화면 표시는 별도 확인 범위다.
+
+### 세션 저널과 계정 저장의 릴리스 전환 검사 (2026-11-08)
+
+`activate`와 `rollback` 양쪽에 실제 상태 경로를 지정한다. `--session <LOGH7_SESSION_STORE_DIR>`은 월드마다 반복한다. 체크포인트와 저널의 모든 프레임을 읽어 길이·SHA-256과 형식 번호를 확인하고, 대상 릴리스의 `SessionCodec`이 지원하는 범위를 벗어나면 전환을 거부한다. `--accounts <LOGH7_ACCOUNTS_FILE>`는 해시 비밀번호와 삭제 뒤 예약된 이름을 읽는 코드가 있는지 확인한다. 다중 세션은 `--account-fame <LOGH7_ACCOUNT_FAME_FILE>`로 공통 평판의 형식도 검사한다. 환경 변수로 평판 경로를 따로 지정하지 않았다면 세션 설정 파일 옆의 `account-fame.properties`를 넘긴다. 운영자 계정 파일은 게임 계정과 별개다.
+
+```powershell
+python tools/ops/server_release.py --health http://127.0.0.1:47901/health rollback --releases E:/logh7-releases --session E:/logh7-state/alpha/session --session E:/logh7-state/beta/session --accounts E:/logh7-state/accounts.properties --account-fame E:/logh7-state/account-fame.properties
+```
+
+캐릭터·월드·DB를 함께 쓰는 배포에는 앞 절의 검사 옵션도 추가한다. 거부되면 활성·이전 릴리스 기록을 유지한다. 전환 검사는 저장 형식과 프레임 무결성을 다룬다. 전환 뒤 세션 규칙 일치와 명령 재생 성공은 별도 기동 검사로 확인한다. 공통 평판은 각 월드 백업에 들어 있지 않으므로 전체 복구 지점을 만들 때 함께 보관한다. [다중 세션의 보존 범위](multiple-sessions.md).
+
+실제 이전·현재 배포본과 시험 저장 사본으로 확인했다. 이전 배포본은 두 형식 1 세션을 재생했다. 형식 3 체크포인트·저널과 공통 평판을 포함하면 이전 릴리스로의 전환이 거부되고 두 포인터가 유지됐다. 이전 릴리스의 저장 리더를 형식 3 사본에 직접 적용하자 `Unsupported session schema`로 실패했고, 현재 릴리스는 같은 사본을 재생했다. 해시 미지원·삭제 아이디 예약 미지원·프레임 잘림 거절은 운영 도구 검사로 확인했다.

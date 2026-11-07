@@ -1,8 +1,11 @@
 """Checks for server_release.py. Author: Peppone Choi."""
+import hashlib
 import io
+import struct
 import sys
 import tempfile
 import unittest
+import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -41,6 +44,9 @@ class ServerReleaseTest(unittest.TestCase):
         self.assertEqual("b", (self.releases / "PREVIOUS").read_text().strip())
 
     def test_damaged_release_duplicate_name_and_running_server_are_refused(self):
+        for name in ("current", "Previous", "CURRENT."):
+            with self.assertRaisesRegex(SystemExit, "bad release name"):
+                self.tool("install", str(self.build), "--releases", str(self.releases), "--name", name)
         self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "a")
         with self.assertRaises(SystemExit):
             self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "a")
@@ -286,6 +292,82 @@ class ServerReleaseTest(unittest.TestCase):
         self.assertEqual("new-mail", (self.releases / "CURRENT").read_text().strip())
         mail.write_bytes(bytes.fromhex("4c374d33") + b"old fixture")
         self.tool("activate", "old-mail", "--releases", str(self.releases), "--characters", str(characters))
+
+    def test_rollback_checks_all_session_frames_and_does_not_change_pointers_on_refusal(self):
+        def codec_class(schema):
+            # Minimal class-file field table with a SCHEMA int ConstantValue and an unrelated larger int.
+            return (bytes.fromhex("cafebabe0000003d0006") +
+                    b"\x01\x00\x06SCHEMA\x01\x00\x01I\x01\x00\x0dConstantValue" +
+                    b"\x03" + struct.pack(">I", schema) + b"\x03" + struct.pack(">I", 99) +
+                    bytes.fromhex("00000000000000000001001a0001000200010003000000020004"))
+
+        def frame(schema):
+            payload = struct.pack(">I", schema) + b"fixture"
+            return struct.pack(">I", len(payload)) + payload + hashlib.sha256(payload).digest()
+
+        for schema, name in ((2, "old"), (3, "new")):
+            with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
+                jar.writestr(server_release.SESSION_CODEC, codec_class(schema))
+            self.tool("install", str(self.build), "--releases", str(self.releases), "--name", name)
+        alpha, beta = (Path(self.temp.name) / name for name in ("alpha", "beta"))
+        for folder in (alpha, beta):
+            folder.mkdir()
+            (folder / "session.checkpoint").write_bytes(frame(2))
+            (folder / "session.journal").write_bytes(frame(1))
+        options = ("--releases", str(self.releases), "--session", str(alpha), "--session", str(beta))
+        self.tool("activate", "old", *options)
+        journal = beta / "session.journal"
+        journal.write_bytes(frame(2) + frame(3))
+        self.tool("activate", "new", *options)
+        with self.assertRaisesRegex(SystemExit, "unsupported session schema 3"):
+            self.tool("rollback", *options)
+        journal.write_bytes(frame(2)[:-1])
+        with self.assertRaisesRegex(SystemExit, "invalid session frame checksum"):
+            self.tool("rollback", *options)
+        journal.write_bytes(frame(2))
+        checkpoint = beta / "session.checkpoint"
+        checkpoint.write_bytes(frame(2) * 2)
+        with self.assertRaisesRegex(SystemExit, "invalid session checkpoint frame count"):
+            self.tool("rollback", *options)
+        self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
+        self.assertEqual("old", (self.releases / "PREVIOUS").read_text().strip())
+        checkpoint.write_bytes(frame(2))
+        self.tool("rollback", *options)
+        self.assertEqual("old", (self.releases / "CURRENT").read_text().strip())
+
+    def test_hashed_accounts_reserved_names_and_shared_fame_are_checked_without_printing_secrets(self):
+        def constant(value):
+            data = value.encode()
+            return b"\x01" + len(data).to_bytes(2, "big") + data
+
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "old")
+        jar_path = self.build / "lib" / "gateway.jar"
+        with zipfile.ZipFile(jar_path, "w") as jar:
+            jar.writestr(server_release.ACCOUNT_PASSWORD, constant("pbkdf2-sha256"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "hashed")
+        with zipfile.ZipFile(jar_path, "a") as jar:
+            jar.writestr(server_release.FILE_ACCOUNTS, constant("pbkdf2-sha256:removed"))
+            jar.writestr(server_release.FAME_STORAGE, constant("LOGH7-ACCOUNT-FAME-1"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new")
+        accounts = Path(self.temp.name) / "accounts.properties"
+        fame = accounts.with_name("account-fame.properties")
+        accounts.write_text("test=plain\n", encoding="utf-8")
+        options = ("--releases", str(self.releases), "--accounts", str(accounts))
+        self.tool("activate", "old", *options)
+        accounts.write_text("test=pbkdf2-sha256\\:1\\:salt\\:secret-test-hash\n", encoding="utf-8")
+        self.tool("activate", "hashed", *options)
+        with self.assertRaisesRegex(SystemExit, "hashed account passwords") as refused:
+            self.tool("rollback", *options)
+        self.assertNotIn("secret-test-hash", str(refused.exception))
+        accounts.write_text("test=pbkdf2-sha256\\:removed\n", encoding="utf-8")
+        fame.write_text("@format=LOGH7-ACCOUNT-FAME-1\n", encoding="utf-8")
+        options += ("--account-fame", str(fame))
+        self.tool("activate", "new", *options)
+        with self.assertRaisesRegex(SystemExit, "reserved account names.*unsupported shared account fame format"):
+            self.tool("rollback", *options)
+        fame.write_text("@format=LOGH7-ACCOUNT-FAME-10\n", encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "unsupported shared account fame format"):
+            self.tool("activate", "new", *options)
 
 if __name__ == "__main__":
     unittest.main()
