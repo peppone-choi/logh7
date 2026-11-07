@@ -2,6 +2,7 @@ package org.logh7.engine
 
 import org.junit.jupiter.api.Test
 import kotlin.test.*
+import org.logh7.engine.strategy.CpPool
 
 class CompletenessSupplyTest {
     private val request = CompletenessSupplyRequest("pilot", "c", 10000, Power.EMPIRE, 1, 1, 2)
@@ -103,6 +104,24 @@ class CompletenessSupplyTest {
         assertEquals(player, refused.player)
         assertEquals(ambiguous, refused.stocks)
         assertEquals(1, CompletenessSupply.evaluate(request, session, player, stock).source)
+    }
+
+    @Test fun boundTransferRejectsChangedCargoOrPaymentWithoutMutating() {
+        val stock = stocks(source = 1000)
+        val alternate = player.copy(mcp = 0)
+        val quote = CompletenessSupply.quote(alternate, stock.outfits.getValue(1), stock.outfits.getValue(2))
+        assertEquals(SupplyCost(1000, CpPool.PCP), quote.cost)
+        val confirm = request.copy(expected = quote.cost)
+        val consumed = stocks(source = 700)
+        for ((inventory, pilot) in listOf(consumed to alternate, stock to player)) {
+            val refused = CompletenessSupply.evaluate(confirm, session, pilot, inventory)
+            assertEquals(LogisticsRejection.QUOTE_CHANGED, refused.rejection)
+            assertEquals(inventory, refused.stocks)
+            assertEquals(pilot, refused.player)
+        }
+        val accepted = CompletenessSupply.evaluate(confirm, session, alternate, stock)
+        assertEquals(1000, accepted.transferred)
+        assertEquals(680, accepted.player?.pcp)
     }
 
     @Test fun perUnitProjectionIsStableConservesBulkCargoAndNeverExceedsCapacity() {

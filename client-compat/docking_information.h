@@ -204,7 +204,12 @@ static void __fastcall updateCommonPicker(void* selector,void*) {
             _snwprintf_s(text,_countof(text),_TRUNCATE,L"군수물자: %u\n적재 여유: %u\n적재 상한: %llu",
                 current,room,static_cast<unsigned long long>(current)+room);
             pickerText(selector,3,text);
-            pickerText(selector,4,L"보급량은 보유 물자와 대상 부대의 적재 여유에 따라 정해집니다.");
+            SupplyQuoteRow quote{};
+            if(supplyQuotedTarget(logh::infoWord(row,8),quote)) {
+                if(!quote.target || quote.status>=2)wcscpy_s(text,supplyQuotePrice(quote));
+                else swprintf_s(text,L"이전량 %u · %ls",quote.amount,supplyQuotePrice(quote));
+                pickerText(selector,4,text);
+            } else pickerText(selector,4,L"보급량은 보유 물자와 대상 부대의 적재 여유에 따라 정해집니다.");
         }
     }
     // Index 21 is a native sort dropdown in person mode, not a refresh action.

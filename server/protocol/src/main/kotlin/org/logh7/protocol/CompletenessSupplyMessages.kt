@@ -4,14 +4,21 @@ import java.nio.ByteBuffer
 
 /** CD 00551340/00555530: seven u32 followed by two bounded unit/supply result lists. Author: Peppone Choi. */
 object CompletenessSupplyMessages {
-    data class Query(val character:Int,val from:Int,val to:Int)
+    private const val QUOTE_MARKER = 0x53510000
+    data class BoundQuote(val amount: Int, val payment: Int)
+    data class Query(val character:Int,val from:Int,val to:Int,val expected:BoundQuote? = null)
     data class UnitSupply(val unit:Int,val supplies:Int)
 
     fun query(bytes:ByteArray):Query {
         require(bytes.size>=32)
         val b=ByteBuffer.wrap(bytes);require(b.short.toInt()==0x0c01)
-        b.int;val character=b.int;b.int;b.int
-        val from=b.int;val to=b.int;b.int // Claimed result supplies are never authoritative.
+        b.int;val character=b.int;val marker=b.int;b.int
+        val from=b.int;val to=b.int;val amount=b.int
+        val expected = if (marker ushr 16 == QUOTE_MARKER ushr 16) {
+            val payment = marker and 0xffff
+            require(from>0 && amount>0 && payment in 1..2)
+            BoundQuote(amount,payment)
+        } else null // The original result fields never set the price or the resulting inventory.
         fun skipResults(maximum:Int) {
             require(b.hasRemaining())
             val count=b.get().toInt() and 255
@@ -20,7 +27,7 @@ object CompletenessSupplyMessages {
         }
         skipResults(26);skipResults(70)
         require(!b.hasRemaining() && character>0 && from>=0 && to>0 && from!=to)
-        return Query(character,from,to)
+        return Query(character,from,to,expected)
     }
 
     fun response(q:Query,seconds:Long,pcp:Int,mcp:Int,toSupplies:Int,

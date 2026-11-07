@@ -394,6 +394,7 @@ static bool updateStrategyAction(void*) {
 }
 static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,void* stream) {
     auto result=reinterpret_cast<unsigned(__thiscall*)(void*,void*,void*)>(0x55b3a0)(codec,record,stream);
+    if(receiveSupplyQuote(*reinterpret_cast<void**>(0x7ccffc),static_cast<const BYTE*>(record)))return result;
     if(readOutfitFormationBegin(record))return result;
     if(readBudgetAction(record))return result;
     if(readSocialAction(record))return result;

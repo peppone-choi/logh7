@@ -1,6 +1,53 @@
 // Native supply record offsets verified against 120b and the selected variable. Author: Peppone Choi.
 #pragma once
 #include <string>
+struct SupplyQuoteRow {unsigned source,target,amount,payment,status;};
+static SRWLOCK supplyQuoteLock=SRWLOCK_INIT;
+static struct SupplyQuoteCache {
+    void* world;
+    unsigned character,nonce,count;
+    bool enabled;
+    SupplyQuoteRow rows[300],confirmed;
+} supplyQuoteCache={};
+
+static bool receiveSupplyQuote(void* world,const BYTE* record) {
+    if(logh::infoShort(record,4)!=0x7f00 || logh::infoShort(record,6)!=62)return false;
+    SupplyQuoteRow row={logh::infoWord(record,12),logh::infoWord(record,20),logh::infoWord(record,28),
+        record[16],logh::infoShort(record,10)};
+    AcquireSRWLockExclusive(&supplyQuoteLock);
+    auto& cache=supplyQuoteCache;
+    if(cache.enabled && cache.world==world && logh::infoWord(record,0)==cache.character && logh::infoShort(record,8)==cache.nonce &&
+        row.source && row.target && row.payment<=2 && row.status<=3 && cache.count<_countof(cache.rows))
+        cache.rows[cache.count++]=row;
+    ReleaseSRWLockExclusive(&supplyQuoteLock);
+    return true;
+}
+
+static bool supplyQuotedTarget(unsigned target,SupplyQuoteRow& quote) {
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    AcquireSRWLockShared(&supplyQuoteLock);
+    const auto& cache=supplyQuoteCache;
+    const bool enabled=cache.enabled && cache.world==world && own && cache.character==at<unsigned>(own,0x24);
+    if(enabled)for(unsigned i=0;i<cache.count;++i)if(cache.rows[i].target==target) {quote=cache.rows[i];break;}
+    ReleaseSRWLockShared(&supplyQuoteLock);
+    return enabled;
+}
+
+static void rememberSupplyConfirmation(const SupplyQuoteRow& quote) {
+    AcquireSRWLockExclusive(&supplyQuoteLock);
+    supplyQuoteCache.confirmed=quote;
+    ReleaseSRWLockExclusive(&supplyQuoteLock);
+}
+
+static const wchar_t* supplyQuotePrice(const SupplyQuoteRow& quote) {
+    return !quote.target ? L"견적 미수신 · 목록을 다시 여세요" :
+        quote.status==1 ? L"CP 부족 · MCP 160 / PCP 320 필요" :
+        quote.status==2 ? L"이동 또는 작업 진행 중" :
+        quote.status==3 ? L"부대 편성이나 적재 상태 확인" :
+        quote.payment==1 ? L"MCP 160" : quote.payment==2 ? L"대체 PCP 320" : L"결제 없음";
+}
+
 static bool supplyCommandContext() {
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     unsigned authority=*reinterpret_cast<unsigned*>(0xc9eac0);

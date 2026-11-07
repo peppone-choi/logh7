@@ -4,9 +4,16 @@ import org.logh7.engine.strategy.*
 
 data class CompletenessSupplyRequest(val account: String, val connection: String, val characterId: Int,
     val country: CountryId?, val generation: Long, val from: Int, val to: Int,
-    val politics: Int = 50, val administration: Int = 50) {
+    val politics: Int = 50, val administration: Int = 50, val expected: SupplyCost? = null) {
     constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,from:Int,to:Int,
         politics:Int=50,administration:Int=50):this(account,connection,characterId,power.country,generation,from,to,politics,administration)
+}
+
+data class SupplyCost(val amount: Int, val pool: CpPool)
+
+data class CompletenessSupplyQuote(val amount: Int = 0, val payment: PaymentResult.Paid? = null,
+    val rejection: LogisticsRejection? = null) {
+    val cost: SupplyCost? get() = payment?.chargedPool?.let { SupplyCost(amount, it) }
 }
 
 data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetStocks?,
@@ -20,7 +27,25 @@ data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetSt
  * moving-outfit logistics is connected. Individual flagship cargo is a separate pending task.
  * Author: Peppone Choi.
  */
-internal object CompletenessSupply {
+object CompletenessSupply {
+    /** Cargo and CP rules shared by the authorized directory and by the committing world actor. */
+    fun quote(player: Navigator, from: OutfitStock, to: OutfitStock): CompletenessSupplyQuote {
+        if (player.cpPaused || player.navigationPending)
+            return CompletenessSupplyQuote(rejection = LogisticsRejection.BUSY)
+        val sourceUnits = from.activeShips?.values
+        val targetUnits = to.activeShips?.values
+        val maximum = OutfitSupplies.capacity(to)
+        // A successful transaction must fit the original result arrays.
+        if (sourceUnits == null || targetUnits == null || sourceUnits.size > 26 || targetUnits.size > 70 ||
+            to.supplies > maximum || from.supplies > OutfitSupplies.capacity(from))
+            return CompletenessSupplyQuote(rejection = LogisticsRejection.STOCK)
+        val amount = minOf(from.supplies, maximum - to.supplies)
+        if (amount == 0) return CompletenessSupplyQuote()
+        val paid = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), 160, CpPool.MCP)
+        return if (paid is PaymentResult.Paid) CompletenessSupplyQuote(amount, paid)
+            else CompletenessSupplyQuote(amount, rejection = LogisticsRejection.CP)
+    }
+
     fun evaluate(r: CompletenessSupplyRequest, session: SessionState, player: Navigator?,
         stocks: PlanetStocks): CompletenessSupplyResult {
         fun reject(reason: LogisticsRejection) = CompletenessSupplyResult(player, stocks, reason)
@@ -44,19 +69,11 @@ internal object CompletenessSupply {
         if (base?.country != country || base.camp != 0 ||
             (from.position?.baseId ?: from.baseId) != player.baseId || (to.position?.baseId ?: to.baseId) != player.baseId)
             return reject(LogisticsRejection.LOCATION)
-        if (player.cpPaused || player.navigationPending)
-            return reject(LogisticsRejection.BUSY)
-        // Native result arrays have hard limits; never truncate a successful transaction.
-        val sourceUnits = from.activeShips?.values ?: return reject(LogisticsRejection.STOCK)
-        val targetUnits = to.activeShips?.values ?: return reject(LogisticsRejection.STOCK)
-        if (sourceUnits.size > 26 || targetUnits.size > 70) return reject(LogisticsRejection.STOCK)
-        val maximum = OutfitSupplies.capacity(to)
-        if (to.supplies > maximum || from.supplies > OutfitSupplies.capacity(from))
-            return reject(LogisticsRejection.STOCK)
-        val amount = minOf(from.supplies, maximum - to.supplies)
-        if (amount == 0) return CompletenessSupplyResult(player, stocks, source = from.id)
-        val paid = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), 160, CpPool.MCP)
-        if (paid !is PaymentResult.Paid) return reject(LogisticsRejection.CP)
+        val quote = quote(player, from, to)
+        quote.rejection?.let { return reject(it) }
+        if (r.expected != null && r.expected != quote.cost) return reject(LogisticsRejection.QUOTE_CHANGED)
+        val paid = quote.payment ?: return CompletenessSupplyResult(player, stocks, source = from.id)
+        val amount = quote.amount
         val after = player.paidWith(paid.balance)
         val next = stocks.copy(outfits = stocks.outfits + mapOf(
             from.id to from.copy(supplies = from.supplies - amount),
