@@ -17,9 +17,11 @@ static void CALLBACK pollGameAdmission(HWND window,UINT,UINT_PTR timer,DWORD) {
     if(!window)window=GetActiveWindow();
     DWORD owner=0;if(window)GetWindowThreadProcessId(window,&owner);
     if(owner!=GetCurrentProcessId())window=nullptr;
-    const auto message=rejection==logh::GameAdmissionRejection::AlreadyOnline
-        ? L"이 계정은 이미 이 세션에 접속 중입니다.\n기존 게임을 종료한 뒤 다시 접속하세요.\n확인을 누르면 이 게임 창을 닫습니다."
-        : L"현재 세션에 참가할 수 없습니다.\n기존 접속과 세션 상태를 확인한 뒤 다시 접속하세요.\n확인을 누르면 게임을 닫습니다.";
+    const wchar_t* message=L"현재 세션에 참가할 수 없습니다.\n기존 접속과 세션 상태를 확인한 뒤 다시 접속하세요.\n확인을 누르면 게임을 닫습니다.";
+    if(rejection==logh::GameAdmissionRejection::AlreadyOnline)
+        message=L"이 계정은 이미 이 세션에 접속 중입니다.\n기존 게임을 종료한 뒤 다시 접속하세요.\n확인을 누르면 이 게임 창을 닫습니다.";
+    if(rejection==logh::GameAdmissionRejection::Maintenance)
+        message=L"이 세션은 현재 점검 중입니다.\n점검이 끝난 뒤 다시 접속하세요.\n확인을 누르면 이 게임 창을 닫습니다.";
     MessageBoxW(window,message,L"게임 참가 거절",MB_OK|MB_ICONERROR);
     if(window)PostMessageW(window,WM_CLOSE,0,0);
     else PostQuitMessage(0);

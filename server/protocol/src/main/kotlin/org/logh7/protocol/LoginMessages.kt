@@ -45,7 +45,7 @@ object LoginMessages {
     fun sessionMessage(opcode: Int, body: ByteArray, field50: Int = 0): ByteArray =
         ByteBuffer.allocate(6 + body.size).putInt(field50).putShort(opcode.toShort()).put(body).array()
     /** SSLoginNG reason codes used by the LOGH7 compatibility module. */
-    enum class SessionRejection(val wire: Byte) { GENERIC(1), ALREADY_ONLINE(2) }
+    enum class SessionRejection(val wire: Byte) { GENERIC(1), ALREADY_ONLINE(2), MAINTENANCE(3) }
 
     fun sessionRejection(reason: SessionRejection = SessionRejection.GENERIC): ByteArray =
         sessionMessage(0x0202, byteArrayOf(reason.wire, 1, 0, 0))

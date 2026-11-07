@@ -2234,6 +2234,11 @@ class GameExchange(
                         characters.apply(identity.account, OriginalCharacterMessages.application(body),selectedCountry()) }
                     0x0205 -> {
                         check(gameLoggedIn && !gameStarted && !joining && body.size == 2)
+                        // A game connection can authenticate before maintenance and request entry afterwards.
+                        if (maintenance?.refuses() == true) {
+                            state = State.REJECTED
+                            return handshake.stageAll(listOf(LoginMessages.sessionRejection(LoginMessages.SessionRejection.MAINTENANCE)), clearHeader = 0)
+                        }
                         val character = checkNotNull(currentCharacter(identity.account))
                         val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)
                         if(!profile.canEnterNativeCountry(world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current())) {
@@ -2355,7 +2360,8 @@ class GameExchange(
                     check(lobbyLoggedIn)
                     val selected=LobbyMessages.select(body)
                     val target=if(sessionDirectory==null) {
-                        if(selected==sessionId && admission?.running!=false)GameSessionDirectory.Target(sessionId,sessionAddress,sessionPort,admission?.generation ?: 1) else null
+                        if(selected==sessionId && admission?.running!=false && maintenance?.closed()!=true)
+                            GameSessionDirectory.Target(sessionId,sessionAddress,sessionPort,admission?.generation ?: 1) else null
                     } else sessionDirectory.target(selected,bindHost)
                     if (target!=null) {
                         LobbyMessages.selected(target.address,target.port,tickets.issue(identity.account,SessionTickets.Purpose.GAME,
