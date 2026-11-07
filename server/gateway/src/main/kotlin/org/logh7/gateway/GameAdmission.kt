@@ -6,8 +6,12 @@ import org.logh7.protocol.CharacterMessages
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
-/** Native selection/bootstrap still need their country expansion; the actor itself uses actual IDs. */
-internal fun CharacterProfile.canEnterNativeCountry()=country?.value in setOf(2,3) && country?.value==character.power
+/** A display code validates presentation, never membership. Unattached creation has its own flow. */
+internal fun CharacterProfile.canEnterNativeCountry(catalog:CountryCatalog=CountryCatalogLoader.current()):Boolean {
+    val definition=country?.let {catalog.countries[it.value]} ?: return false
+    return definition.nativePower==character.power && definition.nativePower in 2..3 && definition.nativeCamp==0 &&
+        shipStyle.value in setOf("empire","alliance") && OrganizationOffices.system(checkNotNull(country),catalog) in 2..3
+}
 
 interface GameAdmission {
     val generation: Long

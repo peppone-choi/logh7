@@ -33,7 +33,11 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
         override val generation get() = access.generation
         override val running get() = access.running
         override fun join(account: String, character: CharacterMessages.Generate, connection: String, generation: Long): CompletableFuture<Admission> {
-            val future = access.join(account, character, connection, generation)
+            return observe(account,access.join(account, character, connection, generation))
+        }
+        override fun join(account:String,profile:CharacterProfile,connection:String,generation:Long):CompletableFuture<Admission> =
+            observe(account,access.join(account,profile,connection,generation))
+        private fun observe(account:String,future:CompletableFuture<Admission>):CompletableFuture<Admission> {
             future.whenComplete { value, failure ->
                 if (failure == null) { decisions += value; metrics.increment("admission_${value.name}") }
             }

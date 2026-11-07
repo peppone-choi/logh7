@@ -87,6 +87,10 @@ class SessionEndingReportTest {
         val result=SessionResults.assessCountries(end,SessionStatistics(population=2),mapOf(
             a to SessionStatistics(population=1),b to SessionStatistics(population=1)))
         val world=WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot().copy(ended=end),result=result)
-        assertFailsWith<IllegalArgumentException> {SessionEndingReport.session(world,listOf(actor))}
+        val native=SessionEndingReport.session(world,listOf(actor))
+        assertTrue(native.powers.all {it.ending==null},"42/43 never become native countries 2/3")
+        val request=org.logh7.protocol.CountryEndingMessages.Request(org.logh7.protocol.OutfitPartyMessages.Query(1,512,14))
+        assertEquals(5,CountryEndingReport.reply(request,world,emptyMap(),CountryCatalogLoader.current(),emptyList()).size,
+            "header and both identity/statistics pairs retain the complete two additional-country result")
     }
 }

@@ -69,7 +69,7 @@ object OrganizationOffices {
     }
     fun of(card:Int)=all[card]
     /** Select a rule system by its configured key, never by the country's display code. */
-    internal fun system(country:CountryId,countries:CountryCatalog):Int? {
+    fun system(country:CountryId,countries:CountryCatalog):Int? {
         val definition=countries.countries[country.value] ?: return null
         return when(countries.families.getValue(definition.family).offices) {"empire"->2;"alliance"->3;else->null}
     }

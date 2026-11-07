@@ -2,10 +2,13 @@
 // The 035a handler otherwise only hides the HUD. Author: Peppone Choi.
 #pragma once
 #include "session_ending_data.h"
-static struct {void* world=nullptr;void* root=nullptr;void* gui=nullptr;bool active=false;bool lobby=false;ULONGLONG acceptAfter=0;logh::SessionEndingData data;} sessionEnding;
+static struct {void* world=nullptr;void* root=nullptr;void* gui=nullptr;bool active=false,lobby=false,partial=false;
+    unsigned offset=0,countrySequence=0;ULONGLONG acceptAfter=0,pollAt=0;logh::SessionEndingData data;} sessionEnding;
 // Reuse allocated table labels. Native lookup does not bounds-check categories/slots;
 // its button table has only 120 slots, and 108..110 belong to the directory scrollbar.
-static constexpr int endingControl(int id) {return id==132 ? 26 : 40+id-110;}
+static constexpr int endingControl(int id) {
+    return id==132 ? 26 : id==142 ? 23 : id==143 ? 24 : id==144 ? 80 : (id>132 ? 39 : 40)+id-110;
+}
 static_assert(endingControl(110)==40 && endingControl(131)==61 && endingControl(132)==26,"Allocated native table labels");
 static void endingText(int id,int x,int y,int width,const wchar_t* text,bool button=false) {
     id=endingControl(id);auto widget=planetWidget(id);
@@ -18,7 +21,7 @@ static void endingText(int id,int x,int y,int width,const wchar_t* text,bool but
 static bool showSessionEnding(void* gui) {
     if(!createPlanetWindow(gui,false))return false;
     auto root=planetWindowRoot;
-    const int ranges[][2]={{0,3},{10,13},{20,32},{40,84},{100,103}};
+    const int ranges[][2]={{0,3},{10,13},{20,32},{40,88},{100,103}};
     for(const auto& range:ranges)for(int id=range[0];id<=range[1];++id) {
         auto widget=planetWidget(id);if(!widget)continue;
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(root,widget,0);
@@ -36,33 +39,57 @@ static bool showSessionEnding(void* gui) {
             planetEnabled(id,false);
         }
     }
-    const auto& data=sessionEnding.data;
-    wchar_t text[160];swprintf_s(text,L"세션 결과  ·  %s",logh::endingGrade(data.sides[data.power-2].grade));
+    const auto& data=sessionEnding.data;logh::CountryEndingCatalog countries;
+    AcquireSRWLockShared(&countryEndingLock);
+    if(countryEndingInbox.world==sessionEnding.world && countryEndingInbox.published.header.session==data.session &&
+        (sessionEnding.lobby || countryEndingInbox.character==data.character))countries=countryEndingInbox.published;
+    sessionEnding.countrySequence=countryEndingInbox.sequence;
+    ReleaseSRWLockShared(&countryEndingLock);
+    if(countries.rows.size()!=countries.header.total && countries.header.offset!=sessionEnding.offset)countries.rows.clear();
+    const auto me=countries.find(countries.header.viewer);
+    const bool unavailable=countries.header.session==data.session && countries.header.status==0;
+    wchar_t text[160];swprintf_s(text,L"%s  ·  %s",sessionEnding.partial ? L"국가 패배" : L"세션 결과",
+        me ? logh::endingGrade(me->grade) : unavailable ? L"국가별 기록 없음" : countries.header.status ? L"국가별 결과" : L"국가별 결과 조회 중");
     endingText(110,184,91,620,text);
     const wchar_t* reason=data.reason==3 ? L"수도 함락" : data.reason==4 ? L"잔존 성계 감소" : L"기간 만료";
-    swprintf_s(text,L"%s  |  %s로 세션이 종료되었습니다.",data.name[0] ? data.name : L"현재 세션",reason);
+    if(sessionEnding.partial)wcscpy_s(text,L"소속 국가가 탈락했습니다. 나머지 국가의 세션은 계속 진행됩니다.");
+    else swprintf_s(text,L"%s  |  %s로 세션이 종료되었습니다.",data.name[0] ? data.name : L"현재 세션",reason);
     endingText(111,184,126,640,text);
-    for(unsigned i=0;i<2;++i) {
-        int x=190+static_cast<int>(i)*320;const auto& side=data.sides[i];const auto& v=side.statistics;
-        endingText(112+static_cast<int>(i),x,164,290,runtimeCountryAffiliation(i+2,0,38).c_str());
-        endingText(114+static_cast<int>(i),x,196,290,logh::endingGrade(side.grade));
-        const unsigned values[]={v.planets,v.fortresses,v.population,v.ships,v.troops,side.characters};
+    unsigned shown=0;
+    for(unsigned i=0;i<3;++i) {
+        const unsigned index=countries.rows.size()==countries.header.total ? sessionEnding.offset+i : i;
+        if(index>=countries.rows.size())break;
+        const auto& side=countries.rows[index];++shown;
+        const int x=184+static_cast<int>(i)*216;
+        auto label=[&](int row,const wchar_t* value) {int id=112+static_cast<int>(i)*9+row;if(id>=132)++id;endingText(id,x,164+row*28,208,value);};
+        label(0,logh::fitCountryLabel(side.name,24).c_str());
+        const unsigned rgb=side.hasRgb ? side.rgb : 0xffffff;
+        reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)
+            (root,planetWidget(endingControl(112+static_cast<int>(i)*9)),((rgb>>16)&255)/255.f,((rgb>>8)&255)/255.f,(rgb&255)/255.f,1.f);
+        swprintf_s(text,L"%s%s",side.id==countries.header.viewer ? L"내 국가 · " : L"",
+            side.grade==255 && countries.header.status==1 ? L"진행 중" : logh::endingGrade(side.grade));label(1,text);
+        const std::uint64_t values[]={side.planets,side.fortresses,side.population/10000,side.ships,side.troops,side.characters};
         const wchar_t* labels[]={L"행성",L"요새",L"인구(만 명)",L"함정 유닛",L"육전대 유닛",L"등록 인물"};
         for(int row=0;row<6;++row) {
-            if(side.present || row==5)swprintf_s(text,L"%s   %u",labels[row],values[row]);
-            else swprintf_s(text,L"%s   집계 중",labels[row]);
-            endingText(116+static_cast<int>(i)*6+row,x,238+row*28,290,text);
+            if(countries.header.status!=1 || side.id==countries.header.viewer && side.eliminated || row==5)
+                swprintf_s(text,L"%s   %llu",labels[row],static_cast<unsigned long long>(values[row]));
+            else swprintf_s(text,L"%s   비공개",labels[row]);
+            label(row+2,text);
         }
-        const wchar_t* population=side.populationCondition==255 ? L"집계 중" : side.populationCondition ? L"충족" : L"미달";
-        const wchar_t* fleet=side.fleetCondition==255 ? L"집계 중" : side.fleetCondition ? L"충족" : L"미달";
-        swprintf_s(text,L"인구 90%%: %s  /  전력 10배: %s",population,fleet);
-        endingText(128+static_cast<int>(i),x,414,294,text);
+        const wchar_t* population=side.populationCondition==255 ? L"대기" : side.populationCondition ? L"충족" : L"미달";
+        const wchar_t* fleet=side.fleetCondition==255 ? L"대기" : side.fleetCondition ? L"충족" : L"미달";
+        swprintf_s(text,L"인구90%% %s · 전력10배 %s",population,fleet);
+        label(8,text);
     }
     if(data.evaluationPresent)swprintf_s(text,L"평가 %u → %u  |  명성 %u → %u",
         data.previousEvaluation,data.finalEvaluation,data.previousFame,data.finalFame);
     else wcscpy_s(text,L"개인 정산 기록이 없습니다.");
-    endingText(130,184,450,640,text);
-    endingText(131,184,486,520,sessionEnding.lobby ? L"종료된 세션의 저장된 결과입니다." : L"다음 세션 준비 후 다시 접속해 주세요.");
+    endingText(140,184,450,640,text);
+    endingText(141,184,486,210,sessionEnding.lobby ? L"저장된 국가별 결과" : sessionEnding.partial ? L"정산은 세션 종료 후 반영" : L"국가별 최종 결과");
+    endingText(142,400,477,80,L"이전",true);planetEnabled(endingControl(142),sessionEnding.offset>0);
+    endingText(143,490,477,80,L"다음",true);planetEnabled(endingControl(143),sessionEnding.offset+shown<countries.header.total);
+    swprintf_s(text,L"%u / %u",countries.header.total ? sessionEnding.offset/3+1 : 0,(countries.header.total+2)/3);
+    endingText(144,590,486,110,text);
     endingText(132,720,477,100,sessionEnding.lobby ? L"돌아가기" : L"게임 종료",true);
     reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(root,12);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,root);
@@ -76,15 +103,55 @@ static void receivedSessionEnding(void* world,const BYTE* record) {
     sessionEnding={};sessionEnding.world=world;sessionEnding.data=data;sessionEnding.active=true;
 }
 static bool updateSessionEnding(void* gui) {
-    if(!sessionEnding.active)return false;
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
     auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if(!sessionEnding.active && own && own[0]) {
+        AcquireSRWLockShared(&countryEndingLock);const auto& inbox=countryEndingInbox;
+        const auto& data=inbox.published;const auto me=data.find(data.header.viewer);
+        if(inbox.world==world && inbox.character==at<unsigned>(own,0x24) && data.header.status==1 && me && me->eliminated) {
+            sessionEnding={};sessionEnding.active=sessionEnding.partial=true;sessionEnding.world=world;
+            sessionEnding.data.character=inbox.character;sessionEnding.data.session=data.header.session;
+            sessionEnding.data.power=own[0x28];sessionEnding.data.reason=3;
+        }
+        ReleaseSRWLockShared(&countryEndingLock);
+    }
+    if(!sessionEnding.active)return false;
     if(world!=sessionEnding.world || (!sessionEnding.lobby && (!own || at<unsigned>(own,0x24)!=sessionEnding.data.character))) {
         if(sessionEnding.root && sessionEnding.gui==gui)reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(sessionEnding.root,0);
         sessionEnding={};return false;
     }
     if(sessionEnding.gui!=gui || !sessionEnding.root) {
         closePlanetInformation();closeTaxWindow();showSessionEnding(gui);
+    }
+    unsigned sequence=0;bool complete=false;
+    AcquireSRWLockShared(&countryEndingLock);
+    sequence=countryEndingInbox.sequence;
+    complete=countryEndingInbox.world==world && countryEndingInbox.published.header.session==sessionEnding.data.session &&
+        (countryEndingInbox.published.rows.size()==countryEndingInbox.published.header.total ||
+            countryEndingInbox.published.header.offset==sessionEnding.offset);
+    ReleaseSRWLockShared(&countryEndingLock);
+    if(sequence!=sessionEnding.countrySequence)showSessionEnding(gui);
+    if(sessionEnding.lobby && !complete && GetTickCount64()>=sessionEnding.pollAt) {
+        requestCountryEndings(world,sessionEnding.data.session,sessionEnding.offset);sessionEnding.pollAt=GetTickCount64()+5000;
+    }
+    if(sessionEnding.root && GetTickCount64()>=sessionEnding.acceptAfter)for(int id=142;id<=143;++id) {
+        BYTE pageEvent[52]={};
+        if(planetWidget(endingControl(id)) && reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)
+            (sessionEnding.root,2,planetWidget(endingControl(id)),pageEvent,0)) {
+            unsigned offset=sessionEnding.offset;
+            if(id==142 && offset>=3)offset-=3;
+            else if(id==143)offset+=3;
+            bool cached=false;
+            AcquireSRWLockShared(&countryEndingLock);
+            const auto& all=countryEndingInbox.published;
+            cached=countryEndingInbox.world==world && all.header.session==sessionEnding.data.session &&
+                all.rows.size()==all.header.total;
+            const bool valid=offset<all.header.total;
+            ReleaseSRWLockShared(&countryEndingLock);
+            if(valid && (cached || sessionEnding.lobby && requestCountryEndings(world,sessionEnding.data.session,offset)))
+                sessionEnding.offset=offset;
+            showSessionEnding(gui);return true;
+        }
     }
     BYTE event[52]={};
     if(sessionEnding.root && GetTickCount64()>=sessionEnding.acceptAfter && reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)

@@ -10,26 +10,24 @@ import org.logh7.protocol.LoginMessages
 /**
  * One world's lobby country catalogue (protocol mode 7). Every definition is listed by stable country id;
  * counts use the actual [CountryId] (a registered profile, or the same character's navigator in the current
- * generation) and never fold countries together by native power. Only countries the original client can
- * already create or draw into (2 and 3) are marked selectable; added countries are shown but not offered,
+ * generation) and never fold countries together by native power. A country is selectable only with its
+ * own configured start and supported native display, ship style and office family; eliminated countries are excluded,
  * and nothing here grants entry, game data or another world's positions. Author: Peppone Choi.
  */
 internal object LobbyCountryCatalogue {
-    /** Countries the native creation and lottery screens can start today. */
-    private val SELECTABLE=setOf(2,3)
-    private fun eligibility(id:Int)=if(id in SELECTABLE)LobbyCountryMessages.CREATE or LobbyCountryMessages.LOTTERY else 0
-
-    fun selection(id:Int,catalog:CountryCatalog):CharacterCreation.CountrySelection? {
-        if(eligibility(id)==0)return null
+    private val defaultStarts=setOf(CountryId(2),CountryId(3))
+    fun selection(id:Int,catalog:CountryCatalog,starts:Set<CountryId> = defaultStarts):CharacterCreation.CountrySelection? {
+        if(id<=0 || CountryId(id) !in starts)return null
         val country=catalog.countries[id] ?: return null
         val style=catalog.shipStyle(CountryId(id))
-        if(country.nativePower !in 2..3 || style.value !in setOf("empire","alliance"))return null
+        if(country.nativePower !in 2..3 || country.nativeCamp!=0 || style.value !in setOf("empire","alliance") ||
+            org.logh7.engine.OrganizationOffices.system(CountryId(id),catalog) !in 2..3)return null
         return CharacterCreation.CountrySelection(CountryId(id),country.nativePower,style)
     }
 
     class Source(val generation:Long,val snapshot:WorldSnapshot?,
         val profiles:Map<String,CharacterProfile>,val catalog:CountryCatalog,val revision:Long,
-        val appearances:List<CountryAppearance>)
+        val appearances:List<CountryAppearance>,val starts:Set<CountryId> = defaultStarts)
 
     fun reply(request:LobbyCountryMessages.Request,source:Source):List<ByteArray> {
         val countries=source.catalog.countries.values.sortedBy {it.id}.take(LobbyCountryMessages.MAX_OFFSET)
@@ -43,7 +41,8 @@ internal object LobbyCountryCatalogue {
             LobbyCountryMessages.Row(country.id,country.name,colors[country.id]?.colors?.primary,
                 members[CountryId(country.id)] ?: 0,bases[CountryId(country.id)] ?: 0,country.nativePower,country.nativeCamp,
                 // The family key is withheld until its asset reference is confirmed (no arbitrary truncation).
-                "",eligibility(country.id))
+                "",if(selection(country.id,source.catalog,source.starts-snapshot?.session?.eliminated.orEmpty().keys)!=null)
+                    LobbyCountryMessages.CREATE or LobbyCountryMessages.LOTTERY else 0)
         }
         val header=LobbyCountryMessages.Header(countries.size,request.offset,rows.size,source.revision,
             snapshot?.session?.gameSeconds ?: 0,source.generation,totalBases)

@@ -101,6 +101,38 @@ class LobbyCountryCatalogueTest {
         assertFailsWith<IllegalArgumentException> {LobbyCountryMessages.request(OutfitPartyMessages.Query(0,5*512,7))}
         assertFailsWith<IllegalArgumentException> {LobbyCountryMessages.request(OutfitPartyMessages.Query(1,5*512,6))}
     }
+    @Test fun addedCountriesNeedTheirOwnStartAndEliminatedCountriesCannotBeSelected() {
+        val old=CountryCatalogLoader.load()
+        val supported=CountryCatalog(old.calendars.values.toList(),old.families.values.toList(),old.countries.values.toList()+
+            CountryDefinition(42,"third","제삼국","new_empire",3,0,"empire"))
+        assertNull(LobbyCountryCatalogue.selection(42,supported))
+        val starts=setOf(2,3,42).map(::CountryId).toSet()
+        val chosen=checkNotNull(LobbyCountryCatalogue.selection(42,supported,starts))
+        assertEquals(CountryId(42),chosen.country);assertEquals(3,chosen.nativePower);assertEquals(ShipStyleId("empire"),chosen.shipStyle)
+        fun flags(eliminated:Boolean):String {
+            val session=SessionSnapshot(3,500,0,0,emptyMap(),1,0,null,starts,
+                if(eliminated)mapOf(CountryId(42) to CountryDefeat(EndReason.CAPITAL_CAPTURED,400,CountryId(3))) else emptyMap())
+            val source=LobbyCountryCatalogue.Source(3,WorldSnapshot(0,0,session),emptyMap(),supported,1,emptyList(),starts)
+            return LobbyCountryCatalogue.reply(request(),source).map(::decode).single {it.kind==1 && it.fields[0]=="42"}.fields[9]
+        }
+        assertEquals("3",flags(false));assertEquals("0",flags(true))
+    }
+
+    @Test fun finishedWorldResultsRouteBySessionAndAuthenticatedAccountWithoutIssuingATicket() {
+        val directory=GameSessionDirectory();val accounts=mapOf("fixture" to "fixture")
+        val asked=mutableListOf<Pair<Int,String>>()
+        fun entry(id:Int)=GameSessionDirectory.Entry(id,"World$id","127.0.0.1",48000+id,setOf("127.0.0.1"),{1},{false},
+            {error("result lookup must not ask for a playable session")},{null},endings={request,account->
+                asked+=id to account
+                org.logh7.protocol.CountryEndingMessages.empty(request).map {org.logh7.protocol.LoginMessages.sessionMessage(0x032f,it)}
+            })
+        directory.register(entry(1),accounts).use {directory.register(entry(2),accounts).use {
+            fun ending(id:Int)=org.logh7.protocol.CountryEndingMessages.Request(OutfitPartyMessages.Query(id,512,14))
+            assertNotNull(directory.endings(ending(2),"fixture"));assertEquals(listOf(2 to "fixture"),asked)
+            assertNull(directory.target(2,"127.0.0.1"))
+            assertNull(directory.endings(ending(9),"fixture"));assertEquals(1,asked.size)
+        }}
+    }
 
     @Test fun theDirectoryAsksOnlyTheSelectedAvailableWorld() {
         val directory=GameSessionDirectory();val accounts=mapOf("fixture" to "fixture")
