@@ -1410,6 +1410,12 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::appointmentInformationCard(14,55,0) ||
         logh::appointmentInformationCard(14,55,261) ||
         logh::appointmentInformationCard(3,55,55)) return 26;
+    const auto adjacentWarp=logh::normalWarpFare(2487,2488), diagonalWarp=logh::normalWarpFare(2487,2588);
+    const auto longWarp=logh::normalWarpFare(2487,2492);
+    if (adjacentWarp.lightYears!=100 || adjacentWarp.mcp!=40 || adjacentWarp.waitHours ||
+        diagonalWarp.lightYears!=142 || diagonalWarp.mcp!=80 || diagonalWarp.waitHours!=1 ||
+        longWarp.lightYears!=500 || longWarp.mcp!=160 || longWarp.waitHours!=4 ||
+        logh::normalWarpFare(2487,2487).mcp || logh::normalWarpFare(2487,5000).mcp) return 1123;
     if (!logh::appointmentAuthorityCard(135) || !logh::appointmentAuthorityCard(1) ||
         logh::appointmentAuthorityCard(0) || logh::appointmentAuthorityCard(195) ||
         logh::appointmentCapitalPower(169)!=3 || logh::appointmentCapitalPower(135)!=3 ||

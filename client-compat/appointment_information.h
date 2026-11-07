@@ -80,14 +80,46 @@ static bool isWarpConfirmation(BYTE* command) {
     return confirmation && at<unsigned>(confirmation,0)==0x675780 && at<unsigned>(confirmation,0x48)==0x2b;
 }
 
+static bool selectedWarpGrid(BYTE* command, unsigned& grid) {
+    auto steps=at<BYTE**>(command,0x10);
+    unsigned active=at<unsigned>(command,4);
+    for (unsigned i=0;i<active;++i) {
+        auto step=steps[i];
+        if (!step || at<unsigned>(step,0)!=0x676b30 || !at<BYTE>(step,0x18)) continue;
+        auto vars=at<BYTE**>(step,0xc), end=at<BYTE**>(step,0x10);
+        if (!vars || end<vars || end-vars>16) return false;
+        for (auto var=vars;var!=end;++var) {
+            auto name=*var ? at<const char*>(*var,8) : nullptr;
+            if (!name || strcmp(name,"TARGET_GRID")) continue;
+            // The CD's SendWarpCommand reads this same scalar before sending 0b01.
+            grid=at<unsigned>(*var,0xc);
+            return grid<5000;
+        }
+    }
+    return false;
+}
+
+static std::wstring warpConfirmationText(BYTE* command) {
+    const auto own=at<BYTE*>(command,0x1c);
+    unsigned target=0;
+    const auto fare=selectedWarpGrid(command,target) ? logh::normalWarpFare(at<unsigned>(own,0x320),target) : logh::WarpRouteFare{};
+    if (!fare.lightYears) return L"선택한 그리드로 워프합니다.\n일반 MCP: 100광년마다 40 (올림)\nMCP 부족 시 PCP 2배\n실행하시겠습니까?";
+    wchar_t text[200], wait[40];
+    if (fare.waitHours) swprintf_s(wait,L"게임 내 %u시간 대기",fare.waitHours);
+    else wcscpy_s(wait,L"즉시 실행");
+    swprintf_s(text,L"워프 목적지 %u, %u 그리드\n일반 MCP %u · 부족 시 PCP %u\n항속 %u광년 · %ls\n%ls실행하시겠습니까?",
+        target%100+1,target/100+1,fare.mcp,fare.mcp*2,fare.lightYears,wait,
+        fare.mcp>40 ? L"담당 작전 목표 인근 MCP 40 / PCP 80\n" : L"");
+    return text;
+}
+
 static void __fastcall appointmentConfirmation(void* dialog, void*, const char* original) {
     reinterpret_cast<void(__thiscall*)(void*,const char*)>(0x5706e0)(dialog,original);
     AppointmentChoice choice;
     std::wstring body;
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
     if (isWarpConfirmation(command)) {
-        // Mirrors NavigationPolicy/WarpCourse: CP and cruise per started 100 ly, wait and drift beyond adjacent grids.
-        body=L"선택한 그리드로 워프합니다.\nMCP: 100광년당 40 · 부족하면 PCP 2배 대용\n항속 100광년당 100 · 2칸 이상은 대기·오차\n실행하시겠습니까?";
+        body=warpConfirmationText(command);
     } else {
     if (!logh::japaneseFragment(original,body)) return;
     auto newline=body.find(L'\n');
