@@ -44,7 +44,7 @@ static bool groundWindowShown() {return groundWindow.visible;}
 static bool groundWindowAvailable() {return groundPanel.activeBase && GetTickCount64()<groundPanel.activeUntil;}
 static bool groundWindowSide(unsigned i,bool friendly) {
     auto own=groundPanel.world ? at<BYTE*>(groundPanel.world,8) : nullptr;
-    return own && (groundPanelEmpire(groundPanel.rows[i].kind)==(own[0x28]==2))==friendly;
+    return own && groundPanelFriendly(groundPanel.rows[i],own[0x28]==2)==friendly;
 }
 static void groundWindowCommander(int step) {
     unsigned ids[70]={},n=0,selected=0;
@@ -149,7 +149,8 @@ static bool updateGroundWindow() {
     unsigned friends=0,foes=0,reserve=0;
     for (unsigned i=0;i<groundPanel.count;++i) if (groundPanel.rows[i].reserve) ++reserve; else (groundWindowSide(i,true) ? friends : foes)++;
     taxText(0,L"지상전");
-    _snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls · 교전 아군 %u · 적군 %u · 예비 %u",name,friends,foes,reserve);taxText(1,text);
+    _snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls · 교전 아군 %u · 적군 %u · 예비 %u%ls",
+        name,friends,foes,reserve,groundPanel.partial ? L" · 일부 집계" : L"");taxText(1,text);
     wchar_t commanderName[32];groundCommanderName(w.commander,commanderName);
     auto self=at<BYTE*>(groundPanel.world,8);
     bool commanding=w.commander && self && w.commander==at<unsigned>(self,0x24);

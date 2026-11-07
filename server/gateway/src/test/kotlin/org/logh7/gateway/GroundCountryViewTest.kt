@@ -56,6 +56,26 @@ class GroundCountryViewTest {
         assertTrue(battle(43,members=mapOf(10002 to 3)).second.isEmpty())
     }
 
+    @Test fun identicalArtworkDoesNotHideAFightOrMakeForeignTroopsFriendly() {
+        val s=stocks.copy(outfits=stocks.outfits.filterKeys {it!=2},warehouses=stocks.warehouses.filterKeys {it!=2})
+        val query=OutfitPartyMessages.Query(0,1049,3)
+        fun view(viewer:Int,grid:Int?):Pair<Int,List<Int>> {
+            val packets=world.outfitBattle(query,viewer,s,grid)
+            val roster=ByteBuffer.wrap(packets[1]);roster.position(6)
+            val relations=List(roster.get().toInt()) {
+                val start=roster.position()
+                assertEquals(1002,roster.getShort(start+4).toInt())
+                roster.position(start+42)
+                roster.get(start+25).toInt()
+            }
+            return ByteBuffer.wrap(packets[0]).getInt(21) to relations
+        }
+        assertEquals(3 to listOf(1,2),view(42,2487))
+        assertEquals(3 to listOf(2,1),view(2,2487))
+        assertEquals(3 to listOf(2,2),view(43,2487),"an uninvolved observer can still see the battle")
+        assertEquals(1 to emptyList(),view(2,2490))
+    }
+
     @Test fun groundLocationsOpenOnlyForTheOutfitsActualCountry() {
         val query=OutfitPartyMessages.Query(1,0,2)
         val own=world.outfitGround(query,42,stocks)
