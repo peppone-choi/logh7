@@ -120,13 +120,20 @@ class GamePresence {
         offices:(Int,Int,Long)->List<BootstrapMessages.OfficeCard>) {
         val stocks=snapshot.planetStocks ?: return
         if(stocks.generation!=event.generation)return
+        val countries=world.lobbyCountryDefinitions().first
+        // Office cards belong to the actual country of the current snapshot, never the display byte (2/3 shared by
+        // added countries); no membership or a removed country holds no national office.
+        fun cards(player:Navigator)=player.country?.takeIf {it.value in countries.countries}
+            ?.let {offices(player.characterId,it.value,event.generation)}.orEmpty()
+        fun current(p:Navigator)=snapshot.navigators.values.singleOrNull {it.characterId==p.characterId &&
+            it.generation==event.generation} ?: p
         // Snapshot the audience before updating membership; room departures mutate visibility.
         val audience=members.values.filter {it.player.generation==event.generation &&
             event.recipients[it.character.id.toInt()]==it.connection}.toList()
         for(previous in audience) {
             val player=snapshot.navigators.values.singleOrNull {it.characterId==previous.character.id.toInt() &&
                 it.generation==event.generation} ?: continue
-            val cards=offices(player.characterId,previous.character.power,event.generation)
+            val cards=cards(player)
             val member=previous.copy(player=player,offices=cards)
             val updated=update(member,event.seconds)
             val packets=mutableListOf(world.conditions(listOf(event.base),stocks),world.places(listOf(event.base),stocks))
@@ -146,7 +153,7 @@ class GamePresence {
                 // Imported definitions and states retain real zero-boat identities; no fake weapon hit.
                 packets+=event.expelled.values.mapNotNull {p->characterById(p.characterId)?.let {c->
                     BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,
-                        offices(p.characterId,c.power,event.generation))}}
+                        cards(current(p)))}}
                 packets+=org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)
                 packets+=org.logh7.protocol.TacticsMessages.corps(tactical.corps)
                 packets+=org.logh7.protocol.TacticsMessages.states(tactical.units)

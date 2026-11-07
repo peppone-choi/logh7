@@ -3,12 +3,22 @@
 #include "country_metadata_data.h"
 #include "country_name_data.h"
 #include "navigation_hud_data.h"
+#include "country_identity_data.h"
 #include <atomic>
 static SRWLOCK countryMetadataLock=SRWLOCK_INIT;
 static std::atomic<unsigned> countryNameSequence{0};
 static struct CountryMetadataCache {unsigned count;logh::CountryMetadata rows[350];} countryMetadataCache={};
+static struct OwnCountryIdentity {void* world=nullptr;logh::CountryIdentity value={};} ownCountryIdentity;
 static void resetCountryMetadata() {
-    AcquireSRWLockExclusive(&countryMetadataLock);countryMetadataCache={};++countryNameSequence;ReleaseSRWLockExclusive(&countryMetadataLock);
+    AcquireSRWLockExclusive(&countryMetadataLock);countryMetadataCache={};ownCountryIdentity={};++countryNameSequence;ReleaseSRWLockExclusive(&countryMetadataLock);
+}
+static void publishOwnCountryIdentity(void* world,const logh::CountryIdentity& value) {
+    AcquireSRWLockExclusive(&countryMetadataLock);ownCountryIdentity={world,value};ReleaseSRWLockExclusive(&countryMetadataLock);
+}
+static unsigned runtimeOwnCountry(void* world,unsigned character,unsigned power) {
+    AcquireSRWLockShared(&countryMetadataLock);const auto& own=ownCountryIdentity;
+    const unsigned result=own.world==world && own.value.character==character && own.value.power==power ? own.value.country.id : power;
+    ReleaseSRWLockShared(&countryMetadataLock);return result;
 }
 static void publishCountryMetadata(const logh::CountryMetadata& value) {
     AcquireSRWLockExclusive(&countryMetadataLock);auto& cache=countryMetadataCache;

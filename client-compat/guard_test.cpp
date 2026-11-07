@@ -837,6 +837,22 @@ static int lobbyCountryDataTest() {
     choice.begin(1,0,10,1);ack[1]=L"1";packet(0,0,ack);
     *reinterpret_cast<unsigned*>(record)=0;*reinterpret_cast<unsigned*>(record+4)=65537;record[8]=10;
     if(!choice.accept(record,sizeof(record)) || !choice.accepted || choice.power)return 1021;
+    const wchar_t* identityFields[]={L"NI1",L"42",L"새 제국",L"",L"신제국력",L"-798",L"0",L"",L"3",L"1"};
+    packet(0,0,identityFields);*reinterpret_cast<unsigned*>(record)=10000;
+    *reinterpret_cast<unsigned*>(record+4)=43;record[8]=11;
+    logh::CountryIdentity identity;
+    if(logh::readCountryIdentity(record,sizeof(record),10001,43,identity) ||
+        logh::readCountryIdentity(record,sizeof(record),10000,44,identity) ||
+        !logh::readCountryIdentity(record,sizeof(record),10000,43,identity) || identity.country.id!=42 ||
+        identity.power!=3 || !identity.registered || identity.country.yearOffset!=-798)return 1022;
+    auto identityWorld=reinterpret_cast<void*>(0x1234);
+    publishCountryMetadata(identity.country);publishOwnCountryIdentity(identityWorld,identity);
+    wchar_t identityCp[32],identityDate[96];
+    if(runtimeOwnCountry(identityWorld,10000,3)!=42 || runtimeOwnCountry(identityWorld,10001,3)!=3 ||
+        runtimeOwnCountry(identityWorld,10000,2)!=2 ||
+        !runtimeNavigationHud(0,1000,675,runtimeOwnCountry(identityWorld,10000,3),identityCp,identityDate) ||
+        !wcsstr(identityDate,L"신제국력"))return 1023;
+    resetCountryMetadata();if(runtimeOwnCountry(identityWorld,10000,3)!=3)return 1024;
     return 0;
 }
 

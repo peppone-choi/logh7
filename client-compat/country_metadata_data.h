@@ -14,6 +14,13 @@ inline bool countryMetadataText(const unsigned char* member,wchar_t (&text)[13])
     }
     text[n-1]=0;return true;
 }
+inline bool countryMetadataYearOffset(const wchar_t* offset,int& result) {
+    bool negative=*offset==L'-';if(negative)++offset;
+    if(!*offset || *offset==L'0' && (offset[1] || negative))return false;
+    unsigned value=0;
+    for(;*offset;++offset) {if(*offset<L'0' || *offset>L'9')return false;value=value*10+unsigned(*offset-L'0');if(value>10000)return false;}
+    result=negative?-static_cast<int>(value):static_cast<int>(value);return true;
+}
 inline bool readCountryMetadata(const unsigned char* p,std::size_t size,unsigned country,unsigned nonce,CountryMetadata& output) {
     if(!p || size<24+6*36 || !country || !nonce || paintWord(p)!=country || paintWord(p+4)!=nonce || p[8]!=5 || p[20]!=6)return false;
     CountryMetadata candidate;candidate.id=country;wchar_t text[6][13]={};
@@ -23,11 +30,7 @@ inline bool readCountryMetadata(const unsigned char* p,std::size_t size,unsigned
     }
     if(!text[0][0] || !text[2][0] || text[1][0] && std::wcslen(text[0])!=12)return false;
     wcscpy_s(candidate.name,text[0]);wcscat_s(candidate.name,text[1]);wcscpy_s(candidate.calendar,text[2]);
-    const wchar_t* offset=text[3];bool negative=*offset==L'-';if(negative)++offset;
-    if(!*offset || *offset==L'0' && (offset[1] || negative))return false;
-    unsigned value=0;
-    for(;*offset;++offset) {if(*offset<L'0' || *offset>L'9')return false;value=value*10+unsigned(*offset-L'0');if(value>10000)return false;}
-    candidate.yearOffset=negative?-static_cast<int>(value):static_cast<int>(value);
+    if(!countryMetadataYearOffset(text[3],candidate.yearOffset))return false;
     const auto first=std::wcslen(text[4]),second=std::wcslen(text[5]);
     if(!first || first+second>19 || (second && first!=12) || (first+second>1 && text[4][0]==L'0'))return false;
     for(unsigned i=4;i<6;++i)for(const wchar_t* c=text[i];*c;++c) {

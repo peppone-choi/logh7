@@ -1032,6 +1032,11 @@ class GameExchange(
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
                         val unit = if (opcode == 0x0330) org.logh7.protocol.OutfitPartyMessages.unitQuery(body) else null
+                        if(party?.mode==org.logh7.protocol.CountryIdentityMessages.MODE) {
+                            check(worldInitialized);require(party.outfit==character.id.toInt()) {"Own country identity only"}
+                            return handshake.stageAll(listOf(world.countryIdentity(party,
+                                currentProfile(identity.account,character.id.toInt()).country?.value,character.power)),clearHeader=0)
+                        }
                         // Display queries echo the viewer's actual country as its display code; no membership, no reply.
                         val viewerCountry by lazy {checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value}
                         if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,viewerCountry)),clearHeader=0)
