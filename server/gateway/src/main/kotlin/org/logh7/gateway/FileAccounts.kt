@@ -19,6 +19,9 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
     companion object {
         // Older readers accept this hash prefix and reject the deliberately incomplete hash.
         private const val REMOVED = "pbkdf2-sha256:removed"
+        // Keep missing and reserved accounts on the same verification path.
+        private const val UNAVAILABLE_PASSWORD =
+            "pbkdf2-sha256:600000:AAAAAAAAAAAAAAAAAAAAAA==:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
         /** Native login strings: account 1..30 (no leading @), password 1..10; no separator or control characters. */
         private val name = Regex("[A-Za-z0-9._-]{1,30}")
@@ -48,6 +51,19 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
         val accounts = fresh()
         if (account in accounts) return false
         write(accounts + (account to AccountPassword.hash(password)))
+        return true
+    }
+
+    @Synchronized fun changePassword(account: String, currentPassword: String, newPassword: String): Boolean {
+        require(validName(account) && validPassword(currentPassword) && validPassword(newPassword)) { "invalid account or password" }
+        val accounts = fresh()
+        val stored = accounts[account]?.takeUnless { it == REMOVED }
+        if (stored == null || !AccountPassword.isHashed(stored)) {
+            AccountPassword.matches(UNAVAILABLE_PASSWORD, currentPassword)
+        }
+        val matches = stored != null && AccountPassword.matches(stored, currentPassword)
+        if (!matches) return false
+        write(accounts + (account to AccountPassword.hash(newPassword)))
         return true
     }
 
