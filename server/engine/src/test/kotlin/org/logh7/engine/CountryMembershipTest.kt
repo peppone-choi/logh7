@@ -56,8 +56,8 @@ class CountryMembershipTest {
         assertFailsWith<IllegalStateException> { (null as CountryId?).legacyPower() }
     }
 
-    @Test fun legacyRuntimeRejectsUnsupportedMembershipBeforeRecoveryCanWrite() = runBlocking {
-        for (country in listOf(CountryId(42), null)) {
+    @Test fun unregisteredMembershipIsRejectedBeforeRecoveryCanWrite() = runBlocking {
+        for (country in listOf(CountryId(42))) {
             val session = SessionSimulation(rules)
             session.join("pilot", country, false, "old-connection")
             var commits = 0

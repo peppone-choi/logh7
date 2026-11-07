@@ -7,7 +7,7 @@ struct EndingStatistics { unsigned planets=0,fortresses=0,population=0,ships=0,t
 struct EndingPower { unsigned power=0,characters=0,grade=255;bool present=false;
     unsigned populationCondition=255,fleetCondition=255;EndingStatistics statistics; };
 struct SessionEndingData {
-    unsigned character=0,power=0,reason=0,seconds=0;wchar_t name[14]={};
+    unsigned character=0,power=0,reason=0,seconds=0,session=0;wchar_t name[14]={};
     unsigned previousEvaluation=0,finalEvaluation=0,previousFame=0,finalFame=0;bool evaluationPresent=false;
     EndingPower sides[2];EndingStatistics total;bool totalPresent=false;
     static EndingStatistics statistics(const unsigned char* p) {
@@ -29,6 +29,7 @@ struct SessionEndingData {
         if(!p || length!=0x434 || !infoWord(p,0) || (p[4]!=2 && p[4]!=3) ||
             p[0x2ea]<3 || p[0x2ea]>5 || p[0x2eb]>13 || p[0x420]>1)return false;
         SessionEndingData next;next.character=infoWord(p,0);next.power=p[4];next.reason=p[0x2ea];next.seconds=infoWord(p,0x38c);
+        next.session=infoShort(p,0x2e8);
         next.previousEvaluation=infoWord(p,0x2d4);next.finalEvaluation=infoWord(p,0x2d8);
         next.previousFame=infoWord(p,0x2dc);next.finalFame=infoWord(p,0x2e0);next.evaluationPresent=true;
         if(p[0x2eb]) {

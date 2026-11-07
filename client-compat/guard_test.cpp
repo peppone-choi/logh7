@@ -8,6 +8,7 @@
 #include "country_metadata.h"
 #include "base_affiliation.h"
 #include "outfit_affiliation_data.h"
+#include "country_ending_data.h"
 #include "country_icon_data.h"
 #include "creation_menu_data.h"
 #include "lobby_empty_data.h"
@@ -937,7 +938,36 @@ static int outfitAffiliationTest() {
     if(draft.accept(record,sizeof(record))!=2 || draft.page.rows[0].id!=0x7fffffff)return 1062;
     return 0;
 }
+static int countryEndingTest() {
+    BYTE p[384]={};
+    auto frame=[&](unsigned kind,unsigned number,const wchar_t* const (&fields)[10]) {
+        memset(p,0,sizeof(p));*reinterpret_cast<unsigned*>(p)=65535;*reinterpret_cast<unsigned*>(p+4)=127*512;
+        p[8]=14;p[9]=2;p[20]=10;*reinterpret_cast<unsigned*>(p+12)=kind;*reinterpret_cast<unsigned*>(p+16)=number;
+        for(unsigned i=0;i<10;++i) {auto row=p+24+i*36;*reinterpret_cast<unsigned*>(row)=i+1;row[4]=static_cast<BYTE>(i);
+            row[6]=static_cast<BYTE>(wcslen(fields[i])+1);memcpy(row+8,fields[i],(wcslen(fields[i])+1)*2);}
+    };
+    const wchar_t* header[]={L"CE1",L"3",L"0",L"3",L"922337203685",L"4775807",L"922337203685",L"4775807",L"3",L"42"};
+    const wchar_t* identity[]={L"2",L"추가 국가",L"",L"3",L"2147483647",L"1",L"0",L"FF40E0",L"1",L""};
+    const wchar_t* values[]={L"65535",L"65535",L"922337203685",L"4775807",L"922337203685",L"4775807",L"922337203685",L"4775807",L"",L""};
+    logh::CountryEndingDraft draft;if(!draft.begin(65535,127,0))return 1070;
+    frame(0,0,header);p[0]^=1;if(draft.accept(p,sizeof(p)))return 1071;p[0]^=1;
+    if(draft.accept(p,sizeof(p)-1) || draft.accept(p,sizeof(p))!=1)return 1072;
+    for(unsigned i=0;i<3;++i) {
+        identity[0]=i==0 ? L"2" : i==1 ? L"42" : L"43";
+        frame(2,i,values);if(draft.accept(p,sizeof(p)))return 1073;
+        frame(1,i,identity);if(draft.accept(p,sizeof(p))!=1 || draft.accept(p,sizeof(p)))return 1074;
+        frame(2,i,values);if(!i) {p[24+3*36+8]=L'8';if(draft.accept(p,sizeof(p)))return 1075;frame(2,i,values);}
+        if(draft.accept(p,sizeof(p))!=(i==2 ? 2 : 1))return 1076;
+    }
+    if(draft.page.viewer!=42 || draft.page.rows[1].id!=42 || draft.page.rows[2].id!=43 ||
+        draft.page.rows[2].ships!=0x7fffffffffffffffULL || draft.page.rows[0].rgb!=0xff40e0)return 1077;
+    if(draft.accept(p,sizeof(p)) || draft.begin(1,128,0) || draft.begin(1,1,351))return 1078;
+    draft.begin(65535,127,0);header[1]=L"0";header[3]=L"0";frame(0,0,header);
+    if(draft.accept(p,sizeof(p))!=2 || draft.page.count)return 1079;
+    return 0;
+}
 static int runGuard(int argc, wchar_t** argv) {
+    if(int result=countryEndingTest())return result;
     if(int result=outfitAffiliationTest())return result;
     if(int result=baseAffiliationTest())return result;
     if(int result=facilityGuideTest())return result;

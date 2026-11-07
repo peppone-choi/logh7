@@ -12,7 +12,8 @@ class GameSessionDirectory {
         val information:()->SessionEndingMessages.Session,
         val character:(String)->LobbyMessages.ChargedSession?,
         /** Lobby country catalogue (mode 7) of this world; display-only, no positions or personal data. */
-        val countries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>?)?=null) {
+        val countries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>?)?=null,
+        val endings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>?)?=null) {
         init {
             require(id in 1..65535 && port in 1..65535 && name.length in 1..12 &&
                 name.none {it.isISOControl() || it.isSurrogate()} && bindHosts.isNotEmpty())
@@ -54,4 +55,7 @@ class GameSessionDirectory {
             else if(bindHost in entry.bindHosts)bindHost else return null
         return Target(id,address,entry.port,entry.generation())
     }
+    /** Reading a finished world's results never issues a playable ticket or makes the world selectable. */
+    fun endings(request:org.logh7.protocol.CountryEndingMessages.Request,account:String):List<ByteArray>? =
+        snapshot().firstOrNull {it.id==request.session}?.endings?.invoke(request,account)
 }

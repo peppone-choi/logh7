@@ -5,6 +5,23 @@
 #include "korean_windows.h"
 #include "display_text.h"
 
+// Only trusted resource labels in a bound creation/lottery wizard may use its actual country name.
+static const char* creationCountryResource(const char* translated) {
+    auto& view=lobbyCountryWindow;auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if(!translated || !view.selectionBound || view.active || (view.mode!=2 && view.mode!=3) || own && own[0])return translated;
+    const auto row=selectedLobbyCountry();if(!row)return translated;
+    static std::string empire,alliance;static const bool ready=logh::encodeKoreanResource(L"제국",empire) && logh::encodeKoreanResource(L"동맹",alliance);
+    if(!ready || std::strcmp(translated,empire.c_str()) && std::strcmp(translated,alliance.c_str()))return translated;
+    static thread_local std::string actual;
+    const auto label=logh::fitCountryLabel(row->name,16);
+    return logh::encodeKoreanResource(label.c_str(),actual) || logh::storeDisplayName(label.c_str(),actual,25) ? actual.c_str() : translated;
+}
+static const char* creationStaticCountryResource(const char* original) {
+    const auto translated=logh::koreanStaticResource(original);
+    return translated!=original ? creationCountryResource(translated) : original;
+}
+
 static int (WINAPI* originalKoreanLoadString)(HINSTANCE,UINT,LPSTR,int)=nullptr;
 static int WINAPI loadKoreanWindowsString(HINSTANCE instance,UINT id,LPSTR buffer,int capacity) {
     if (instance==GetModuleHandleW(nullptr)) {
@@ -34,15 +51,15 @@ static const void* koreanWideFormatResume=koreanWideFormatTrampoline;
 // through koreanStaticResource unchanged. The native allocator owns the copy.
 static void* __fastcall constructKoreanCString(void* string,void*,const char* text) {
     return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanConstructTrampoline+0)
-        (string,logh::koreanStaticResource(text));
+        (string,creationStaticCountryResource(text));
 }
 static void* __fastcall assignKoreanCString(void* string,void*,const char* text) {
     return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanAssignTrampoline+0)
-        (string,logh::koreanStaticResource(text));
+        (string,creationStaticCountryResource(text));
 }
 static void* __fastcall appendKoreanCString(void* string,void*,const char* text) {
     return reinterpret_cast<void*(__thiscall*)(void*,const char*)>(koreanAppendTrampoline+0)
-        (string,logh::koreanStaticResource(text));
+        (string,creationStaticCountryResource(text));
 }
 // U-27: runtime Hangul (a server-sent name) narrowed through ACP 949 and decoded as CP932 turns into
 // half-width kana. Narrow it into the catalogue's private CP932 form instead; the CD's Japanese decode and
@@ -179,7 +196,7 @@ static const char* __fastcall lookupKoreanResource(void* table, void*, unsigned 
         static const bool encoded=logh::encodeKoreanResource(L"오프라인 설정",offline);
         if (encoded) return offline.c_str();
     }
-    return logh::koreanResource(group,index,original);
+    return creationCountryResource(logh::koreanResource(group,index,original));
 }
 static wchar_t* __cdecl decodeKoreanResource(const char* text) {
     // Keep the original allocator/lifetime, error handling, and Japanese CRT

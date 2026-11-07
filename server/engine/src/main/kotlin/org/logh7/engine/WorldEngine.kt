@@ -215,20 +215,30 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             catch(failure:Exception){System.err.println("Tactical end delivery failed: ${failure.javaClass.simpleName}")}
         }
     }
+    // Validate definitions before any recovery write; actual IDs never become native display identities.
+    private fun validateWorldCountry(id:CountryId?) {
+        if(id==null)return
+        val catalog=CountryCatalogLoader.current()
+        val definition=checkNotNull(catalog.countries[id.value]) {"Unknown world country ${id.value}"}
+        check(definition.nativePower in 2..3 && definition.nativeCamp==0 &&
+            catalog.shipStyle(id).value in setOf("empire","alliance") && OrganizationOffices.system(id,catalog) in 2..3) {
+            "Unsupported world country ${id.value}"
+        }
+    }
     private val initialWorld = try {
-        // Check before session recovery can write: new owners need the remaining authority migration.
-        galaxy?.initialOwners?.values?.forEach {it.legacyPower()}
+        galaxy?.initialOwners?.values?.forEach {validateWorldCountry(it.country)}
+        galaxy?.countryStarts?.keys?.forEach(::validateWorldCountry)
         val stocks=stockStore?.load()?.also {stocks->
-            stocks.bases.values.forEach {it.owner.legacyPower()}
-            stocks.outfits.values.forEach {it.country.legacyPower();it.shipStyle.legacyPower()}
-            stocks.warehouses.values.forEach {it.country.legacyPower();it.shipStyle.legacyPower()}
-            stocks.strategic.offices.forEach {it.country.legacyPower()}
-            check(stocks.strategic.capitals.all {(country,base)->galaxy?.bases?.singleOrNull {Capital.of(it)?.power==country.value}?.id==base}) {"Country capitals require remaining world authority migration"}
+            stocks.bases.values.forEach {validateWorldCountry(it.country)}
+            stocks.outfits.values.forEach {validateWorldCountry(it.country);it.shipStyle.nativePower}
+            stocks.warehouses.values.forEach {validateWorldCountry(it.country);it.shipStyle.nativePower}
+            stocks.strategic.offices.forEach {validateWorldCountry(it.country)}
+            stocks.strategic.capitals.forEach {(id,base)->validateWorldCountry(id);check(galaxy?.bases?.any {it.id==base}==true) {"Unknown country capital"}}
         }
         val players=if(galaxy==null)emptyMap() else navigationStore?.load().orEmpty()
         players.values.forEach {player->
-            player.country.legacyPower()
-            player.shipStyle.legacyPower()
+            validateWorldCountry(player.country)
+            player.shipStyle.nativePower
         }
         stocks to players
     } catch(failure:Exception) {
@@ -242,17 +252,22 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private var durableState = durability?.let { store ->
         try {
             val restored = store.load()
-            // Fail before recovery writes: unmigrated ownership must never alias another country's appearance.
+            // A restored membership must still reference a registered actual country before connection recovery.
             if(galaxy!=null) {
-                restored.session.participants.values.forEach { it.country.legacyPower() }
-                restored.session.countries.forEach { it.legacyPower() }
+                restored.session.participants.values.forEach {validateWorldCountry(it.country)}
+                restored.session.countries.forEach(::validateWorldCountry)
             }
             if (restored.session.participants.values.any { it.online || it.connection != null }) {
                 val recovered = transitionSession(rules, restored, SessionAction.RecoverConnections)
                 store.commit(SessionAction.RecoverConnections, recovered)
                 recovered.state
             } else restored
-        } catch (failure: Exception) { store.close(); throw failure }
+        } catch (failure: Exception) {
+            listOfNotNull(store,navigationStore,stockStore).forEach {
+                try {it.close()} catch(closing:Exception) {failure.addSuppressed(closing)}
+            }
+            throw failure
+        }
     }
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,

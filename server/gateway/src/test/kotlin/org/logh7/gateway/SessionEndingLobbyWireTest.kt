@@ -71,7 +71,14 @@ class SessionEndingLobbyWireTest {
             val ids=(0..1).map {f.engine.snapshot().navigators.getValue(f.account(it)).characterId}
             f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
             f.await("ended") {f.engine.snapshot().result!=null}
-            val endings=peers.map {it.expect(0x035a).also {_->it.close()}}
+            val checkpoint=f.engine.snapshot()
+            val profiles=CharacterCreation(directory.resolve("characters.properties")).profiles()
+            val endings=peers.mapIndexed {index,client->
+                val request=org.logh7.protocol.CountryEndingMessages.Request(org.logh7.protocol.OutfitPartyMessages.Query(1,127*512,14))
+                val expected=CountryEndingReport.reply(request,checkpoint,profiles,CountryCatalogLoader.current(),emptyList(),if(index==0)2 else 3,galaxy)
+                expected.forEach {assertContentEquals(it,client.expect(0x032f),"complete actual-country results precede the native ending")}
+                client.expect(0x035a).also {client.close()}
+            }
             f.await("no ended players online") {f.engine.snapshot().session!!.online==0 && f.access.trackedConnections()==0}
             val before=f.engine.snapshot()
             val registered=CharacterStores(directory.resolve("characters.properties")).get(1).registeredCharacters()

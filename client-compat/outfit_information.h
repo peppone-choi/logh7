@@ -546,6 +546,7 @@ static unsigned __stdcall decodedOutfitInformation(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x41cba0)(record,reader);
     auto p=static_cast<const BYTE*>(record);unsigned id=logh::infoWord(p,0),token=0;
     if(!result && receiveLobbyCountries(p))return result;
+    if(!result && receiveCountryEndings(p))return result;
     if(!result && receiveCountryPaint(p))return result;
     if(!result && receiveOutfitAffiliations(p))return result;
     if(!result && receiveFacilityGuide(p))return result;

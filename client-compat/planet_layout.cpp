@@ -147,12 +147,14 @@ static void outfitWarehouseResponse(void* world,const BYTE* record);
 static void updateCharacterInformation(void* manager);
 static bool updateSessionEnding(void* manager);
 static void receivedSessionEnding(void* world,const BYTE* record);
+static void resetCountryEndings();
 #include "hud_frame.h"
 #include "lobby_pillarbox.h"
 #include "country_colors.h"
 #include "country_icon.h"
 #include "fleet_country_color.h"
 #include "lobby_country_transport.h"
+#include "country_ending.h"
 #include "system_affiliation.h"
 #include "facility_guide.h"
 #include "planet_info.h"

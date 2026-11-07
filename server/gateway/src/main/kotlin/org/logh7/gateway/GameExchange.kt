@@ -68,6 +68,7 @@ class GameExchange(
     private val maintenance:MaintenanceGate?=null,
     /** This world's lobby country catalogue (mode 7); null answers an empty catalogue. */
     private val lobbyCountries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>)?=null,
+    private val countryEndings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>)?=null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -100,23 +101,33 @@ class GameExchange(
     private fun rememberTacticalRefresh() {
         navigation?.snapshot()?.revision?.let {pendingTacticalRevision=maxOf(pendingTacticalRevision,it)}
     }
-    private var endingPrepared=false
+    private var endingPrepared=0
     internal fun sessionEndingAvailable():Boolean {
         if(state!=State.AUTHENTICATED || !gameStarted || !worldInitialized || ticket?.purpose!=SessionTickets.Purpose.GAME)return false
         val snapshot=navigation?.snapshot() ?: return false
-        return generation==snapshot.session?.generation && generation==admission?.generation && snapshot.result!=null
+        return generation==snapshot.session?.generation && generation==admission?.generation &&
+            (snapshot.result!=null || snapshot.navigators[ticket?.account]?.country in snapshot.session?.eliminated.orEmpty())
     }
     internal fun finishSession():OutboundBatch? = prepared {
-        if(endingPrepared || !sessionEndingAvailable())null else {
+        if(!sessionEndingAvailable())null else {
             val snapshot=checkNotNull(navigation?.snapshot())
+            val phase=if(snapshot.result==null)1 else 2
+            if(endingPrepared>=phase)return@prepared null
             val account=checkNotNull(ticket).account
             val player=checkNotNull(snapshot.navigators[account])
             val character=checkNotNull(currentCharacter(account))
-            val evaluation=if(fame==null)org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0)
+            val evaluation=if(snapshot.result==null || fame==null)org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0)
                 else fame.evaluation(snapshot,characters,account) ?: return@prepared null
-            val message=SessionEndingReport.message(snapshot,character,player,characters.registeredCharacters(),offices(character,player),evaluation,sessionId,sessionName)
-            endingPrepared=true
-            handshake.stageAll(listOf(message),clearHeader=0)
+            val countries=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
+            val total=CountryEndingReport.count(snapshot,countries)
+            val messages=(0..maxOf(0,total-1) step org.logh7.protocol.CountryEndingMessages.PAGE).flatMap {offset->
+                CountryEndingReport.reply(org.logh7.protocol.CountryEndingMessages.Request(
+                    org.logh7.protocol.OutfitPartyMessages.Query(sessionId,127*512+offset,14)),snapshot,characters.profiles(),
+                    countries,world?.publishedCountryAppearances().orEmpty(),player.country?.value ?: 0,world?.galaxy)
+            }+if(snapshot.result==null)emptyList() else listOf(SessionEndingReport.message(snapshot,character,player,
+                characters.registeredCharacters(),offices(character,player),evaluation,sessionId,sessionName,countries))
+            endingPrepared=phase
+            handshake.stageAll(messages,clearHeader=0)
         }
     }
     private var tacticalResumeGrid: Int? = null
@@ -391,7 +402,7 @@ class GameExchange(
                 // Consume and validate encrypted in-flight requests without reopening commands.
                 // Clock polling remains safe while the player reads the final result.
                 return if(opcode==0x0300 && body.size==2)handshake.stageAll(listOf(checkNotNull(
-                    BootstrapMessages.response(body,checkNotNull(navigation?.snapshot()?.result).end.gameSeconds))),clearHeader=0) else null
+                    BootstrapMessages.response(body,checkNotNull(navigation?.snapshot()?.session).gameSeconds))),clearHeader=0) else null
             }
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
                 when (opcode) {
@@ -1009,7 +1020,9 @@ class GameExchange(
                                     countrySelection=null;countrySelectionMode=0;accepted=true
                                 } else if(characters.character(identity.account)==null) {
                                     val catalog=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
-                                    selected=LobbyCountryCatalogue.selection(request.countryId,catalog)
+                                    selected=LobbyCountryCatalogue.selection(request.countryId,catalog,
+                                        (world?.galaxy?.countryStarts?.keys ?: setOf(org.logh7.engine.CountryId(2),org.logh7.engine.CountryId(3)))-
+                                            navigation?.snapshot()?.session?.eliminated.orEmpty().keys)
                                     val entries=characters.entries(identity.account)
                                     if(selected!=null && (entries.isEmpty() || request.query.mode==org.logh7.protocol.CountrySelectionMessages.LOTTERY &&
                                             selected==characters.applicationSelection(identity.account))) {
@@ -2117,7 +2130,7 @@ class GameExchange(
                         check(gameLoggedIn && !gameStarted && !joining && body.size == 2)
                         val character = checkNotNull(currentCharacter(identity.account))
                         val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)
-                        if(!profile.canEnterNativeCountry()) {
+                        if(!profile.canEnterNativeCountry(world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current())) {
                             state=State.REJECTED
                             return handshake.stageAll(listOf(LoginMessages.sessionRejection()),clearHeader=0)
                         }
@@ -2210,6 +2223,14 @@ class GameExchange(
                         SessionEndingReport.information(navigation?.snapshot(),characterProvider().registeredCharacters(),
                             sessionId,sessionName,admission?.generation ?: 1L)) }
                 0x032e -> {
+                    if(body.size==11 && (body[10].toInt() and 255)==org.logh7.protocol.CountryEndingMessages.MODE) {
+                        check(lobbyLoggedIn)
+                        val request=org.logh7.protocol.CountryEndingMessages.Request(org.logh7.protocol.OutfitPartyMessages.query(body))
+                        val frames=if(sessionDirectory!=null)sessionDirectory.endings(request,identity.account)
+                            else if(request.session==sessionId)countryEndings?.invoke(request,identity.account) else null
+                        return handshake.stageAll(frames ?: org.logh7.protocol.CountryEndingMessages.empty(request).map {
+                            LoginMessages.sessionMessage(0x032f,it)},clearHeader=0)
+                    }
                     // Lobby country catalogue (mode 7) only: no other 032e mode is answered before a game starts.
                     check(lobbyLoggedIn)
                     val request=org.logh7.protocol.LobbyCountryMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
