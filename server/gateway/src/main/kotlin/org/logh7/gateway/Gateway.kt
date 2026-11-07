@@ -306,13 +306,15 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         } else sendNotification(ctx, event.messages)
                                     }
                                     private fun sendNotification(ctx: ChannelHandlerContext, messages: List<ByteArray>) {
+                                        if (exchange.accountRecovered()) { exchange.close(); ctx.close(); return }
                                         try { exchange.notifyWorld(messages)?.let { SecureWriter.write(ctx, exchange, it) } }
                                         catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
                                     }
                                     private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null
                                     override fun channelActive(ctx: ChannelHandlerContext) {
-                                        if (admission != null) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
+                                        if (admission != null || accounts is FileAccounts && port == sessionPort) lifecycleCheck = ctx.executor().scheduleAtFixedRate({
                                             try {
+                                                if (exchange.accountRecovered()) { exchange.close(); ctx.close(); return@scheduleAtFixedRate }
                                                 if(!waiting)exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}
                                                 if (exchange.obsolete()) { exchange.close(); ctx.close() }
                                                 else if (port == sessionPort && ctx.channel().isActive) {
@@ -370,7 +372,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         waiting = true
                                         pending.whenComplete { finish, failure ->
                                             ctx.executor().execute {
-                                                if(ctx.channel().isActive && failure!=null && exchange.sessionEndingAvailable()) {
+                                                if (exchange.accountRecovered()) { exchange.close(); ctx.close() }
+                                                else if(ctx.channel().isActive && failure!=null && exchange.sessionEndingAvailable()) {
                                                     waiting=false;refreshRequested=false
                                                     counters.notificationsQueued.addAndGet(-notifications.size.toLong());notifications.clear();notificationBytes=0
                                                     exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}

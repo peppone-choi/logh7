@@ -11,6 +11,7 @@ import java.net.URLDecoder
 internal fun startPlayerRegistration(port: Int, accounts: FileAccounts, nanoTime: () -> Long = System::nanoTime): AutoCloseable {
     val server = HttpServer.create(InetSocketAddress("127.0.0.1", port), 16)
     val changes = PasswordChangeAttempts(nanoTime)
+    val resets = PasswordChangeAttempts(nanoTime)
     fun route(path: String, handle: (HttpExchange) -> Pair<Int, String>) = server.createContext(path) { exchange ->
         exchange.use {
             val (status, result) = when {
@@ -49,6 +50,27 @@ internal fun startPlayerRegistration(port: Int, accounts: FileAccounts, nanoTime
             !changes.allow(account) -> 429 to "retry_later"
             accounts.changePassword(account, currentPassword, newPassword) -> 200 to "changed"
             else -> 401 to "invalid_credentials"
+        }
+    } }
+    route("/recovery-code") { exchange -> accountForm(exchange, setOf("account", "currentPassword")) { values ->
+        val account = values.getValue("account")
+        val password = values.getValue("currentPassword")
+        when {
+            !FileAccounts.validName(account) || !FileAccounts.validPassword(password) -> 401 to "invalid_credentials"
+            !changes.allow(account) -> 429 to "retry_later"
+            else -> accounts.issueRecoveryCode(account, password)?.let { 201 to "code:$it" } ?: (401 to "invalid_credentials")
+        }
+    } }
+    route("/password-reset") { exchange -> accountForm(exchange, setOf("account", "recoveryCode", "newPassword")) { values ->
+        val account = values.getValue("account")
+        val code = values.getValue("recoveryCode")
+        val password = values.getValue("newPassword")
+        when {
+            !FileAccounts.validPassword(password) -> 422 to "invalid_password"
+            !FileAccounts.validName(account) || !FileAccounts.validRecoveryCode(code) -> 401 to "invalid_recovery"
+            !resets.allow(account) -> 429 to "retry_later"
+            accounts.recoverPassword(account, code, password) -> 200 to "changed"
+            else -> 401 to "invalid_recovery"
         }
     } }
     server.start()

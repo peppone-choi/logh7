@@ -3,7 +3,12 @@ package org.logh7.gateway
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
+import java.util.HexFormat
 import java.util.Properties
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The local account file as a live map (2026-11-03 account management, file storage chosen as the default):
@@ -15,10 +20,15 @@ import java.util.Properties
 class FileAccounts(private val path: Path, private val reserveRemovedNames: Boolean = false) : AbstractMap<String, String>() {
     private var loadedAt: java.nio.file.attribute.FileTime? = null
     private var current: Map<String, String> = emptyMap()
+    private val recoveryVersions = ConcurrentHashMap<String, Long>()
 
     companion object {
         // Older readers accept this hash prefix and reject the deliberately incomplete hash.
         private const val REMOVED = "pbkdf2-sha256:removed"
+        private const val RECOVERY_MARKER = ":recovery-v1:"
+        private val random = SecureRandom()
+        private val recoveryCode = Regex("[A-Za-z0-9_-]{22}")
+        private fun codeDigest(code: String) = MessageDigest.getInstance("SHA-256").digest(code.toByteArray(Charsets.US_ASCII))
         // Keep missing and reserved accounts on the same verification path.
         private const val UNAVAILABLE_PASSWORD =
             "pbkdf2-sha256:600000:AAAAAAAAAAAAAAAAAAAAAA==:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
@@ -28,6 +38,7 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
         private val secret = Regex("[!-~]{1,10}")
         fun validName(account: String) = name.matches(account)
         fun validPassword(password: String) = secret.matches(password)
+        fun validRecoveryCode(code: String) = recoveryCode.matches(code)
     }
 
     @Synchronized private fun fresh(): Map<String, String> {
@@ -35,8 +46,10 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
         if (modified != loadedAt) { current = loadTestAccounts(path); loadedAt = modified }
         return current
     }
-    override val entries: Set<Map.Entry<String, String>> get() = fresh().filterValues { it != REMOVED }.entries
-    override fun get(key: String): String? = fresh()[key]?.takeUnless { it == REMOVED }
+    private fun passwordPart(record: String) = if (AccountPassword.isHashed(record)) record.substringBefore(RECOVERY_MARKER) else record
+    override val entries: Set<Map.Entry<String, String>> get() =
+        fresh().filterValues { it != REMOVED }.mapValues { passwordPart(it.value) }.entries
+    override fun get(key: String): String? = fresh()[key]?.takeUnless { it == REMOVED }?.let(::passwordPart)
     override fun containsKey(key: String): Boolean = get(key) != null
 
     @Synchronized fun names(): List<String> = keys.sorted()
@@ -57,14 +70,43 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
     @Synchronized fun changePassword(account: String, currentPassword: String, newPassword: String): Boolean {
         require(validName(account) && validPassword(currentPassword) && validPassword(newPassword)) { "invalid account or password" }
         val accounts = fresh()
-        val stored = accounts[account]?.takeUnless { it == REMOVED }
+        if (!matchesPassword(accounts[account], currentPassword)) return false
+        write(accounts + (account to AccountPassword.hash(newPassword)))
+        return true
+    }
+
+    @Synchronized fun issueRecoveryCode(account: String, currentPassword: String): String? {
+        require(validName(account) && validPassword(currentPassword))
+        val accounts = fresh()
+        val record = accounts[account]
+        if (!matchesPassword(record, currentPassword)) return null
+        val stored = passwordPart(checkNotNull(record))
+        val hash = if (AccountPassword.isHashed(stored)) stored else AccountPassword.hash(currentPassword)
+        val code = Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(16).also(random::nextBytes))
+        write(accounts + (account to (hash + RECOVERY_MARKER + HexFormat.of().formatHex(codeDigest(code)))))
+        return code
+    }
+
+    @Synchronized fun recoverPassword(account: String, code: String, newPassword: String): Boolean {
+        require(validName(account) && validRecoveryCode(code) && validPassword(newPassword))
+        val accounts = fresh()
+        val digest = accounts[account]?.substringAfter(RECOVERY_MARKER, "")?.takeIf { it.length == 64 }
+            ?.let { runCatching { HexFormat.of().parseHex(it) }.getOrNull() }
+        val matches = MessageDigest.isEqual(digest ?: ByteArray(32), codeDigest(code))
+        if (!matches || digest == null) return false
+        write(accounts + (account to AccountPassword.hash(newPassword)))
+        recoveryVersions.merge(account, 1L, Long::plus)
+        return true
+    }
+
+    internal fun recoveryVersion(account: String) = recoveryVersions[account] ?: 0L
+
+    private fun matchesPassword(record: String?, currentPassword: String): Boolean {
+        val stored = record?.takeUnless { it == REMOVED }?.let(::passwordPart)
         if (stored == null || !AccountPassword.isHashed(stored)) {
             AccountPassword.matches(UNAVAILABLE_PASSWORD, currentPassword)
         }
-        val matches = stored != null && AccountPassword.matches(stored, currentPassword)
-        if (!matches) return false
-        write(accounts + (account to AccountPassword.hash(newPassword)))
-        return true
+        return stored != null && AccountPassword.matches(stored, currentPassword)
     }
 
     @Synchronized fun remove(account: String): Boolean {

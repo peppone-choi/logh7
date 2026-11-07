@@ -261,6 +261,9 @@ def player_state_problems(classes: dict[str, bytes], accounts: Path | None, acco
             if ("pbkdf2-sha256:removed" in values.values() and
                     not has_constant(classes.get(FILE_ACCOUNTS, b""), "pbkdf2-sha256:removed")):
                 problems.append(f"reserved account names in {path.name}")
+            if (any(value.startswith("pbkdf2-sha256:") and ":recovery-v1:" in value for value in values.values()) and
+                    not has_constant(classes.get(FILE_ACCOUNTS, b""), ":recovery-v1:")):
+                problems.append(f"account recovery codes in {path.name}")
         else:
             format_name = "LOGH7-ACCOUNT-FAME-1"
             if values.get("@format") != format_name or not has_constant(classes.get(FAME_STORAGE, b""), format_name):

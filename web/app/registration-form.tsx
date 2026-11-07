@@ -107,6 +107,7 @@ export default function RegistrationForm({ loginPort }: { loginPort: number | nu
                 </>}
             </li>
             <li>게임을 실행해 위 아이디와 방금 만든 비밀번호를 입력하세요.</li>
+            <li><a className="portal-link" href="/password/recovery#issue">비밀번호를 잊기 전에 복구 코드를 발급받으세요.</a></li>
           </ol>
         </div>
       </div>

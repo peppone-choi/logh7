@@ -9,8 +9,8 @@ function reply(body: string, status: number) {
 
 export async function portalRequest(
   request: Request,
-  path: "/register" | "/password",
-  results: Record<number, readonly string[]>,
+  path: "/register" | "/password" | "/recovery-code" | "/password-reset",
+  results: Record<number, readonly string[] | RegExp>,
 ) {
   const host = request.headers.get("host") ?? "";
   if (!/^(127\.0\.0\.1|localhost):\d{1,5}$/.test(host) ||
@@ -47,7 +47,10 @@ export async function portalRequest(
       signal: AbortSignal.timeout(5000),
     });
     const result = await response.text();
-    if (results[response.status]?.includes(result)) return reply(result, response.status);
+    const allowed = results[response.status];
+    if (allowed instanceof RegExp ? allowed.test(result) : allowed?.includes(result)) {
+      return reply(result, response.status);
+    }
   } catch {
     return reply("unavailable", 503);
   }

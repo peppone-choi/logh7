@@ -27,17 +27,17 @@ import org.logh7.engine.country
 class SessionTickets(private val clock: Clock = Clock.systemUTC()) {
     enum class Purpose { LOBBY, GAME }
     data class Ticket(val account: String, val purpose: Purpose, val expiresAt: Long,
-        val sessionId:Int=1,val generation:Long?=null)
+        val sessionId:Int=1,val generation:Long?=null,val recoveryVersion:Long=0)
     private val random = SecureRandom()
     private val tickets = mutableMapOf<Long, Ticket>()
     @Synchronized fun issue(account: String = "", purpose: Purpose = Purpose.LOBBY,
-        sessionId:Int=1,generation:Long?=null): Long {
+        sessionId:Int=1,generation:Long?=null,recoveryVersion:Long=0): Long {
         require(sessionId in 1..65535 && (generation==null || generation>0))
         tickets.entries.removeIf { it.value.expiresAt <= clock.millis() }
         check(tickets.size < 4096) { "Session ticket capacity exceeded" }
         var token: Long
         do { token = random.nextInt().toLong() and 0xffffffffL } while (token == 0L || token in tickets)
-        tickets[token] = Ticket(account, purpose, clock.millis() + 60_000,sessionId,generation)
+        tickets[token] = Ticket(account, purpose, clock.millis() + 60_000,sessionId,generation,recoveryVersion)
         return token
     }
     @Synchronized fun take(token: Long): Ticket? = tickets.remove(token)?.takeIf { it.expiresAt > clock.millis() }
@@ -500,7 +500,10 @@ class GameExchange(
     }
     /** U-25 defection ends the connection after its reply; the client reconnects on the new side. */
     @Volatile private var defectedLogout=false
-    fun obsolete() = defectedLogout || ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
+    private fun recoveryVersion(account: String) = (accounts as? FileAccounts)?.recoveryVersion(account) ?: 0L
+    private fun recovered(ticket: SessionTickets.Ticket) = recoveryVersion(ticket.account) != ticket.recoveryVersion
+    internal fun accountRecovered() = ticket?.let(::recovered) == true
+    fun obsolete() = defectedLogout || accountRecovered() || ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
         (generation != admission.generation || !admission.running && !sessionEndingAvailable())
     // ByteArray convenience is retained for codec callers. Gateway always writes the bound outbound batch.
     fun finishJoin(result: Admission): ByteArray? = finishJoinOutbound(result)?.bytes
@@ -2565,7 +2568,7 @@ class GameExchange(
                     }
                     when (selection) {
                         is GameSessionDirectory.Target -> LobbyMessages.selected(selection.address, selection.port,
-                            tickets.issue(identity.account, SessionTickets.Purpose.GAME, selection.id, selection.generation))
+                            tickets.issue(identity.account, SessionTickets.Purpose.GAME, selection.id, selection.generation, identity.recoveryVersion))
                         is GameSessionDirectory.Refused -> LobbyMessages.selectionFailed(selection.reason)
                     }
                 }
@@ -2578,17 +2581,19 @@ class GameExchange(
         return when (role) {
             Role.LOGIN -> {
                 val request = LoginMessages.request(body)
+                val version = recoveryVersion(request.account)
                 val expected = accounts[request.account]
                 // A maintenance refusal is counted by the gate only, so a planned closure does not trip the login-failure alert.
                 val closed = maintenance?.refuses() == true
-                val accepted = !closed && expected != null && AccountPassword.matches(expected, request.credential)
+                val accepted = !closed && expected != null && AccountPassword.matches(expected, request.credential) &&
+                    version == recoveryVersion(request.account)
                 if (!closed) (if (accepted) counters?.loginAccepted else counters?.loginRejected)?.incrementAndGet()
-                val reply =if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account,sessionId=sessionId)) else LoginMessages.failure()
+                val reply =if (accepted) LoginMessages.success(sessionAddress, sessionPort, tickets.issue(request.account,sessionId=sessionId,recoveryVersion=version)) else LoginMessages.failure()
                 state = if (accepted) State.AUTHENTICATED else State.REJECTED
                 handshake.stageAll(listOf(reply))
             }
             Role.SESSION -> {
-                val taken = tickets.take(LoginMessages.sessionToken(body))
+                val taken = tickets.take(LoginMessages.sessionToken(body))?.takeUnless(::recovered)
                 if (taken == null || taken.sessionId != sessionId || (taken.generation != null && taken.generation != (generation ?: 1L)))
                     counters?.sessionTicketRejected?.incrementAndGet()
                 ticket = requireNotNull(taken) { "Invalid or expired session token" }
