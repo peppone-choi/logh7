@@ -86,6 +86,11 @@ class SharedFameWireTest {
                         for((index,f) in listOf(a,b).withIndex()) {
                             f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
                             f.await("settled ending") {f.engine.snapshot().result!=null}
+                            val request=CountryEndingMessages.Request(OutfitPartyMessages.Query(index+1,127*512,14))
+                            val profiles=CharacterCreation(f.directory.resolve("characters.properties")).profiles()
+                            CountryEndingReport.reply(request,f.engine.snapshot(),profiles,CountryCatalogLoader.current(),emptyList(),2,galaxy).forEach {
+                                assertContentEquals(it,peers[index].expect(0x032f),"country results precede the personal fame statement")
+                            }
                             val statement=endingEvaluation(peers[index].expect(0x035a),f,if(index==0)"Alpha" else "Beta")
                             assertEquals((index*10).toLong(),statement.previousFame)
                             assertEquals(((index+1)*10).toLong(),statement.finalFame)
