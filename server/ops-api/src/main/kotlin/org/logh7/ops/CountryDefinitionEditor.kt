@@ -29,7 +29,8 @@ internal fun Route.countryDefinitionRoutes(store:CountryDefinitionStore?,port:In
                     required("native_power").toInt(),required("native_camp").toInt(),required("assets"),optional("calendar"),optional("ship_style")),create)
                 "calendar"->CountryDefinitionEdit.Calendar(CountryCalendar(required("key"),required("name"),required("year_offset").toInt()),create)
                 "family"->CountryDefinitionEdit.Family(CountryFamily(required("key"),required("name"),required("calendar"),required("commands"),
-                    required("ranks"),required("offices"),required("peerage"),required("ship_style")),required("currency"),create)
+                    required("ranks"),required("offices"),required("peerage"),required("ship_style"),optional("creation_style")),
+                    required("currency"),create,keepCreationStyle="creation_style" !in form)
                 else->throw IllegalArgumentException()
             }
             revision to edit
@@ -108,6 +109,8 @@ internal fun countryDefinitionPage(snapshot:CountryDefinitionSnapshot?,requested
             for((name,label,value) in listOf(Triple("currency","기본 통화",snapshot.familyCurrencies[family.key]),Triple("commands","커맨드 체계",family.commands),
                 Triple("ranks","계급 체계",family.ranks),Triple("offices","직위 체계",family.offices),Triple("peerage","작위 체계",family.peerage),Triple("ship_style","함정 스타일",family.shipStyle)))
                 select(name,label,snapshot.references.getValue(name),value)
+            select("creation_style","캐릭터 생성 양식",listOf("empire","alliance"),if(create)null else family.creationStyle,true)
+            append("<p class=\"note\">생성 양식은 출신·얼굴·원작 후보에 적용합니다. 기본값은 계열의 직위 체계를 따릅니다. 변경하려면 DB에 V6을 적용하세요.</p>")
             append("<p class=\"note\">이 계열을 쓰는 모든 국가에 기본값을 적용합니다. 커맨드·계급·직위·작위·통화는 정의 참조이며 실제 권한/잔액 이행과 별도로 연결 중입니다.</p>")
         }
         else->{

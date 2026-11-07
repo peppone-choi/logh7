@@ -23,7 +23,8 @@ data class CountryDefinitionSnapshot(val revision:Long,val catalog:CountryCatalo
 
 sealed interface CountryDefinitionEdit {
     data class Country(val value:CountryDefinition,val create:Boolean=false):CountryDefinitionEdit
-    data class Family(val value:CountryFamily,val currency:String,val create:Boolean=false):CountryDefinitionEdit
+    data class Family(val value:CountryFamily,val currency:String,val create:Boolean=false,
+        val keepCreationStyle:Boolean=false):CountryDefinitionEdit
     data class Calendar(val value:CountryCalendar,val create:Boolean=false):CountryDefinitionEdit
 }
 enum class CountryDefinitionOutcome { CHANGED, UNCHANGED, CONFLICT, INVALID }

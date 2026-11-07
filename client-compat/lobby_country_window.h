@@ -316,7 +316,7 @@ static bool updateLobbyCountryWindow(void* controller) {
             view.selecting=false;
             if(choice.accepted) {
                 const unsigned mode=view.mode;view.selectionBound=true;hideLobbyCountryWindow();resetLobbyCountrySelection();
-                // The native wizard owns only display power; the server keeps the actual country id.
+                // This value selects the native creation preset. The server retains actual membership.
                 if(mode==2) {
                     *reinterpret_cast<unsigned*>(0x2227f68)=choice.power;
                     reinterpret_cast<void(__cdecl*)(int)>(0x595ec0)(0x16);reinterpret_cast<void(__cdecl*)()>(0x5960b0)();

@@ -73,6 +73,26 @@ class PostgresCountryDefinitionsTest {
         }}
     }
 
+    @Test fun creationPresetCanBeOverriddenWithoutChangingTheOfficeOrShipStyle()=fixture {connect->
+        val store=PostgresCountryDefinitions(connect)
+        val before=store.load().catalog.families.getValue("new_empire")
+        assertNull(before.creationStyle)
+        assertEquals(2,before.creationPower)
+        connect().use {db->
+            val migration=checkNotNull(javaClass.getResourceAsStream("/db/migration/V6__country_creation_style.sql"))
+            db.createStatement().use {it.execute(migration.bufferedReader().use {reader->reader.readText()})}
+        }
+        val changed=before.copy(creationStyle="alliance")
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(0,CountryDefinitionEdit.Family(changed,"fixture")))
+        assertEquals(changed,store.load().catalog.families.getValue(before.key))
+        assertEquals(3,store.load().catalog.families.getValue(before.key).creationPower)
+        val renamed = before.copy(name = "시험 신제국 계열")
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(1,CountryDefinitionEdit.Family(renamed,"fixture",keepCreationStyle=true)))
+        assertEquals("alliance",store.load().catalog.families.getValue(before.key).creationStyle)
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(2,CountryDefinitionEdit.Family(before,"fixture")))
+        assertEquals(before,store.load().catalog.families.getValue(before.key))
+    }
+
     @Test fun editsOfDifferentDefinitionsStillConflictAtTheSharedVersion()=fixture {connect->
         val store=PostgresCountryDefinitions(connect);val initial=store.load()
         Executors.newFixedThreadPool(2).use {pool->

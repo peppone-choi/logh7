@@ -1025,8 +1025,14 @@ class GameExchange(
                                         (world?.galaxy?.countryStarts?.keys ?: setOf(org.logh7.engine.CountryId(2),org.logh7.engine.CountryId(3)))-
                                             navigation?.snapshot()?.session?.eliminated.orEmpty().keys)
                                     val entries=characters.entries(identity.account)
-                                    if(selected!=null && (entries.isEmpty() || request.query.mode==org.logh7.protocol.CountrySelectionMessages.LOTTERY &&
-                                            selected==characters.applicationSelection(identity.account))) {
+                                    if (entries.isNotEmpty()) {
+                                        val available = selected
+                                        selected = characters.applicationSelection(identity.account)?.takeIf {
+                                            available != null && request.query.mode == org.logh7.protocol.CountrySelectionMessages.LOTTERY &&
+                                                it.country == available.country && it.nativePower == available.nativePower
+                                        }
+                                    }
+                                    if(selected!=null) {
                                         characters.cancelCreation(identity.account,connection)
                                         countrySelection=selected;countrySelectionMode=request.query.mode;accepted=true
                                     } else selected=null
@@ -1034,7 +1040,7 @@ class GameExchange(
                             }
                             // Declining a replacement keeps the preceding reservation until explicit cancel/disconnect.
                             return handshake.stageAll(listOf(LoginMessages.sessionMessage(0x032f,
-                                org.logh7.protocol.CountrySelectionMessages.reply(request,accepted,selected?.nativePower ?: 0,selected?.shipStyle?.value ?: ""))),clearHeader=0)
+                                org.logh7.protocol.CountrySelectionMessages.reply(request,accepted,selected?.creationPower ?: 0,selected?.shipStyle?.value ?: ""))),clearHeader=0)
                         }
                         if(opcode==0x032e && body.size==11 && (body[10].toInt() and 255)==org.logh7.protocol.LobbyCountryMessages.MODE) {
                             // Before creation/lottery a game connection may read only its own world's catalogue.
