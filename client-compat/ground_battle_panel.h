@@ -7,26 +7,29 @@
 #include "ground_panel_layout.h"
 static void pickerName(unsigned id, wchar_t (&name)[32]);
 static SRWLOCK groundPanelLock=SRWLOCK_INIT;
-struct GroundPanelRow {unsigned id,kind,strength,target,morale,commander;bool reserve;};
+struct GroundPanelRow {unsigned id,kind,strength,target,morale,commander,relation;bool reserve;};
 struct GroundPanelCommander {unsigned id;wchar_t name[13];};
 static struct GroundPanel {
-    BYTE* world; unsigned grid,base,count,cursor,activeBase;
+    BYTE* world; unsigned grid,base,count,cursor,activeBase;bool partial;
     GroundPanelRow rows[70];
     GroundPanelCommander commanders[10];unsigned commanderCount;
     ULONGLONG pollAt,activeUntil;
 } groundPanel={};
 static struct GroundPanelInbox {
-    bool pending,marked,recordPending; unsigned base,ready,count; GroundPanelRow rows[70]; ULONGLONG sentAt;
+    bool pending,marked,recordPending; unsigned base,ready,count,flags; GroundPanelRow rows[70]; ULONGLONG sentAt;
     GroundPanelCommander commanders[10];unsigned commanderCount;
 } groundPanelInbox={};
 static bool groundPanelEmpire(unsigned kind) {return kind<=3 || kind==8 || kind==9;}
+static bool groundPanelFriendly(const GroundPanelRow& row,bool viewerEmpire) {
+    return logh::groundPanelFriendly(row.relation,groundPanelEmpire(row.kind),viewerEmpire);
+}
 // 032f decoder side: the mode-3 echo (record +8) identifies the next 0331 as this panel's roster.
 static bool groundPanelMarked(const BYTE* party) {
     if (party[8]!=3) return false;
     AcquireSRWLockExclusive(&groundPanelLock);
     auto& q=groundPanelInbox;
     if (q.pending && !logh::infoWord(party,0) && logh::infoWord(party,4)==q.base) {
-        q.marked=true;q.commanderCount=0;
+        q.marked=true;q.commanderCount=0;q.flags=logh::infoWord(party,16);
         for(unsigned i=0;i<party[20] && i<10;++i) {
             const auto member=party+24+i*36;const unsigned length=member[6];
             if(!logh::infoWord(member,0) || length<1 || length>13 || logh::infoShort(member,8+(length-1)*2))continue;
@@ -47,7 +50,9 @@ static bool groundPanelRoster(const BYTE* record,unsigned result) {
         for (unsigned i=0;i<n && i<70;++i) {
             auto row=record+4+i*88;unsigned kind=logh::infoShort(row,4);
             if (kind<1000 || kind>1015 || logh::infoWord(row,64)!=q.base) continue;
-            q.rows[q.count++]={logh::infoWord(row,0),kind-1000,logh::infoShort(row,70),logh::infoWord(row,76),row[68],logh::infoWord(row,80),logh::infoShort(row,72)==1};
+            const unsigned relation=(q.flags&1) ? row[69] : 0;
+            if((q.flags&1) && relation!=1 && relation!=2)continue;
+            q.rows[q.count++]={logh::infoWord(row,0),kind-1000,logh::infoShort(row,70),logh::infoWord(row,76),row[68],logh::infoWord(row,80),relation,logh::infoShort(row,72)==1};
         }
         q.ready=q.base;
     }
@@ -86,11 +91,15 @@ static void updateGroundPanel() {
     AcquireSRWLockExclusive(&groundPanelLock);
     auto& q=groundPanelInbox;
     if (q.ready) {
-        bool fight=false,empire=false,alliance=false;
-        for (unsigned i=0;i<q.count;++i) (groundPanelEmpire(q.rows[i].kind) ? empire : alliance)=true;
-        fight=empire && alliance;
+        bool fight=(q.flags&2) && q.count;
+        if(!(q.flags&1)) {
+            bool empire=false,alliance=false;
+            for (unsigned i=0;i<q.count;++i) (groundPanelEmpire(q.rows[i].kind) ? empire : alliance)=true;
+            fight=empire && alliance;
+        }
         if (fight || q.ready==s.activeBase) {
             s.activeBase=fight ? q.ready : 0;s.count=q.count;memcpy(s.rows,q.rows,sizeof(s.rows));
+            s.partial=(q.flags&1) && (q.flags&4);
             s.commanderCount=q.commanderCount;memcpy(s.commanders,q.commanders,sizeof(s.commanders));
             s.activeUntil=fight ? now+8000 : 0;
         }
@@ -133,7 +142,7 @@ static void drawGroundPanel(BYTE* display,void* texture,float depth) {
     if (!base[0]) _snwprintf_s(base,_countof(base),_TRUNCATE,L"거점 %u",s.activeBase);
     unsigned friends=0,foes=0,friendPower=0,foePower=0,friendReserve=0,foeReserve=0;
     for (unsigned i=0;i<s.count;++i) {
-        bool mine=groundPanelEmpire(s.rows[i].kind)==ownEmpire;
+        bool mine=groundPanelFriendly(s.rows[i],ownEmpire);
         if (s.rows[i].reserve) {(mine ? friendReserve : foeReserve)++;continue;}
         (mine ? friends : foes)++;(mine ? friendPower : foePower)+=s.rows[i].strength;
     }
@@ -160,7 +169,7 @@ static void drawGroundPanel(BYTE* display,void* texture,float depth) {
         unsigned shown=0;
         for (unsigned i=0;i<s.count && shown<logh::groundPanelVisibleRows;++i) {
             auto& r=s.rows[i];
-            if ((groundPanelEmpire(r.kind)==ownEmpire)!=(side==0) || r.reserve) continue;
+            if (groundPanelFriendly(r,ownEmpire)!=(side==0) || r.reserve) continue;
             const int y=top+102+static_cast<int>(shown)*34;
             wchar_t name[32];groundPanelName(r.kind,name);
             _snwprintf_s(line,_countof(line),_TRUNCATE,L"%ls #%u",name,r.id);text(line,x,y,color);
@@ -172,7 +181,7 @@ static void drawGroundPanel(BYTE* display,void* texture,float depth) {
         }
     }
     unsigned first=0,commanders[70]={},commanderCount=0;
-    for(unsigned i=0;i<s.count;++i)if(groundPanelEmpire(s.rows[i].kind)==ownEmpire && s.rows[i].commander) {
+    for(unsigned i=0;i<s.count;++i)if(groundPanelFriendly(s.rows[i],ownEmpire) && s.rows[i].commander) {
         unsigned id=s.rows[i].commander;bool found=false;
         for(unsigned j=0;j<commanderCount;++j)if(commanders[j]==id)found=true;
         if(!found){commanders[commanderCount++]=id;if(!first)first=id;}
@@ -183,5 +192,5 @@ static void drawGroundPanel(BYTE* display,void* texture,float depth) {
     text(line,left+12,top+270,0xff80c0ff);
     rect(left+12,top+286,width-24,1,0xff294456);
     text(L"막대 = 남은 병력 · 사기 = 전투 의지 · 예비 = 대기 병력",left+12,top+290);
-    text(L"각 진영 앞 5개 표시 · 정보 → 육전대 정보에서 상세/대상 지정",left+12,top+307,0xff9aafc2);
+    text(s.partial ? L"일부 병력 집계 · 정보 → 육전대 정보" : L"각 진영 앞 5개 표시 · 정보 → 육전대 정보에서 상세/대상 지정",left+12,top+307,0xff9aafc2);
 }

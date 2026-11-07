@@ -1039,6 +1039,8 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::groundMeter(1000,1000,70)!=70 || logh::groundMeter(1001,1000,70)!=70 ||
         logh::groundMeter(~0u,1000,70)!=70 || logh::groundMeter(500,0,70)!=0 ||
         logh::groundPanelTop+logh::groundPanelHeight>600) return 270;
+    if (!logh::groundPanelFriendly(1,false,true) || logh::groundPanelFriendly(2,true,true) ||
+        !logh::groundPanelFriendly(0,true,true) || logh::groundPanelFriendly(0,true,false)) return 270;
     if(!runtimeKoreanGlyphTest())return 95;
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;

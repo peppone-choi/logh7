@@ -243,8 +243,8 @@ class WorldBootstrap(val galaxy: Galaxy,
             outfit.number,emptyList(),emptyList(),0,0)),LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))
     }
     /** Reconstructed ground battle window (design-ground-battle-window.md), query mode 3: both sides' landed troops on
-     * one base as 0331 rows. Kind 1000+k already names the faction; damaged carries strength (0..1000) and supplies the
-     * troop's ordered target. Only a viewer in tactics on that grid may read it. */
+     * one base as 0331 rows. Kind 1000+k selects the artwork, while the extension's loyalty byte identifies
+     * friendly/foreign troops. Only a viewer in tactics on that grid may read it. */
     fun outfitBattle(query:OutfitPartyMessages.Query,countryId:Int,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?,
         characterCountryById:(Int)->org.logh7.engine.CountryId? = {null},
         characterById:(Int)->org.logh7.protocol.CharacterMessages.Generate? = {null}):List<ByteArray> {
@@ -258,22 +258,29 @@ class WorldBootstrap(val galaxy: Galaxy,
         // Public strength: every registered country's troops on this base (kind 1000+k keeps the model's own
         // faction). Private command (commander) only for the viewer's actual country. Records of a country that is
         // not in the catalogue are left out rather than shown as the empire or the alliance.
-        val rows=if(base==null || viewerGrid!=base.grid)emptyList() else stocks.outfits.values.filter {it.country.value in registered}.flatMap {o->
+        val entries=if(base==null || viewerGrid!=base.grid)emptyList() else stocks.outfits.values.filter {it.country.value in registered}.flatMap {o->
             // Only troops that may fight here (p.51: no 装甲兵 on special planets/fortresses).
             o.activeGround?.values.orEmpty().filter {it.base==base.id && org.logh7.engine.GroundBattleRules.admitsCrewType(base,
                 UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}.map {u->
                 val commander=if(o.country==country)org.logh7.engine.GroundCommandAuthority.commander(o,u,stocks,galaxy) else 0
-                OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,base.grid,o.id,u.base,
+                o.country to OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,base.grid,o.id,u.base,
                     // destroyed=1 marks a reserve beyond the side's 30 fighting units (window display only).
                     supplies=stocks.tacticalCommands.groundTargets[u.id] ?: 0,damaged=u.strength,destroyed=if(u.id in fighting)0 else 1,
                     morale=stocks.tacticalCommands.morale[u.id] ?: 100,
+                    rebellion=if(o.country==country)1 else 2,
                     commander=commander.takeIf {it>0 && characterCountryById(it)==country} ?: 0,
                     mode=if(u.origin>0)9 else 4)}
-        }.sortedBy {it.id}.take(70)
+        }
+        val allRows=entries.map {it.second}
+        // Keep fighting units ahead of reserves when the original packet's 70 slots fill up.
+        val rows=allRows.sortedWith(compareBy<OutfitPartyMessages.UnitInformation>{it.destroyed}.thenBy {it.id}).take(70).sortedBy {it.id}
+        val contested=entries.filter {it.second.destroyed==0}.map {it.first}.toSet().size>1
+        // The mode-3 header's unused number carries a version bit, battle state, and roster truncation.
+        val battleFlags=1 or (if(contested)2 else 0) or (if(allRows.size>rows.size)4 else 0)
         val commanders=rows.map {it.commander}.filter {it>0}.distinct().sorted().take(10).mapNotNull {id->
             characterById(id)?.takeIf {it.id==id.toLong() && it.power==power}?.let {
                 OutfitPartyMessages.Member(id,0,it.rank,it.surname)}}
-        return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,0,0,emptyList(),emptyList(),0,0,commanders)),
+        return listOf(LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,power,0,battleFlags,emptyList(),emptyList(),0,0,commanders)),
             LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(rows)))
     }
     fun outfitUnit(id: Int, countryId: Int, stocks: org.logh7.engine.PlanetStocks, base: Int = 0): ByteArray {

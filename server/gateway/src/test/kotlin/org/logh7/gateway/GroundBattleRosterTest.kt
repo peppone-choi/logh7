@@ -34,17 +34,20 @@ class GroundBattleRosterTest {
         assertEquals(1,ByteBuffer.wrap(packets[1]).get(6).toInt(),"the empire's armored infantry cannot fight on a special planet")
     }
     @Test fun troopsBeyondThirtyPerSideAreMarkedAsReserve() {
-        val many=ActiveGroundUnits((1..32).map {ActiveGroundUnit(100+it,UnitStack(1),base=1049)})
+        val many=ActiveGroundUnits((1..75).map {ActiveGroundUnit(100+it,UnitStack(1),base=1049)})
         val foes=ActiveGroundUnits(listOf(ActiveGroundUnit(200,UnitStack(5),base=1049)))
         val s=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,3,0,0,0,0)),mapOf(
             1 to OutfitStock(1,2,OutfitKind.GROUND,1049,1,units=UnitInventory(troops=many.quantities()),activeGround=many),
             2 to OutfitStock(2,3,OutfitKind.GROUND,1049,2,units=UnitInventory(troops=foes.quantities()),activeGround=foes)),
             mapOf(1 to OutfitWarehouse(1,2,OutfitKind.GROUND,1049),2 to OutfitWarehouse(2,3,OutfitKind.GROUND,1049)),nextShipId=300)
-        val b=ByteBuffer.wrap(WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,s,2487)[1]);b.position(6)
-        val reserve=List(b.get().toInt()) {
+        val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,s,2487)
+        assertEquals(7,ByteBuffer.wrap(packets[0]).getInt(21),"active battle with a truncated roster")
+        val b=ByteBuffer.wrap(packets[1]);b.position(6)
+        val rows=List(b.get().toInt()) {
             val id=b.int;b.short;b.get();b.int;b.int;b.int;b.get();b.int;b.get();b.get();b.short;val r=b.short.toInt();b.int;b.int;b.float;id to r
-        }.filter {it.second==1}.map {it.first}
-        assertEquals(listOf(131,132),reserve)
+        }
+        assertEquals((131..169).toList(),rows.filter {it.second==1}.map {it.first})
+        assertTrue(200 to 0 in rows,"an opposing active unit must survive truncation by low-ID reserves")
     }
     @Test fun theRosterCarriesOnlyAlliedExistingCommandersWithoutChangingAnyAppointment() {
         val s=stocks.copy(outfits=stocks.outfits.mapValues {(id,o)->o.copy(commanderId=10000+id)})
