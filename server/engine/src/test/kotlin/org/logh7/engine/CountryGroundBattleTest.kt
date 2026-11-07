@@ -58,4 +58,21 @@ class CountryGroundBattleTest {
         }
         assertEquals(24_000,TacticalBaseDefense.strength(after,base))
     }
+
+    @Test fun onlyTheDecisiveRoundReportsTheActualSurvivorOrMutualLoss() {
+        for (mutual in listOf(false,true)) {
+            val before=stocks(listOf(42,43))
+            val weak=before.copy(outfits=before.outfits.mapValues {(_,outfit)->
+                if(mutual || outfit.country==CountryId(43))outfit.copy(activeGround=ActiveGroundUnits(
+                    outfit.activeGround!!.values.map {it.copy(strength=1)})) else outfit
+            })
+            val events=mutableListOf<GroundBattleResult>()
+            val after=GroundBattleOperations.advance(session.copy(gameMillis=session.gameMillis+5000),galaxy,
+                emptyMap(),advance(weak,0),1,events)
+            assertEquals(GroundBattleConclusion(if(mutual)null else CountryId(42)),events.single().conclusion)
+            assertFalse(base.id in after.groundBattles)
+            GroundBattleOperations.advance(session.copy(gameMillis=session.gameMillis+10000),galaxy,emptyMap(),after,1,events)
+            assertEquals(1,events.size)
+        }
+    }
 }
