@@ -165,7 +165,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                     }
                 }
             },countries={request->if(!started || closed.get())null else lobbyCountries(request)},
-            endings={request,account->if(!started || closed.get())null else countryEndings(request,account)}),accounts)
+            endings={request,account->if(!started || closed.get())null else countryEndings(request,account)},
+            countryEmblem = { request -> world?.lobbyCountryEmblem(request) }),accounts)
         successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById,
             {country->org.logh7.engine.CountryCatalogLoader.current().countries[country.value]?.name})}}
         tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}

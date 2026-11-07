@@ -636,7 +636,7 @@ static void install() {
     const BYTE oldCardGroup = 101, newCardGroup = 96;
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
-    if (!installSessionEnding() || !installLobbyCountryTransport()) { status = -3; return; }
+    if (!installSessionEnding() || !installLobbyCountryTransport() || !installLobbyCountryIconDraw()) { status = -3; return; }
     if (!installCreationMenus() || !installGameAdmission()) { status = -3; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installOutfitInformation()) { status = -3; return; }

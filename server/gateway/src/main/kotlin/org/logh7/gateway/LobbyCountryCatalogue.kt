@@ -30,6 +30,9 @@ internal object LobbyCountryCatalogue {
         val appearances:List<CountryAppearance>,val starts:Set<CountryId> = defaultStarts)
 
     fun reply(request:LobbyCountryMessages.Request,source:Source):List<ByteArray> {
+        if (request.query.base == LobbyCountryMessages.EMBLEM_PROBE) {
+            return listOf(LoginMessages.sessionMessage(0x032f, LobbyCountryMessages.emblemCapability(request)))
+        }
         val countries=source.catalog.countries.values.sortedBy {it.id}.take(LobbyCountryMessages.MAX_OFFSET)
         val page=countries.drop(request.offset).take(LobbyCountryMessages.PAGE)
         val snapshot=source.snapshot?.takeIf {it.session?.generation==null || it.session?.generation==source.generation}

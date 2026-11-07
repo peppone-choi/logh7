@@ -3,6 +3,7 @@ package org.logh7.gateway
 import org.logh7.protocol.LoginMessages
 import org.logh7.protocol.LobbyMessages
 import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.CountryImageMessages
 import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.engine.positionIn
@@ -1040,6 +1041,11 @@ class GameExchange(
                             val request=org.logh7.protocol.LobbyCountryMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
                             val frames=if(request.sessionId==sessionId)lobbyCountries?.invoke(request) else null
                             return handshake.stageAll(frames ?: LobbyCountryCatalogue.empty(request),clearHeader=0)
+                        }
+                        if (opcode == 0x032e && body.size == 11 && (body[10].toInt() and 255) == CountryImageMessages.LOBBY_MODE) {
+                            val request = CountryImageMessages.LobbyRequest(org.logh7.protocol.OutfitPartyMessages.query(body))
+                            val frames = if (request.sessionId == sessionId && admission?.running != false) world?.lobbyCountryEmblem(request) else null
+                            return handshake.stageAll(frames ?: CountryImageMessages.lobbyReply(request, 0, 0, null), clearHeader = 0)
                         }
                         check(gameStarted && world != null && stock != null)
                         val character = checkNotNull(currentCharacter(identity.account))
@@ -2248,8 +2254,13 @@ class GameExchange(
                         return handshake.stageAll(frames ?: org.logh7.protocol.CountryEndingMessages.empty(request).map {
                             LoginMessages.sessionMessage(0x032f,it)},clearHeader=0)
                     }
-                    // Lobby country catalogue (mode 7) only: no other 032e mode is answered before a game starts.
                     check(lobbyLoggedIn)
+                    if (body.size == 11 && (body[10].toInt() and 255) == CountryImageMessages.LOBBY_MODE) {
+                        val request = CountryImageMessages.LobbyRequest(org.logh7.protocol.OutfitPartyMessages.query(body))
+                        val frames = if (sessionDirectory != null) sessionDirectory.countryEmblem(request)
+                            else if (request.sessionId == sessionId && admission?.running != false) world?.lobbyCountryEmblem(request) else null
+                        return handshake.stageAll(frames ?: CountryImageMessages.lobbyReply(request, 0, 0, null), clearHeader = 0)
+                    }
                     val request=org.logh7.protocol.LobbyCountryMessages.request(org.logh7.protocol.OutfitPartyMessages.query(body))
                     val frames=if(sessionDirectory!=null)sessionDirectory.countries(request)
                         else if(request.sessionId==sessionId && admission?.running!=false)lobbyCountries?.invoke(request) else null
