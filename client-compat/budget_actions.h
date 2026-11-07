@@ -5,7 +5,17 @@ static struct BudgetWindow {
     unsigned currentRate,rate,quote,quotePhase,field,requestPhase;
     ULONGLONG national,local,amount,queryAt;
     bool loaded,dirty;
+    wchar_t currency[13],symbol[5];
 } budgetWindow={};
+static void readBudgetCurrency(void* record,wchar_t* text,unsigned capacity) {
+    // The native reader swaps each numeric field as a whole.
+    constexpr unsigned offsets[]={14,12,22,20,24,30,28};
+    for(unsigned index=0;index<capacity;++index) {
+        const auto value=at<const unsigned short>(record,offsets[index]);
+        if(value<0x20 || (value>=0x7f && value<=0x9f) || (value>=0xd800 && value<=0xdfff))break;
+        text[index]=static_cast<wchar_t>(value);
+    }
+}
 static bool budgetCommand(unsigned command) {return command==16 || command==18;}
 static void sendBudgetAction(unsigned phase) {
     auto& state=taxWindow;auto& budget=budgetWindow;
@@ -33,8 +43,14 @@ static bool readBudgetAction(void* record) {
             if(flag==14) {budget.national=value;budget.currentRate=at<unsigned short>(record,24);} else budget.local=value;
         } else if(state.pending && token==state.strategyToken && at<unsigned short>(record,6)==state.strategyCommand) {
             if(!responseStatus) {
-                if(flag==10) {budget.national=value;budget.currentRate=at<unsigned short>(record,24);state.strategyBase=at<unsigned>(record,28);}
+                if(flag==10) {
+                    budget.national=value;budget.currentRate=at<unsigned short>(record,24);state.strategyBase=at<unsigned>(record,28);
+                    memset(budget.currency,0,sizeof(budget.currency));memset(budget.symbol,0,sizeof(budget.symbol));
+                }
                 if(flag==11)budget.local=value;
+                if(flag==16)readBudgetCurrency(record,budget.currency,7);
+                if(flag==17 && budget.currency[6])readBudgetCurrency(record,budget.currency+7,5);
+                if(flag==18)readBudgetCurrency(record,budget.symbol,4);
                 if(flag==12) {
                     unsigned packed=at<unsigned short>(record,24);budget.quote=at<unsigned>(record,28);budget.quotePhase=packed%4;
                     budget.amount=value;
@@ -58,14 +74,15 @@ static bool readBudgetAction(void* record) {
 }
 static void drawBudgetAction() {
     auto& state=taxWindow;auto& budget=budgetWindow;bool remit=state.strategyCommand==16;
-    taxText(0,remit ? L"납입률 변경" : L"국가 예산 분배");
     wchar_t name[32]={},label[180];pickerName(state.strategyBase,name);
+    swprintf_s(label,L"%ls · %ls",remit ? L"납입률 변경" : L"국가 예산 분배",budget.currency[0] ? budget.currency : L"회계 단위");taxText(0,label);
     swprintf_s(label,L"%ls · ID %u · 현재 납입률 %u%%",name[0] ? name : L"거점",state.strategyBase,budget.currentRate);taxText(1,label);
-    swprintf_s(label,L"국고 %llu · 지방 금고 %llu",budget.national,budget.local);taxText(2,label);
+    const wchar_t* space=budget.symbol[0] ? L" " : L"";
+    swprintf_s(label,L"국고 %llu%ls%ls · 지방 금고 %llu%ls%ls",budget.national,space,budget.symbol,budget.local,space,budget.symbol);taxText(2,label);
     const wchar_t* fields[]={L"대상 거점",L"비율 ±1",L"비율 ±10"};
     swprintf_s(label,L"%ls · 선택 %u%%",fields[budget.field],budget.rate);taxText(3,label);
     if(remit)swprintf_s(label,L"견적 #%u · 세율 별도",budget.quote);
-    else swprintf_s(label,L"이체 %llu",budget.amount);taxText(4,label);
+    else swprintf_s(label,L"이체 %llu%ls%ls",budget.amount,space,budget.symbol);taxText(4,label);
     taxText(5,remit && budget.rate==budget.currentRate ? L"같은 납입률은 CP 무료 · 견적/취소 무료" :
         L"MCP 320 · 부족 시 PCP 640 · 견적/취소 무료 · 즉시 적용");
     taxText(6,budget.dirty && !state.pending ? L"선택값이나 잔고가 바뀌었습니다. 새 견적을 요청하세요." : state.message);

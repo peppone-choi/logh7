@@ -73,6 +73,32 @@ class PostgresCountryDefinitionsTest {
         }}
     }
 
+    @Test fun displayCurrencyCanBeCreatedRenamedAndOverriddenWithoutEditingAccounts() = fixture { connect ->
+        val store = PostgresCountryDefinitions(connect)
+        val original = store.load()
+        val empire = original.catalog.countries.getValue(2)
+        val currency = CountryCurrency("imperial_mark", "제국 마르크", "RM")
+        assertEquals("fixture", original.currency(CountryId(2))?.key)
+        assertEquals(CountryDefinitionOutcome.CHANGED, store.save(0, CountryDefinitionEdit.Currency(currency, create = true)))
+        assertEquals(CountryDefinitionOutcome.CHANGED, store.save(1, CountryDefinitionEdit.Country(empire.copy(currencyOverride = currency.key))))
+        val renamed = currency.copy(name = "은하 마르크", symbol = "GM")
+        assertEquals(CountryDefinitionOutcome.CONFLICT, store.save(1, CountryDefinitionEdit.Currency(renamed)))
+        assertEquals(CountryDefinitionOutcome.CHANGED, store.save(2, CountryDefinitionEdit.Currency(renamed)))
+        assertEquals(CountryDefinitionOutcome.INVALID, store.save(3, CountryDefinitionEdit.Currency(renamed.copy(symbol = "01234"))))
+        assertEquals(CountryDefinitionOutcome.CHANGED, store.save(3, CountryDefinitionEdit.Country(empire.copy(name = "이름 변경"), keepCurrencyOverride = true)))
+        val reopened = PostgresCountryDefinitions(connect).load()
+        assertEquals(renamed, reopened.currency(CountryId(2)))
+        assertEquals("fixture", reopened.currency(CountryId(3))?.key)
+        assertEquals(CountryDefinitionOutcome.CHANGED, store.save(4, CountryDefinitionEdit.Country(empire)))
+        assertEquals("fixture", store.load().currency(CountryId(2))?.key)
+        connect().use { db -> db.createStatement().use { statement ->
+            statement.executeQuery("SELECT count(*) FROM nation_money_account").use {
+                assertTrue(it.next())
+                assertEquals(0, it.getInt(1))
+            }
+        } }
+    }
+
     @Test fun creationPresetCanBeOverriddenWithoutChangingTheOfficeOrShipStyle()=fixture {connect->
         val store=PostgresCountryDefinitions(connect)
         val before=store.load().catalog.families.getValue("new_empire")

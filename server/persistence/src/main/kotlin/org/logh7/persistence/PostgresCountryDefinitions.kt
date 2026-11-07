@@ -23,15 +23,21 @@ class PostgresCountryDefinitions(private val connect:()->Connection):CountryDefi
         val countries=db.rows("SELECT * FROM nation_country ORDER BY country_id LIMIT 351") {
             val id=it.getLong("country_id");require(id in 1..Int.MAX_VALUE)
             CountryDefinition(id.toInt(),it.getString("country_key"),it.getString("display_name"),it.getString("family_key"),
-                it.getInt("native_power"),it.getInt("native_camp"),it.getString("asset_profile"),it.getString("calendar_override"),it.getString("ship_style_override"))}
+                it.getInt("native_power"),it.getInt("native_camp"),it.getString("asset_profile"),it.getString("calendar_override"),
+                it.getString("ship_style_override"),it.getString("currency_override"))}
+        val currencies=db.rows("SELECT currency_key,display_name,symbol,minor_digits FROM nation_currency ORDER BY currency_key LIMIT 1001") {
+            CountryCurrency(it.getString(1),it.getString(2),it.getString(3),it.getInt(4))
+        }.associateBy {it.key}
         require(calendars.size<=350 && families.size<=350 && countries.size<=350)
-        val references=mapOf("currency" to "nation_currency.currency_key","commands" to "nation_command_system.system_key",
+        require(currencies.size<=1000)
+        val references=mapOf("commands" to "nation_command_system.system_key",
             "ranks" to "nation_rank_system.system_key","offices" to "nation_office_system.system_key","peerage" to "nation_peerage_system.system_key",
             "ship_style" to "nation_ship_style.style_key","assets" to "nation_asset_profile.profile_key").mapValues {(_,source)->
             val (table,column)=source.split('.')
             db.rows("SELECT $column FROM $table ORDER BY $column LIMIT 1001") {it.getString(1)}.also {require(it.size<=1000)}
-        }
-        return CountryDefinitionSnapshot(revision,CountryCatalog(calendars,families.map {it.first},countries),references,families.associate {it.first.key to it.second})
+        } + ("currency" to currencies.keys.toList())
+        return CountryDefinitionSnapshot(revision,CountryCatalog(calendars,families.map {it.first},countries),references,
+            families.associate {it.first.key to it.second},currencies)
     }
     override fun load():CountryDefinitionSnapshot = connect().use {db->
         db.transactionIsolation=Connection.TRANSACTION_REPEATABLE_READ;db.isReadOnly=true;db.autoCommit=false
@@ -50,28 +56,49 @@ class PostgresCountryDefinitions(private val connect:()->Connection):CountryDefi
                     is CountryDefinitionEdit.Country->edit.create to (edit.value.id in source.countries)
                     is CountryDefinitionEdit.Family->edit.create to (edit.value.key in source.families)
                     is CountryDefinitionEdit.Calendar->edit.create to (edit.value.key in source.calendars)
+                    is CountryDefinitionEdit.Currency->edit.create to (edit.value.key in before.currencies)
                 }
                 if(create==exists) {db.rollback();return@use CountryDefinitionOutcome.INVALID}
                 val calendars=source.calendars.toMutableMap();val families=source.families.toMutableMap();val countries=source.countries.toMutableMap()
                 var familyCurrencies=before.familyCurrencies
+                var currencies=before.currencies
                 val unchanged=when(edit) {
-                    is CountryDefinitionEdit.Country -> (countries.put(edit.value.id,edit.value)==edit.value)
+                    is CountryDefinitionEdit.Country -> {
+                        val current=countries[edit.value.id]
+                        val value=if(edit.keepCurrencyOverride)edit.value.copy(currencyOverride=current?.currencyOverride) else edit.value
+                        require(value.currencyOverride==null || value.currencyOverride in currencies)
+                        countries.put(value.id,value)==value
+                    }
                     is CountryDefinitionEdit.Calendar -> (calendars.put(edit.value.key,edit.value)==edit.value)
                     is CountryDefinitionEdit.Family -> {
                         val family = if (edit.keepCreationStyle) edit.value.copy(creationStyle = source.families[edit.value.key]?.creationStyle) else edit.value
                         familyCurrencies=familyCurrencies+(edit.value.key to edit.currency)
                         families.put(family.key,family)==family && before.familyCurrencies[family.key]==edit.currency
                     }
+                    is CountryDefinitionEdit.Currency -> {
+                        val current=currencies[edit.value.key]
+                        val value=edit.value.copy(minorDigits=current?.minorDigits ?: 0)
+                        require(value.validForEditing() && (current!=null || currencies.size<1000))
+                        currencies=currencies+(value.key to value)
+                        current==value
+                    }
                 }
-                CountryDefinitionSnapshot(revision,CountryCatalog(calendars.values.toList(),families.values.toList(),countries.values.toList()),before.references,familyCurrencies)
+                CountryDefinitionSnapshot(revision,CountryCatalog(calendars.values.toList(),families.values.toList(),countries.values.toList()),
+                    before.references,familyCurrencies,currencies)
                 if(unchanged) {db.rollback();return@use CountryDefinitionOutcome.UNCHANGED}
                 when(edit) {
-                    is CountryDefinitionEdit.Country -> edit.value.let {c->
-                        update(db,"""INSERT INTO nation_country (country_id,country_key,display_name,family_key,native_power,native_camp,asset_profile,calendar_override,ship_style_override)
-                            VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT (country_id) DO UPDATE SET country_key=EXCLUDED.country_key,
+                    is CountryDefinitionEdit.Country -> countries.getValue(edit.value.id).let {c->
+                        update(db,"""INSERT INTO nation_country (country_id,country_key,display_name,family_key,native_power,native_camp,asset_profile,calendar_override,ship_style_override,currency_override)
+                            VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT (country_id) DO UPDATE SET country_key=EXCLUDED.country_key,
                             display_name=EXCLUDED.display_name,family_key=EXCLUDED.family_key,native_power=EXCLUDED.native_power,
-                            native_camp=EXCLUDED.native_camp,asset_profile=EXCLUDED.asset_profile,calendar_override=EXCLUDED.calendar_override,ship_style_override=EXCLUDED.ship_style_override""",
-                            listOf(c.id,c.key,c.name,c.family,c.nativePower,c.nativeCamp,c.assets,c.calendarOverride,c.shipStyleOverride))
+                            native_camp=EXCLUDED.native_camp,asset_profile=EXCLUDED.asset_profile,calendar_override=EXCLUDED.calendar_override,
+                            ship_style_override=EXCLUDED.ship_style_override,currency_override=EXCLUDED.currency_override""",
+                            listOf(c.id,c.key,c.name,c.family,c.nativePower,c.nativeCamp,c.assets,c.calendarOverride,c.shipStyleOverride,c.currencyOverride))
+                    }
+                    is CountryDefinitionEdit.Currency -> currencies.getValue(edit.value.key).let {currency->
+                        update(db,"""INSERT INTO nation_currency (currency_key,display_name,symbol,minor_digits) VALUES (?,?,?,?)
+                            ON CONFLICT (currency_key) DO UPDATE SET display_name=EXCLUDED.display_name,symbol=EXCLUDED.symbol""",
+                            listOf(currency.key,currency.name,currency.symbol,currency.minorDigits))
                     }
                     is CountryDefinitionEdit.Calendar -> edit.value.let {c->update(db,"""INSERT INTO nation_calendar (calendar_key,display_name,year_offset) VALUES (?,?,?)
                         ON CONFLICT (calendar_key) DO UPDATE SET display_name=EXCLUDED.display_name,year_offset=EXCLUDED.year_offset""",listOf(c.key,c.name,c.yearOffset))}

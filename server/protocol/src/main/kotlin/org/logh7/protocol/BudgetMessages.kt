@@ -8,6 +8,12 @@ object BudgetMessages {
     data class Query(val character:Int,val command:Int,val card:Int,val phase:Int,val base:Int,val rate:Int,val quote:Int,val raw:ByteArray)
     data class View(val base:Int,val national:Long,val local:Long,val remittance:Int,
         val quote:Int=0,val amount:Long=0,val phase:Int=0,val rate:Int=0)
+    data class CurrencyLabel(val name: String, val symbol: String) {
+        init {
+            require(name.isNotBlank() && name.length <= 12 && symbol.length <= 4)
+            require((name + symbol).none { it.isISOControl() || it.isSurrogate() })
+        }
+    }
     fun matches(body:ByteArray)=body.size>=8 && ByteBuffer.wrap(body).let {it.getShort(0).toInt()==0x1200 &&
         (it.getShort(6).toInt() and 65535)==SEARCH}
     fun query(body:ByteArray):Query {
@@ -26,11 +32,30 @@ object BudgetMessages {
         b.putShort(21,extra.toShort());b.putInt(23,base)
         return LoginMessages.sessionMessage(0x1200,payload)
     }
-    fun response(q:Query,status:Int,view:View?):List<ByteArray> {
+    private fun currencyRecord(q: Query, flag: Int, text: String): ByteArray {
+        val payload = q.raw.copyOf()
+        val fields = ByteBuffer.wrap(payload).putShort(10, 0).put(16, flag.toByte())
+        // Seven UTF-16 units in the existing pair of integers, short and base integer.
+        listOf(12, 14, 17, 19, 21, 23, 25).forEachIndexed { index, offset ->
+            fields.putChar(offset, text.getOrElse(index) { '\u0000' })
+        }
+        return LoginMessages.sessionMessage(0x1200, payload)
+    }
+
+    fun response(q:Query,status:Int,view:View?,currency:CurrencyLabel?=null):List<ByteArray> {
         val v=view ?: View(q.base,0,0,0)
         require(v.base in 0..65535 && v.remittance in 0..100 && v.quote>=0 && v.phase in 0..3 && v.rate in 0..100)
-        return listOf(record(q,status,10,v.national,v.remittance,v.base),record(q,status,11,v.local,0,v.base),
-            record(q,status,12,v.amount,v.phase+v.rate*4,v.quote),LoginMessages.sessionMessage(0x1201,byteArrayOf()))
+        return buildList {
+            add(record(q,status,10,v.national,v.remittance,v.base))
+            add(record(q,status,11,v.local,0,v.base))
+            if (status == 0 && view != null && currency != null) {
+                add(currencyRecord(q, 16, currency.name.take(7)))
+                add(currencyRecord(q, 17, currency.name.drop(7)))
+                add(currencyRecord(q, 18, currency.symbol))
+            }
+            add(record(q,status,12,v.amount,v.phase+v.rate*4,v.quote))
+            add(LoginMessages.sessionMessage(0x1201,byteArrayOf()))
+        }
     }
     /** Private finance observer snapshots do not replace a quote or acknowledge a pending request. */
     fun update(character:Int,card:Int,view:View):List<ByteArray> {
