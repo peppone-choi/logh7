@@ -295,6 +295,21 @@ class GameExchange(
         }
         return ChatMessages.spot(ChatMessages.Spot(characterId, "[기항] $reason"), seconds)
     }
+    private fun spotMoveRefusal(rejection: NavigationRejection?): ByteArray {
+        val reason = when (rejection) {
+            NavigationRejection.BASE -> "먼저 거점에 기항하세요"
+            NavigationRejection.ACCESS -> "입장 권한 없음"
+            NavigationRejection.SPOT -> "다른 장소를 선택하세요"
+            NavigationRejection.CP -> "PCP/MCP 부족"
+            NavigationRejection.BUSY -> "구금 중 이동 불가"
+            NavigationRejection.TACTICAL -> "전술 중 이동 불가"
+            NavigationRejection.SUPPLYING -> "보급 완료까지 대기"
+            NavigationRejection.TRAVELLING -> "이동 완료까지 대기"
+            NavigationRejection.WOUNDED -> "부상 회복까지 대기"
+            else -> "현재 이동 불가"
+        }
+        return ChatMessages.invalidCommand(0x0e00, "[시설 이동] $reason")
+    }
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || sessionEndingAvailable() || navigation == null) return null
         val now = gameSeconds()
@@ -922,8 +937,12 @@ class GameExchange(
                                 (if (reportDockPosition) listOf(org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,
                                     player.baseId, player.mode, seconds, player.spotId,
                                     if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList()) + completedWork(result, character) +
-                                (if (dock != null && dock.base != 0 && !accepted)
-                                    listOf(dockRefusal(player.characterId, result.rejection, seconds)) else emptyList())
+                                when {
+                                    accepted -> emptyList()
+                                    move != null -> listOf(spotMoveRefusal(result.rejection))
+                                    dock != null && dock.base != 0 -> listOf(dockRefusal(player.characterId, result.rejection, seconds))
+                                    else -> emptyList()
+                                }
                         }
                         return null
                     }
