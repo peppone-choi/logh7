@@ -39,6 +39,12 @@ static void sendProductionAction(bool preview,bool quote=false,bool silent=false
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
 }
 static const wchar_t* productionRejection(unsigned reply,unsigned command) {
+    if(productionProgress.received) {
+        if(reply==13 && productionProgress.buildingUntil && (command==31 || command==35))
+            return L"조병창 건설이 진행 중입니다.";
+        if(reply==13 && command==35 && productionProgress.yard==2)return L"조병창이 휴지 중입니다.";
+        if(reply==7 && command==35 && productionProgress.ship)return L"기존 주문이 입고될 때까지 새 주문을 할 수 없습니다.";
+    }
     if(reply==13) {
         static const wchar_t* unavailable[]={
             L"이미 조병창이 있습니다.", L"조병창이 없거나 이미 휴지 상태입니다.", L"휴지 중인 조병창이 없습니다.",
