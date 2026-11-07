@@ -815,11 +815,15 @@ class GameExchange(
                             shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalStop=org.logh7.engine.TacticalStop(stop.units,stop.bases))).thenApply {result->
                             val player=checkNotNull(result.player ?: result.previous)
                             publication=Publication(character,player,false)
-                            listOf(org.logh7.protocol.TacticalStopMessages.reply(stop,gameSeconds(),result.player!=null)) +
+                            val now=gameSeconds()
+                            listOf(org.logh7.protocol.TacticalStopMessages.reply(stop,now,result.player!=null)) +
                                 (if(result.player!=null) {
-                                    if(result.tacticalMotions.isNotEmpty())result.tacticalMotions.map {(id,motion)->
-                                        TacticalMotionMessages.npc(id,motion,gameSeconds(),player.characterId)}
-                                    else TacticalMotionMessages.reply(player,gameSeconds())?.let(::listOf).orEmpty()
+                                    // The world broadcasts these cancellations to the other observers only.
+                                    result.supportNotifications.map {event->
+                                        org.logh7.protocol.TacticalStopMessages.supportCancelled(event.character,event.unit,now)
+                                    } + (if(result.tacticalMotions.isNotEmpty())result.tacticalMotions.map {(id,motion)->
+                                        TacticalMotionMessages.npc(id,motion,now,player.characterId)}
+                                    else TacticalMotionMessages.reply(player,now)?.let(::listOf).orEmpty())
                                 } else emptyList()) +
                                 commandCorps(identity.account)
                         }
