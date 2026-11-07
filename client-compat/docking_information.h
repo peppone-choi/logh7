@@ -67,15 +67,20 @@ static int __fastcall pickerDetails(void* selector, void*, const BYTE* row) {
     auto warehouse = world + 0x3e098c;
     wchar_t name[32] = {}, text[512];
     pickerName(id, name);
+    // The docking selector hides the native condition text control. Show the fare
+    // with the selected base details, matching NavigationWork.DOCK and CpPayment.
+    const wchar_t* dockFare = at<unsigned>(selector, 0x234) == 5
+        ? L"\n기항 MCP 160 · 부족 시 PCP 320\n게임 내 8시간 대기" : L"";
     if (!condition) {
-        pickerText(selector, 2, name);
+        _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls%ls", name, dockFare);
+        pickerText(selector, 2, text);
         pickerText(selector, 3, L"선택한 거점의 정보를 조회 중입니다.");
         pickerText(selector, 4, L"");
         return 0;
     }
     const auto powerName = runtimeBaseAffiliation(world,id,48);
-    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls\n소속: %ls\n대기: %ls / 거주: %ls", name, powerName.c_str(),
-        logh::planetAtmosphere(condition[0x174]), logh::planetHabitability(condition[0x175]));
+    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls\n소속: %ls\n대기: %ls / 거주: %ls%ls", name, powerName.c_str(),
+        logh::planetAtmosphere(condition[0x174]), logh::planetHabitability(condition[0x175]), dockFare);
     pickerText(selector, 2, text);
     _snwprintf_s(text, _countof(text), _TRUNCATE, L"인구: %u\n성인 인구: %u\n세율: %u%%\n민심: %u / 치안: %u",
         logh::infoWord(condition, 0x120), logh::infoWord(condition, 0x124), logh::infoShort(condition, 0x128),
