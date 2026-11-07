@@ -1254,6 +1254,15 @@ class GameExchange(
                             return handshake.stageAll(listOf(world.countryIdentity(party,
                                 currentProfile(identity.account,character.id.toInt()).country?.value,character.power)),clearHeader=0)
                         }
+                        if(party?.mode==org.logh7.protocol.FuelMessages.STATUS_MODE) {
+                            check(worldInitialized)
+                            require(party.outfit==character.id.toInt()) {"Own fuel status only"}
+                            val player=navigation?.snapshot()?.navigators?.get(identity.account)
+                                ?.takeIf {it.generation==generation && it.characterId==party.outfit}
+                            val deadline=player?.fuelReadyAt
+                            val startsAt=deadline?.let {player.strategy?.jobs?.singleOrNull()?.startsAtGameMillis?.div(1000)}
+                            return handshake.stageAll(listOf(org.logh7.protocol.FuelMessages.status(party,startsAt,deadline)),clearHeader=0)
+                        }
                         // Display queries echo the viewer's actual country as its display code; no membership, no reply.
                         val viewerCountry by lazy {checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value}
                         if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,viewerCountry)),clearHeader=0)

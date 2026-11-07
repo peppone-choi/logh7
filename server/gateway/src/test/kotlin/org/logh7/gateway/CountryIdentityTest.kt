@@ -18,8 +18,11 @@ class CountryIdentityTest {
         val b=ByteBuffer.wrap(message);assertEquals(0,b.int);assertEquals(0x032f,b.short.toInt() and 65535)
         assertEquals(10000,b.int);assertEquals(65535,b.int);assertEquals(11,b.get().toInt());assertEquals(2,b.get().toInt())
         b.get();assertEquals(0,b.int);assertEquals(0,b.int);assertEquals(10,b.get().toInt())
-        return (0 until 10).map {b.int;b.get();b.get();val n=b.get().toInt() and 255
+        val names=(0 until 10).map {b.int;b.get();b.get();val n=b.get().toInt() and 255
             if(n==0)"" else String(CharArray(n){b.char}).removeSuffix("\u0000")}
+        assertEquals(0,b.get().toInt());assertEquals(0,b.get().toInt())
+        assertEquals(1,b.int);assertEquals(0,b.int)
+        return names
     }
     @Test fun actualMembershipSelectsItsCalendarIndependentlyOfTheDisplayCodeOrShipStyle() {
         val world=WorldBootstrap(galaxy,catalog)

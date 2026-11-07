@@ -15,6 +15,23 @@ class FuelSupplyWireTest {
     private fun request(characterId: Int) = ByteBuffer.allocate(24).putShort(0x0b02)
         .putInt(Int.MAX_VALUE).putInt(Int.MAX_VALUE).putInt(characterId).putShort(59)
         .putInt(Int.MAX_VALUE).putInt(Int.MAX_VALUE).array()
+    private fun statusQuery(characterId: Int) = ByteBuffer.allocate(11).putShort(0x032e)
+        .putInt(characterId).putInt(123).put(19).array()
+    private fun fuelStatus(client: SyntheticClient, characterId: Int): List<String> {
+        val reply = ByteBuffer.wrap(client.request(statusQuery(characterId), 0x032f, "fuel progress"))
+        assertEquals(characterId, reply.getInt(6))
+        assertEquals(123, reply.getInt(10))
+        assertEquals(19, reply.get(14).toInt())
+        reply.position(25)
+        assertEquals(3, reply.get().toInt())
+        return List(3) { index ->
+            assertEquals(index + 1, reply.int)
+            assertEquals(index, reply.get().toInt())
+            assertEquals(0, reply.get().toInt())
+            val length = reply.get().toInt()
+            CharArray(length) { reply.char }.concatToString().removeSuffix("\u0000")
+        }
+    }
     private fun expectRefusal(client: SyntheticClient, text: String) {
         val refused = client.receive()
         assertEquals(0x0b02, code(refused)); assertEquals(1, ByteBuffer.wrap(refused).int)
@@ -32,6 +49,7 @@ class FuelSupplyWireTest {
             client.send(SyntheticClient.opcode(0x0f00))
             for (ignored in 0..300) { if (code(client.receive()) == 0x0f01) break }
             val own = fixture.engine.snapshot().navigators.getValue(fixture.account(0))
+            assertEquals(listOf("FS1", "", ""), fuelStatus(client, own.characterId))
             val request = request(own.characterId)
             client.send(request)
             expectRefusal(client,"연료가 가득 찼습니다")
@@ -45,6 +63,9 @@ class FuelSupplyWireTest {
             client.expect(0x0356)
             val started = fixture.engine.snapshot().navigators.getValue(fixture.account(0))
             assertEquals(900, started.cruise)
+            val job = checkNotNull(started.strategy).jobs.single()
+            assertEquals(listOf("FS1", (job.startsAtGameMillis / 1000).toString(), started.fuelReadyAt.toString()),
+                fuelStatus(client, own.characterId))
             client.send(request)
             expectRefusal(client,"이미 보급 중입니다")
             assertEquals(started, fixture.engine.snapshot().navigators.getValue(fixture.account(0)))
@@ -70,6 +91,9 @@ class FuelSupplyWireTest {
             assertEquals(1000, supplied.getInt(23))
             val completed = fixture.engine.snapshot().navigators.getValue(fixture.account(0))
             assertNull(completed.fuelReadyAt); assertEquals(1000, completed.cruise)
+            assertEquals(listOf("FS1", "", ""), fuelStatus(client, own.characterId))
+            client.send(statusQuery(own.characterId + 1))
+            client.expectClosed()
         }
     }
     @Test fun aPlayerWithInsufficientCpCanRetryOnTheSameConnectionAfterRecovery() = runBlocking<Unit> {

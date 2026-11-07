@@ -21,7 +21,8 @@ static void refreshNavigationHud(BYTE* world,BYTE* own) {
     unsigned character=at<unsigned>(own,0x24);
     if(at<BYTE>(world,0x3579cc) ||
         !((dockingStatus.world==world && dockingStatus.character==character) ||
-          (warpStatus.world==world && warpStatus.character==character)))return;
+          (warpStatus.world==world && warpStatus.character==character) ||
+          currentFuelProgress(world,character).deadline))return;
     // The command wait stops 0058ee70; the existing HUD and its bars still draw.
     auto hud=reinterpret_cast<BYTE*>(0x22225c8);
     auto root=at<void*>(hud,0);
@@ -86,6 +87,32 @@ static void __fastcall arrivedDock(void* world, void*, void* message) {
         dockingStatus = {};
     reinterpret_cast<void(__thiscall*)(void*, void*)>(0x4bee60)(world, message);
 }
+static void drawNavigationNotice(const wchar_t* title,const wchar_t* time) {
+    auto display = *reinterpret_cast<BYTE**>(0x7c1b4c);
+    HudFrame frame;
+    if (!display || !at<unsigned>(display, 0x2a418) || !hudFrame(frame)) return;
+    const int x = hudRenderX(frame, frame.width - 205);
+    auto y = [&](int fromBottom) { return hudRenderY(frame, frame.height - fromBottom); };
+    // Same UTF-16 glyph queue as the location line.
+    reinterpret_cast<void(__thiscall*)(void*, float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48), 1.0f);
+    auto draw = reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0);
+    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), title, x, y(112), 0xffffdf70, 6);
+    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, x, y(96), 0xffffdf70, 6);
+}
+static void drawFuelProgress(BYTE* world,BYTE* own) {
+    if (!own || !at<BYTE>(own,0) || at<BYTE>(world,0x3579cc)) return;
+    const auto fuel=currentFuelProgress(world,at<unsigned>(own,0x24));
+    const auto clock=*reinterpret_cast<BYTE**>(0x7cd028);
+    if (!fuel.deadline || !clock) return;
+    const unsigned now=at<unsigned>(clock,0x10);
+    const wchar_t* title=now<fuel.startsAt ? L"연료 보급 대기" : L"연료 보급 중";
+    wchar_t time[48];
+    if (fuel.deadline>now) {
+        const unsigned remaining=fuel.deadline-now;
+        swprintf_s(time,L"완료까지 %02u:%02u:%02u",remaining/3600,remaining/60%60,remaining%60);
+    } else wcscpy_s(time,L"보급 완료 확인 중");
+    drawNavigationNotice(title,time);
+}
 static void drawWarpStatus(BYTE* world, BYTE* own) {
     if (!warpStatus.grid && !warpStatus.character) return;
     if (warpStatus.world != world || !own || !at<BYTE>(own, 0) || warpStatus.character != at<unsigned>(own, 0x24)) {
@@ -93,9 +120,8 @@ static void drawWarpStatus(BYTE* world, BYTE* own) {
         return;
     }
     if (at<BYTE>(world, 0x3579cc)) return;
-    auto display = *reinterpret_cast<BYTE**>(0x7c1b4c);
     auto clock = *reinterpret_cast<BYTE**>(0x7cd028);
-    if (!display || !clock || !at<unsigned>(display, 0x2a418)) return;
+    if (!clock) return;
     unsigned now = at<unsigned>(clock, 0x10);
     auto remaining = warpStatus.deadline > now ? warpStatus.deadline - now : 0;
     wchar_t title[64], time[96];
@@ -104,14 +130,7 @@ static void drawWarpStatus(BYTE* world, BYTE* own) {
     if (remaining) _snwprintf_s(time, _countof(time), _TRUNCATE,
         L"남은 게임 시간: %02llu:%02llu:%02llu", remaining / 3600, remaining / 60 % 60, remaining % 60);
     else wcscpy_s(time, L"워프 실행 확인 중");
-    HudFrame frame; // Client-space panel anchor, mapped to the text render target like the native panel.
-    if (!hudFrame(frame)) return;
-    const int x = hudRenderX(frame, frame.width - 205);
-    auto y = [&](int fromBottom) { return hudRenderY(frame, frame.height - fromBottom); };
-    reinterpret_cast<void(__thiscall*)(void*, float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48), 1.0f);
-    auto draw = reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0);
-    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), title, x, y(112), 0xffffdf70, 6);
-    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, x, y(96), 0xffffdf70, 6);
+    drawNavigationNotice(title,time);
 }
 static unsigned unreadPersonalMail(BYTE* world, unsigned owner);
 // "새 편지 N통" above the HUD mailbox button while the personal inbox holds unread rows (mail_input.h).
@@ -136,7 +155,8 @@ static void drawDockingStatus() {
     if (!world || !at<BYTE>(world, 0x2a58f8)) return;
     if(own && at<BYTE>(own,0))refreshNavigationHud(world,own);
     drawMailNotice(world, own);
-    drawWarpStatus(world, own); // A warp reservation and a dock reservation never coexist.
+    drawWarpStatus(world, own);
+    drawFuelProgress(world, own); // Only one navigation reservation can be pending.
     if (dockingStatus.world != world) {
         dockingStatus = {};
         return;
@@ -147,10 +167,9 @@ static void drawDockingStatus() {
         return;
     }
     if (!dockingStatus.target || at<BYTE>(world, 0x3579cc)) return;
-    auto display = *reinterpret_cast<BYTE**>(0x7c1b4c);
     auto clock = *reinterpret_cast<BYTE**>(0x7cd028);
     auto base = pickerBase(dockingStatus.target);
-    if (!display || !clock || !base || !at<unsigned>(display, 0x2a418) ||
+    if (!clock || !base ||
         logh::infoShort(base, 0x10) != at<unsigned>(own, 0x320)) return;
     unsigned now = at<unsigned>(clock, 0x10);
     auto remaining = dockingStatus.deadline > now ? dockingStatus.deadline - now : 0;
@@ -161,15 +180,7 @@ static void drawDockingStatus() {
         L"남은 게임 시간: %02llu:%02llu:%02llu",
         remaining / 3600, remaining / 60 % 60, remaining % 60);
     else wcscpy_s(time, L"도착 확인 중");
-    HudFrame frame; // Client-space panel anchor, mapped to the text render target like the native panel.
-    if (!hudFrame(frame)) return;
-    const int x = hudRenderX(frame, frame.width - 205);
-    auto y = [&](int fromBottom) { return hudRenderY(frame, frame.height - fromBottom); };
-    // Use the same UTF-16 glyph queue as native HUD text, below the location line.
-    reinterpret_cast<void(__thiscall*)(void*, float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48), 1.0f);
-    auto draw = reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0);
-    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), title, x, y(112), 0xffffdf70, 6);
-    draw(at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), time, x, y(96), 0xffffdf70, 6);
+    drawNavigationNotice(title,time);
 }
 static bool installNavigationStatus() {
     const unsigned calls[] = {0x4bcbcc, 0x4bcfad, 0x4bcc1d, 0x4bcf79,0x58f0c6};

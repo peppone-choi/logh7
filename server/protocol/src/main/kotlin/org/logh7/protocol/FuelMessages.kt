@@ -5,6 +5,17 @@ import org.logh7.protocol.generated.MessageId
 
 /** CD 00449a10 and 0044c450: no native alignment padding on the wire. */
 object FuelMessages {
+    const val STATUS_MODE = 19
+
+    fun status(query: OutfitPartyMessages.Query, startsAt: Long?, deadline: Long?): ByteArray {
+        require(query.mode == STATUS_MODE && query.outfit > 0 && query.base in 1..65535)
+        require(deadline == null && startsAt == null ||
+            deadline != null && deadline in 1..0xffffffffL && (startsAt == null || startsAt in 0..deadline))
+        val fields = listOf("FS1", startsAt?.toString().orEmpty(), deadline?.toString().orEmpty())
+        return LoginMessages.sessionMessage(0x032f, OutfitPartyMessages.party(query, 2, 0, 0, emptyList(),
+            emptyList(), 0, 0, fields.mapIndexed { index, value -> OutfitPartyMessages.Member(index + 1, index, 0, value) }))
+    }
+
     data class Supply(val characterId: Int, val card: Int)
     fun supply(message: ByteArray): Supply {
         require(message.size == 24)

@@ -6,10 +6,31 @@
 #include "base_affiliation.h"
 #include "outfit_affiliation.h"
 #include "tactical_camp.h"
+static constexpr unsigned fuelStatusMode=19;
+static constexpr unsigned ownCountryExtensionOffset=0x4598; // First native cargo word, unused in mode 11.
+struct FuelProgress {unsigned startsAt=0,deadline=0;};
+static bool readFuelProgress(const BYTE* record,unsigned character,unsigned nonce,FuelProgress& output) {
+    if(record[8]!=fuelStatusMode || record[9]!=2 || record[20]!=3 || logh::paintWord(record)!=character ||
+        logh::paintWord(record+4)!=nonce || logh::paintWord(record+12) || logh::paintWord(record+16))return false;
+    wchar_t fields[3][13]={};
+    for(unsigned i=0;i<3;++i) {
+        const auto member=record+24+i*36;
+        if(logh::paintWord(member)!=i+1 || member[4]!=i || member[5] || !logh::countryMetadataText(member,fields[i]))return false;
+    }
+    if(wcscmp(fields[0],L"FS1"))return false;
+    std::uint64_t start=0,deadline=0;
+    if(fields[2][0] && (!logh::lobbyCountryNumber(fields[2],0xffffffffu,deadline) || !deadline))return false;
+    if(fields[1][0] && (!deadline || !logh::lobbyCountryNumber(fields[1],deadline,start)))return false;
+    output={static_cast<unsigned>(start),static_cast<unsigned>(deadline)};
+    return true;
+}
 static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
     ULONGLONG sentAt,pollAt,identityAt,basesAt;
+    bool fuelSupported;
+    ULONGLONG fuelAt;
+    FuelProgress fuel;
     unsigned imageCountry;std::uint64_t imageRevision;
     logh::CountryImageDraft image;
     logh::BaseAffiliationDraft bases;
@@ -26,7 +47,7 @@ static unsigned countryPaintRgb(unsigned country,unsigned field,unsigned fallbac
     ReleaseSRWLockShared(&countryPaintLock);return result;
 }
 static bool receiveCountryPaint(const BYTE* record) {
-    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12 && record[8]!=16 && record[8]!=17)return false;
+    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12 && record[8]!=16 && record[8]!=17 && record[8]!=fuelStatusMode)return false;
     AcquireSRWLockExclusive(&countryPaintLock);
     auto& inbox=countryPaintInbox;logh::CountryPaint paint;
     if(inbox.pending && inbox.mode==12 && inbox.bases.accept(record,24+10*36)==2) {
@@ -36,6 +57,12 @@ static bool receiveCountryPaint(const BYTE* record) {
     if(inbox.pending && inbox.mode==11 && logh::readCountryIdentity(record,24+10*36,inbox.character,inbox.nonce,identity) && identity.power==inbox.power) {
         publishCountryMetadata(identity.country);publishOwnCountryIdentity(inbox.world,identity);
         inbox.ownCountry=identity.country.id;inbox.ownRegistered=identity.registered;inbox.pending=0;inbox.pollAt=0;
+        inbox.fuelSupported=logh::paintWord(record+ownCountryExtensionOffset)==1;
+    }
+    if(inbox.pending && inbox.mode==fuelStatusMode && readFuelProgress(record,inbox.character,inbox.nonce,inbox.fuel)) {
+        inbox.pending=0;
+        // No idle polling after the initial status. A fresh submission can already have requested another read.
+        if(!inbox.fuel.deadline && inbox.fuelAt)inbox.fuelAt=~ULONGLONG{0};
     }
     if(inbox.pending && inbox.mode==4 && logh::readCountryPaint(record,24+6*36,inbox.pending,inbox.nonce,paint)) {
         unsigned index=0;for(;index<inbox.count;++index)if(inbox.rows[index].id==paint.id)break;
@@ -71,7 +98,9 @@ static void pollCountryPaint(void* world) {
     }
     if(inbox.pending && now-inbox.sentAt>=5000) {if(inbox.mode==17)inbox.imageCountry=0;inbox.pending=0;}
     if(!inbox.pending && now>=inbox.pollAt) {
-        if(inbox.imageCountry) {inbox.pending=inbox.imageCountry;inbox.mode=17;}
+        if(inbox.fuelSupported && now>=inbox.fuelAt) {
+            inbox.pending=character;inbox.mode=fuelStatusMode;inbox.fuelAt=now+5000;
+        } else if(inbox.imageCountry) {inbox.pending=inbox.imageCountry;inbox.mode=17;}
         else if(now>=inbox.identityAt) {inbox.pending=character;inbox.mode=11;inbox.identityAt=now+5000;}
         else if(now>=inbox.basesAt) {inbox.pending=1;inbox.mode=12;inbox.basesAt=now+5000;}
         else if(inbox.ownRegistered) {
@@ -104,4 +133,23 @@ static void pollCountryPaint(void* world) {
     }
     ReleaseSRWLockExclusive(&countryPaintLock);
     if(query[2])reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(world,0,0x10,query);
+}
+static FuelProgress currentFuelProgress(void* world,unsigned character) {
+    AcquireSRWLockShared(&countryPaintLock);
+    const auto& inbox=countryPaintInbox;
+    const auto fuel=inbox.world==world && inbox.character==character && inbox.fuelSupported ? inbox.fuel : FuelProgress{};
+    ReleaseSRWLockShared(&countryPaintLock);
+    return fuel;
+}
+static void refreshFuelProgress(void* world,unsigned character,bool completed=false) {
+    AcquireSRWLockExclusive(&countryPaintLock);
+    auto& inbox=countryPaintInbox;
+    if(inbox.world==world && inbox.character==character) {
+        inbox.fuelAt=0;
+        if(completed) {
+            inbox.fuel={};
+            if(inbox.mode==fuelStatusMode)inbox.pending=0;
+        }
+    }
+    ReleaseSRWLockExclusive(&countryPaintLock);
 }
