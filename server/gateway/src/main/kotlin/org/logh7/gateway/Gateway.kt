@@ -25,6 +25,11 @@ import io.netty.util.concurrent.GlobalEventExecutor
 
 data class GatewayConnections(val active: Int, val tracked: Int)
 
+// Launcher-only diagnostic frame. The legacy client never sends it.
+private val launcherProbe = byteArrayOf(0, 0x38) + "LOGH7?".toByteArray(Charsets.US_ASCII)
+private val launcherReady = byteArrayOf(0, 8, 0, 0x38) + "LOGH7!".toByteArray(Charsets.US_ASCII)
+private val launcherMaintenance = byteArrayOf(0, 8, 0, 0x38) + "LOGH7-".toByteArray(Charsets.US_ASCII)
+
 fun captureDirectoryFrom(value: String?): Path? = value?.takeIf { it.isNotBlank() }?.let { Path.of(it) }
 
 class Capture(private val directory: Path) {
@@ -271,6 +276,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 ch.pipeline().addLast(LengthFieldBasedFrameDecoder(Frames.MAX_PAYLOAD + 2, 0, 2, 0, 2))
                                 ch.pipeline().addLast(object : SimpleChannelInboundHandler<ByteBuf>() {
                                     private val waitingFrames = ArrayDeque<ByteArray>()
+                                    private var firstFrame = true
+                                    private var probeFinished = false
                                     private var waiting = false
                                     private var refreshRequested = false
                                     private val notifications = ArrayDeque<List<ByteArray>>()
@@ -306,7 +313,19 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         ctx.fireChannelActive()
                                     }
                                     override fun channelRead0(ctx: ChannelHandlerContext, msg: ByteBuf) {
+                                        if (probeFinished) return
                                         val payload = ByteArray(msg.readableBytes()); msg.readBytes(payload)
+                                        if (firstFrame) {
+                                            firstFrame = false
+                                            if (payload.contentEquals(launcherProbe)) {
+                                                probeFinished = true
+                                                if (port == gamePort) {
+                                                    val reply = if (maintenance.closed()) launcherMaintenance else launcherReady
+                                                    ctx.writeAndFlush(Unpooled.wrappedBuffer(reply)).addListener(ChannelFutureListener.CLOSE)
+                                                } else ctx.close()
+                                                return
+                                            }
+                                        }
                                         if (waiting) { check(waitingFrames.size < 128); waitingFrames.addLast(payload); return }
                                         process(ctx, payload)
                                     }
