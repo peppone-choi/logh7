@@ -1,6 +1,7 @@
 package org.logh7.persistence
 
 import org.logh7.engine.NavigationStore
+import org.logh7.engine.NavigationRejection
 import org.logh7.engine.Navigator
 import org.logh7.engine.Power
 import org.logh7.engine.CountryId
@@ -45,13 +46,14 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
             "LOGH7-NAV-18" -> 30
             "LOGH7-NAV-19" -> 31
             "LOGH7-NAV-20" -> 32
+            "LOGH7-NAV-21" -> 33
             else -> error("Unknown navigation store format") }
         val players = linkedMapOf<String, Navigator>()
         for (line in lines.drop(1)) {
             val f = line.split('\t')
             require(f.size == columns && f[0].matches(Regex("[A-Za-z0-9_.@-]{1,30}"))) { "Invalid navigation row" }
-            val country=if(columns==32)readCountry(f[3]) else Power.valueOf(f[3]).country
-            val style=if(columns==32)ShipStyleId(f[31]) else ShipStyleId.fromLegacy(Power.valueOf(f[3]))
+            val country=if(columns>=32)readCountry(f[3]) else Power.valueOf(f[3]).country
+            val style=if(columns>=32)ShipStyleId(f[31]) else ShipStyleId.fromLegacy(Power.valueOf(f[3]))
             val player = Navigator(f[1].toLong(), f[2].toInt(), country, f[4].toInt(),
                 f[5].toInt(), f[6].toInt(), f[7].toInt(), f[8].toLong(),
                 if (columns >= 13) f[9].toInt() else 0, if (columns >= 13) f[10].toInt() else 5,
@@ -82,13 +84,15 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                 if(columns>=29 && f[28]!="-")TacticalPostureCodec.decode(f[28]) else null,
                 if(columns>=30 && f[29]!="-")f[29].toInt() else null,
                 if(columns>=31)f[30].split(',').also {require(it.size==2)}[0].toInt() else 0,
-                if(columns>=31)f[30].split(',')[1].toInt() else 0,style)
+                if(columns>=31)f[30].split(',')[1].toInt() else 0,style,
+                if(columns>=33 && f[32]!="-")NavigationRejection.valueOf(f[32]) else null)
             require(players.put(f[0], player) == null) { "Duplicate navigation account" }
         }
         return players
     }
     override fun save(players: Map<String, Navigator>) {
-        val countries=players.values.any {(it.country?.value ?: 0) !in 2..3 ||
+        val warpNotices = players.values.any { it.offlineWarpCancellation != null }
+        val countries=warpNotices || players.values.any {(it.country?.value ?: 0) !in 2..3 ||
             it.shipStyle!=ShipStyleId.fromLegacy(it.power)}
         val used=countries || players.values.any {it.pcpUsed!=0 || it.mcpUsed!=0}
         val warps=used || players.values.any {it.warpTarget!=null}
@@ -102,7 +106,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
         val retreats = charges || players.values.any { it.retreat != null }
         val motions = retreats || players.values.any { it.motion != null }
         val bytes = buildString {
-            append(if(countries) "LOGH7-NAV-20\n" else if(used) "LOGH7-NAV-19\n" else if(warps) "LOGH7-NAV-18\n" else if(postures) "LOGH7-NAV-17\n" else if(ranges) "LOGH7-NAV-16\n" else if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
+            append(if(warpNotices) "LOGH7-NAV-21\n" else if(countries) "LOGH7-NAV-20\n" else if(used) "LOGH7-NAV-19\n" else if(warps) "LOGH7-NAV-18\n" else if(postures) "LOGH7-NAV-17\n" else if(ranges) "LOGH7-NAV-16\n" else if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
             players.toSortedMap().forEach { (account, p) ->
                 require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")))
                 append((listOf(account, p.generation, p.characterId, if(countries)p.country?.value ?: "-" else p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
@@ -128,7 +132,8 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                     (if(postures)listOf(p.posture?.let(TacticalPostureCodec::encode) ?: "-") else emptyList()) +
                     (if(warps)listOf(p.warpTarget ?: "-") else emptyList()) +
                     (if(used)listOf("${p.pcpUsed},${p.mcpUsed}") else emptyList())+
-                    (if(countries)listOf(p.shipStyle.value) else emptyList())).joinToString("\t"))
+                    (if(countries)listOf(p.shipStyle.value) else emptyList()) +
+                    (if(warpNotices)listOf(p.offlineWarpCancellation?.name ?: "-") else emptyList())).joinToString("\t"))
                 append('\n')
             }
         }.toByteArray(Charsets.UTF_8)

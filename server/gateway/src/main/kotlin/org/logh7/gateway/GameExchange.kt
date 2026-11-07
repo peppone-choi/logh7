@@ -100,6 +100,9 @@ class GameExchange(
     private var worldInitialized = false
     private var startupWarpNotice: ByteArray? = null
     private var startupGridReady = false
+    private data class OfflineWarpNotice(val reason: NavigationRejection, val message: ByteArray, var batch: OutboundBatch? = null)
+    private var pendingOfflineWarpNotice: OfflineWarpNotice? = null
+    private var sentOfflineWarpCancellation: NavigationRejection? = null
     private var tacticalInitializationPending = false
     private var tacticalExitPending = false
     private var pendingTacticalRevision = -1L
@@ -241,10 +244,10 @@ class GameExchange(
                 (if(player.baseId!=0 || player.mode!=5 || player.spotId!=0) listOf(
                     org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,seconds,
                         player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) else emptyList()) +
-            reservedWarpNotice(result, player.characterId, seconds)
+            reservedWarpNotice(result.warpCancellation, player.characterId, seconds)
     }
-    private fun reservedWarpNotice(result: org.logh7.engine.NavigationResult, characterId: Int, seconds: Long): List<ByteArray> {
-        val reason = when (result.warpCancellation) {
+    private fun reservedWarpNotice(cancellation: NavigationRejection?, characterId: Int, seconds: Long): List<ByteArray> {
+        val reason = when (cancellation) {
             NavigationRejection.GRID -> "진입 불가"
             NavigationRejection.CRUISE -> "항속 부족"
             NavigationRejection.STAR_SYSTEM_NOT_ADJACENT -> "성계 거리 초과"
@@ -281,10 +284,15 @@ class GameExchange(
         val character = checkNotNull(currentCharacter(identity.account))
         return recover(character, identity.account)
     }
-    private fun recover(character: CharacterMessages.Generate, account: String, clockRequest: ByteArray? = null): CompletableFuture<List<ByteArray>> =
-        navigate(org.logh7.engine.NavigationRequest(account,
+    private fun recover(character: CharacterMessages.Generate, account: String, clockRequest: ByteArray? = null): CompletableFuture<List<ByteArray>> {
+        val readyForNotice = clockRequest != null && startupGridReady
+        val canQueueOfflineNotice = readyForNotice && pendingOfflineWarpNotice == null
+        // There is no native chat acknowledgement. Clear the durable notice on a later clock request from this connection.
+        val acknowledged = sentOfflineWarpCancellation.takeIf { readyForNotice }
+        return navigate(org.logh7.engine.NavigationRequest(account,
             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
-            connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
+            connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])
+            .copy(acknowledgedOfflineWarpCancellation = acknowledged)).thenApply { result ->
             val player = checkNotNull(result.player ?: result.previous?.takeIf { it.navigationPending &&
                 (result.rejection == org.logh7.engine.NavigationRejection.BUSY ||
                     result.rejection == org.logh7.engine.NavigationRejection.CRUISE) }) { "CP refresh lost its authenticated session" }
@@ -293,12 +301,19 @@ class GameExchange(
             val changed = previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
             val relocated = previous?.let { it.grid != player.grid || it.baseId != player.baseId ||
                 it.mode != player.mode || it.spotId != player.spotId || it.spotOwner != player.spotOwner } == true
-            if (!worldInitialized) reservedWarpNotice(result, player.characterId, gameSeconds()).singleOrNull()?.let {
+            if (!worldInitialized) reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()).singleOrNull()?.let {
                 startupWarpNotice = it
             }
             // The CD can still clear chat while consuming 0f03. Send after its next clock request.
-            val startupNotice = if (clockRequest != null && startupGridReady)
+            val startupNotice = if (readyForNotice)
                 listOfNotNull(startupWarpNotice.also { startupWarpNotice = null }) else emptyList()
+            val offlineNotice = if (canQueueOfflineNotice) {
+                val cancellation = player.offlineWarpCancellation.takeUnless { it == acknowledged }
+                if (acknowledged != null && player.offlineWarpCancellation != acknowledged) sentOfflineWarpCancellation = null
+                reservedWarpNotice(cancellation, player.characterId, gameSeconds()).also { messages ->
+                    if (cancellation != null) pendingOfflineWarpNotice = OfflineWarpNotice(cancellation, messages.single())
+                }
+            } else emptyList()
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
                 (if (relocated) (if(previous.cpPaused && previous.grid != player.grid)
@@ -310,14 +325,15 @@ class GameExchange(
                     (if (previous.baseId != player.baseId || previous.mode != player.mode) listOf(
                         org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
                             gameSeconds(),player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) +
-                    (if (worldInitialized) reservedWarpNotice(result, player.characterId, gameSeconds()) else emptyList())
+                    (if (worldInitialized) reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()) else emptyList())
                 else completedWork(if (worldInitialized) result else result.copy(warpCancellation = null), character)) +
                 (if(worldInitialized && player.cpPaused && deliveredTactics==true && previous?.grid==player.grid)
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
-                    ?.let(::listOf).orEmpty()) + startupNotice
+                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice
         }
+    }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
         if (state == State.CLOSED) null else {
@@ -355,7 +371,11 @@ class GameExchange(
             val retry=if(repeatTactical)listOf(org.logh7.protocol.TacticsMessages.notify(checkNotNull(update).player.grid,true)) else emptyList()
             if (output.isEmpty() && tactical.isEmpty() && retry.isEmpty()) null else {
                 presence?.observeMotions(connection,output+tactical+retry)
-                handshake.stageAll(output + tactical + retry, clearHeader = 0)
+                handshake.stageAll(output + tactical + retry, clearHeader = 0).also { batch ->
+                    pendingOfflineWarpNotice?.let { notice ->
+                        if (output.any { it === notice.message }) notice.batch = batch
+                    }
+                }
             }
         }
     }
@@ -410,7 +430,13 @@ class GameExchange(
     fun finishJoin(result: Admission): ByteArray? = finishJoinOutbound(result)?.bytes
     fun accept(type: Int, data: ByteArray): ByteArray? = acceptOutbound(type, data)?.bytes
     internal fun submitting(batch: OutboundBatch) = handshake.submitting(batch)
-    internal fun committed(batch: OutboundBatch) = handshake.committed(batch)
+    internal fun committed(batch: OutboundBatch) {
+        handshake.committed(batch)
+        pendingOfflineWarpNotice?.takeIf { it.batch === batch }?.let { notice ->
+            sentOfflineWarpCancellation = notice.reason
+            pendingOfflineWarpNotice = null
+        }
+    }
     private inline fun prepared(block: () -> OutboundBatch?): OutboundBatch? = try { block() } catch (failure: Exception) {
         close(); throw failure
     }
@@ -2232,7 +2258,7 @@ class GameExchange(
                                 val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(captured),
                                     world.galaxy,player,::currentCharacterById) else null
                                 tacticalResumeGrid=tactical?.grid
-                                reservedWarpNotice(result, player.characterId, gameSeconds()).singleOrNull()?.let { startupWarpNotice = it }
+                                reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()).singleOrNull()?.let { startupWarpNotice = it }
                                 if (opcode == 0x0f02) startupGridReady = true
                                 listOf(BootstrapMessages.characterId(character),
                                     characterMessage(character, player),

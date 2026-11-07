@@ -7,6 +7,23 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun onlyUnreadOfflineWarpCancellationNeedsNav21() {
+        val path = directory.resolve("offline-warp")
+        val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 920, 1000).copy(
+            country = CountryId(42), offlineWarpCancellation = NavigationRejection.GRID)
+        val players = mapOf("pilot" to player, "aide" to player.copy(characterId = 10001, offlineWarpCancellation = null))
+        FileNavigationStore(path).use { it.save(players) }
+        val saved = java.nio.file.Files.readString(path)
+        assertTrue(saved.startsWith("LOGH7-NAV-21\n"))
+        FileNavigationStore(path).use { assertEquals(players, it.load()) }
+        java.nio.file.Files.writeString(path, saved.replace("\tGRID\n", "\tCP\n"))
+        FileNavigationStore(path).use { assertFailsWith<IllegalArgumentException> { it.load() } }
+        val cleared = players.mapValues { (_, pilot) -> pilot.copy(offlineWarpCancellation = null) }
+        FileNavigationStore(path).use { it.save(cleared) }
+        assertTrue(java.nio.file.Files.readString(path).startsWith("LOGH7-NAV-20\n"))
+        FileNavigationStore(path).use { assertEquals(cleared, it.load()) }
+    }
+
     @Test fun unconvertedStrategicCpIsAnOptionalNav19Column() {
         val player=Navigator(1,10000,Power.EMPIRE,2017,1000,840,900,pcpUsed=7,mcpUsed=165)
         val path=directory.resolve("cp-used")

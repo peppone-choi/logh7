@@ -25,7 +25,8 @@ data class Navigator(val generation: Long, val characterId: Int, val country: Co
     val warpTarget: Int? = null,
     /** Strategic CP spent but not yet converted into ability experience (CpExperience). */
     val pcpUsed: Int = 0, val mcpUsed: Int = 0,
-    val shipStyle:ShipStyleId=ShipStyleId.fromLegacy(country.legacyPower())) {
+    val shipStyle:ShipStyleId=ShipStyleId.fromLegacy(country.legacyPower()),
+    val offlineWarpCancellation: NavigationRejection? = null) {
     constructor(generation:Long,characterId:Int,power:Power,grid:Int,pcp:Int,mcp:Int,cruise:Int,moves:Long=0,
         baseId:Int=0,mode:Int=5,spotId:Int=0,spotOwner:Int=0,cpRecoveryAt:Long?=null,cpPaused:Boolean=false,
         fuelReadyAt:Long?=null,strategy:StrategyCheckpoint?=null,dockTarget:Int?=null,returnBase:Int=0,
@@ -44,6 +45,8 @@ data class Navigator(val generation: Long, val characterId: Int, val country: Co
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && pcpUsed in 0..CpExperience.USED_LIMIT && mcpUsed in 0..CpExperience.USED_LIMIT && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && supplies in 0..10_000 &&
+        (offlineWarpCancellation == null || offlineWarpCancellation == NavigationRejection.GRID ||
+            offlineWarpCancellation == NavigationRejection.CRUISE || offlineWarpCancellation == NavigationRejection.STAR_SYSTEM_NOT_ADJACENT) &&
         (hull == null || Flagships.find(hull.kind)?.power == shipStyle.nativePower) &&
         (charge == null || cpPaused && baseId == 0 && mode == 5) &&
         (commandRange == null || cpPaused && baseId == 0 && mode == 5) &&
@@ -99,7 +102,8 @@ data class NavigationRequest(val account: String, val characterId: Int, val coun
      */
     val offlineAbilities:Boolean=false,
     /** Server-resolved model family; never taken from a native client field. */
-    val shipStyle:ShipStyleId?=null) {
+    val shipStyle:ShipStyleId?=null,
+    val acknowledgedOfflineWarpCancellation: NavigationRejection? = null) {
     /** Compatibility for old internal callers; membership checks use [country]. */
     constructor(account: String, characterId: Int, power: Power,
     connection: String, generation: Long, destination: Int? = null, unitId: Int? = null,
@@ -129,7 +133,7 @@ data class NavigationRequest(val account: String, val characterId: Int, val coun
     val power:Power get()=country.legacyPower()
 
     init {require(!offlineAbilities || offlineSettle)}
-    init {require(!offlineSettle || (offlineDirection==null && destination==null && place==null && !supplyFuel && returnBase==null &&
+    init {require(!offlineSettle || (acknowledgedOfflineWarpCancellation == null && offlineDirection==null && destination==null && place==null && !supplyFuel && returnBase==null &&
         tactical==null && energy==null && shipKind==null && tacticalMove==null && tacticalStop==null && tacticalRetreat==null &&
         tacticalShoot==null && tacticalAttack==null && tacticalSupport==null && tacticalPosture==null && tacticalGround==null &&
         tacticalCommand==null && tacticalRanks.isEmpty()))}
@@ -218,6 +222,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if(style.value !in setOf("empire","alliance"))return reject(NavigationRejection.UNIT)
         var initial = existing ?: Navigator(request.generation, request.characterId, request.country,
             start, policy.initialCp, policy.initialCp, policy.initialCruise,shipStyle=style)
+        if (initial.offlineWarpCancellation != null && initial.offlineWarpCancellation == request.acknowledgedOfflineWarpCancellation)
+            initial = initial.copy(offlineWarpCancellation = null)
         val now = session.gameMillis / 1000
         if (initial.hull == null && request.shipKind != null) {
             val ship=Flagships.find(request.shipKind) ?: return reject(NavigationRejection.UNIT)
@@ -298,7 +304,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             // The reserved route is rechecked at execution without refunding the paid CP.
             val enterable = enterableFrom(settled, movingUnits, soloShip)
             warpCancellation = warpObstacle(settled, dueWarp) ?: NavigationRejection.GRID.takeUnless { enterable(dueWarp) }
-            if (warpCancellation == null) executeWarp(settled, dueWarp, enterable) else settled
+            if (warpCancellation == null) executeWarp(settled, dueWarp, enterable)
+            else if (request.offlineSettle) settled.copy(offlineWarpCancellation = warpCancellation)
+            else settled
         }
         if (persist && existing != before) commit(request.account, before, session.generation)
         current = before
