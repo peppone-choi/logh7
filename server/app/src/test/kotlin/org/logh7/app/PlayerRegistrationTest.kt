@@ -55,4 +55,48 @@ class PlayerRegistrationTest {
         assertTrue(AccountPassword.matches(stored, "A+&=%"))
         assertFalse(AccountPassword.matches(stored, "changed"))
     }
+
+    @Test fun portalVerifiesCurrentPasswordAndLimitsRetriesWithoutRevivingDeletedAccounts() {
+        val path = directory.resolve("accounts.properties")
+        Files.writeString(path, "pilot=original\n")
+        val accounts = FileAccounts(path, reserveRemovedNames = true)
+        accounts.set("deleted", "original")
+        assertTrue(accounts.remove("deleted"))
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        val elapsed = java.util.concurrent.atomic.AtomicLong()
+        startPlayerRegistration(port, accounts, elapsed::get).use {
+            HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build().use { client ->
+                fun change(account: String, current: String, next: String = "changed", origin: String? = null): HttpResponse<String> {
+                    val request = HttpRequest.newBuilder(URI("http://127.0.0.1:$port/password"))
+                        .timeout(Duration.ofSeconds(5))
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .header("X-Logh7-Portal", "1")
+                    if (origin != null) request.header("Origin", origin)
+                    return client.send(request.POST(HttpRequest.BodyPublishers.ofString(
+                        "account=$account&currentPassword=$current&newPassword=$next",
+                    )).build(), HttpResponse.BodyHandlers.ofString())
+                }
+                val rejected = 401 to "invalid_credentials"
+                fun HttpResponse<String>.result() = statusCode() to body()
+                assertEquals(403 to "forbidden", change("pilot", "original", origin = "http://other.test").result())
+                assertEquals(422 to "invalid_password", change("pilot", "original", "bad+space").result())
+                assertEquals(rejected, change("unknown", "original").result())
+                assertEquals(rejected, change("deleted", "original").result())
+                assertEquals(rejected, change("pilot", "wrong").result())
+                assertEquals("original", accounts["pilot"])
+                assertEquals(200 to "changed", change("pilot", "original", "A%2B%26%3D%25").result())
+                repeat(3) { assertEquals(rejected, change("pilot", "original").result()) }
+                val limited = change("pilot", "A%2B%26%3D%25")
+                assertEquals(429 to "retry_later", limited.result())
+                assertEquals("60", limited.headers().firstValue("Retry-After").orElseThrow())
+                elapsed.set(60_000_000_000L)
+                assertEquals(200 to "changed", change("pilot", "A%2B%26%3D%25").result())
+            }
+        }
+        val stored = checkNotNull(FileAccounts(path)["pilot"])
+        assertTrue(AccountPassword.isHashed(stored))
+        assertTrue(AccountPassword.matches(stored, "changed"))
+        assertFalse(AccountPassword.matches(stored, "original"))
+        assertFalse(accounts.containsKey("deleted"))
+    }
 }
