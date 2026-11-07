@@ -26,6 +26,30 @@ class MultipleSessionsWireTest {
         lobby.send(ByteBuffer.allocate(4).putShort(0x2009).putShort(id.toShort()).array())
         return lobby.expect(0x200a)
     }
+    @Test fun operatorDisconnectIsScopedToOneWorldEvenWithTheSameAccountInBoth() {
+        val registry = GameSessionDirectory()
+        LoadFixture(directory.resolve("alpha"), 2, LoadMetrics(), sessionDirectory = registry,
+            sessionId = 1, sessionName = "Alpha", accountSource = accounts).use { alpha ->
+            LoadFixture(directory.resolve("beta"), 2, LoadMetrics(), sessionDirectory = registry,
+                sessionId = 2, sessionName = "Beta", accountSource = accounts).use { beta ->
+                val account = alpha.account(0)
+                alpha.join(account, create = true).client.use { a ->
+                    beta.join(account, create = true).client.use { b ->
+                        val idA = alpha.gateway.playerConnections().entries.single().also { assertEquals(account, it.value) }.key
+                        val idB = beta.gateway.playerConnections().entries.single().also { assertEquals(account, it.value) }.key
+                        assertNotEquals(idA, idB)
+                        assertFalse(beta.gateway.disconnectPlayer(idA).get(5, java.util.concurrent.TimeUnit.SECONDS))
+                        assertTrue(alpha.gateway.disconnectPlayer(idA).get(5, java.util.concurrent.TimeUnit.SECONDS))
+                        a.expectClosed()
+                        alpha.awaitState(0, 0, 1)
+                        beta.awaitState(1, 1, 1)
+                        assertEquals(mapOf(idB to account), beta.gateway.playerConnections())
+                        beta.clock(b)
+                    }
+                }
+            }
+        }
+    }
     @Test fun `shared lobby routes to independent characters worlds and CP and rejects wrong destination and old generation tickets`()=runBlocking {
         val registry=GameSessionDirectory()
         LoadFixture(directory.resolve("a"),2,LoadMetrics(),galaxy,ticking=false,sessionDirectory=registry,

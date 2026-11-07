@@ -246,6 +246,59 @@ class OpsApiTest {
         assertEquals(listOf("MAINTENANCE:CHANGED", "MAINTENANCE:UNCHANGED", "MAINTENANCE:INVALID", "NOTICE:INVALID", "NOTICE:INVALID",
             "NOTICE:CHANGED", "MAINTENANCE:CHANGED", "MAINTENANCE:CHANGED"), rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] })
     }
+    @Test fun onlyAuthenticatedOperatorsWithAuditCanDisconnectTheSelectedConnection() {
+        val old = UUID.randomUUID().toString()
+        val fresh = UUID.randomUUID().toString()
+        val selected = Collections.synchronizedMap(mutableMapOf(old to "pilot"))
+        val control = object : PlayerConnectionAdmin {
+            override val sessionLabel = "Alpha <1>"
+            override fun current(): Map<String, String> = synchronized(selected) { selected.toMap() }
+            override suspend fun disconnect(id: String) = selected.remove(id) != null
+        }
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        val token = "synthetic-ops-token"
+        HttpClient.newHttpClient().use { client ->
+            fun request(id: String? = null, authenticated: Boolean = true,
+                origin: String = "http://127.0.0.1:$port"): HttpResponse<String> {
+                val path = if (id == null) "/admin" else "/admin/player/disconnect"
+                val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path")).timeout(Duration.ofSeconds(10))
+                if (authenticated) builder.header("Authorization", "Bearer $token")
+                if (id != null) builder.header("Origin", origin).header("Content-Type", "application/x-www-form-urlencoded")
+                    .POST(HttpRequest.BodyPublishers.ofString("operator=op1&connection=$id"))
+                return client.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+            }
+            OpsAudit.open(file, clock).use { audit ->
+                startOpsApi(Sink(), snapshots, port, audit, token = token, playerConnections = control).use {
+                    assertEquals(401, request(authenticated = false).statusCode())
+                    assertEquals(401, request(old, authenticated = false).statusCode())
+                    assertEquals(403, request(old, origin = "https://other.test").statusCode())
+                    val page = request().body()
+                    assertTrue("<strong>Alpha &lt;1&gt;</strong>" in page)
+                    assertTrue("<option value=\"$old\">pilot</option>" in page)
+                    assertEquals(400, request("invalid").statusCode())
+                    assertEquals("선택한 접속을 종료했습니다.", request(old).body())
+                    selected[fresh] = "pilot"
+                    assertEquals(404, request(old).statusCode())
+                    assertEquals(mapOf(fresh to "pilot"), control.current())
+                }
+                startOpsApi(Sink(), snapshots, port, audit, playerConnections = control).use {
+                    assertFalse("/admin/player/disconnect" in request(authenticated = false).body())
+                    assertEquals(503, request(fresh, authenticated = false).statusCode())
+                    assertEquals(mapOf(fresh to "pilot"), control.current())
+                }
+            }
+            startOpsApi(Sink(), snapshots, port, token = token, playerConnections = control).use {
+                assertFalse("/admin/player/disconnect" in request().body())
+                assertEquals(503, request(fresh).statusCode())
+                assertEquals(mapOf(fresh to "pilot"), control.current())
+            }
+        }
+        val auditRows = rows()
+        assertEquals(listOf("INVALID", "CHANGED", "NOT_FOUND"), auditRows.mapNotNull { it["outcome"] })
+        assertEquals(setOf("PLAYER_DISCONNECT"), auditRows.map { it["action"] }.toSet())
+        assertEquals("pilot:$old", auditRows.single { it["details"]?.startsWith("pilot:") == true }["details"])
+    }
+
     @Test fun backupRoutesAreAuditedAndReportTheLastSuccess() {
         var taken = 0
         val backups = object : StateBackups {
