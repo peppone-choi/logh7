@@ -3,7 +3,9 @@ package org.logh7.engine
 /** Committed ground exchange. Formula/cadence are revival policy; manual p.51 supplies
  * automatic combat, per-side 30-unit boxes and crew tables supply attack/defense. Author: Peppone Choi. */
 data class GroundBattleResult(val generation:Long,val grid:Int,val base:Int,val seconds:Long,
-    val damaged:List<Int>,val destroyed:List<Int>,val recipients:Map<Int,String>)
+    val damaged:List<Int>,val destroyed:List<Int>,val recipients:Map<Int,String>,val conclusion:GroundBattleConclusion?=null)
+
+data class GroundBattleConclusion(val survivingCountry:CountryId?)
 
 /** Public read of who actually fights on a base (manual p.51: 30 units per side; the rest wait in reserve). */
 object GroundBattleView {
@@ -77,13 +79,15 @@ internal object GroundBattleOperations {
                 }
                 next=next.copy(outfits=outfits,tacticalCommands=next.tacticalCommands.copy(morale=morale));at+=step
             }
-            if(contested(next,base))clocks[base.id]=at else clocks.remove(base.id)
+            val survivors=sides(next,base)
+            if(survivors.size>1)clocks[base.id]=at else clocks.remove(base.id)
             if(damaged.isNotEmpty()) {
                 val recipients=session.participants.mapNotNull {(account,member)->players[account]?.takeIf {
                     member.online && member.connection!=null && it.generation==session.generation &&
                         it.cpPaused && it.baseId==0 && it.grid==base.grid
                 }?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
-                events+=GroundBattleResult(session.generation,base.grid,base.id,at,damaged.toList(),destroyed.toList(),recipients)
+                val conclusion=if(survivors.size<=1)GroundBattleConclusion(survivors.singleOrNull()?.first) else null
+                events+=GroundBattleResult(session.generation,base.grid,base.id,at,damaged.toList(),destroyed.toList(),recipients,conclusion)
             }
         }
         // Orders end with either troop: a destroyed, withdrawn or re-embarked unit no longer holds or receives one.

@@ -165,15 +165,52 @@ class GamePresence {
             send(member,packets+updated.refresh)
         }
     }
+    private data class GroundResultNotice(val generation:Long,val grid:Int,val packet:ByteArray,var gridReady:Boolean=false)
+    private val groundResultNotices=mutableMapOf<String,ArrayDeque<GroundResultNotice>>()
+
+    @Synchronized fun groundResultGridReady(connection:String,player:Navigator) {
+        if(!player.cpPaused)groundResultNotices[connection]?.forEach {
+            if(it.generation==player.generation && it.grid==player.grid)it.gridReady=true
+        }
+    }
+
+    @Synchronized fun takeGroundResult(connection:String,player:Navigator):ByteArray? {
+        val notices=groundResultNotices[connection] ?: return null
+        // A reconnect or a new battle must not display an old result.
+        notices.removeAll {it.generation!=player.generation || it.grid!=player.grid || player.cpPaused}
+        val next=notices.firstOrNull()?.takeIf {it.gridReady}?.let {notices.removeFirst()}
+        if(notices.isEmpty())groundResultNotices.remove(connection)
+        return next?.packet
+    }
+
     @Synchronized fun groundBattle(event:org.logh7.engine.GroundBattleResult,snapshot:org.logh7.engine.WorldSnapshot,
-        galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
-        members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
+        galaxy:org.logh7.engine.Galaxy,countryName:(org.logh7.engine.CountryId)->String?={null},
+        characterById:(Int)->CharacterMessages.Generate?) {
+        members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid && it.player.cpPaused && it.player.baseId==0 &&
             event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer->
             val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
-            send(viewer,listOf(org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions),
+            val base=tactical.baseInformation.single {it.position.id==event.base}
+            val packets=mutableListOf(org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions),
                 org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
-                org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,event.base,
-                    tactical.baseInformation.single {it.position.id==event.base}.stamina)))
+                org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,event.base,base.stamina))
+            event.conclusion?.let {result->
+                val name=KoreanDisplayNames.base(galaxy.bases.single {it.id==event.base}.name).filterNot {it.isSurrogate() || it.isISOControl()}
+                    .take(10).ifBlank {"거점 ${event.base}"}
+                val winner=result.survivingCountry
+                val outcome=when {
+                    winner==null->"생존 병력 없음"
+                    winner==viewer.player.country->"아군 승리"
+                    else->(countryName(winner)?.filterNot {it.isSurrogate() || it.isISOControl()}?.take(10)
+                        ?.takeIf {it.isNotBlank()} ?: "국가 ${winner.value}")+" 승리"
+                }
+                val line="[지상전] $name · $outcome"
+                val notice=ChatMessages.spot(ChatMessages.Spot(viewer.character.id.toInt(),line),event.seconds.coerceIn(0,0xffffffffL))
+                val current=snapshot.navigators.values.singleOrNull {it.characterId==viewer.player.characterId && it.generation==event.generation}
+                if(current?.cpPaused==false && current.grid==event.grid) {
+                    groundResultNotices.getOrPut(viewer.connection){ArrayDeque()}.addLast(GroundResultNotice(event.generation,event.grid,notice))
+                } else packets+=notice
+            }
+            send(viewer,packets)
         }
     }
     /** U-31: an orbital strike changes a garrison outside any ground battle; refresh every tactical viewer of the grid. */
@@ -648,6 +685,7 @@ class GamePresence {
         members[connection]?.let { refresh(peers(it), peers(it)) }.orEmpty()
     @Synchronized fun remove(connection: String) {
         motionPaths.keys.removeIf { it.first==connection }
+        groundResultNotices.remove(connection)
         val leaving = members[connection] ?: return
         val affected = members.values.filter { visible(it, leaving) }.associateWith(::peers)
         members.remove(connection)

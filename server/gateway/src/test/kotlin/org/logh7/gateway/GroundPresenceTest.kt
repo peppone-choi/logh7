@@ -10,7 +10,7 @@ import kotlin.test.*
 class GroundPresenceTest {
     @Test fun supportAndImpactRefreshRetainBothSidesOfCarrierRelationshipsForBothPeers() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2)),
-            listOf(GalaxyBase(1049,2487,80,0,"Here",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+            listOf(GalaxyBase(1049,2487,80,0,"ハイネセン",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
         val people=(0..1).map {CharacterMessages.Generate(0,10000L+it,2,0,0,"Pilot","Name",30,1,1,0,List(8){50},0,0,0,20,0,0,"Ship",0)}
         val viewers=people.map {Navigator(1,it.id.toInt(),Power.EMPIRE,2487,1000,1000,1000,cpPaused=true)}
         val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32))))
@@ -43,7 +43,28 @@ class GroundPresenceTest {
             checkDefinitions()
         }
         hub.groundBattle(GroundBattleResult(1,2487,1049,250,listOf(3),emptyList(),audience),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
+        assertTrue(packets.all {batches->batches.flatten().none {ByteBuffer.wrap(it).getShort(4).toInt()==0x0f1d}})
         checkDefinitions()
+        val conclusion=GroundBattleResult(1,2487,1049,250,listOf(3),listOf(3),audience,GroundBattleConclusion(CountryId(42)))
+        hub.update(GamePresence.Member("connection1",people[1],viewers[1].copy(country=CountryId(42)),packets[1]::add))
+        packets.forEach {it.clear()}
+        hub.groundBattle(conclusion,snapshot,galaxy,{if(it==CountryId(42))"시험국" else null}){id->people.singleOrNull {it.id==id.toLong()}}
+        for(i in 0..1) {
+            val packet=packets[i].flatten().single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0f1d}
+            val text=if(i==0)"[지상전] 하이네센 · 시험국 승리" else "[지상전] 하이네센 · 아군 승리"
+            assertEquals(ChatMessages.Spot(10000+i,text),ChatMessages.spot(packet.copyOfRange(4,packet.size)))
+        }
+        packets.forEach {it.clear()}
+        val returned=viewers[0].copy(cpPaused=false)
+        val returnedSnapshot=snapshot.copy(navigators=snapshot.navigators+("pilot0" to returned))
+        hub.groundBattle(conclusion.copy(recipients=mapOf(10000 to "connection0")),returnedSnapshot,galaxy,{"시험국"}) {null}
+        assertTrue(packets[0].flatten().none {ByteBuffer.wrap(it).getShort(4).toInt()==0x0f1d})
+        assertNull(hub.takeGroundResult("connection0",returned))
+        hub.groundResultGridReady("connection0",returned)
+        val notice=checkNotNull(hub.takeGroundResult("connection0",returned))
+        assertEquals(ChatMessages.Spot(10000,"[지상전] 하이네센 · 시험국 승리"),ChatMessages.spot(notice.copyOfRange(4,notice.size)))
+        assertNull(hub.takeGroundResult("connection0",returned))
+        packets.forEach {it.clear()}
         hub.groundBattle(GroundBattleResult(1,2487,1049,250,listOf(3),emptyList(),mapOf(10000 to "old-connection")),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
         assertTrue(packets.all {it.isEmpty()})
         hub.support(TacticalSupportResult(1,2487,TacticalSupportAction.SUPPLY,1,1010000,100,200,0,

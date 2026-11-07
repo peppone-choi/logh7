@@ -249,7 +249,11 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             }}
         }}
         groundBattleSubscription=presence?.let {p->navigation!!.observeGroundBattles {event->
-            navigation.snapshot()?.let {snapshot->p.groundBattle(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
+            navigation.snapshot()?.let {snapshot->
+                val bootstrap=checkNotNull(world)
+                val countries=bootstrap.lobbyCountryDefinitions().first.countries
+                p.groundBattle(event,snapshot,bootstrap.galaxy,{countries[it.value]?.name},currentCharacters()::characterById)
+            }
         }}
         groundSubscription=presence?.let {p->navigation!!.observeGround {event->
             navigation.snapshot()?.let {snapshot->p.ground(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}

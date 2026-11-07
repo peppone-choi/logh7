@@ -324,6 +324,8 @@ class GameExchange(
             // The CD can still clear chat while consuming 0f03. Send after its next clock request.
             val startupNotice = if (readyForNotice)
                 listOfNotNull(startupWarpNotice.also { startupWarpNotice = null }) else emptyList()
+            // Returning to strategy clears tactical chat. Release its result on the clock after the new grid is ready.
+            val groundResult = if (readyForNotice) listOfNotNull(presence?.takeGroundResult(connection,player)) else emptyList()
             val offlineNotice = if (canQueueOfflineNotice) {
                 val cancellation = player.offlineWarpCancellation.takeUnless { it == acknowledged }
                 if (acknowledged != null && player.offlineWarpCancellation != acknowledged) sentOfflineWarpCancellation = null
@@ -361,7 +363,7 @@ class GameExchange(
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
-                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + firstWarpGuide
+                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + firstWarpGuide + groundResult
         }
     }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
@@ -388,6 +390,7 @@ class GameExchange(
             }
             if (update?.initialize == true) {
                 worldInitialized = true
+                if(update.stage==0x0f02)presence?.groundResultGridReady(connection,update.player)
                 tacticalExitPending = false
                 tacticalInitializationPending = update.player.cpPaused && (update.stage != 0x0f02 || repeatTactical)
                 if(!tacticalInitializationPending)pendingTacticalRevision=-1
