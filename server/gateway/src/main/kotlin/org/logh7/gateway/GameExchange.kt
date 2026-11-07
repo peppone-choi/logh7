@@ -2018,15 +2018,18 @@ class GameExchange(
                                             it.card==query.card && it.country==country}) {"Strategy directory requires a held office"}
                                         if(query.command==96) {
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
+                                            val points=inventory.strategic.people[me.characterId]?.evaluation ?: 0
                                             if(query.argument==0)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
                                                 org.logh7.engine.FlagshipMarketCatalog.options(me.shipStyle).map {option->
                                                     org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,
-                                                        "${checkNotNull(org.logh7.engine.Flagships.find(option.kind)).name} ${option.price}",option.maximumRank)})
+                                                        "${checkNotNull(org.logh7.engine.Flagships.find(option.kind)).name} ${option.price}",option.maximumRank)},
+                                                evaluationBalance=points)
                                             // U-13 guard ships: row id = catalogue index + 1, shown as "code price".
                                             if(query.argument==4)return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,
                                                 org.logh7.engine.GuardShips.forStyle(org.logh7.engine.GuardShips.styleFor(inventory,character.id.toInt(),checkNotNull(me.country)))
                                                     .filter {it.index+1>query.target}.map {option->
-                                                    org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,option.label,option.maximumRank)})
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(option.index+1,option.label,option.maximumRank)},
+                                                evaluationBalance=points)
                                             val eligible=if(query.argument==2)inventory.flagshipMarket.offers.filter {
                                                 it.receiver==character.id.toInt() && it.expiresAt>gameSeconds()}.map {it.giver}.toSet() else null
                                             val candidates=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).values
@@ -2184,7 +2187,10 @@ class GameExchange(
                                         WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).associateBy {it.id}
                                     val civicOutfit=result.civic?.outfit?.let {result.stocks?.outfits?.get(it)}?.takeIf {outfit ->
                                         player.country!=null && outfit.country==player.country && outfit.members().all {civicMembers[it]?.country==player.country}}
-                                    org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,civic)+
+                                    val evaluationBalance=if(query.spendsEvaluation && result.changed && result.rejection==null)
+                                        checkNotNull(result.stocks).strategic.people.getValue(query.character).evaluation else null
+                                    org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,civic,
+                                        evaluationBalance=evaluationBalance)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
                                         (if(civic!=null && civic.base>0)listOf(world.conditions(listOf(civic.base),result.stocks))+
                                             (if(result.stocks?.bases?.get(civic.base)?.let {b->player.country?.let(b::belongsTo)==true && b.camp==0}==true)

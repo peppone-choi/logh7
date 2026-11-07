@@ -8,6 +8,8 @@ static struct StrategyDirectory {
     bool receiving;
 } strategyDirectory={};
 static unsigned strategyRequestToken=0;
+static unsigned marketEvaluationBalance=0;
+static bool marketEvaluationKnown=false;
 static bool operationStrategy(unsigned command) {return command>=22 && command<=24;}
 static bool personnelStrategy(unsigned command) {return command<=4 || command==8 || command==9;}
 static bool armyStrategy(unsigned command) {return command==46 || command==47 || command==48 || command==49 || command==50 || command==51 || command==52 || command==53 || command==54 || command==56;}
@@ -60,10 +62,14 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
         state.strategyCommand==96 && (state.strategyArgument==0 || state.strategyArgument>=3) ? 0 : state.strategyTarget;
     at<BYTE>(record,16)=preview ? 1 : 0;at<unsigned>(record,28)=preview ? 0 : state.strategyBase;
     if(state.strategyCommand==22) {at<unsigned>(record,20)=state.strategyArgument;at<unsigned short>(record,24)=static_cast<unsigned short>(state.strategyAmount);}
-    if(state.strategyCommand==96)at<unsigned>(record,20)=state.strategyArgument;
+    if(state.strategyCommand==96) {
+        at<unsigned>(record,20)=state.strategyArgument;
+        if(preview)marketEvaluationKnown=false;
+    }
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
-    state.pending=true;state.sentAt=GetTickCount64();state.message=preview ? L"대상 인물 목록을 조회하고 있습니다." : L"서버에 요청했습니다.";
+    state.pending=true;state.sentAt=GetTickCount64();state.message=preview ?
+        (state.strategyCommand==96 ? L"목록을 조회하고 있습니다." : L"대상 인물 목록을 조회하고 있습니다.") : L"서버에 요청했습니다.";
     strategyDirectory.receiving=false;
     // The dispatcher subtracts one before its switch: case 0x45 (1200) uses selector 0x46.
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
@@ -225,25 +231,36 @@ static bool updateFlagshipMarket() {
     auto& state=taxWindow;unsigned mode=state.strategyArgument;
     static const wchar_t* modes[]={L"구매",L"교환 제안",L"받은 교환 수락",L"교환 취소 / 거절",L"경비함 구매",L"경비대 해산"};
     // U-13: modes 4/5 reuse this window; the CD has no guard-ship purchase screen.
-    bool guard=mode>=4,list=mode<3 || mode==4;
-    taxText(0,guard ? L"경비함 구매 · 경비대" : L"기함 구매 · 교환");taxText(1,L"수도 기함공창의 접수 스폿에서 실행합니다.");taxText(2,modes[mode]);
+    const bool guard=mode>=4,list=mode<3 || mode==4,purchase=mode==0 || mode==4;
+    taxText(0,guard ? L"경비함 구매 · 경비대" : L"기함 구매 · 교환");taxText(1,L"수도 기함공창의 접수 스폿에서 실행합니다.");
+    taxText(2,mode==4 ? L"경비함 구매 · 300척 무인 유닛" : modes[mode]);
     wchar_t label[160];const StrategyDirectory::Person* selected=nullptr;
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)selected=&strategyDirectory.people[i];
     if(mode==3)swprintf_s(label,L"본인에게 연결된 교환 제안을 취소합니다.");
     else if(mode==5)swprintf_s(label,L"본인의 경비대를 해산합니다. 환불은 없습니다.");
-    else if(selected)swprintf_s(label,L"%ls",selected->name);else swprintf_s(label,L"선택 가능한 항목이 없습니다.");
+    else if(selected)swprintf_s(label,purchase ? L"%ls점" : L"%ls",selected->name);else swprintf_s(label,L"선택 가능한 항목이 없습니다.");
     taxText(3,label);
     static const wchar_t* ranks[]={L"",L"",L"원수",L"상급대장",L"대장",L"중장",L"소장",L"준장",L"대령",L"중령",L"소령",
         L"대위",L"중위",L"소위",L"준위",L"상사",L"중사",L"하사",L"상등병",L"일등병",L"이등병"};
-    if((mode==0 || mode==4) && selected) {
+    if(purchase && selected) {
         const wchar_t* rank=selected->rank<=20 ? ranks[selected->rank] : L"";
-        swprintf_s(label,mode==4 ? L"%ls 이상 · 평가 포인트 가격 · 300척 무인 유닛" : L"%ls 이상 · 평가 포인트 가격",rank);taxText(4,label);
+        if(marketEvaluationKnown)swprintf_s(label,L"%ls 이상 · 보유 평가 포인트 %u점",rank,marketEvaluationBalance);
+        else swprintf_s(label,L"%ls 이상 · 평가 포인트로 구매",rank);
+        taxText(4,label);
     }
+    else if(mode==0)taxText(4,L"함종을 선택해 평가 포인트 가격을 확인하세요.");
     else if(mode==4)taxText(4,L"부대 미소속 인물만 · 최대 3유닛");
     else if(mode==5)taxText(4,L"손상된 경비함은 보충·수리할 수 없어 해산 뒤 다시 구매합니다.");
     else taxText(4,mode==1 ? L"수락 시 교환 · 24시간 유효" :
         mode==2 ? L"같은 접수 스폿에서 수락" : L"기함 변경 없이 제안 취소");
-    taxText(5,mode==0 || mode==2 || guard ? L"PCP 80 · 부족 시 MCP 160 전액 대용" : L"제안 / 취소에는 CP를 사용하지 않습니다.");
+    if(mode==0 || mode==2 || guard) {
+        const auto own=at<void*>(state.world,8);
+        const unsigned pcp=at<unsigned>(own,0x74),mcp=at<unsigned>(own,0x78);
+        if(pcp>=80)swprintf_s(label,L"결제 PCP 80 · 보유 PCP %u",pcp);
+        else if(mcp>=160)swprintf_s(label,L"대체 결제 MCP 160 · 보유 MCP %u",mcp);
+        else wcscpy_s(label,L"CP 부족 · PCP 80 또는 MCP 160 필요");
+        taxText(5,label);
+    } else taxText(5,L"제안 / 취소에는 CP를 사용하지 않습니다.");
     taxText(6,state.message);taxText(10,L"구매 / 교환 방식");taxText(11,L"이전");taxText(12,L"다음");taxText(13,L"목록 갱신");taxText(14,L"실행");
     taxEnabled(10,!state.pending);taxEnabled(11,!state.pending && list && strategyDirectory.count>0);
     taxEnabled(12,!state.pending && list && strategyDirectory.count>0);taxEnabled(13,!state.pending && list);
@@ -373,11 +390,16 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
         auto& state=taxWindow;
         if(state.visible && state.strategyActive && state.pending && at<unsigned>(record,0)==state.character &&
             at<unsigned short>(record,6)==state.strategyCommand && at<unsigned short>(record,32)==state.strategyToken) {
+            const unsigned flag=at<BYTE>(record,16),responseStatus=at<unsigned short>(record,10);
+            if(state.strategyCommand==96 && (state.strategyArgument==0 || state.strategyArgument==4) &&
+                at<unsigned>(record,20)==state.strategyArgument && (flag==1 || (flag==2 && !responseStatus))) {
+                marketEvaluationKnown=at<unsigned short>(record,24)==1;
+                if(marketEvaluationKnown)marketEvaluationBalance=at<unsigned>(record,28);
+            }
             if(civicCommand(state.strategyCommand))readCivicAction(record);
-            else if(at<BYTE>(record,16)==1)strategyDirectory.receiving=true;
+            else if(flag==1)strategyDirectory.receiving=true;
             else {
                 state.pending=false;
-                unsigned responseStatus=at<unsigned short>(record,10);
                 state.message=responseStatus==13 ? L"보유 군수물자가 부족합니다." : responseStatus==14 ? L"평가 포인트가 부족합니다." :
                     responseStatus==15 ? L"상대나 교환 제안이 유효하지 않습니다." :
                     // StrategyActionRejection ordinal+1: LOCATION 6, BUSY 7, MAXIMUM 9, RANK 10, CP 11.
