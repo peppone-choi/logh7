@@ -10,6 +10,10 @@ static struct StrategyDirectory {
 static unsigned strategyRequestToken=0;
 static unsigned marketEvaluationBalance=0;
 static bool marketEvaluationKnown=false;
+static struct CompleteRepairQuote {
+    bool requested,ready;
+    unsigned supplies,ships,flagships,payment;
+} repairQuote={};
 static bool operationStrategy(unsigned command) {return command>=22 && command<=24;}
 static bool personnelStrategy(unsigned command) {return command<=4 || command==8 || command==9;}
 static bool armyStrategy(unsigned command) {return command==46 || command==47 || command==48 || command==49 || command==50 || command==51 || command==52 || command==53 || command==54 || command==56;}
@@ -58,9 +62,17 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
     at<unsigned short>(record,4)=0x7f00;at<unsigned short>(record,6)=static_cast<unsigned short>(state.strategyCommand);
     at<unsigned short>(record,8)=static_cast<unsigned short>(state.card);
     at<unsigned short>(record,10)=static_cast<unsigned short>(state.strategyValue);
-    at<unsigned>(record,12)=preview ? cursor : outfitStrategy(state.strategyCommand,state.card) ? state.strategyOutfit :
+    at<unsigned>(record,12)=state.strategyCommand==61 ? state.strategyOutfit : preview ? cursor :
+        outfitStrategy(state.strategyCommand,state.card) ? state.strategyOutfit :
         state.strategyCommand==96 && (state.strategyArgument==0 || state.strategyArgument>=3) ? 0 : state.strategyTarget;
     at<BYTE>(record,16)=preview ? 1 : 0;at<unsigned>(record,28)=preview ? 0 : state.strategyBase;
+    if(state.strategyCommand==61) {
+        if(preview) {repairQuote={};repairQuote.requested=true;}
+        else if(repairQuote.ready) {
+            at<unsigned>(record,20)=repairQuote.payment;
+            at<unsigned>(record,28)=repairQuote.supplies;
+        }
+    }
     if(state.strategyCommand==22) {at<unsigned>(record,20)=state.strategyArgument;at<unsigned short>(record,24)=static_cast<unsigned short>(state.strategyAmount);}
     if(state.strategyCommand==96) {
         at<unsigned>(record,20)=state.strategyArgument;
@@ -69,7 +81,8 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
     state.pending=true;state.sentAt=GetTickCount64();state.message=preview ?
-        (state.strategyCommand==96 ? L"목록을 조회하고 있습니다." : L"대상 인물 목록을 조회하고 있습니다.") : L"서버에 요청했습니다.";
+        (state.strategyCommand==61 ? L"수리 비용을 조회하고 있습니다." :
+            state.strategyCommand==96 ? L"목록을 조회하고 있습니다." : L"대상 인물 목록을 조회하고 있습니다.") : L"서버에 요청했습니다.";
     strategyDirectory.receiving=false;
     // The dispatcher subtracts one before its switch: case 0x45 (1200) uses selector 0x46.
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
@@ -121,6 +134,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     state.strategyTarget=0;state.strategyBase=0;state.strategyValue=command==3 ? 5 : command==19 || command==69 ? 1 : 0;state.strategyField=0;
     state.strategyAmount=1;state.strategyArgument=0;state.strategyToken=0;
     state.visible=true;state.loaded=true;state.pending=false;strategyDirectory={};
+    repairQuote={};
     formationWindow={};if(formationStrategy(command))formationWindow.kind=formationValues[0];
     civicWindow={-1,0,0,0,GetTickCount64()};
     budgetWindow={};
@@ -316,6 +330,8 @@ static bool updateStrategyAction(void*) {
         if(logh::CharacterCards::read(own,0x370,cards))for(unsigned i=0;i<cards.count;++i)if(cards.rows[i].kind==state.card)outfits[count++]=cards.rows[i].target;
     }
     bool army=outfitStrategy(command,state.card),personnel=personnelStrategy(command),estate=command==8 || command==9,title=command==3 || command==4;
+    const int repairSupport=command==61 ? repairQuoteCapability(state.world,state.character) : 0;
+    if(repairSupport==1 && !state.pending && !repairQuote.requested && (!army || state.strategyOutfit))sendStrategyAction(true);
     taxText(0,strategyActionName(command));taxText(1,L"명령 확정 후에만 CP를 사용합니다.");
     const wchar_t* field=personnel ? (state.strategyField==0 ? L"현재 선택: 대상 인물" : estate ? L"현재 선택: 봉토 행성" : L"현재 선택: 수여 종류") : L"대상 부대 선택";
     taxText(2,personnel ? field : command==61 ? L"손상 수리 · 보유 군수물자 전량 소비 · 파괴된 함정은 제외" : command==53 ? L"대기 게임 24시간 · 치안 상승, 정부 지지 하락" :
@@ -331,13 +347,25 @@ static bool updateStrategyAction(void*) {
     if(estate) {wchar_t name[32]={};pickerName(state.strategyBase,name);swprintf_s(label,L"봉토: %ls (%u)",name,state.strategyBase);taxText(4,label);}
     else if(title) {static const wchar_t* titles[]={L"공작",L"후작",L"백작",L"자작",L"남작",L"제국기사"};
         if(command==3)swprintf_s(label,L"작위: %ls",titles[state.strategyValue%6]);else swprintf_s(label,L"훈장 종류: %u",state.strategyValue+1);taxText(4,label);}
-    else taxText(4,army && !state.strategyOutfit ? L"부대 지휘 직무 필요" : L"");
+    else if(repairSupport==1 && repairQuote.ready) {
+        swprintf_s(label,L"수리 · 기함 %u척 / 함정 %u척",repairQuote.flagships,repairQuote.ships);taxText(4,label);
+    } else taxText(4,army && !state.strategyOutfit ? L"부대 지휘 직무 필요" : L"");
     unsigned cost=command==1 || estate ? 640 : command==2 ? 320 : command==46 || command==47 || command==48 || command==49 || command==50 || command==51 ? 80 : 160;
-    swprintf_s(label,L"MCP %u · 부족 시 PCP %u 전액 대용",cost,cost*2);taxText(5,label);
-    taxText(6,state.message);taxText(10,L"선택 항목");taxText(11,L"이전 / −");taxText(12,L"다음 / +");taxText(13,L"목록 갱신");taxText(14,L"실행");
-    taxEnabled(10,personnel && (estate || title) && !state.pending);taxEnabled(13,personnel && !state.pending);
+    if(repairSupport==1 && repairQuote.ready) {
+        const wchar_t* cp=repairQuote.payment==1 ? L"MCP 160" : repairQuote.payment==2 ? L"대체 PCP 320" :
+            repairQuote.supplies ? L"CP 부족" : L"결제 없음";
+        swprintf_s(label,L"군수물자 %u · %ls",repairQuote.supplies,cp);
+    } else swprintf_s(label,L"MCP %u · 부족 시 PCP %u 전액 대용",cost,cost*2);
+    taxText(5,label);
+    taxText(6,repairSupport<0 ? L"서버의 수리 견적 지원을 확인합니다." : state.message);
+    taxText(10,L"선택 항목");taxText(11,L"이전 / −");taxText(12,L"다음 / +");
+    taxText(13,repairSupport==1 ? L"비용 갱신" : L"목록 갱신");taxText(14,L"실행");
+    taxEnabled(10,personnel && (estate || title) && !state.pending);
+    taxEnabled(13,!state.pending && (personnel || repairSupport==1 && (!army || state.strategyOutfit)));
     taxEnabled(11,!state.pending && (army && count>1 || personnel));taxEnabled(12,!state.pending && (army && count>1 || personnel));
-    taxEnabled(14,!state.pending && (!army || state.strategyOutfit>0) && (!personnel || state.strategyTarget>0) && (!estate || state.strategyBase>0));
+    const bool canExecute=!state.pending && (!army || state.strategyOutfit>0) && (!personnel || state.strategyTarget>0) &&
+        (!estate || state.strategyBase>0) && (repairSupport==0 || repairSupport==1 && repairQuote.ready && repairQuote.payment);
+    taxEnabled(14,canExecute);
     if(state.pending && GetTickCount64()-state.sentAt>10000)state.message=L"응답 대기 중 · 재접속 후 실제 상태를 확인해 주세요.";
     if(GetTickCount64()<state.acceptAfter)return true;
     BYTE event[52]={};
@@ -346,7 +374,7 @@ static bool updateStrategyAction(void*) {
         if(id==15)closeTaxWindow();
         else if(!state.pending) {
             if(id==10 && personnel && (estate || title))state.strategyField=1-state.strategyField;
-            else if(id==13 && personnel)sendStrategyAction(true);
+            else if(id==13 && (personnel || repairSupport==1 && (!army || state.strategyOutfit)))sendStrategyAction(true);
             else if(id==11 || id==12) {
                 int direction=id==11 ? -1 : 1;
                 if(personnel) {
@@ -356,8 +384,9 @@ static bool updateStrategyAction(void*) {
                 } else if(army && count) {
                     unsigned selected=0;for(unsigned i=0;i<count;++i)if(outfits[i]==state.strategyOutfit)selected=i;
                     state.strategyOutfit=outfits[(selected+count+direction)%count];
+                    if(command==61)repairQuote={};
                 }
-            } else if(id==14 && (!army || state.strategyOutfit) && (!personnel || state.strategyTarget) && (!estate || state.strategyBase))sendStrategyAction();
+            } else if(id==14 && canExecute)sendStrategyAction();
         }
         break;
     }
@@ -391,6 +420,18 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
         if(state.visible && state.strategyActive && state.pending && at<unsigned>(record,0)==state.character &&
             at<unsigned short>(record,6)==state.strategyCommand && at<unsigned short>(record,32)==state.strategyToken) {
             const unsigned flag=at<BYTE>(record,16),responseStatus=at<unsigned short>(record,10);
+            if(state.strategyCommand==61 && flag==20) {
+                state.pending=false;
+                const auto payment=at<unsigned>(record,28);
+                repairQuote={true,!responseStatus || responseStatus==11 || responseStatus==13,
+                    at<unsigned>(record,20),at<unsigned>(record,12),at<unsigned short>(record,24),
+                    !responseStatus && payment<=2 ? payment : 0};
+                state.message=responseStatus==13 ? L"수리에 사용할 군수물자가 없습니다." : responseStatus==11 ? L"MCP 160 또는 PCP 320이 필요합니다." :
+                    responseStatus==6 ? L"아군 행성의 같은 위치에서 수리할 수 있습니다." : responseStatus==7 ? L"진행 중인 작업이 끝난 뒤 수리하세요." :
+                    responseStatus ? L"이 대상은 수리할 수 없습니다. 직무와 위치를 확인하세요." :
+                    repairQuote.payment ? L"비용을 확인한 뒤 실행하세요." : L"수리할 손상이 없습니다.";
+                memset(static_cast<BYTE*>(record)+4,0,32);return result;
+            }
             if(state.strategyCommand==96 && (state.strategyArgument==0 || state.strategyArgument==4) &&
                 at<unsigned>(record,20)==state.strategyArgument && (flag==1 || (flag==2 && !responseStatus))) {
                 marketEvaluationKnown=at<unsigned short>(record,24)==1;
@@ -400,7 +441,9 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
             else if(flag==1)strategyDirectory.receiving=true;
             else {
                 state.pending=false;
-                state.message=responseStatus==13 ? L"보유 군수물자가 부족합니다." : responseStatus==14 ? L"평가 포인트가 부족합니다." :
+                if(state.strategyCommand==61 && repairQuote.requested)repairQuote={true,!responseStatus,0,0,0,0};
+                state.message=responseStatus==17 ? L"수리 비용이 바뀌었습니다. 비용을 다시 조회하세요." :
+                    responseStatus==13 ? L"보유 군수물자가 부족합니다." : responseStatus==14 ? L"평가 포인트가 부족합니다." :
                     responseStatus==15 ? L"상대나 교환 제안이 유효하지 않습니다." :
                     // StrategyActionRejection ordinal+1: LOCATION 6, BUSY 7, MAXIMUM 9, RANK 10, CP 11.
                     responseStatus==6 ? L"명령 거부 · 실행할 수 있는 장소가 아닙니다." :

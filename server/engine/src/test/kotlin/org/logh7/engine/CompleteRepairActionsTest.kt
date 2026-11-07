@@ -49,6 +49,36 @@ class CompleteRepairActionsTest {
         assertNull(result.rejection);assertEquals(100,result.player?.hull?.hp);assertEquals(0,result.player?.supplies)
         assertEquals(840,result.player?.mcp);assertEquals(original,result.stocks);assertTrue(result.navigators.isEmpty())
     }
+    @Test fun quoteIsReadOnlyAndCommitRejectsChangedSuppliesOrPaymentPool() {
+        val original=stocks()
+        val quote=act(request().copy(repairPreview=true),original)
+        assertEquals(CompleteRepairQuote(99,5,2,org.logh7.engine.strategy.CpPool.MCP),quote.repairQuote)
+        assertFalse(quote.changed);assertSame(original,quote.stocks);assertEquals(player,quote.player)
+        val commit=request().copy(base=99,argument=1)
+        val changedCargo=original.copy(outfits=original.outfits.mapValues {(_,outfit)->outfit.copy(supplies=100)})
+        assertEquals(StrategyActionRejection.QUOTE_CHANGED,act(commit,changedCargo).rejection)
+        val fallback=player.copy(mcp=100)
+        val denied=act(commit,original,fallback)
+        assertEquals(StrategyActionRejection.QUOTE_CHANGED,denied.rejection)
+        assertSame(original,denied.stocks);assertEquals(fallback,denied.player)
+        val paid=act(commit.copy(argument=2),original,fallback)
+        assertNull(paid.rejection);assertEquals(680,paid.player?.pcp)
+    }
+    @Test fun damagedGuardShipsAloneDoNotConsumeSuppliesOrCp() {
+        val original=stocks()
+        val option=GuardShips.options.first()
+        val guard=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(option.baseKind),damaged=5,supplies=99)))
+        val patrol=original.outfits.getValue(200).copy(kind=OutfitKind.PATROL,staff=FleetStaff(),
+            units=UnitInventory(ships=guard.quantities()),activeShips=guard,guard=mapOf(1 to option.index))
+        val stock=original.copy(outfits=mapOf(200 to patrol),
+            warehouses=mapOf(300 to original.warehouses.getValue(300).copy(kind=OutfitKind.PATROL,outfitId=0)))
+        val healthy=player.copy(hull=player.hull?.copy(hp=100))
+        val request=request().copy(card=47)
+        val quote=act(request.copy(repairPreview=true),stock,healthy)
+        assertEquals(CompleteRepairQuote(0,0,0),quote.repairQuote)
+        val result=act(request,stock,healthy)
+        assertNull(result.rejection);assertFalse(result.changed);assertSame(stock,result.stocks);assertEquals(healthy,result.player)
+    }
     @Test fun wrongOfficeBusyShortageAndInsufficientCpPreserveEveryHullAndBalance() {
         val original=stocks()
         val cases=listOf(request().copy(card=44) to StrategyActionRejection.CARD,

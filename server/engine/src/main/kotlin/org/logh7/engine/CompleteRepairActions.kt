@@ -23,16 +23,11 @@ internal object CompleteRepairActions {
         if((p.hull?.woundedUntil ?: 0)>now)return reject(StrategyActionRejection.BUSY)
         val base=stocks.bases[p.baseId] ?: return reject(StrategyActionRejection.LOCATION)
         if(!base.belongsTo(country) || base.camp!=0 || p.mode !in 1..4)return reject(StrategyActionRejection.LOCATION)
-        var after=p
-        var next=stocks
-        var updates=emptyMap<String,Navigator>()
-        if(r.outfit==0) {
+        val outfit=if(r.outfit==0) {
             if(r.card!=when(countries.countries[country.value]?.nativePower) {2->59;3->195;else->return reject(StrategyActionRejection.CARD)})
                 return reject(StrategyActionRejection.CARD)
-            val hull=p.hull ?: return reject(StrategyActionRejection.TROOPS)
-            if(hull.hp==100)return StrategyActionResult(p,stocks)
-            if(p.supplies==0)return reject(StrategyActionRejection.RESOURCE)
-            after=p.copy(hull=hull.copy(hp=100),supplies=0)
+            if(p.hull==null)return reject(StrategyActionRejection.TROOPS)
+            null
         } else {
             val outfit=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
             val policy=OrganizationalOfficePolicy(galaxy,countries)
@@ -42,26 +37,38 @@ internal object CompleteRepairActions {
                 policy.holders(stocks,r.card,country).none {it.character==r.characterId && it.seat==outfit.id})
                 return reject(StrategyActionRejection.AUTHORITY)
             if(outfit.positionIn(galaxy)!=OutfitPosition(p.grid,p.baseId))return reject(StrategyActionRejection.LOCATION)
-            val ships=outfit.activeShips ?: return reject(StrategyActionRejection.TROOPS)
-            if(ships.values.any {it.tactical!=null || it.support!=null || it.attack!=null || it.shot!=null} ||
-                outfit.activeGround?.values.orEmpty().any {it.order!=null})return reject(StrategyActionRejection.BUSY)
-            val members=outfit.members()
-            val nearby=r.navigators.filterValues {it.generation==r.generation && it.characterId in members &&
-                it.country==country && it.grid==p.grid && it.baseId==p.baseId}+(r.account to p)
-            if(nearby.values.any(::busy))return reject(StrategyActionRejection.BUSY)
-            val damage=ships.values.any {it.boats>0 && it.damaged>0} || nearby.values.any {it.hull?.hp?.let {hp->hp<100}==true}
-            if(!damage)return StrategyActionResult(p,stocks)
-            if(outfit.supplies==0)return reject(StrategyActionRejection.RESOURCE)
-            // update03: guard ships cannot be repaired; only crewed members are restored.
-            val repaired=outfit.copy(activeShips=ActiveShipUnits(ships.values.map {if(outfit.guard!=null)it else it.copy(damaged=0)}),supplies=0)
-            val emptyCargo=if(ships.values.isEmpty())repaired else OutfitSupplies.withBalances(repaired,ships.values.associate {it.id to 0})
-            next=stocks.copy(outfits=stocks.outfits+(outfit.id to emptyCargo))
-            updates=nearby.mapValues {(_,member)->member.hull?.let {member.copy(hull=it.copy(hp=100))} ?: member}
-            after=updates.getValue(r.account)
+            if(outfit.activeShips==null)return reject(StrategyActionRejection.TROOPS)
+            outfit
         }
+        val ships=outfit?.activeShips?.values.orEmpty()
+        if(ships.any {it.tactical!=null || it.support!=null || it.attack!=null || it.shot!=null} ||
+            outfit?.activeGround?.values.orEmpty().any {it.order!=null})return reject(StrategyActionRejection.BUSY)
+        val members=outfit?.members().orEmpty()
+        val nearby=r.navigators.filterValues {it.generation==r.generation && it.characterId in members &&
+            it.country==country && it.grid==p.grid && it.baseId==p.baseId}+(r.account to p)
+        if(nearby.values.any(::busy))return reject(StrategyActionRejection.BUSY)
+        // update03: guard ships cannot be repaired. Their damage alone must not trigger a charge.
+        val damagedShips=if(outfit?.guard==null)ships.filter {it.boats>0}.sumOf {it.damaged} else 0
+        val damagedFlagships=nearby.values.count {(it.hull?.hp ?: 100)<100}
+        if(damagedShips==0 && damagedFlagships==0)return StrategyActionResult(p,stocks,
+            repairQuote=CompleteRepairQuote(0,0,0).takeIf {r.repairPreview})
+        val supplies=outfit?.supplies ?: p.supplies
+        val quote=CompleteRepairQuote(supplies,damagedShips,damagedFlagships)
+        fun unavailable(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason,repairQuote=quote.takeIf {r.repairPreview})
+        if(supplies==0)return unavailable(StrategyActionRejection.RESOURCE)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),160,CpPool.MCP)
-        if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
-        return StrategyActionResult(after.paidWith(paid.balance),next,
+        if(paid !is PaymentResult.Paid)return unavailable(StrategyActionRejection.CP)
+        val cp=checkNotNull(paid.chargedPool)
+        if(r.repairPreview)return StrategyActionResult(p,stocks,repairQuote=quote.copy(cp=cp))
+        if(r.base!=0 && (r.base!=supplies || r.argument!=(if(cp==CpPool.MCP)1 else 2)))
+            return reject(StrategyActionRejection.QUOTE_CHANGED)
+        if(outfit==null)return StrategyActionResult(p.copy(hull=checkNotNull(p.hull).copy(hp=100),supplies=0)
+            .paidWith(paid.balance),stocks,changed=true)
+        val repaired=outfit.copy(activeShips=ActiveShipUnits(ships.map {if(outfit.guard!=null)it else it.copy(damaged=0)}),supplies=0)
+        val emptyCargo=if(ships.isEmpty())repaired else OutfitSupplies.withBalances(repaired,ships.associate {it.id to 0})
+        val next=stocks.copy(outfits=stocks.outfits+(outfit.id to emptyCargo))
+        val updates=nearby.mapValues {(_,member)->member.hull?.let {member.copy(hull=it.copy(hp=100))} ?: member}
+        return StrategyActionResult(updates.getValue(r.account).paidWith(paid.balance),next,
             changed=true,navigators=updates-r.account)
     }
 }

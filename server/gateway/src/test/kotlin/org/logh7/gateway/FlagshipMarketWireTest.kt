@@ -96,7 +96,13 @@ class FlagshipMarketWireTest {
             val receiver=server.join(server.account(1),true,false).client
             giver.send(SyntheticClient.opcode(0x0f00));next(giver,0x0f01)
             receiver.send(SyntheticClient.opcode(0x0f00));next(receiver,0x0f01)
-            action(giver,request(10000,61));assertEquals(100,state.players.getValue("load-000").hull?.hp)
+            giver.send(request(10000,61,preview=true))
+            val repair=ByteBuffer.wrap(next(giver,0x1200));next(giver,0x1201)
+            assertEquals(20,repair.get(22).toInt());assertEquals(0,repair.getShort(16).toInt())
+            assertEquals(35,repair.getInt(23));assertEquals(1,repair.getShort(27).toInt());assertEquals(1,repair.getInt(29))
+            assertEquals(72,state.players.getValue("load-000").hull?.hp)
+            val commit=request(10000,61).also {ByteBuffer.wrap(it).putInt(19,1).putInt(25,35)}
+            action(giver,commit);assertEquals(100,state.players.getValue("load-000").hull?.hp)
             assertEquals(0,state.players.getValue("load-000").supplies);assertEquals(840,state.players.getValue("load-000").mcp)
             assertEquals(1000,purchasePreview(giver,10000).getInt(29))
             assertEquals(0,purchasePreview(receiver,10001,mode=4).getInt(29))

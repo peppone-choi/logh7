@@ -81,6 +81,13 @@ class StrategyActionMessagesTest {
         assertEquals(3,unchanged[22].toInt())
         val fleet=own.copyOf().also {ByteBuffer.wrap(it).putShort(10,39).putInt(14,200)}
         assertEquals(200,StrategyActionMessages.query(fleet).outfit)
+        val preview=StrategyActionMessages.query(fleet.copyOf().also {it[18]=1})
+        assertTrue(preview.isRepairQuote)
+        val quote=ByteBuffer.wrap(StrategyActionMessages.repairQuote(preview,0,99999,51,2,1).first())
+        assertEquals(20,quote.get(22).toInt());assertEquals(99999,quote.getInt(23));assertEquals(51,quote.getInt(18))
+        assertEquals(2,quote.getShort(27).toInt());assertEquals(1,quote.getInt(29))
+        val commit=StrategyActionMessages.query(fleet.copyOf().also {ByteBuffer.wrap(it).putInt(19,1).putInt(25,99999)})
+        assertEquals(99999,commit.base);assertEquals(1,commit.argument)
         assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(fleet.copyOf().also {ByteBuffer.wrap(it).putShort(23,1)})}
         assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(own.copyOf().also {ByteBuffer.wrap(it).putInt(14,200)})}
     }

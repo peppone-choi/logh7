@@ -28,7 +28,7 @@ static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
     ULONGLONG sentAt,pollAt,identityAt,basesAt;
-    bool identityReceived,fuelSupported,productionQuotesSupported;
+    bool identityReceived,fuelSupported,productionQuotesSupported,repairQuotesSupported;
     ULONGLONG fuelAt;
     FuelProgress fuel;
     unsigned imageCountry;std::uint64_t imageRevision;
@@ -60,6 +60,7 @@ static bool receiveCountryPaint(const BYTE* record) {
         inbox.identityReceived=true;
         inbox.fuelSupported=logh::paintWord(record+ownCountryExtensionOffset)==1;
         inbox.productionQuotesSupported=logh::paintWord(record+ownCountryExtensionOffset+4)==1;
+        inbox.repairQuotesSupported=(record[10]&1)!=0;
     }
     if(inbox.pending && inbox.mode==fuelStatusMode && readFuelProgress(record,inbox.character,inbox.nonce,inbox.fuel)) {
         inbox.pending=0;
@@ -148,6 +149,14 @@ static int productionQuoteCapability(void* world,unsigned character) {
     const auto& inbox=countryPaintInbox;
     const int supported=inbox.world==world && inbox.character==character && inbox.identityReceived ?
         static_cast<int>(inbox.productionQuotesSupported) : -1;
+    ReleaseSRWLockShared(&countryPaintLock);
+    return supported;
+}
+static int repairQuoteCapability(void* world,unsigned character) {
+    AcquireSRWLockShared(&countryPaintLock);
+    const auto& inbox=countryPaintInbox;
+    const int supported=inbox.world==world && inbox.character==character && inbox.identityReceived ?
+        static_cast<int>(inbox.repairQuotesSupported) : -1;
     ReleaseSRWLockShared(&countryPaintLock);
     return supported;
 }

@@ -14,6 +14,7 @@ object StrategyActionMessages {
         val hasTradeQuote get()=command==40 || command==39 || command==20 && value==2
         val isTradeQuote get()=preview && hasTradeQuote && (if(command==40)amount>0 else argument==-1)
         val isProductionQuote get()=preview && command in 31..36 && argument==-1
+        val isRepairQuote get()=preview && command==61
         val spendsEvaluation get()=command==96 && (argument==0 || argument==4)
     }
     fun matches(message:ByteArray)=message.size>=8 && ByteBuffer.wrap(message).let {
@@ -54,6 +55,7 @@ object StrategyActionMessages {
         val trade=command in setOf(17,20,39,40)
         // U-08: value is the unit kind, preview argument -1 quotes, and commit base binds the quoted site.
         val production=command in 31..36
+        val repair=command==61
         // U-31 orbital ground attack from the compatibility DLL's commander-tab button: no card, no arguments.
         val strike=command==230
         // Imperial succession: 233 後継指名 on the emperor card (target = heir; previews list empire people), 234 継承拒否 on the personal card.
@@ -61,11 +63,11 @@ object StrategyActionMessages {
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
         require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,15,17,19,20,21,31,32,33,34,35,36,39,40,230,233,234,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,95,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || production || command in setOf(233,10,11,12,13,19,20,29,40,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39))
+        require(!preview || personnel || command==24 || market || production || repair || command in setOf(233,10,11,12,13,19,20,29,40,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
-        if(!operation && !market && !transport && !proposal && !funds && !trade && !production)require(argument==0 && amount==0)
+        if(!operation && !market && !transport && !proposal && !funds && !trade && !production && !repair)require(argument==0 && amount==0)
         if(civic)require(!preview && value in 0..2 && base==0 && argument==0 && amount==0 &&
             card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(command==55)target==0 && card in setOf(59,195) else value!=0 || target>0))
@@ -119,7 +121,8 @@ object StrategyActionMessages {
             else card in setOf(24,25,150) && (if(command==28)!preview && base in 1..65535 && target in 1..65535 &&
                 (value==0xffff) == (argument==0) && argument in 0..65535 && (value==0xffff || value in 0..199 || value in 1000..1015)
                 else value==0 && base==0 && argument==0 && amount==0 && (preview || target>0)))
-        else if(command==61)require(value==0 && base==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
+        else if(repair)require(value==0 && amount==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
+            (base==0 && argument==0 || !preview && base>0 && argument in 1..2) &&
             (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
         val listed=personnel || operation || market || transport || proposal || justice || espionage || coup || funds || goal || trade || production || strike || succession || command in setOf(10,11,12,13,87)
@@ -180,6 +183,14 @@ object StrategyActionMessages {
         val automaticPausedUntil:Long) {
         init {require(yard in 0..3 && buildingUntil in 0..0xffffffffL && shipReadyAt in 0..0xffffffffL &&
             (kind==null && shipReadyAt==0L || kind!=null && kind in 0..199) && stock in 0..0xffffff && automaticPausedUntil in 0..0xffffffffL)}
+    }
+    /** Read-only repair quote. Payment code 0/1/2 means none, MCP 160, or PCP 320. */
+    fun repairQuote(q:Query,status:Int,supplies:Int,ships:Int,flagships:Int,payment:Int):List<ByteArray> {
+        require(q.isRepairQuote && status in 0..65535 && supplies>=0 && ships>=0 && flagships in 0..65535 && payment in 0..2)
+        val payload=q.raw.copyOf()
+        ByteBuffer.wrap(payload).putShort(10,status.toShort()).putInt(12,ships).put(16,20)
+            .putInt(17,supplies).putShort(21,flagships.toShort()).putInt(23,payment)
+        return listOf(LoginMessages.sessionMessage(0x1200,payload),LoginMessages.sessionMessage(0x1201,byteArrayOf()))
     }
     fun productionQuote(q:Query,status:Int,base:Int,mcp:Int,hours:Int,treasury:Long,mineral:Long,supplies:Long,
         food:Int,adults:Int,currency:StrategyCurrencyLabel?,progress:ProductionProgress?=null):List<ByteArray> {
