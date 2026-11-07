@@ -57,6 +57,28 @@ static void __fastcall importedTacticalUnits(void* world,void*,BYTE announce) {
     applyTacticalLabels(world);
     applyTacticalCommandRange(world);
 }
+static constexpr unsigned tacticalSupplyTargetMask=0xd81;
+static unsigned __fastcall pickTacticalSupportTarget(void* renderer,void*,int x,int y,unsigned mask,BYTE overrideMask) {
+    const auto pick=reinterpret_cast<unsigned(__thiscall*)(void*,int,int,unsigned,BYTE)>(0x4ef8e0);
+    if(at<unsigned>(renderer,0xa75c)!=tacticalSupplyTargetMask)return pick(renderer,x,y,mask,overrideMask);
+    const auto count=*reinterpret_cast<const unsigned*>(0x2216664);
+    if(!count || count>600)return pick(renderer,x,y,mask,overrideMask);
+    // The CD issues the order for the last selected support ship. Omit that
+    // one node during picking so a ship in the same screen area can be chosen.
+    const auto source=reinterpret_cast<const unsigned*>(0x2215128)[count-1];
+    auto node=at<BYTE*>(renderer,0x3c);
+    const auto head=static_cast<BYTE*>(renderer)+8;
+    for(unsigned i=0;node && node!=head && i<600;++i,node=at<BYTE*>(node,0x34)) {
+        if(at<unsigned>(node,0x20)!=source)continue;
+        auto& visible=at<BYTE>(node,0x2d);
+        const auto previous=visible;
+        visible=0;
+        const auto target=pick(renderer,x,y,mask,overrideMask);
+        visible=previous;
+        return target;
+    }
+    return pick(renderer,x,y,mask,overrideMask);
+}
 static bool installTacticalSupport() {
     auto repair=reinterpret_cast<BYTE*>(0x4bc4fd),supply=reinterpret_cast<BYTE*>(0x4bc53a);
     const BYTE repairExpected[]={0xe8,0x9e,0x50,0,0},supplyExpected[]={0xe8,0x41,0x51,0,0};
@@ -70,6 +92,14 @@ static bool installTacticalSupport() {
     BYTE c[5]={0xe8},d[5]={0xe8};
     *reinterpret_cast<LONG*>(c+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&importedTacticalUnits)-initial-5);
     *reinterpret_cast<LONG*>(d+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&importedTacticalUnits)-joined-5);
+    auto supplyMask=reinterpret_cast<BYTE*>(0x511797),targetPicker=reinterpret_cast<BYTE*>(0x5107e7);
+    // Supply state 15: retain the allied bit 0x800 and admit own units (0x400).
+    const BYTE maskExpected[]={0x68,0x81,0x09,0,0};
+    const BYTE maskReplacement[]={0x68,tacticalSupplyTargetMask&0xff,tacticalSupplyTargetMask>>8,0,0};
+    const BYTE pickerExpected[]={0xe8,0xf4,0xf0,0xfd,0xff};
+    BYTE pickerCall[5]={0xe8};
+    *reinterpret_cast<LONG*>(pickerCall+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&pickTacticalSupportTarget)-targetPicker-5);
     return patchBytes(repair,repairExpected,a,5) && patchBytes(supply,supplyExpected,b,5) &&
-        patchBytes(initial,initialExpected,c,5) && patchBytes(joined,joinedExpected,d,5);
+        patchBytes(initial,initialExpected,c,5) && patchBytes(joined,joinedExpected,d,5) &&
+        patchBytes(supplyMask,maskExpected,maskReplacement,5) && patchBytes(targetPicker,pickerExpected,pickerCall,5);
 }
