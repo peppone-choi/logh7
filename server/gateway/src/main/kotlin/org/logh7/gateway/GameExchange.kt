@@ -324,7 +324,7 @@ class GameExchange(
             // The CD can still clear chat while consuming 0f03. Send after its next clock request.
             val startupNotice = if (readyForNotice)
                 listOfNotNull(startupWarpNotice.also { startupWarpNotice = null }) else emptyList()
-            // Returning to strategy clears tactical chat. Release its result on the clock after the new grid is ready.
+            // A screen change clears chat. Release the ground result on the clock after the new grid is ready.
             val groundResult = if (readyForNotice) listOfNotNull(presence?.takeGroundResult(connection,player)) else emptyList()
             val offlineNotice = if (canQueueOfflineNotice) {
                 val cancellation = player.offlineWarpCancellation.takeUnless { it == acknowledged }
