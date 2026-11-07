@@ -166,7 +166,7 @@ data class NavigationRequest(val account: String, val characterId: Int, val coun
 enum class NavigationRejection { DISABLED, SESSION, IDENTITY, UNIT, CARD, SAME_GRID, RANGE, GRID, CRUISE, CP, TACTICAL,
     BASE, SPOT, ACCESS, EMBARKED, SUPPLYING, FUEL_FULL, CLOCK, TRAVELLING, BUSY, ENERGY, INSIDE_RADAR, WEAPON, TARGET, SUPPLY, WOUNDED,
     /** A crew type the landing site bars (p.51: 装甲兵 on special planets/fortresses). Appended to keep wire ordinals. */
-    CREW }
+    CREW, STAR_SYSTEM_NOT_ADJACENT }
 data class NavigationResult(val player: Navigator?, val previous: Navigator? = null, val rejection: NavigationRejection? = null,
     val completedFuel: Boolean = false, val completedDock: Boolean = false, val supportReadyAt: Long? = null,
     /** A reserved warp reached its execution time; [warpRejected] keeps the fleet at its origin. */
@@ -442,6 +442,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val warp = WarpPreconditions.evaluate(WarpContext(before.cruise, galaxy.kind(destination) == GridKind.STAR_SYSTEM,
             maxOf(dx, dy) == 1))
         // Cruise is light-years (CD p.31); policy.cruiseCost is the cost of one 100-ly grid.
+        if (warp == WarpDecision.STAR_SYSTEM_NOT_ADJACENT) return reject(NavigationRejection.STAR_SYSTEM_NOT_ADJACENT)
         if (warp != WarpDecision.ALLOWED || !warpPossible(before, destination)) return reject(NavigationRejection.CRUISE)
         val enterable = enterableFrom(before, movingUnits, soloShip)
         if (!enterable(destination)) return reject(NavigationRejection.GRID)

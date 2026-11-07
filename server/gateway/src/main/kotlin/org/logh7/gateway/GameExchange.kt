@@ -5,7 +5,9 @@ import org.logh7.protocol.LobbyMessages
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.CountryImageMessages
 import org.logh7.protocol.BootstrapMessages
+import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.OriginalCharacterMessages
+import org.logh7.engine.NavigationRejection
 import org.logh7.engine.positionIn
 import java.nio.file.Files
 import java.nio.file.Path
@@ -237,6 +239,25 @@ class GameExchange(
                 (if(player.baseId!=0 || player.mode!=5 || player.spotId!=0) listOf(
                     org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,seconds,
                         player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) else emptyList())
+    }
+    private fun warpRefusal(characterId: Int, rejection: NavigationRejection?, seconds: Long): ByteArray {
+        // The original strategy chat shows only the tail of long notices.
+        val reason = when (rejection) {
+            NavigationRejection.SAME_GRID -> "다른 칸 선택"
+            NavigationRejection.RANGE -> "더 가까운 칸 선택"
+            NavigationRejection.STAR_SYSTEM_NOT_ADJACENT -> "성계에 인접 필요"
+            NavigationRejection.GRID -> "진입 불가·재선택"
+            NavigationRejection.CRUISE -> "항속 부족·보급 필요"
+            NavigationRejection.CP -> "MCP/PCP 부족"
+            NavigationRejection.CARD -> "함장 카드 필요"
+            NavigationRejection.TACTICAL -> "전술 중 사용 불가"
+            NavigationRejection.EMBARKED -> "출항 필요"
+            NavigationRejection.SUPPLYING -> "보급 완료까지 대기"
+            NavigationRejection.TRAVELLING -> "이동 완료까지 대기"
+            NavigationRejection.WOUNDED -> "부상 회복까지 대기"
+            else -> "현재 사용 불가"
+        }
+        return ChatMessages.spot(ChatMessages.Spot(characterId, "[워프] $reason"), seconds)
     }
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || sessionEndingAvailable() || navigation == null) return null
@@ -1333,13 +1354,14 @@ class GameExchange(
                             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection, checkNotNull(generation), command.grid, character.id.toInt() + 1_000_000,
                             command.card, politics = character.abilities[1], administration = character.abilities[2])).thenApply { result ->
+                            val seconds = gameSeconds()
                             val player = result.player ?: run {
                                 val origin = checkNotNull(result.previous) { "Warp lost its authenticated session" }
                                 if(traceOpcodes)System.err.println("trace ${identity.account} warp ${command.grid} card ${command.card} rejected: ${result.rejection}")
                                 publication = Publication(character, origin, false)
                                 return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(
                                     command.copy(grid = origin.grid, base = origin.baseId, mode = origin.mode),
-                                    gameSeconds(), origin.pcp, origin.mcp)) +
+                                    seconds, origin.pcp, origin.mcp)) +
                                     // The CD's warp ACK handler is empty. Its command chain
                                     // waits for 0b07 even when entry fails; restore the actual
                                     // position so the next card command can be selected.
@@ -1347,11 +1369,11 @@ class GameExchange(
                                         characterMessage(character, origin, true), unitMessage(character, origin),
                                         org.logh7.protocol.NavigationMessages.grid(origin.grid,origin.cpPaused),
                                         org.logh7.protocol.NavigationMessages.moved(command.copy(grid = origin.grid),
-                                            gameSeconds(), origin.unitId, origin.cruise)) else emptyList()) +
-                                    completedWork(result, character, warpNotified = origin.baseId == 0 && origin.mode == 5)
+                                            seconds, origin.unitId, origin.cruise)) else emptyList()) +
+                                    completedWork(result, character, warpNotified = origin.baseId == 0 && origin.mode == 5) +
+                                    warpRefusal(origin.characterId, result.rejection, seconds)
                             }
                             publication = Publication(character, player, false)
-                            val seconds = gameSeconds()
                             player.warpReadyAt?.let { readyAt ->
                                 // Reserved: keep the origin, report CP and the wait; 0b07 is sent on execution.
                                 return@thenApply listOf(org.logh7.protocol.NavigationMessages.reserved(command,

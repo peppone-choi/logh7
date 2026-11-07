@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.NavigationMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
@@ -41,6 +42,7 @@ class GridForceWireTest {
         LoadFixture(directory,1,LoadMetrics(),galaxy,ticking=false).use { fixture ->
             val client=fixture.join(fixture.account(0),true,false).client
             client.send(SyntheticClient.opcode(0x0f00));through(client,0x0f01)
+            val before = fixture.engine.snapshot().navigators.values.single()
             val denied=NavigationMessages.accepted(NavigationMessages.Warp(10000,59,2487,0,5),0,0,0)
             client.send(denied.copyOfRange(4,denied.size))
             var ack: ByteBuffer?=null
@@ -52,9 +54,15 @@ class GridForceWireTest {
             client.expect(0x0356);client.expect(0x0325);client.expect(0x0317)
             val completion=ByteBuffer.wrap(client.expect(0x0b07))
             assertEquals(2487,completion.getInt(14));assertEquals(1000,completion.getInt(29))
+            val notice = client.expect(0x0f1d)
+            assertEquals(ChatMessages.Spot(10000, "[워프] 다른 칸 선택"),
+                ChatMessages.spot(notice.copyOfRange(4, notice.size)))
+            assertEquals(before, fixture.engine.snapshot().navigators.values.single())
             val allowed=NavigationMessages.accepted(NavigationMessages.Warp(10000,59,2488,0,5),0,0,0)
             client.send(allowed.copyOfRange(4,allowed.size));through(client,0x0b0a)
             fixture.clock(client);report(client,2488)
+            val after = fixture.engine.snapshot().navigators.values.single()
+            assertEquals(960, after.mcp); assertEquals(900, after.cruise)
         }
     }
 }
