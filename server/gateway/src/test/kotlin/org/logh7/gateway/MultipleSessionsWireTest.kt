@@ -5,6 +5,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.persistence.FileWorldStateStore
+import org.logh7.protocol.BudgetMessages
+import org.logh7.protocol.CharacterMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
@@ -25,6 +28,110 @@ class MultipleSessionsWireTest {
     private fun selected(lobby:SyntheticClient,id:Int):ByteArray {
         lobby.send(ByteBuffer.allocate(4).putShort(0x2009).putShort(id.toShort()).array())
         return lobby.expect(0x200a)
+    }
+    @Test fun financeOfficeAndBudgetStayInTheSelectedWorldAcrossRestart() {
+        val country = CountryId(2)
+        val capital = 1049
+        val characterId = 10000
+        val account = "load-000"
+        val financeGalaxy = Galaxy(galaxy.systems, listOf(
+            galaxy.bases[0].copy(id = capital, name = Capital.EMPIRE.baseName), galaxy.bases[1],
+        ), mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015))
+        val registry = GameSessionDirectory()
+        fun next(client: SyntheticClient, opcode: Int): ByteBuffer {
+            repeat(200) {
+                val packet = ByteBuffer.wrap(client.receive())
+                if (packet.getShort(4).toInt() and 0xffff == opcode) return packet
+            }
+            error("Missing opcode ${opcode.toString(16)}")
+        }
+        fun enter(lobby: SyntheticClient, world: LoadFixture, id: Int, card: Int): SyntheticClient {
+            val redirect = ByteBuffer.wrap(selected(lobby, id))
+            assertEquals(world.sessionPort, redirect.getShort(10).toInt() and 0xffff)
+            return SyntheticClient(world.sessionPort, LoadMetrics()).also { client ->
+                client.send(SyntheticClient.token(redirect.getInt(12).toLong() and 0xffffffffL), SyntheticClient.opcode(0x0200))
+                client.expect(0x0201)
+                client.send(SyntheticClient.opcode(0x0205))
+                client.expect(0x0206)
+                client.send(SyntheticClient.opcode(0x0f00))
+                val profile = next(client, 0x0323)
+                assertEquals(characterId, profile.getInt(6))
+                assertEquals(card, profile.getShort(profile.limit() - 7).toInt())
+                next(client, 0x0f01)
+            }
+        }
+        fun budget(client: SyntheticClient, phase: Int = 0, quote: Int = 0, rejection: BudgetRejection? = null): List<ByteBuffer> {
+            val rate = if (phase == 0) 0 else 25
+            client.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(characterId).putShort(BudgetMessages.SEARCH.toShort())
+                .putShort(18).putShort(8).putShort(rate.toShort()).putInt(quote).put(phase.toByte())
+                .putInt(0).putShort(0).putInt(capital).putShort((phase + 1).toShort()).array())
+            val records = (10..12).map { flag ->
+                var record = next(client, 0x1200)
+                while (record.get(22).toInt() in 14..15) {
+                    assertNull(rejection, "Unauthorized sessions must not receive finance updates")
+                    record = next(client, 0x1200)
+                }
+                assertEquals(BudgetMessages.SEARCH, record.getShort(10).toInt())
+                assertEquals(rejection?.let { it.ordinal + 1 } ?: 0, record.getShort(16).toInt())
+                assertEquals(flag, record.get(22).toInt())
+                record
+            }
+            next(client, 0x1201)
+            next(client, 0x0356)
+            return records
+        }
+        fun amount(record: ByteBuffer) = (record.getInt(18).toLong() shl 32) or (record.getInt(23).toLong() and 0xffffffffL)
+        fun world(id: Int, block: (LoadFixture, FileWorldStateStore) -> Unit) {
+            val root = directory.resolve("finance-$id")
+            val state = root.resolve("world")
+            val fresh = java.nio.file.Files.notExists(state)
+            FileWorldStateStore(state).use { store ->
+                if (fresh) {
+                    val profile = CharacterMessages.Generate(4, characterId.toLong(), 2, 0, 0, "Pilot", "Test", 30,
+                        1, 1, 1, List(8) { 50 }, 0, 0, 0, 1, 0, 0, "Ship", 0)
+                    assertTrue(CharacterStores(root.resolve("characters.properties")).get(1).carry(account, profile))
+                    val pilot = Navigator(1, characterId, Power.EMPIRE, 2487, 1000, 1000, 1000,
+                        baseId = capital, mode = 1, cpRecoveryAt = SessionRules.load().startSeconds)
+                    val stocks = financeGalaxy.bases.associate { base ->
+                        base.id to PlanetStock(base.id, if (base.id == capital) 2 else 3, 0, 100, 200, 300, treasury = 100L * id)
+                    }
+                    store.saveWorld(mapOf(account to pilot), PlanetStocks(1, 0, stocks,
+                        deploymentInitialized = true, nationalTreasuries = mapOf(country to 4000L * id),
+                        strategic = StrategicState(offices = if (id == 1) listOf(OfficeHolding(8, capital, characterId)) else emptyList())))
+                }
+                LoadFixture(root, 2, LoadMetrics(), financeGalaxy, ticking = false, navigationStore = store.navigationStore,
+                    stockStore = store.stockStore, worldStateCommitter = store, sessionDirectory = registry,
+                    sessionId = id, sessionName = if (id == 1) "Alpha" else "Beta", accountSource = accounts).use { block(it, store) }
+            }
+        }
+        var quote = 0
+        world(1) { alpha, _ -> world(2) { beta, _ -> lobby(alpha).use { lobby ->
+            enter(lobby, alpha, 1, 8).use { player ->
+                assertEquals(listOf(4000L, 100L, 0L), budget(player).map(::amount))
+                val prepared = budget(player, phase = 1).last()
+                assertEquals(1000L, amount(prepared))
+                quote = prepared.getInt(29)
+                assertTrue(quote > 0)
+            }
+            enter(lobby, beta, 2, 59).use { player ->
+                assertEquals(listOf(0L, 0L, 0L), budget(player, 2, quote, BudgetRejection.AUTHORITY).map(::amount))
+            }
+        } } }
+        world(1) { alpha, a -> world(2) { beta, b -> lobby(alpha).use { lobby ->
+            enter(lobby, beta, 2, 59).use { player ->
+                assertEquals(listOf(0L, 0L, 0L), budget(player, rejection = BudgetRejection.AUTHORITY).map(::amount))
+            }
+            enter(lobby, alpha, 1, 8).use { player ->
+                assertEquals(quote, budget(player).last().getInt(29))
+                repeat(2) { assertEquals(listOf(3000L, 1100L, 1000L), budget(player, 2, quote).map(::amount)) }
+            }
+            assertEquals(680, a.loadNavigation().getValue(account).mcp)
+            assertEquals(1000, b.loadNavigation().getValue(account).mcp)
+            val betaStocks = assertNotNull(b.loadStocks())
+            assertEquals(8000L, betaStocks.nationalTreasuries.getValue(country))
+            assertEquals(200L, betaStocks.bases.getValue(capital).treasury)
+            assertTrue(betaStocks.budget.quotes.isEmpty())
+        } } }
     }
     @Test fun maintenanceExplainsAStaleSelectionAndAValidTicketWithoutClosingTheLobby() {
         val registry = GameSessionDirectory()
