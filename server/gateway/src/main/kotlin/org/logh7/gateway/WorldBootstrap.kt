@@ -11,6 +11,7 @@ import org.logh7.engine.positionIn
 import org.logh7.protocol.OutfitMessages
 import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.protocol.BaseAffiliationMessages
+import org.logh7.protocol.CountryImageMessages
 import org.logh7.protocol.LogisticsMessages
 
 class WorldBootstrap(val galaxy: Galaxy,
@@ -45,13 +46,29 @@ class WorldBootstrap(val galaxy: Galaxy,
         val snapshot=org.logh7.engine.CountryCatalogLoader.snapshot()
         val catalog=configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog
         val country=catalog.countries[query.outfit];val calendar=catalog.calendar(query.outfit)
-        val emblem=when(country?.assets) {"empire"->2;"alliance"->3;else->countryImages().countries[query.outfit]?.nativeEmblem ?: 0}
+        val emblem=nativeEmblem(country?.assets, countryImages().countries[query.outfit]?.nativeEmblem)
         return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryMetadataMessages.reply(query,viewerPower,
             country?.name.orEmpty(),calendar?.name.orEmpty(),calendar?.yearOffset ?: 0,if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0,emblem))
     }
     fun countryImageFrames(query:OutfitPartyMessages.Query):List<ByteArray> {
         val snapshot=countryImages();val images=snapshot.countries[query.outfit]
-        return org.logh7.protocol.CountryImageMessages.replies(query,snapshot.revision,images?.emblem,images?.mapIcon)
+        return CountryImageMessages.replies(query,snapshot.revision,images?.emblem,images?.mapIcon)
+    }
+    internal fun lobbyCountryEmblem(request: CountryImageMessages.LobbyRequest): List<ByteArray> {
+        val (catalog, revision) = lobbyCountryDefinitions()
+        val country = catalog.countries[request.query.outfit]
+        val snapshot = countryImages()
+        val images = country?.let { snapshot.countries[it.id] }
+        // A definition refresh can arrive before its pixels. Do not mark older pixels current.
+        val imageRevision = snapshot.revision.takeIf { it > 0 } ?: revision
+        return CountryImageMessages.lobbyReply(request, imageRevision,
+            nativeEmblem(country?.assets, images?.nativeEmblem), images?.emblem ?: images?.mapIcon)
+    }
+
+    private fun nativeEmblem(assets: String?, uploadedSlot: Int?): Int = when (assets) {
+        "empire" -> 2
+        "alliance" -> 3
+        else -> uploadedSlot ?: 0
     }
     /** The authenticated viewer's real membership, including explicit unaffiliated/deleted definitions. */
     fun countryIdentity(query:OutfitPartyMessages.Query,countryId:Int?,nativePower:Int):ByteArray {

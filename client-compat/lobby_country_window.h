@@ -9,6 +9,67 @@ static struct LobbyCountryWindow {
     logh::LobbyCountryPage page={};logh::LobbySessionList sessions={};
     void* icons[6]={};void* bars[6]={};void* backdrop=nullptr;void* lotteryButton=nullptr;
 } lobbyCountryWindow;
+static UploadedCountryTexture lobbyEmblemTextures[logh::lobbyCountryRows];
+static bool lobbyEmblemVisible[logh::lobbyCountryRows]={};
+
+using NativeLobbyIconDraw=void(__thiscall*)(void*,const int*,const int*,const float*,unsigned,float,float,
+    void* const*,const unsigned*,unsigned);
+
+static void __fastcall drawLobbyCountryIcon(void* renderer,void*,const int* origin,const int* bounds,const float* color,
+    unsigned mode,float rotation,float opacity,void* const* holders,const unsigned* tiles,unsigned state) {
+    void* replacementHolders[4]={};
+    unsigned replacementTiles[20]={};
+    BYTE replacementQuad[20]={};
+    const auto& view=lobbyCountryWindow;
+    if(view.active && state<4 && holders && holders[state])for(unsigned i=0;i<view.page.count;++i) {
+        if(!lobbyEmblemVisible[i] || !view.icons[i] || holders!=reinterpret_cast<void* const*>(static_cast<BYTE*>(view.icons[i])+0xcf4))continue;
+        // The draw queue copies the descriptor. The native widget keeps its own atlas and lifetime.
+        memcpy(replacementQuad,holders[state],sizeof(replacementQuad));
+        at<void*>(replacementQuad,8)=lobbyEmblemTextures[i].resource;
+        replacementHolders[state]=replacementQuad;
+        replacementTiles[state*5]=tiles[state*5];
+        replacementTiles[state*5+3]=replacementTiles[state*5+4]=32;
+        holders=replacementHolders;
+        tiles=replacementTiles;
+        break;
+    }
+    reinterpret_cast<NativeLobbyIconDraw>(0x50cd10)(renderer,origin,bounds,color,mode,rotation,opacity,holders,tiles,state);
+}
+
+static bool installLobbyCountryIconDraw() {
+    BYTE expected[]={0xe8,0x0e,0x60,0,0},replacement[]={0xe8,0,0,0,0};
+    auto site=reinterpret_cast<BYTE*>(0x506cfd);
+    *reinterpret_cast<LONG*>(replacement+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&drawLobbyCountryIcon)-site-5);
+    return patchBytes(site,expected,replacement,5);
+}
+
+static unsigned prepareLobbyEmblem(unsigned index,const logh::LobbyCountry& row) {
+    auto& entry=lobbyEmblemTextures[index];
+    logh::CountryImageData image;
+    std::uint64_t epoch=0;
+    AcquireSRWLockShared(&lobbyCountryLock);
+    const auto& view=lobbyCountryWindow;
+    const auto& page=lobbyCountryInbox.published;
+    const bool supported=lobbyEmblemSupported && lobbyEmblemProbeSession==view.session;
+    if(page.session==view.session && page.offset==view.offset && page.generation==view.page.generation &&
+        lobbyEmblemInbox.rows[index].id==row.id)image=lobbyEmblemInbox.rows[index];
+    epoch=lobbyEmblemInbox.epoch;
+    ReleaseSRWLockShared(&lobbyCountryLock);
+
+    const auto pixels=image.pixels(false);
+    auto device=*reinterpret_cast<void**>(0x2229400);
+    lobbyEmblemVisible[index]=false;
+    if(!pixels || !device) {
+        releaseUploadedCountryTexture(entry);
+    } else {
+        const bool cached=entry.id==row.id && entry.epoch==epoch && entry.revision==image.revision && entry.device==device;
+        if(cached || uploadCountryTexture(entry,pixels,device)) {
+            entry.id=row.id;entry.epoch=epoch;entry.revision=image.revision;
+            lobbyEmblemVisible[index]=true;
+        }
+    }
+    return !supported && (row.nativePower==2 || row.nativePower==3) ? row.nativePower : image.nativeEmblem;
+}
 static void lobbyCountryText(unsigned id,int x,int y,int width,int height,const wchar_t* text,bool button=false) {
     auto& view=lobbyCountryWindow;auto widget=planetWidget(id);if(!widget || id>=114)return;
     if(view.widths[id]!=static_cast<unsigned>(width) || view.heights[id]!=static_cast<unsigned>(height) || view.buttons[id]!=button) {
@@ -30,10 +91,10 @@ static void hideLobbyCountryWindow() {
     }
     view.active=false;resetLobbyCountries();
 }
-static unsigned lobbyCountryRgb(const logh::LobbyCountry& row) {
+static unsigned lobbyCountryRgb(const logh::LobbyCountry& row,unsigned emblem) {
     if(row.hasRgb)return row.rgb;
-    if(row.nativePower==2 || row.nativePower==3) {
-        const auto color=reinterpret_cast<const BYTE*>(0x771f68)+row.nativePower*6;
+    if(emblem==2 || emblem==3) {
+        const auto color=reinterpret_cast<const BYTE*>(0x771f68)+emblem*6;
         return (color[0]<<16)|(color[1]<<8)|color[2];
     }
     return 0xc0c0c0;
@@ -72,6 +133,7 @@ static void renderLobbyCountries() {
     }
     for(unsigned i=0;i<6;++i) {
         const bool present=view.page.session==view.session && i<view.page.count;
+        lobbyEmblemVisible[i]=false;
         const unsigned button=72+i;const int y=130+static_cast<int>(i)*45;
         for(unsigned id:{button,40+i*2,41+i*2})reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,planetWidget(id),present ? 1 : 0);
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,planetWidget(60+i),0);
@@ -82,12 +144,13 @@ static void renderLobbyCountries() {
         lobbyCountryText(button,x+38,y,width,30,label.c_str(),true);planetSelected(button,row.id==view.country);
         swprintf_s(text,L"거점 %u",row.bases);lobbyCountryText(40+i*2,700,y,126,16,text);
         swprintf_s(text,L"등록 %u명",row.characters);lobbyCountryText(41+i*2,700,y+16,126,16,text);
-        const unsigned rgb=lobbyCountryRgb(row);const float red=((rgb>>16)&255)/255.f,green=((rgb>>8)&255)/255.f,blue=(rgb&255)/255.f;
+        const unsigned emblem=prepareLobbyEmblem(i,row);
+        const unsigned rgb=lobbyCountryRgb(row,emblem);const float red=((rgb>>16)&255)/255.f,green=((rgb>>8)&255)/255.f,blue=(rgb&255)/255.f;
         int rect[]={x,y,0,30,30};reinterpret_cast<void(__thiscall*)(void*,void*,const int*)>(0x502940)(view.root,view.icons[i],rect);
-        unsigned art[]={reinterpret_cast<unsigned>("/../data/image/Field/icon_country32.tga"),row.nativePower==3 ? 32u : 0u,0,32,32};
+        unsigned art[]={reinterpret_cast<unsigned>("/../data/image/Field/icon_country32.tga"),emblem==3 ? 32u : 0u,0,32,32};
         for(unsigned state=0;state<4;++state)reinterpret_cast<void(__thiscall*)(void*,void*,const void*,int)>(0x503920)(view.root,view.icons[i],art,state);
         reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,view.icons[i],red,green,blue,1.f);
-        if(row.nativePower!=2 && row.nativePower!=3) {
+        if(!lobbyEmblemVisible[i] && !emblem) {
             reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,view.icons[i],0);
             lobbyCountryText(60+i,x,y,30,30,L"◇");
             reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,planetWidget(60+i),red,green,blue,1.f);
@@ -297,6 +360,7 @@ static bool updateLobbyCountryWindow(void* controller) {
         view.offset=0;view.page={};view.pollAt=0;view.rendered=~0u;resetLobbyCountries();pending=false;
     }
     if(view.rendered!=sequence) {view.rendered=sequence;renderLobbyCountries();}
+    requestLobbyEmblem(view.world,view.session,view.offset,now);
     if(now>=view.pollAt && !pending) {if(requestLobbyCountries(view.world,view.session,view.offset))view.pollAt=now+5000;}
     if(pending && now-sentAt>=5000) {
         lobbyCountryText(80,184,408,640,26,L"국가 정보를 불러오지 못했습니다. 새로고침으로 다시 시도하세요.");

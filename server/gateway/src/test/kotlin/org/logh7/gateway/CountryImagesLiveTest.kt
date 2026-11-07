@@ -18,9 +18,16 @@ class CountryImagesLiveTest {
         assertContentEquals(LoginMessages.sessionMessage(0x032f,CountryMetadataMessages.reply(query,3,"신은하제국","신제국력",-798,0,2)),world.countryMetadata(query,42))
         assertEquals(ShipStyleId("empire"),catalog.shipStyle(CountryId(42)));assertEquals(3,catalog.countries.getValue(42).nativePower)
         assertEquals(47,world.countryImageFrames(query.copy(mode=17)).size)
+        val lobby = CountryImageMessages.LobbyRequest(query.copy(mode = 18, base = (99 shl 16) or 1))
+        val expected = CountryImageMessages.lobbyReply(lobby, 1, 2, ByteArray(4096) { -1 })
+        world.lobbyCountryEmblem(lobby).also { frames ->
+            assertEquals(expected.size, frames.size)
+            expected.zip(frames).forEach { (expectedFrame, actualFrame) -> assertContentEquals(expectedFrame, actualFrame) }
+        }
         published.publish(CountryImageSnapshot(2,mapOf(42 to CountryImageSelection(2))))
         assertContentEquals(CountryImageMessages.replies(query.copy(mode=17),2,null,null).first(),world.countryImageFrames(query.copy(mode=17)).first())
         assertEquals(2,world.countryImageFrames(query.copy(mode=17)).size)
         assertEquals(2,world.countryImageFrames(query.copy(outfit=999,mode=17)).size)
+        assertEquals(2,world.lobbyCountryEmblem(lobby).size)
     }
 }

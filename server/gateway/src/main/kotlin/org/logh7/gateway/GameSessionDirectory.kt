@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import org.logh7.protocol.LobbyMessages
+import org.logh7.protocol.CountryImageMessages
 import org.logh7.protocol.SessionEndingMessages
 
 /** One process may host several worlds; only their lobby descriptions and tickets are shared. */
@@ -13,7 +14,8 @@ class GameSessionDirectory {
         val character:(String)->LobbyMessages.ChargedSession?,
         /** Lobby country catalogue (mode 7) of this world; display-only, no positions or personal data. */
         val countries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>?)?=null,
-        val endings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>?)?=null) {
+        val endings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>?)?=null,
+        val countryEmblem: ((CountryImageMessages.LobbyRequest) -> List<ByteArray>?)? = null) {
         init {
             require(id in 1..65535 && port in 1..65535 && name.length in 1..12 &&
                 name.none {it.isISOControl() || it.isSurrogate()} && bindHosts.isNotEmpty())
@@ -48,6 +50,8 @@ class GameSessionDirectory {
         if(!entry.available())return null
         return entry.countries?.invoke(request)
     }
+    fun countryEmblem(request: CountryImageMessages.LobbyRequest): List<ByteArray>? =
+        snapshot().firstOrNull { it.id == request.sessionId && it.available() }?.countryEmblem?.invoke(request)
     fun target(id:Int,bindHost:String?):Target? {
         val entry=snapshot().firstOrNull {it.id==id} ?: return null
         if(!entry.available())return null

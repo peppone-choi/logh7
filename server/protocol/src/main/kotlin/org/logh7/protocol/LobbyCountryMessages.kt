@@ -21,6 +21,8 @@ object LobbyCountryMessages {
     const val MAX_FRAMES=1+PAGE
     const val CREATE=1
     const val LOTTERY=2
+    // The normal six-row selector never requests the page beyond the 350th country.
+    const val EMBLEM_PROBE = 127 * 512 + MAX_OFFSET
 
     data class Request(val query:OutfitPartyMessages.Query) {
         val sessionId:Int get()=query.outfit
@@ -72,4 +74,9 @@ object LobbyCountryMessages {
     }
     /** An unknown or unavailable session: an empty catalogue that reveals nothing about it. */
     fun empty(request:Request):List<ByteArray> = listOf(header(request,Header(0,request.offset,0,0,0,0,0)))
+
+    fun emblemCapability(request: Request): ByteArray {
+        require(request.query.base == EMBLEM_PROBE)
+        return frame(request, 0, 0, listOf("NC2", "0", "350", "0", "0", "", "0", "0", "", "0"))
+    }
 }

@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.CountryImageMessages
+import org.logh7.protocol.OutfitPartyMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
@@ -40,6 +42,15 @@ class LobbyCountryWireTest {
         return listOf(header)+(0 until rows).map {fields(client.expect(0x032f),session,nonce*512+offset)}
     }
 
+    private fun assertEmblem(client: SyntheticClient, session: Int, country: Int, slot: Int) {
+        val base = (9 shl 16) or session
+        val request = CountryImageMessages.LobbyRequest(OutfitPartyMessages.Query(country, base, 18))
+        client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(country).putInt(base).put(18).array())
+        for (frame in CountryImageMessages.lobbyReply(request, 0, slot, null)) {
+            assertContentEquals(frame, client.expect(0x032f))
+        }
+    }
+
     @Test fun lobbyAndPreGameConnectionsReadOnlyTheirAllowedCatalogue() {
         LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false).use {f->
             f.join(f.account(0),true,false).client.close()
@@ -52,18 +63,23 @@ class LobbyCountryWireTest {
                 assertEquals("3",frames[1].second[9],"create and lottery")
                 assertEquals(listOf("3","자유행성동맹"),frames[2].second.take(2))
                 assertEquals("0",frames[2].second[4])
+                assertEquals("NC2",catalogue(client,1,127,350).single().second[0])
+                assertEmblem(client,1,2,2)
+                assertEmblem(client,7,2,0)
                 // Another session id reveals nothing; the lobby keeps working afterwards.
                 val unknown=catalogue(client,7,4,0)
                 assertEquals(1,unknown.size);assertEquals(listOf("NC1","0","0","0"),unknown[0].second.take(4))
                 client.send(SyntheticClient.opcode(0x2005)+byteArrayOf(0));client.expect(0x2006)
             }
-            // Before a game starts the lobby answers no other 032e mode: the connection closes.
+            // A gameplay-only query is still rejected on the lobby connection.
             lobby(f,1).use {client->client.send(query(1,0,0,mode=4));client.expectClosed()}
             lobby(f,1).use {client->client.send(query(1,0,5,mode=7));client.expectClosed()}
             // A game connection that has not created or joined reads only its own world.
             f.game(f.account(2),create=false).use {game->
                 assertEquals(3,catalogue(game,1,9,0).size)
                 assertEquals(1,catalogue(game,2,9,0).size,"another session id is answered empty")
+                assertEmblem(game,1,3,3)
+                assertEmblem(game,2,3,0)
             }
         }
     }

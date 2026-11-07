@@ -5,8 +5,25 @@ import java.util.Base64
 /** Opt-in public country thumbnails; no paths, URLs or original uploads. Author: Peppone Choi. */
 object CountryImageMessages {
     const val MODE=17
+    const val LOBBY_MODE=18
+
+    data class LobbyRequest(val query:OutfitPartyMessages.Query) {
+        val sessionId: Int get() = query.base and 0xffff
+        init {
+            require(query.mode == LOBBY_MODE && query.outfit > 0 && sessionId > 0 && query.base ushr 16 in 1..32767)
+        }
+    }
+
+    fun lobbyReply(request: LobbyRequest, revision: Long, nativeEmblem: Int, emblem: ByteArray?): List<ByteArray> =
+        encode(request.query, revision, emblem, null, nativeEmblem.toString().also { require(nativeEmblem in setOf(0, 2, 3)) })
+
     fun replies(query:OutfitPartyMessages.Query,revision:Long,emblem:ByteArray?,mapIcon:ByteArray?):List<ByteArray> {
-        require(query.mode==MODE && query.outfit>0 && query.base in 1..65535 && revision>=0)
+        require(query.mode == MODE && query.outfit > 0 && query.base in 1..65535)
+        return encode(query, revision, emblem, mapIcon, "")
+    }
+
+    private fun encode(query: OutfitPartyMessages.Query, revision: Long, emblem: ByteArray?, mapIcon: ByteArray?, nativeEmblem: String): List<ByteArray> {
+        require(revision >= 0)
         require(listOfNotNull(emblem,mapIcon).all {it.size==4096})
         val raw=byteArrayOf(1,((if(emblem!=null)1 else 0) or (if(mapIcon!=null)2 else 0)).toByte())+
             (emblem ?: byteArrayOf())+(mapIcon ?: byteArrayOf())
@@ -15,7 +32,7 @@ object CountryImageMessages {
         val text=Base64.getEncoder().encodeToString(raw)
         val chunks=text.chunked(12)
         val digits=revision.toString()
-        val header=listOf("CI1",digits.take(12),digits.drop(12),raw.size.toString(),hash.toString(),text.length.toString(),chunks.size.toString(),"32","","")
+        val header=listOf("CI1",digits.take(12),digits.drop(12),raw.size.toString(),hash.toString(),text.length.toString(),chunks.size.toString(),"32",nativeEmblem,"")
         fun packet(kind:Int,number:Int,members:List<OutfitPartyMessages.Member>)=
             LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query,2,kind,number,emptyList(),emptyList(),0,0,members))
         return listOf(packet(0,0,header.mapIndexed {i,value->OutfitPartyMessages.Member(i+1,i,0,value)}))+
