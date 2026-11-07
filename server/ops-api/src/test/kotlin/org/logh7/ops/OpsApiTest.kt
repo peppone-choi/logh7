@@ -251,6 +251,7 @@ class OpsApiTest {
         val fresh = UUID.randomUUID().toString()
         val selected = Collections.synchronizedMap(mutableMapOf(old to "pilot"))
         val control = object : PlayerConnectionAdmin {
+            override val sessionLabel = "Alpha <1>"
             override fun current(): Map<String, String> = synchronized(selected) { selected.toMap() }
             override suspend fun disconnect(id: String) = selected.remove(id) != null
         }
@@ -271,7 +272,9 @@ class OpsApiTest {
                     assertEquals(401, request(authenticated = false).statusCode())
                     assertEquals(401, request(old, authenticated = false).statusCode())
                     assertEquals(403, request(old, origin = "https://other.test").statusCode())
-                    assertTrue("<option value=\"$old\">pilot</option>" in request().body())
+                    val page = request().body()
+                    assertTrue("<strong>Alpha &lt;1&gt;</strong>" in page)
+                    assertTrue("<option value=\"$old\">pilot</option>" in page)
                     assertEquals(400, request("invalid").statusCode())
                     assertEquals("선택한 접속을 종료했습니다.", request(old).body())
                     selected[fresh] = "pilot"

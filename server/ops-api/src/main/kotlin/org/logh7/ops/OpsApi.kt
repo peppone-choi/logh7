@@ -29,6 +29,7 @@ interface AccountAdmin {
 }
 
 interface PlayerConnectionAdmin {
+    val sessionLabel: String
     /** Connections admitted to this world, keyed by their unique connection ID. */
     fun current(): Map<String, String>
     suspend fun disconnect(id: String): Boolean
@@ -117,7 +118,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             get("/snapshot") { call.respondText(snapshots.snapshot().toString()) }
             get("/admin") {
                 call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names(), backups, maintenance,
-                    connectionAdmin?.current()), io.ktor.http.ContentType.Text.Html)
+                    connectionAdmin), io.ktor.http.ContentType.Text.Html)
             }
             get("/admin/text") { call.respondRedirect("/admin/text/") }
             get("/admin/text/") {
@@ -395,7 +396,7 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: 
 /** Operator page (loopback, optional token). Its buttons post to the audited admin routes. */
 internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, accounts: List<String>? = null,
     backups: StateBackups? = null, maintenance: MaintenanceControl? = null,
-    playerConnections: Map<String, String>? = null): String = buildString {
+    connectionAdmin: PlayerConnectionAdmin? = null): String = buildString {
     fun esc(value: Any?) = value.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
     fun row(vararg cells: Any?) { append("<tr>"); cells.forEach { append("<td>").append(esc(it)).append("</td>") }; append("</tr>") }
     val session = snapshot.session
@@ -431,8 +432,10 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, account
         append("<form method=\"post\" action=\"/admin/notice\">").append(operator)
             .append("공지 <input name=\"text\" maxlength=\"60\" required size=\"60\"> <button>접속 중인 전원에게 보내기</button></form>")
     }
-    if (playerConnections != null) {
-        append("<h2>현재 세션의 플레이어 접속</h2>")
+    if (connectionAdmin != null) {
+        val playerConnections = connectionAdmin.current()
+        append("<h2>현재 세션의 플레이어 접속</h2><p>대상 세션 <strong>")
+            .append(esc(connectionAdmin.sessionLabel)).append("</strong></p>")
         if (playerConnections.isEmpty()) append("<p>현재 접속 중인 플레이어가 없습니다.</p>")
         else {
             append("<form method=\"post\" action=\"/admin/player/disconnect\"><label>운영자 <input name=\"operator\" pattern=\"[A-Za-z0-9._-]{1,64}\" required></label> ")

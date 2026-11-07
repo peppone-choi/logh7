@@ -313,6 +313,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
             playerConnections = object : org.logh7.ops.PlayerConnectionAdmin {
+                override val sessionLabel = "$sessionName ($sessionId)"
                 override fun current() = gateway.playerConnections()
                 override suspend fun disconnect(id: String) = gateway.disconnectPlayer(id).await()
             },
