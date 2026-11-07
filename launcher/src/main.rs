@@ -1,5 +1,6 @@
 mod audio;
 mod config;
+mod connection;
 mod download;
 mod graphic_config;
 mod patch;
@@ -9,6 +10,7 @@ use config::Config;
 use std::{
     env, fs,
     io::{self, IsTerminal},
+    net::SocketAddrV4,
     path::PathBuf,
     process::{Command, ExitCode},
 };
@@ -18,6 +20,7 @@ fn run() -> Result<i32, String> {
         .map_err(|_| "런처 경로를 찾지 못했습니다")?
         .with_file_name("launcher.ini");
     let mut check = false;
+    let mut check_connection = false;
     let mut configure = false;
     let mut apply_patch: Option<PathBuf> = None;
     let mut revert_patch = false;
@@ -28,6 +31,7 @@ fn run() -> Result<i32, String> {
                 path = PathBuf::from(args.next().ok_or("--config 뒤에 파일 경로를 지정하세요")?)
             }
             Some("--check") => check = true,
+            Some("--check-connection") => check_connection = true,
             Some("--setup") => configure = true,
             Some("--apply-patch") => {
                 apply_patch = Some(PathBuf::from(
@@ -37,6 +41,9 @@ fn run() -> Result<i32, String> {
             }
             Some("--revert-patch") => revert_patch = true,
             Some("--download-patch") => {
+                if check_connection {
+                    return Err("--check-connection은 패치 명령과 따로 실행하세요".into());
+                }
                 let url = args
                     .next()
                     .ok_or("--download-patch 뒤에 http 주소를 지정하세요")?;
@@ -91,7 +98,7 @@ fn run() -> Result<i32, String> {
             }
             Some("--help") => {
                 println!(
-                    "logh7-launcher [--config launcher.ini] [--setup | --check | --apply-patch DIR | --revert-patch | --download-patch URL DIR [--expect-manifest SHA256] [--trust-key P256]]\n--setup은 서버 주소와 포트를 설정 파일에 저장합니다. --check는 실행 없이 점검합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
+                    "logh7-launcher [--config launcher.ini] [--setup | --check | --check-connection | --apply-patch DIR | --revert-patch | --download-patch URL DIR [--expect-manifest SHA256] [--trust-key P256]]\n--setup은 서버 주소와 포트를 설정 파일에 저장합니다. --check는 로컬 설정을 점검합니다.\n--check-connection은 게임을 실행하거나 인증하지 않고 로그인 서버의 응답을 확인합니다.\n--apply-patch는 패치 목록의 해시를 확인하고 원래 파일을 보관한 뒤 적용하며, --revert-patch는 바뀌지 않은 패치 파일만 되돌립니다."
                 );
                 return Ok(0);
             }
@@ -105,7 +112,10 @@ fn run() -> Result<i32, String> {
     if configure && (check || apply_patch.is_some() || revert_patch) {
         return Err("--setup은 --check·패치 명령과 따로 실행하세요".into());
     }
-    let launch = !check && apply_patch.is_none() && !revert_patch;
+    if check_connection && (configure || check || apply_patch.is_some() || revert_patch) {
+        return Err("--check-connection은 설정·패치 명령과 따로 실행하세요".into());
+    }
+    let launch = !check && !check_connection && apply_patch.is_none() && !revert_patch;
     if configure || (launch && !path.try_exists().unwrap_or(true) && io::stdin().is_terminal()) {
         setup::configure(&path, &mut io::stdin().lock(), &mut io::stdout().lock())?;
         if configure {
@@ -120,6 +130,13 @@ fn run() -> Result<i32, String> {
         &text,
         path.parent().ok_or("설정 디렉터리를 찾지 못했습니다")?,
     )?;
+    if check_connection {
+        let address = SocketAddrV4::new(config.host, config.port);
+        println!("확인할 로그인 서버 {address}");
+        connection::check(address.into())?;
+        println!("LOGH7 로그인 서버가 응답합니다. 게임 창에서 로그인하세요.");
+        return Ok(0);
+    }
     if let Some(patch) = apply_patch {
         let count = patch::apply(&config.client_root, &patch)?;
         println!("패치 파일 {count}개를 적용했습니다");

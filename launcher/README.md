@@ -12,11 +12,14 @@
 
 ```powershell
 .\logh7-launcher.exe --config E:\Games\LOGH7\launcher.ini --check
+.\logh7-launcher.exe --config E:\Games\LOGH7\launcher.ini --check-connection
 .\logh7-launcher.exe --config E:\Games\LOGH7\launcher.ini --setup
 .\logh7-launcher.exe --config E:\Games\LOGH7\launcher.ini
 ```
 
 `--check`는 설정·게임 경로·오디오만 점검한다. 설정을 생략하면 런처 실행 파일 옆 `launcher.ini`를 읽는다. `--help`, `--version`도 지원한다. 인증 문자열은 런처 출력에 쓰지 않는다. 계정과 인증 문자열은 원본 인자 경로에서 확인한 짧은 ASCII 범위를 사용한다. 서버 주소는 IPv4, 포트와 세션 ID는 1~65535이다.
+
+`--check-connection`은 저장한 주소와 포트로 로그인 서버의 응답을 확인한다. 정상 응답이면 게임 창에서 로그인하라는 안내를 표시한다. 점검 중이면 점검 종료 뒤 재시도를, 연결 거절이면 주소·포트 확인을 안내한다. TCP만 연결되고 확인 응답이 없으면 로그인 포트와 서버 버전을 확인하라고 안내한다. 이전 서버에는 확인 응답이 없을 수 있다. 이 명령은 게임 실행과 계정 인증 없이 약 3초 안에 결과를 표시하며, 계정과 비밀번호를 전송하거나 출력하지 않는다.
 
 기존 `launcher.ini`는 계속 읽는다. 수동 편집 시 UTF-8을 사용하며 상대 경로는 파일 위치 기준이다.
 `login_ui=true`이면 게임에는 주소·포트·계정 인자만 전달한다. 기존 자동 로그인 설정에서는
@@ -32,6 +35,12 @@
 별도 시험 범위다. 단위 검사 22개와 릴리스 빌드가 통과했다.
 
 기본 오디오 출력이 없거나 비활성이면 원인을 표시하고 게임을 실행하지 않는다. 점검은 [GetDefaultAudioEndpoint](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdeviceenumerator-getdefaultaudioendpoint)와 [GetState](https://learn.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nf-mmdeviceapi-immdevice-getstate)를 사용하며 볼륨·음소거·장치를 바꾸지 않는다. 이 점검은 실제 게임 오디오 초기화 성공을 보장하지 않으므로 실행 관찰과 구분한다.
+
+### 로그인 서버 응답 확인 (2026-11-07)
+
+부활 서버의 로그인 리스너는 연결의 첫 프레임에서만 런처용 `0038 LOGH7?` 요청을 받는다. 평상시 `LOGH7!`, 점검 중에는 `LOGH7-`로 답하고 연결을 닫는다. 업데이트와 세션 포트에는 확인 응답이 없다. 정상 게임 키 교환·로그인 경로와 로그인/실패 지표는 이 진단과 분리된다.
+
+로컬 배포용 런처에서 `--setup`으로 업데이트 포트를 로그인 포트로 바꾼 뒤 저장한 설정으로 응답을 확인했다. 정상·점검·해제, 열린 세션/업데이트 포트의 응답 불일치, 연결 거절을 구분했다. 캡처의 송신 요청은 각각 10바이트이고 계정·비밀번호가 없었다. 운영 지표의 로그인 성공·실패·점검 거절·연결 오류·업데이트 실패는 모두 0이었으며 진단 중 설정 파일도 그대로였다. 자료는 `work/launcher-login-probe-20261107`에 있다. 외부망과 이전 배포본은 미확인이다.
 
 ## 패치 적용·되돌리기 (2026-11-03)
 

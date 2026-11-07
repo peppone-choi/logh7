@@ -64,6 +64,12 @@ pub fn configure(
         save(&path, original.as_deref(), &updated)?;
     }
     writeln!(output, "설정 저장 완료 · {}:{}", parsed.host, parsed.port)
+        .and_then(|()| {
+            writeln!(
+                output,
+                "로그인 서버를 확인하려면 --check-connection을 실행하세요."
+            )
+        })
         .map_err(|_| "설정 완료 메시지를 표시할 수 없습니다".into())
 }
 

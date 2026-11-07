@@ -25,7 +25,7 @@ class UpdatePortTest {
     private val version = byteArrayOf(0, 6, 0x68, 0x20, 0, 0, 0, 0x83.toByte())
     private val complete = byteArrayOf(0, 2, 0x68, 0x22)
 
-    private class Fixture(val gateway: Gateway, val gamePort: Int, val updatePort: Int) : AutoCloseable {
+    private class Fixture(val gateway: Gateway, val gamePort: Int, val updatePort: Int, val sessionPort: Int) : AutoCloseable {
         fun updater(): Socket {
             val socket = Socket()
             try {
@@ -52,7 +52,7 @@ class UpdatePortTest {
             val gateway = if (capture) Gateway(captures.resolve("attempt-$attempt")) else Gateway()
             try {
                 gateway.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
-                return Fixture(gateway, ports[0], ports[1])
+                return Fixture(gateway, ports[0], ports[1], ports[2])
             } catch (failure: Throwable) {
                 gateway.close()
                 if (generateSequence(failure) { it.cause }.none { it is BindException } || attempt == 4) throw failure
@@ -71,6 +71,32 @@ class UpdatePortTest {
     private fun Socket.expectEof() {
         // A timeout or reset fails: require actual EOF and zero additional response bytes.
         assertEquals(-1, getInputStream().read(), "Expected server EOF without additional response")
+    }
+
+    @Test fun launcherProbeOnlyIdentifiesTheLoginListenerAndReportsMaintenanceWithoutAuthenticating() {
+        startGateway(capture = false).use { fixture ->
+            fun probe(port: Int, expected: ByteArray?) {
+                Socket().use { socket ->
+                    socket.soTimeout = 5_000
+                    socket.connect(InetSocketAddress("127.0.0.1", port), 5_000)
+                    socket.send(byteArrayOf(0, 8, 0, 0x38) + "LOGH7?".toByteArray(Charsets.US_ASCII))
+                    if (expected != null) socket.expect(expected)
+                    socket.expectEof()
+                }
+            }
+            val header = byteArrayOf(0, 8, 0, 0x38)
+            probe(fixture.gamePort, header + "LOGH7!".toByteArray(Charsets.US_ASCII))
+            probe(fixture.sessionPort, null)
+            probe(fixture.updatePort, null)
+            fixture.gateway.maintenance.setClosed(true)
+            probe(fixture.gamePort, header + "LOGH7-".toByteArray(Charsets.US_ASCII))
+            assertEquals(0, fixture.gateway.maintenance.refused.get())
+            assertEquals(0, fixture.gateway.counters.loginAccepted.get())
+            assertEquals(0, fixture.gateway.counters.loginRejected.get())
+            assertEquals(0, fixture.gateway.counters.connectionErrors.get())
+            assertEquals(0, fixture.gateway.counters.updateFailed.get())
+            fixture.assertGameListenerAlive()
+        }
     }
 
     @Test fun updateExchangeWorksWithCaptureOff() {
