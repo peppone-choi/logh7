@@ -277,6 +277,21 @@ class GameExchange(
         }
         return ChatMessages.spot(ChatMessages.Spot(characterId, "[워프] $reason"), seconds)
     }
+    private fun dockRefusal(characterId: Int, rejection: NavigationRejection?, seconds: Long): ByteArray {
+        val reason = when (rejection) {
+            NavigationRejection.BASE -> "거점과 현재 위치 확인"
+            NavigationRejection.ACCESS -> "아군 거점 선택"
+            NavigationRejection.CP -> "MCP/PCP 부족"
+            NavigationRejection.CARD -> "함장 카드 필요"
+            NavigationRejection.TACTICAL -> "전술 중 사용 불가"
+            NavigationRejection.EMBARKED -> "함내로 돌아가세요"
+            NavigationRejection.SUPPLYING -> "보급 완료까지 대기"
+            NavigationRejection.TRAVELLING -> "이동 완료까지 대기"
+            NavigationRejection.WOUNDED -> "부상 회복까지 대기"
+            else -> "현재 기항 불가"
+        }
+        return ChatMessages.spot(ChatMessages.Spot(characterId, "[기항] $reason"), seconds)
+    }
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || sessionEndingAvailable() || navigation == null) return null
         val now = gameSeconds()
@@ -887,11 +902,18 @@ class GameExchange(
                             else org.logh7.protocol.PlaceMessages.moved(
                                 move!!.copy(spot = player.spotId, owner = if (player.spotId == 0) character.id.toInt() else player.spotOwner),
                                 seconds, player.pcp, player.mcp, accepted)
+                            // The CD waits for 0b0b after sending a dock command, even on denial.
+                            // Restore only this client's real position, keeping an earlier dock in progress.
+                            val reportDockPosition = dock != null && player.dockTarget == null && !result.completedDock &&
+                                (accepted || dock.base != 0)
                             listOf(ack,
                                 characterMessage(character, player, true),
                                 unitMessage(character, player)) +
-                                (if (dock != null && accepted && player.dockTarget == null && !result.completedDock) listOf(org.logh7.protocol.PlaceMessages.dockNotification(character.id.toInt(),
-                                    player.baseId, player.mode, seconds)) else emptyList()) + completedWork(result, character)
+                                (if (reportDockPosition) listOf(org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,
+                                    player.baseId, player.mode, seconds, player.spotId,
+                                    if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList()) + completedWork(result, character) +
+                                (if (dock != null && dock.base != 0 && !accepted)
+                                    listOf(dockRefusal(player.characterId, result.rejection, seconds)) else emptyList())
                         }
                         return null
                     }
