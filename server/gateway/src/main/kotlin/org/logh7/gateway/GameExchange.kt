@@ -1701,7 +1701,9 @@ class GameExchange(
                                     val v=result.view;val quote=v?.quote
                                     val view=v?.let {org.logh7.protocol.BudgetMessages.View(it.base,it.national,it.local,it.remittance,
                                         quote?.id ?: 0,quote?.amount ?: 0,quote?.phase?.ordinal?.plus(1) ?: 0,quote?.rate ?: 0)}
-                                    org.logh7.protocol.BudgetMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,view)+
+                                    val currency=v?.country?.let {org.logh7.engine.CountryCatalogLoader.snapshot()?.currency(it)}
+                                        ?.takeIf {it.validForEditing()}?.let {org.logh7.protocol.BudgetMessages.CurrencyLabel(it.name,it.symbol)}
+                                    org.logh7.protocol.BudgetMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,view,currency)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
                                         (if(v!=null)listOf(world.conditions(listOf(v.base),result.stocks)) else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()

@@ -35,4 +35,19 @@ class BudgetMessagesTest {
         val update=BudgetMessages.update(10000,8,v)
         assertEquals(listOf(14,15),update.map {it[22].toInt()});assertTrue(update.all {ByteBuffer.wrap(it).getShort(33).toInt()==0})
     }
+
+    @Test fun currencyLabelsUseTheAuthorizedResponseBeforeTheQuoteTerminator() {
+        val q = BudgetMessages.query(request())
+        val view = BudgetMessages.View(1049, 12000, 300, 50)
+        val label = BudgetMessages.CurrencyLabel("은하제국마르크시험통화명", "ℳK")
+        val records = BudgetMessages.response(q, 0, view, label).dropLast(1).map(ByteBuffer::wrap)
+        assertEquals(listOf(10, 11, 16, 17, 18, 12), records.map { it.get(22).toInt() })
+        fun text(record: ByteBuffer): String {
+            assertEquals(37, record.getShort(33).toInt())
+            return listOf(18, 20, 23, 25, 27, 29, 31).map(record::getChar).takeWhile { it != '\u0000' }.joinToString("")
+        }
+        assertEquals(label.name, text(records[2]) + text(records[3]))
+        assertEquals(label.symbol, text(records[4]))
+        assertEquals(4, BudgetMessages.response(q, 5, null, label).size)
+    }
 }

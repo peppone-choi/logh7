@@ -17,7 +17,8 @@ data class CountryFamily(val key:String,val name:String,val calendar:String,val 
     }
 }
 data class CountryDefinition(val id:Int,val key:String,val name:String,val family:String,
-    val nativePower:Int,val nativeCamp:Int,val assets:String,val calendarOverride:String?=null,val shipStyleOverride:String?=null)
+    val nativePower:Int,val nativeCamp:Int,val assets:String,val calendarOverride:String?=null,val shipStyleOverride:String?=null,
+    val currencyOverride:String?=null)
 
 class CountryCatalog(calendars:List<CountryCalendar>,families:List<CountryFamily>,countries:List<CountryDefinition>) {
     val calendars=Collections.unmodifiableMap(calendars.associateBy {it.key})
