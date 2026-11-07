@@ -5,6 +5,26 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class StrategyActionMessagesTest {
+    @Test fun privateFundsPreviewAndReceiptKeepTheFullUnsignedBalance() {
+        fun query(preview: Boolean) = StrategyActionMessages.query(ByteBuffer.allocate(31)
+            .putShort(0x1200).putInt(10000).putShort(StrategyActionMessages.SEARCH.toShort()).putShort(95)
+            .putShort(0).putShort(1).putInt(if (preview) 0 else 1).put(if (preview) 1 else 0)
+            .putInt(0).putShort(if (preview) 0 else 1000).putInt(0).putShort(37).array())
+        val balance = 3_000_001_000L
+        val preview = StrategyActionMessages.selections(query(true), listOf(StrategyActionMessages.Selection(1, "지지")),
+            balance, StrategyCurrencyLabel("은하 마르크", "GM")).map(ByteBuffer::wrap)
+        assertEquals(listOf(0x1200, 0x1202, 0x1200, 0x1200, 0x1200, 0x1201), preview.map { it.getShort(4).toInt() })
+        assertEquals(1, preview[0].get(22).toInt())
+        assertEquals(1, preview[0].getInt(23))
+        assertEquals(balance, preview[0].getInt(29).toLong() and 0xffffffffL)
+        assertEquals(listOf(16, 17, 18), preview.subList(2, 5).map { it.get(22).toInt() })
+        assertTrue(preview.subList(2, 5).all { it.getShort(33).toInt() == 37 })
+        val receipt = ByteBuffer.wrap(StrategyActionMessages.response(query(false), 0, changed = true,
+            outcome = 1, found = Int.MAX_VALUE, fundBalance = balance - 1000).first())
+        assertEquals(1, receipt.getInt(23))
+        assertEquals(balance - 1000, receipt.getInt(29).toLong() and 0xffffffffL)
+    }
+
     private fun request()=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000)
         .putShort(0x7f00).putShort(48).putShort(59).putShort(0).putInt(200)
         .put(0).putInt(0).putShort(0).putInt(0).putShort(0).array()

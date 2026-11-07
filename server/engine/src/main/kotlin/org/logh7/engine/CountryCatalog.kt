@@ -52,9 +52,29 @@ class CountryCatalog(calendars:List<CountryCalendar>,families:List<CountryFamily
 
 object CountryCatalogLoader {
     private val bundled by lazy {load()}
+    private val bundledCurrencies by lazy {
+        val rows=resource("currencies.csv").bufferedReader(Charsets.UTF_8).use {StrategyCatalogLoader.csvRows(it.readText())}
+        require(rows.firstOrNull()==listOf("key","name","families"))
+        buildMap {
+            for(row in rows.drop(1)) {
+                require(row.size==3)
+                val currency=CountryCurrency(row[0],row[1],"")
+                require(currency.validForEditing())
+                for(family in row[2].split('|')) {
+                    require(family in bundled.families && family !in this)
+                    put(family,currency)
+                }
+            }
+        }
+    }
     private val published=java.util.concurrent.atomic.AtomicReference<CountryDefinitionSnapshot?>()
     fun snapshot():CountryDefinitionSnapshot?=published.get()
     fun current():CountryCatalog=published.get()?.catalog ?: bundled
+    fun currency(country:CountryId):CountryCurrency? {
+        val snapshot=published.get()
+        if(snapshot!=null)return snapshot.currency(country)
+        return bundled.countries[country.value]?.family?.let(bundledCurrencies::get)
+    }
     /** A database read begun before a save must not overwrite its newer complete snapshot. */
     fun publish(value:CountryDefinitionSnapshot) {
         while(true) {
@@ -63,8 +83,8 @@ object CountryCatalogLoader {
             if(published.compareAndSet(old,value))return
         }
     }
+    private fun resource(name:String)=checkNotNull(javaClass.getResourceAsStream("/countries/$name")) {"Missing country definitions: $name"}
     fun load():CountryCatalog {
-        fun resource(name:String)=checkNotNull(javaClass.getResourceAsStream("/countries/$name")) {"Missing country definitions: $name"}
         return resource("calendars.csv").use {calendars->resource("families.csv").use {families->
             resource("countries.csv").use {countries->read(calendars,families,countries)}}}
     }

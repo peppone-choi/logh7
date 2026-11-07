@@ -7,15 +7,6 @@ static struct BudgetWindow {
     bool loaded,dirty;
     wchar_t currency[13],symbol[5];
 } budgetWindow={};
-static void readBudgetCurrency(void* record,wchar_t* text,unsigned capacity) {
-    // The native reader swaps each numeric field as a whole.
-    constexpr unsigned offsets[]={14,12,22,20,24,30,28};
-    for(unsigned index=0;index<capacity;++index) {
-        const auto value=at<const unsigned short>(record,offsets[index]);
-        if(value<0x20 || (value>=0x7f && value<=0x9f) || (value>=0xd800 && value<=0xdfff))break;
-        text[index]=static_cast<wchar_t>(value);
-    }
-}
 static bool budgetCommand(unsigned command) {return command==16 || command==18;}
 static void sendBudgetAction(unsigned phase) {
     auto& state=taxWindow;auto& budget=budgetWindow;
@@ -48,9 +39,7 @@ static bool readBudgetAction(void* record) {
                     memset(budget.currency,0,sizeof(budget.currency));memset(budget.symbol,0,sizeof(budget.symbol));
                 }
                 if(flag==11)budget.local=value;
-                if(flag==16)readBudgetCurrency(record,budget.currency,7);
-                if(flag==17 && budget.currency[6])readBudgetCurrency(record,budget.currency+7,5);
-                if(flag==18)readBudgetCurrency(record,budget.symbol,4);
+                readStrategyCurrency(record,flag,budget.currency,budget.symbol);
                 if(flag==12) {
                     unsigned packed=at<unsigned short>(record,24);budget.quote=at<unsigned>(record,28);budget.quotePhase=packed%4;
                     budget.amount=value;

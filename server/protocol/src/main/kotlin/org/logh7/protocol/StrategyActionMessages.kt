@@ -117,13 +117,18 @@ object StrategyActionMessages {
     }
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
     data class CivicStatus(val phase:Int,val outfit:Int,val base:Int,val readyAt:Long,val effect:Int)
-    fun response(q:Query,status:Int,changed:Boolean?=null,civic:CivicStatus?=null,outcome:Int=0,found:Int=0,report:Int=0):List<ByteArray> {
+    fun response(q:Query,status:Int,changed:Boolean?=null,civic:CivicStatus?=null,outcome:Int=0,found:Int=0,report:Int=0,
+        fundBalance:Long?=null):List<ByteArray> {
         require(status in 0..65535 && outcome in 0..3 && found>=0)
         val payload=q.raw.copyOf();ByteBuffer.wrap(payload).putShort(10,status.toShort())
         // 逮捕命令 result (U-25) in the argument word: 1 arrested, 2 evaded, 3 failed.
         if(outcome>0)ByteBuffer.wrap(payload).putInt(17,outcome)
         // 一斉捜索's found spot in the base word.
         if(found>0)ByteBuffer.wrap(payload).putInt(23,found)
+        if(fundBalance!=null) {
+            require(q.command==95 && !q.preview && status==0 && fundBalance in 0..0xffffffffL)
+            ByteBuffer.wrap(payload).putInt(23,fundBalance.toInt())
+        }
         // 情報工作 report (approval*256+peace) in the amount word.
         if(report>0)ByteBuffer.wrap(payload).putShort(21,report.toShort())
         if(!q.preview && changed!=null)payload[16]=(if(changed)2 else 3).toByte()
@@ -143,7 +148,7 @@ object StrategyActionMessages {
     }
     data class Selection(val id:Int,val name:String,val rank:Int=0)
     /** Same native 0055ba80 rows, with explicit selection identities instead of forged characters. */
-    fun selections(q:Query,rows:List<Selection>):List<ByteArray> {
+    fun selections(q:Query,rows:List<Selection>,fundBalance:Long?=null,currency:StrategyCurrencyLabel?=null):List<ByteArray> {
         require(q.preview && q.command in setOf(10,11,12,13,15,20,21,39,40,35,36,233,19,24,29,65,68,69,70,71,73,74,75,80,81,87,89,95,96,98) && rows.size<=200)
         val bytes=java.io.ByteArrayOutputStream()
         java.io.DataOutputStream(bytes).use {out->
@@ -155,7 +160,13 @@ object StrategyActionMessages {
                 out.writeInt(0);out.writeInt(0)
             }
         }
-        return listOf(LoginMessages.sessionMessage(0x1200,q.raw),LoginMessages.sessionMessage(0x1202,bytes.toByteArray()),
-            LoginMessages.sessionMessage(0x1201,byteArrayOf()))
+        val header=if(fundBalance==null)q.raw else q.raw.copyOf().also {
+            require(q.command==95 && fundBalance in 0..0xffffffffL)
+            ByteBuffer.wrap(it).putInt(17,1).putInt(23,fundBalance.toInt())
+        }
+        require(currency==null || fundBalance!=null)
+        // Old clients finish the pending preview at 1202 and safely ignore the following optional labels.
+        return listOf(LoginMessages.sessionMessage(0x1200,header),LoginMessages.sessionMessage(0x1202,bytes.toByteArray())) +
+            currency?.records(q.raw).orEmpty() + LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }
 }

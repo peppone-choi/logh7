@@ -44,7 +44,7 @@ jobs:
               assert set(names) == expected, f'Packaged CSVs {set(names)} != Gradle includes {expected}'
               for entry in entries:
                   path = PurePosixPath(entry.filename)
-                  directory = 'countries' if path.name in {'calendars.csv','families.csv','countries.csv'} else 'strategy' if path.name == 'strategy-commands.csv' else 'worldseed'
+                  directory = 'countries' if (Path('config/countries') / path.name).is_file() else 'strategy' if path.name == 'strategy-commands.csv' else 'worldseed'
                   assert path.parent == PurePosixPath(directory), f'Unexpected CSV path: {path}'
                   packaged = jar.read(entry)
                   source = (Path('config/countries' if directory == 'countries' else 'docs/manual/data') / path.name).read_bytes()

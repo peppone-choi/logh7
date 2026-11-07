@@ -67,7 +67,7 @@ class MultipleSessionsWireTest {
                 .putInt(0).putShort(0).putInt(capital).putShort((phase + 1).toShort()).array())
             val records = (10..12).map { flag ->
                 var record = next(client, 0x1200)
-                while (record.get(22).toInt() in 14..15) {
+                while (record.get(22).toInt() in 14..18) {
                     assertNull(rejection, "Unauthorized sessions must not receive finance updates")
                     record = next(client, 0x1200)
                 }
