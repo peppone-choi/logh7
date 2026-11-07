@@ -10,6 +10,7 @@ import org.logh7.engine.members
 import org.logh7.engine.positionIn
 import org.logh7.protocol.OutfitMessages
 import org.logh7.protocol.OutfitPartyMessages
+import org.logh7.protocol.BaseAffiliationMessages
 import org.logh7.protocol.LogisticsMessages
 
 class WorldBootstrap(val galaxy: Galaxy,
@@ -357,6 +358,25 @@ class WorldBootstrap(val galaxy: Galaxy,
                 stored?.taxRate ?: it.tax, people?.approval ?: it.approval, people?.peace ?: it.peace, it.atmosphere, it.habitability,
                 stored?.supplies ?: it.supplies, stored?.food ?: it.food, it.living)
         }))
+    }
+    /**
+     * Public base affiliation snapshot (032f mode 12): every public base once, by wire base ID, with the actual
+     * owner country (0 for no country) next to the same display power/camp projection 031f uses. No outfit or
+     * personal data. An unregistered country fails exactly like [conditions] does.
+     */
+    internal fun baseAffiliationOwners(stocks: org.logh7.engine.PlanetStocks? = null): List<BaseAffiliationMessages.Owner> {
+        val countryCatalog=this.countryCatalog
+        val owners=galaxy.conditions.values.sortedBy { it.baseId }.map {
+            val stored = stocks?.let { state -> checkNotNull(state.bases[it.baseId]) }
+            val owner = stored?.owner ?: galaxy.initialOwners.getValue(it.baseId)
+            BaseAffiliationMessages.Owner(it.baseId, owner.country?.value ?: 0, countryCatalog.nativePower(owner), stored?.camp ?: it.camp)
+        }
+        require(owners.size <= 350) { "Too many public bases" }
+        return owners
+    }
+    fun baseAffiliations(query: org.logh7.protocol.OutfitPartyMessages.Query, stocks: org.logh7.engine.PlanetStocks? = null): List<ByteArray> {
+        require(query.mode == BaseAffiliationMessages.MODE && query.outfit == 0 && query.base in 1..65535) { "Invalid affiliation query" }
+        return BaseAffiliationMessages.replies(query, baseAffiliationOwners(stocks)).map { LoginMessages.sessionMessage(0x032f, it) }
     }
     fun places(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->

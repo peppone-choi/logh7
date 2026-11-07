@@ -199,6 +199,7 @@ static void showPlanetInformation() {
     planetInformation.displayed = true;
     if (GetTickCount64() - planetInformation.requestedAt >= 5000) planetInformation.timeoutShown = true;
 }
+static unsigned planetCountrySeen=0;
 
 static void updatePlanetGovernor() {
     auto& info=planetInformation;
@@ -247,6 +248,7 @@ static bool openDirectoryPlanet(unsigned row) {
 }
 
 static int __cdecl planetInfoMenu(void* gui) {
+    pollCountryPaint(*reinterpret_cast<void**>(0x7ccffc));
     if(updateSessionEnding(gui))return -1;
     updateCharacterInformation(gui);
     updateOutfitInformation(gui);
@@ -283,6 +285,8 @@ static int __cdecl planetInfoMenu(void* gui) {
                 reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(gui,info.popup);
                 info.acceptAfter=GetTickCount64()+250;
             }
+            const unsigned countrySequence=countryNameSequence.load();
+            if(planetCountrySeen!=countrySequence) {planetCountrySeen=countrySequence;info.displayed=false;}
             if (info.directoryVisible) {
                 updatePlanetDirectory();
                 BYTE event[52]={};

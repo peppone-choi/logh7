@@ -4,6 +4,7 @@
 #pragma once
 #include "unicode_text.h"
 static unsigned planetDirectoryStates[350];
+static unsigned planetDirectoryCountrySequence=0;
 static void planetDirectoryCell(unsigned row, unsigned col, const wchar_t* text) {
     reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*,int,int)>(0x505b50)
         (planetWindowRoot,planetDirectoryList,text,row,col);
@@ -99,6 +100,11 @@ static void rebuildPlanetDirectory() {
 }
 static void renderPlanetDirectory() {
     auto& info=planetInformation;
+    const unsigned sequence=countryNameSequence.load();
+    if(planetDirectoryCountrySequence!=sequence) {
+        for(auto& state:planetDirectoryStates)state=~0u;
+        planetDirectoryCountrySequence=sequence;
+    }
     planetCell(0,L"행성·요새 목록");
     wchar_t text[160];
     _snwprintf_s(text,_countof(text),_TRUNCATE,L"%ls %u곳 · %u / %u쪽 · 현황 수신 %u / %u · 행 선택으로 상세 조회",
@@ -130,7 +136,7 @@ static void renderPlanetDirectory() {
         }
         bool ready=row.state==2;
         const wchar_t* queryStatus=row.state==3 ? L"응답 없음" : L"조회 중";
-        const auto affiliation=runtimeCountryAffiliation(row.power,row.camp,12);
+        const auto affiliation=runtimeBaseAffiliation(info.world,row.id,12);
         planetDirectoryCell(i+1,0,ready ? affiliation.c_str() : queryStatus);
         // 状態 has no surviving value strings (group 54). Tactical supply/repair draw on the base's
         // stored supplies (031f record +0x18), so the state shows that availability (evidence:guess, approved).

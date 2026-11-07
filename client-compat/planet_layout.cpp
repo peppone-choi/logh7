@@ -399,7 +399,6 @@ static void __fastcall drawHud(void* map, void*) {
     drawDockingStatus();
     drawSystemAffiliationIcons(map);
     void* world = *reinterpret_cast<void**>(0x7ccffc);
-    pollCountryPaint(world);
     pollNativeFacilityNames(world);
     refreshCountryNamePanels(world);
     if (!world || !at<BYTE>(world, 0x2b6a6c)) return;

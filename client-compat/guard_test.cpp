@@ -6,6 +6,7 @@
 #include "navigation_hud_data.h"
 #include "country_colors_data.h"
 #include "country_metadata.h"
+#include "base_affiliation.h"
 #include "country_icon_data.h"
 #include "creation_menu_data.h"
 #include "lobby_empty_data.h"
@@ -856,7 +857,50 @@ static int lobbyCountryDataTest() {
     return 0;
 }
 
+static int baseAffiliationTest() {
+    BYTE record[24+10*36]={};
+    auto frame=[&](unsigned kind,unsigned number,unsigned count) {
+        memset(record,0,sizeof(record));*reinterpret_cast<unsigned*>(record+4)=65535;
+        record[8]=12;record[9]=2;record[20]=static_cast<BYTE>(count);
+        *reinterpret_cast<unsigned*>(record+12)=kind;*reinterpret_cast<unsigned*>(record+16)=number;
+    };
+    auto member=[&](unsigned slot,unsigned id,unsigned camp,unsigned power,const wchar_t* text) {
+        auto p=record+24+slot*36;*reinterpret_cast<unsigned*>(p)=id;p[4]=static_cast<BYTE>(camp);p[5]=static_cast<BYTE>(power);
+        p[6]=static_cast<BYTE>(wcslen(text)+1);memcpy(p+8,text,(wcslen(text)+1)*2);
+    };
+    auto header=[&](const wchar_t* total) {
+        frame(0,0,10);for(unsigned i=0;i<10;++i)member(i,i+1,i,0,i==0 ? L"BA1" : i==1 ? total : L"");
+    };
+    logh::BaseAffiliationDraft draft;draft.begin(65535);
+    frame(1,0,3);if(draft.accept(record,sizeof(record)))return 1030;
+    header(L"3");record[4]^=1;if(draft.accept(record,sizeof(record)))return 1031;record[4]^=1;
+    if(draft.accept(record,sizeof(record)-1) || draft.accept(record,sizeof(record))!=1 || draft.accept(record,sizeof(record)))return 1032;
+    frame(1,0,3);member(0,1,0,3,L"42");member(1,2,0,3,L"43");member(2,3,0,0,L"0");
+    record[24+36+4]=2;if(draft.accept(record,sizeof(record)) || draft.value.count)return 1033;record[24+36+4]=0;
+    record[24+36]=1;if(draft.accept(record,sizeof(record)) || draft.value.count)return 1034;record[24+36]=2;
+    if(draft.accept(record,sizeof(record))!=2 || draft.value.count!=3 || draft.value.find(2)->country!=43 || draft.accept(record,sizeof(record)))return 1035;
+    unsigned ids[]={1,2},country=99;
+    if(draft.value.affiliation(ids,2,country)!=11 || country || draft.value.affiliation(ids,1,country)!=6 || country!=42)return 1036;
+    ids[0]=3;if(draft.value.affiliation(ids,1,country)!=0 || country)return 1037;
+    ids[0]=4;if(draft.value.affiliation(ids,1,country)!=10 || country)return 1038;
+    auto world=reinterpret_cast<void*>(0x1234);publishBaseAffiliations(world,draft.value);
+    logh::BaseAffiliation::Owner owner;
+    if(!runtimeBaseOwner(world,2,owner) || owner.country!=43 || runtimeBaseOwner(reinterpret_cast<void*>(0x1235),2,owner))return 1039;
+    logh::CountryMetadata metadata;metadata.id=43;wcscpy_s(metadata.name,L"새 국가");publishCountryMetadata(metadata);
+    if(runtimeBaseAffiliation(world,2)!=L"새 국가")return 1040;
+    resetBaseAffiliations();resetCountryMetadata();if(runtimeBaseOwner(world,2,owner))return 1041;
+    draft.begin(65535);header(L"0");if(draft.accept(record,sizeof(record))!=2 || draft.value.count)return 1042;
+    draft.begin(65535);header(L"351");if(draft.accept(record,sizeof(record)))return 1043;
+    draft.begin(65535);header(L"350");if(draft.accept(record,sizeof(record))!=1)return 1044;
+    for(unsigned batch=0;batch<35;++batch) {
+        frame(1,batch,10);for(unsigned i=0;i<10;++i)member(i,batch*10+i+1,0,3,L"2147483647");
+        if(draft.accept(record,sizeof(record))!=(batch==34 ? 2 : 1))return 1045;
+    }
+    if(draft.value.count!=350 || draft.value.find(350)->country!=0x7fffffff)return 1046;
+    return 0;
+}
 static int runGuard(int argc, wchar_t** argv) {
+    if(int result=baseAffiliationTest())return result;
     if(int result=facilityGuideTest())return result;
     if(int result=lobbyCountryDataTest())return result;
     if(logh::groundMeter(0,1000,70)!=0 || logh::groundMeter(500,1000,70)!=35 ||

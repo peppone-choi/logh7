@@ -3,14 +3,18 @@
 #include "system_affiliation_data.h"
 static logh::SystemAffiliation systemAffiliation;
 static void* systemAffiliationWorld=nullptr;
-static unsigned systemGridAffiliation(BYTE* world,unsigned grid) {
+static unsigned systemGridAffiliation(BYTE* world,unsigned grid,unsigned* country=nullptr) {
     unsigned ids[350],count=0;
     for (unsigned i=0;i<350;++i) {
         auto base=world+0x2eb800+i*0x250;
         if (base[0] && at<int>(base,8)==2 && at<unsigned short>(base,0x10)==grid)
             ids[count++]=at<unsigned>(world,0x2eb288+i*4);
     }
-    return systemAffiliation.affiliation(ids,count,grid);
+    unsigned owner=0,result=10;
+    AcquireSRWLockShared(&baseAffiliationLock);
+    if(baseAffiliationCache.world==world)result=baseAffiliationCache.value.affiliation(ids,count,owner);
+    ReleaseSRWLockShared(&baseAffiliationLock);
+    if(country)*country=owner;return result;
 }
 static void receiveSystemAffiliation(void* world) {
     if (!world) return;
@@ -34,14 +38,13 @@ static unsigned __cdecl systemNameColor(const char* name,unsigned color) {
     unsigned grid=5000;
     for (unsigned i=0;i<5000;++i) if (world[0x2c03cc+i]==kind) {grid=i;break;}
     if (grid==5000) return color;
-    unsigned affiliation=systemGridAffiliation(world,grid);
+    unsigned country=0,affiliation=systemGridAffiliation(world,grid,&country);
     unsigned rgb=logh::systemAffiliationRgb(affiliation);
     if (affiliation>=4 && affiliation<=7) {
         auto palette=reinterpret_cast<const BYTE*>(0x771f68)+affiliation*3;
         rgb=(palette[0]<<16)|(palette[1]<<8)|palette[2];
     }
-    // Current runtime country IDs match native normal-camp military codes; rebel and mixed markers stay distinct.
-    if(affiliation==4 || affiliation==6)rgb=countryPaintRgb(affiliation/2,2,rgb);
+    if((affiliation==4 || affiliation==6) && country)rgb=countryPaintRgb(country,2,rgb);
     return (color&0xff000000)|rgb;
 }
 static void drawSystemAffiliationIcons(void* map) {
@@ -59,7 +62,7 @@ static void drawSystemAffiliationIcons(void* map) {
         if (!at<void*>(node,0)) continue; // original star node, not a visiting fleet
         float alpha=at<float>(node,0x38);
         if (!_finite(alpha) || alpha<=0) continue;
-        unsigned affiliation=systemGridAffiliation(world,grid);
+        unsigned country=0,affiliation=systemGridAffiliation(world,grid,&country);
         if (affiliation>9 || !sprites[affiliation]) continue; // no invented mixed/unknown glyph
         float position[3],screen[3];
         // Verified cdecl helpers: identical origin/projection to the original name.
@@ -79,7 +82,7 @@ static void drawSystemAffiliationIcons(void* map) {
         if(neutral && affiliation>=4 && affiliation<=7) {
             auto nativeRgb=reinterpret_cast<const BYTE*>(0x771f68)+affiliation*3;
             rgb=(nativeRgb[0]<<16)|(nativeRgb[1]<<8)|nativeRgb[2];
-            if(affiliation==4 || affiliation==6)rgb=countryPaintRgb(affiliation/2,2,rgb);
+            if((affiliation==4 || affiliation==6) && country)rgb=countryPaintRgb(country,2,rgb);
         }
         color=(color&0xff000000)|rgb;
         float scale[]={1,1,1};
