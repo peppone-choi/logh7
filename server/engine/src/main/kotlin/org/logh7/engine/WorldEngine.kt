@@ -888,7 +888,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
                     val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
-                    if(i.command==TradeActions.CONVOY && r.phase==TradeActions.QUOTE_PHASE) {
+                    if(TradeActions.quotes(i.command,i.value) && r.phase==TradeActions.QUOTE_PHASE) {
                         val inventory=production?.snapshot(session.generation)
                         val player=navigation?.snapshot(session.generation)?.get(i.account)
                         command.result.complete(if(inventory==null)SocialResult(player,null,SocialRejection.SESSION)

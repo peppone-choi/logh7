@@ -1764,15 +1764,15 @@ class GameExchange(
                                 val query=org.logh7.protocol.StrategyActionMessages.query(body)
                                 val character=checkNotNull(currentCharacter(identity.account))
                                 require(query.character==character.id.toInt())
-                                if(query.command==org.logh7.engine.TradeActions.CONVOY && query.preview && query.amount>0) {
+                                if(query.isTradeQuote) {
                                     val country=currentProfile(identity.account,query.character).country
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,country,checkNotNull(generation),query.command,query.card,character.rank,
-                                        target=query.target,amount=query.amount.toLong()),phase=org.logh7.engine.TradeActions.QUOTE_PHASE)
+                                        target=query.target,value=query.value,amount=query.amount.toLong()),phase=org.logh7.engine.TradeActions.QUOTE_PHASE)
                                     pendingWorld=administration.social(request).thenApply {result ->
-                                        val quote=result.convoyQuote
-                                        org.logh7.protocol.StrategyActionMessages.convoyQuote(query,result.rejection?.let {it.ordinal+1} ?: 0,
-                                            quote?.net ?: 0,quote?.tariff ?: 0,quote?.let {currencyLabel(country)})
+                                        val quote=result.tradeQuote
+                                        org.logh7.protocol.StrategyActionMessages.tradeQuote(query,result.rejection?.let {it.ordinal+1} ?: 0,
+                                            quote?.amount ?: 0,quote?.tariff ?: 0,quote?.let {currencyLabel(country)})
                                     }
                                     return null
                                 }
@@ -1824,7 +1824,8 @@ class GameExchange(
                                             val me=checkNotNull(snapshot?.navigators?.get(identity.account))
                                             val ids=org.logh7.engine.TradeActions.routeTargets(world.galaxy,stocks,me)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,ids.filter {it>query.target}.sorted().take(200)
-                                                .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")})
+                                                .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,
+                                                    KoreanDisplayNames.base(world.galaxy.bases.single {it.id==id}.name).take(12))})
                                         }
                                         if(query.command==org.logh7.engine.TradeActions.CONVOY ||
                                             query.command==org.logh7.engine.TradeActions.DIPLOMACY && query.value==org.logh7.engine.TradeActions.INTELLIGENCE) {
@@ -2088,7 +2089,8 @@ class GameExchange(
                                             result.stocks?.strategic?.people?.get(query.character)?.money else null
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,
                                             outcome=if(strike.isNotEmpty())minOf(result.outcome,1) else result.outcome,found=result.found,report=result.report,
-                                            fundBalance=fundBalance)+
+                                            fundBalance=fundBalance,
+                                            tradeReportCurrency=result.tradeReportCountry?.takeIf {query.argument>0}?.let(::currencyLabel))+
                                             listOf(characterMessage(updated,player,true))+strike
                                     }
                                     return null

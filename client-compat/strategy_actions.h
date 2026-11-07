@@ -153,7 +153,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(command==233)sendSuccessionAction(true);
     if(tradeCommand(command)) {
         tradeReport[0]=0;tradeValue=command==17 ? 10 : 0;tradeCursor=tradeStep=0;
-        convoyQuotesSupported=false;convoyQuote={};
+        tradeQuotesSupported=false;tradeQuote={};
         if(tradeHasTargets(command))sendTradeAction(true);
     }
     else if(coupCommand(command))coupReport[0]=0;

@@ -51,7 +51,7 @@ class TradeActionsTest {
         val payer=a.copy(mcp=0,pcp=640)
         val identity=StrategyActionRequest("a","a",10000,Power.EMPIRE,1,TradeActions.CONVOY,44,1,target=3,amount=1000)
         val quote=TradeActions.evaluate(galaxy,SocialRequest(identity,phase=TradeActions.QUOTE_PHASE),session,payer,priced)
-        assertEquals(TradeActions.ConvoyQuote(1440,20),quote.convoyQuote)
+        assertEquals(TradeActions.Quote(1440,20),quote.tradeQuote)
         assertFalse(quote.changed);assertSame(payer,quote.player);assertSame(priced,quote.stocks)
 
         val confirm=SocialRequest(identity.copy(argument=1440))
@@ -73,6 +73,38 @@ class TradeActionsTest {
         assertNull(r.rejection)
         if(r.outcome==1) {assertEquals(0,r.found,"777 marks in units of 10,000");assertEquals(70*256+80,r.report);assertEquals(100_000_000L,r.stocks?.nationalTreasuries?.get(CountryId(2)))}
         else assertEquals(200_000_000L,r.stocks?.nationalTreasuries?.get(CountryId(2)))
+    }
+    @Test fun aRouteQuotesEachTreasuryBeforeOpeningAndRechecksTheAmount() {
+        val s=stocks()
+        val route=StrategyActionRequest("a","a",10000,Power.EMPIRE,1,TradeActions.ROUTE,0,1,target=1050)
+        val quote=TradeActions.evaluate(galaxy,SocialRequest(route,phase=TradeActions.QUOTE_PHASE),session,a,s)
+        assertEquals(TradeActions.Quote(100),quote.tradeQuote)
+        assertFalse(quote.changed);assertSame(a,quote.player);assertSame(s,quote.stocks)
+        val reduced=s.copy(bases=s.bases+(1050 to s.bases.getValue(1050).copy(economy=null)))
+        val confirm=SocialRequest(route.copy(argument=101))
+        assertEquals(SocialRejection.QUOTE_CHANGED,TradeActions.evaluate(galaxy,confirm,session,a,reduced).rejection)
+        val opened=TradeActions.evaluate(galaxy,confirm,session,a,s)
+        assertEquals(100,opened.found);assertEquals(840,opened.player?.pcp)
+        val zero=TradeActions.evaluate(galaxy,SocialRequest(route.copy(argument=1)),session,a,reduced)
+        assertTrue(zero.changed);assertEquals(0,zero.found)
+    }
+    @Test fun intelligenceRejectsAnExpiredFreeQuoteBeforeChargingEitherResource() {
+        val s=policy.set(stocks(),OfficeHolding(5,1049,10000))
+        val leaking=s.copy(social=s.social.copy(trade=TradeState(violations=mapOf(3 to now))))
+        val intel=StrategyActionRequest("a","a",10000,Power.EMPIRE,1,TradeActions.DIPLOMACY,5,1,target=3,value=TradeActions.INTELLIGENCE)
+        val request=SocialRequest(intel,phase=TradeActions.QUOTE_PHASE)
+        assertEquals(TradeActions.Quote(TradeActions.INTEL_PRICE.toInt()),TradeActions.evaluate(galaxy,request,session,a,s).tradeQuote)
+        val free=TradeActions.evaluate(galaxy,request,session,a,leaking)
+        assertEquals(TradeActions.Quote(0),free.tradeQuote)
+        assertFalse(free.changed);assertSame(a,free.player);assertSame(leaking,free.stocks)
+        val confirm=SocialRequest(intel.copy(argument=1))
+        val afterExpiry=session.copy(gameMillis=session.gameMillis+TradeActions.LEAK_DAYS*Justice.DAY*1000L)
+        val stale=TradeActions.evaluate(galaxy,confirm,afterExpiry,a,leaking)
+        assertEquals(SocialRejection.QUOTE_CHANGED,stale.rejection)
+        assertFalse(stale.changed);assertSame(a,stale.player);assertSame(leaking,stale.stocks)
+        val report=TradeActions.evaluate(galaxy,confirm,session,a,leaking)
+        assertEquals(1,report.outcome);assertEquals(CountryId(3),report.tradeReportCountry)
+        assertEquals(680,report.player?.mcp);assertSame(leaking,report.stocks)
     }
     @Test fun shipsEnteringFezzanWithoutPassageViolateNeutralityAndPayTheEnemyTwelveTimes() {
         val inFezzan=stocks().let {it.copy(outfits=it.outfits+(7 to it.outfits.getValue(7).copy(position=OutfitPosition(2300),

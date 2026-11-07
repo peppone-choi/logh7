@@ -89,7 +89,7 @@ class StrategyActionMessagesTest {
         StrategyActionMessages.query(transport(20,5,0,2,0,0,0))
         for(body in listOf(transport(20,5,43,0,0,0,0),transport(20,5,0,1,0,0,0,true),
             transport(40,44,0,0,0,1000,0,true),transport(40,44,43,0,0,0,0),transport(20,5,-1,2,0,0,0),
-            transport(20,5,43,2,1,0,0),transport(40,44,43,0,0,1000,1)))
+            transport(20,5,43,2,1,0,0,true),transport(40,44,43,0,0,1000,1)))
             assertFailsWith<IllegalArgumentException> {StrategyActionMessages.query(body)}
     }
     @Test fun convoyQuotesUseAnOptionalDirectoryMarkerAndKeepTheRequestToken() {
@@ -100,7 +100,7 @@ class StrategyActionMessagesTest {
 
         val body=transport(40,44,3,0,0,5000,0,true)
         ByteBuffer.wrap(body).putShort(29,37)
-        val quote=StrategyActionMessages.convoyQuote(StrategyActionMessages.query(body),0,7200,20,
+        val quote=StrategyActionMessages.tradeQuote(StrategyActionMessages.query(body),0,7200,20,
             StrategyCurrencyLabel("제국마르크","IM"))
         assertEquals(listOf(16,17,18,20),quote.dropLast(1).map {it[22].toInt()})
         val result=ByteBuffer.wrap(quote[3])
@@ -109,6 +109,25 @@ class StrategyActionMessagesTest {
         assertEquals(37,result.getShort(33).toInt())
         assertEquals(7200,StrategyActionMessages.query(transport(40,44,3,0,7200,5000,0)).argument)
         assertFailsWith<IllegalArgumentException> {StrategyActionMessages.query(transport(40,44,3,0,7200,5000,0,true))}
+    }
+    @Test fun routeAndIntelligenceDistinguishDirectoryFreeQuoteAndLegacyExecution() {
+        val route=StrategyActionMessages.query(transport(39,0,1050,0,-1,0,0,true))
+        assertTrue(route.isTradeQuote)
+        val directory=StrategyActionMessages.query(transport(39,0,1050,0,0,0,0,true))
+        assertFalse(directory.isTradeQuote)
+        assertEquals(19,StrategyActionMessages.selections(directory,emptyList())[2][22].toInt())
+
+        val intel=StrategyActionMessages.query(transport(20,5,3,2,-1,0,0,true))
+        val quote=StrategyActionMessages.tradeQuote(intel,0,0,0,null)
+        assertTrue(intel.isTradeQuote);assertEquals(20,quote[0][22].toInt())
+        assertEquals(0,ByteBuffer.wrap(quote[0]).getInt(29))
+        val commit=StrategyActionMessages.query(transport(20,5,3,2,1,0,0))
+        val report=StrategyActionMessages.response(commit,0,true,outcome=1,found=123,
+            tradeReportCurrency=StrategyCurrencyLabel("동맹통화","A"))
+        assertEquals(listOf(16,17,18,2),report.dropLast(1).map {it[22].toInt()})
+        assertEquals(123,ByteBuffer.wrap(report[3]).getInt(29))
+        assertFailsWith<IllegalArgumentException> {StrategyActionMessages.query(transport(20,5,0,2,-1,0,0,true))}
+        assertFailsWith<IllegalArgumentException> {StrategyActionMessages.query(transport(39,0,1050,0,-1,0,0))}
     }
     @Test fun transportCommandsCarrySourceDestinationQuantitiesAndTheOutfitSeparately() {
         val plan=StrategyActionMessages.query(transport(28,25,1050,32,3,1000,1049))
