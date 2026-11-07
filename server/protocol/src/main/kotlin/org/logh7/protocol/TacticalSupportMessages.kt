@@ -23,7 +23,8 @@ object TacticalSupportMessages {
     /** Permission, support hull type, range and supplies must be resolved by the world actor. */
     fun reply(command: Command, seconds: Long, waitSeconds: Long, accepted: Boolean = true): ByteArray {
         require(seconds in 0..0xffffffffL && waitSeconds in 0..0xffffffffL - seconds)
-        val body = ByteBuffer.allocate(20).putInt(seconds.toInt()).putInt(waitSeconds.toInt())
+        // A rejected command has no deadline. The CD otherwise applies its payload as an active order.
+        val body = ByteBuffer.allocate(20).putInt(seconds.toInt()).putInt(if(accepted)waitSeconds.toInt() else -1)
             .putInt(command.character).putInt(command.unit).putInt(command.target).array()
         return LoginMessages.sessionMessage(command.action.opcode, body).also {
             if (!accepted) ByteBuffer.wrap(it).putInt(0, 1)

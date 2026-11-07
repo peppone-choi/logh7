@@ -20,6 +20,8 @@ static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x5
     // Fortress tab support sent (state 0x13 supply 118/2, state 0x12 repair 118/3; "%s\n%s" after the unit name)
     // and the ship tab's repair/supply target prompts (state 0xe 118/49, state 0xf 118/50).
     0x5105ce, 0x5105eb, 0x51072a, 0x510753,
+    // Repair and supply responses (118/53, 54), then their completion records (118/55, 56).
+    0x4c1416, 0x4c1516, 0x4c15c1, 0x4c169b,
     // Fortress tab 鼓舞 sent (state 0x14 after 004b4710): 118/44, the fortress counterpart of 118/43.
     0x51012c,
     // Fortress tab 補給 target prompt (state 0x13, 118/46), the supply twin of the repair prompt 0x510363 (118/47).

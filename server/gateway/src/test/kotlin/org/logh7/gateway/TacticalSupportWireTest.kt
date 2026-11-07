@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.TacticalStopMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
@@ -13,7 +14,8 @@ class TacticalSupportWireTest {
     @TempDir lateinit var directory:Path
     @Test fun supplyCommanderRequestUpdatesBothEncryptedPeersAndRejectsAnotherCommander()=encounter(false)
     @Test fun repairCommanderRequestConsumesSuppliesAndUpdatesBothEncryptedPeers()=encounter(true)
-    private fun encounter(repair:Boolean)=runBlocking {
+    @Test fun committedManualStopClearsSupportForRequesterAndPeer()=encounter(false,stopEarly=true)
+    private fun encounter(repair:Boolean,stopEarly:Boolean=false)=runBlocking {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f),
                 GalaxyBase(1001,2488,80,0,"Battle",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
@@ -51,11 +53,39 @@ class TacticalSupportWireTest {
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
             }}.toMutableList()
             clients[1].send(command(10001))
-            assertEquals(1,ByteBuffer.wrap(through(clients[1],opcode)).int)
+            val refused=ByteBuffer.wrap(through(clients[1],opcode))
+            assertEquals(1,refused.getInt(0));assertEquals(-1,refused.getInt(10))
+            assertEquals(opcode,ByteBuffer.wrap(through(clients[1],0x0500)).getShort(6).toInt())
             clients[0].send(command(10000))
             val ack=ByteBuffer.wrap(through(clients[0],opcode))
             assertEquals(0,ack.int);assertEquals(120,ack.getInt(10))
             assertEquals(10000,fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).supplies)
+            if(stopEarly) {
+                fun sendStop(client:SyntheticClient,character:Int) {
+                    val request=TacticalStopMessages.reply(TacticalStopMessages.Stop(character,listOf(1)),now)
+                    client.send(request.copyOfRange(4,request.size))
+                }
+                sendStop(clients[1],10001)
+                val rejected=ByteBuffer.wrap(through(clients[1],0x040a))
+                assertEquals(1,rejected.getInt(0));assertEquals(0,rejected.getInt(10))
+                assertNotNull(fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).activeShips!!.values.single().support)
+
+                fixture.engine.submit(WorldCommand.AdvanceTo(400))
+                sendStop(clients[0],10000)
+                val stopped=ByteBuffer.wrap(through(clients[0],0x040a))
+                assertEquals(0,stopped.getInt(0));assertEquals(0,stopped.getInt(10))
+                val cancelled=TacticalStopMessages.supportCancelled(10000,1,now+9)
+                for(c in clients)assertContentEquals(cancelled,through(c,0x040a))
+
+                fixture.engine.submit(WorldCommand.AdvanceTo(5000))
+                withTimeout(5000) {
+                    while(checkNotNull(fixture.engine.snapshot().session).gameSeconds<now+120)delay(1)
+                }
+                assertNull(savedStocks.outfits.getValue(1).activeShips!!.values.single().support)
+                assertEquals(10000,savedStocks.outfits.getValue(1).supplies)
+                assertEquals(1000,savedPlayers.getValue("load-001").supplies)
+                return@runBlocking
+            }
             clients[1].close()
             fixture.awaitState(online=1,connections=1,participants=2)
             clients[1]=fixture.join(fixture.account(1),false,false).client.also {c ->
