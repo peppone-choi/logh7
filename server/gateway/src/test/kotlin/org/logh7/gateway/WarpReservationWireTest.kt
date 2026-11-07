@@ -26,6 +26,46 @@ class WarpReservationWireTest {
         client.send(request.copyOfRange(4, request.size))
     }
 
+    @Test fun firstWarpGuideArrivesAfterGridBootstrapAndStopsAfterFirstMove() = runBlocking<Unit> {
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false).use { fixture ->
+            val account = fixture.account(0)
+            val client = fixture.join(account, true, false).client
+            fun guideUntil(client: SyntheticClient, end: Int): List<String> {
+                val notices = mutableListOf<String>()
+                repeat(300) {
+                    val message = client.receive()
+                    when (ByteBuffer.wrap(message).getShort(4).toInt()) {
+                        end -> return notices
+                        0x0f1d -> {
+                            val notice = ChatMessages.spot(message.copyOfRange(4, message.size))
+                            assertEquals(10000, notice.characterId)
+                            notices += notice.text
+                        }
+                    }
+                }
+                error("Missing 0x%04x".format(end))
+            }
+            fun clock(client: SyntheticClient) = client.send(SyntheticClient.opcode(0x0300))
+            client.send(SyntheticClient.opcode(0x0f00)); until(client, 0x0f01)
+            clock(client); until(client, 0x0301)
+            client.send(SyntheticClient.opcode(0x0f02)); assertEquals(emptyList(), guideUntil(client, 0x0f03))
+            clock(client); until(client, 0x0301)
+            clock(client)
+            assertEquals(listOf("직무카드→함장→워프"), guideUntil(client, 0x0301))
+            clock(client); assertEquals(emptyList(), guideUntil(client, 0x0301))
+
+            warp(client, 2488); until(client, 0x0b07)
+            assertEquals(1L, fixture.engine.snapshot().navigators.getValue(account).moves)
+            client.close()
+            fixture.awaitState(online = 0, connections = 0, participants = 1)
+            val rejoined = fixture.join(account, false, false).client
+            rejoined.send(SyntheticClient.opcode(0x0f00)); until(rejoined, 0x0f01)
+            rejoined.send(SyntheticClient.opcode(0x0f02)); until(rejoined, 0x0f03)
+            clock(rejoined); until(rejoined, 0x0301)
+            clock(rejoined); assertEquals(emptyList(), guideUntil(rejoined, 0x0301))
+        }
+    }
+
     @Test fun reservedWarpAcknowledgesTheWaitAndCompletesOnlyAfterExecution() = runBlocking<Unit> {
         LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false).use { fixture ->
             val client = fixture.join(fixture.account(0), true, false).client
@@ -133,8 +173,12 @@ class WarpReservationWireTest {
             boot(third)
             third.send(SyntheticClient.opcode(0x0300))
             repeat(300) {
-                val opcode = ByteBuffer.wrap(third.receive()).getShort(4).toInt()
-                assertNotEquals(0x0f1d, opcode)
+                val message = third.receive()
+                val opcode = ByteBuffer.wrap(message).getShort(4).toInt()
+                if (opcode == 0x0f1d) {
+                    val notice = ChatMessages.spot(message.copyOfRange(4, message.size))
+                    assertFalse(notice.text.startsWith("[워프]"), "Acknowledged cancellation was sent again")
+                }
                 if (opcode == 0x0301) return@restarted
             }
             error("No clock response")

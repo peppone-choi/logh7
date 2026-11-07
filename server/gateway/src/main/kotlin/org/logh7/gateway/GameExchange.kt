@@ -101,6 +101,7 @@ class GameExchange(
     private var worldInitialized = false
     private var startupWarpNotice: ByteArray? = null
     private var startupGridReady = false
+    private var firstWarpGuideChecked = false
     private data class OfflineWarpNotice(val reason: NavigationRejection, val message: ByteArray, var batch: OutboundBatch? = null)
     private var pendingOfflineWarpNotice: OfflineWarpNotice? = null
     private var sentOfflineWarpCancellation: NavigationRejection? = null
@@ -315,6 +316,19 @@ class GameExchange(
                     if (cancellation != null) pendingOfflineWarpNotice = OfflineWarpNotice(cancellation, messages.single())
                 }
             } else emptyList()
+            val firstWarpGuide = if (readyForNotice && !firstWarpGuideChecked) {
+                firstWarpGuideChecked = true
+                val map = world
+                val canWarp = player.mode == 5 && player.baseId == 0 && !player.cpPaused && !player.navigationPending &&
+                    player.hull?.let { it.woundedUntil <= gameSeconds() } == true
+                if (map != null && character.generated && player.moves == 0L && canWarp &&
+                    player.country?.let { map.galaxy.countryStarts[it] } == player.grid &&
+                    startupNotice.isEmpty() && offlineNotice.isEmpty() &&
+                    org.logh7.engine.TacticalAuthority.captainCard(player, map.lobbyCountryDefinitions().first) != null) {
+                    // The original strategy HUD keeps only the most recent spot line visible.
+                    listOf(ChatMessages.spot(ChatMessages.Spot(player.characterId, "직무카드→함장→워프"), gameSeconds()))
+                } else emptyList()
+            } else emptyList()
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
                 (if (relocated) (if(previous.cpPaused && previous.grid != player.grid)
@@ -332,7 +346,7 @@ class GameExchange(
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
-                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice
+                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + firstWarpGuide
         }
     }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
