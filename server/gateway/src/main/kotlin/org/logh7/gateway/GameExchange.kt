@@ -459,6 +459,12 @@ class GameExchange(
         }
         return handshake.stageAll(listOf(reply), clearHeader = 0)
     }
+    private fun refuseGameAdmissionForMaintenance(): OutboundBatch? {
+        if (maintenance?.refuses() != true) return null
+        state = State.REJECTED
+        return handshake.stageAll(listOf(LoginMessages.sessionRejection(LoginMessages.SessionRejection.MAINTENANCE)), clearHeader = 0)
+    }
+
     private fun acceptCore(type: Int, data: ByteArray): OutboundBatch? {
         check(state != State.CLOSED && state != State.REJECTED)
         check(!obsolete()) { "Session ended or changed" }
@@ -481,6 +487,7 @@ class GameExchange(
                     BootstrapMessages.response(body,checkNotNull(navigation?.snapshot()?.session).gameSeconds))),clearHeader=0) else null
             }
             val response = if (identity.purpose == SessionTickets.Purpose.GAME) {
+                check(gameLoggedIn || opcode == 0x0200) { "Game login required" }
                 when (opcode) {
                     0x0417,0x0418 -> {
                         // Reconstructed ground battle window (design-ground-battle-window.md): the CD's unsent attack/stop troop orders.
@@ -1510,7 +1517,9 @@ class GameExchange(
                         // This local world has no mail yet; finish the client's periodic inbox query.
                         LoginMessages.sessionMessage(0x0f09, byteArrayOf(0))
                     }
-                    0x0200 -> { check(!gameLoggedIn); gameLoggedIn = true
+                    0x0200 -> { check(!gameLoggedIn)
+                        refuseGameAdmissionForMaintenance()?.let { return it }
+                        gameLoggedIn = true
                         countrySelection=characters.applicationSelection(identity.account)
                         if(countrySelection!=null)countrySelectionMode=org.logh7.protocol.CountrySelectionMessages.LOTTERY
                         LobbyMessages.gameLoginOk() }
@@ -2235,10 +2244,7 @@ class GameExchange(
                     0x0205 -> {
                         check(gameLoggedIn && !gameStarted && !joining && body.size == 2)
                         // A game connection can authenticate before maintenance and request entry afterwards.
-                        if (maintenance?.refuses() == true) {
-                            state = State.REJECTED
-                            return handshake.stageAll(listOf(LoginMessages.sessionRejection(LoginMessages.SessionRejection.MAINTENANCE)), clearHeader = 0)
-                        }
+                        refuseGameAdmissionForMaintenance()?.let { return it }
                         val character = checkNotNull(currentCharacter(identity.account))
                         val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)
                         if(!profile.canEnterNativeCountry(world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current())) {
@@ -2359,14 +2365,18 @@ class GameExchange(
                 0x2009 -> {
                     check(lobbyLoggedIn)
                     val selected=LobbyMessages.select(body)
-                    val target=if(sessionDirectory==null) {
-                        if(selected==sessionId && admission?.running!=false && maintenance?.closed()!=true)
-                            GameSessionDirectory.Target(sessionId,sessionAddress,sessionPort,admission?.generation ?: 1) else null
-                    } else sessionDirectory.target(selected,bindHost)
-                    if (target!=null) {
-                        LobbyMessages.selected(target.address,target.port,tickets.issue(identity.account,SessionTickets.Purpose.GAME,
-                            target.id,target.generation))
-                    } else LobbyMessages.selectionFailed()
+                    val selection = sessionDirectory?.select(selected, bindHost) ?: when {
+                        selected != sessionId || admission?.running == false ->
+                            GameSessionDirectory.Refused(LobbyMessages.SelectionFailure.UNAVAILABLE)
+                        maintenance?.closed() == true ->
+                            GameSessionDirectory.Refused(LobbyMessages.SelectionFailure.MAINTENANCE)
+                        else -> GameSessionDirectory.Target(sessionId, sessionAddress, sessionPort, admission?.generation ?: 1)
+                    }
+                    when (selection) {
+                        is GameSessionDirectory.Target -> LobbyMessages.selected(selection.address, selection.port,
+                            tickets.issue(identity.account, SessionTickets.Purpose.GAME, selection.id, selection.generation))
+                        is GameSessionDirectory.Refused -> LobbyMessages.selectionFailed(selection.reason)
+                    }
                 }
                 else -> error("Unsupported lobby opcode 0x${opcode.toString(16)}")
             }
@@ -2394,7 +2404,10 @@ class GameExchange(
                 require(ticket!!.sessionId==sessionId && (ticket!!.generation==null || ticket!!.generation==(generation ?: 1L))) {"Session ticket destination or generation mismatch"}
                 // The destination world's own gate (PR #283 review): a ticket issued by another world's open login
                 // listener must not admit a new player here while this world is closed. Open connections stay.
-                check(maintenance?.refuses() != true) { "World closed for maintenance" }
+                // A valid game ticket reaches SSLogin so a client can receive its maintenance reason.
+                // No game request may run before that check. Lobby tickets keep their existing gate.
+                if (taken.purpose == SessionTickets.Purpose.LOBBY)
+                    check(maintenance?.refuses() != true) { "World closed for maintenance" }
                 state = State.AUTHENTICATED
                 null // No invented response: session acceptance opcode is not established yet.
             }

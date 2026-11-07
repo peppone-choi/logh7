@@ -163,6 +163,7 @@ static void resetCountryEndings();
 #include "ground_battle_panel.h"
 #include "outfit_list_columns.h"
 #include "game_admission.h"
+#include "lobby_selection_recovery.h"
 #include "outfit_information.h"
 #include "outfit_warnings.h"
 #include "outfit_editor.h"

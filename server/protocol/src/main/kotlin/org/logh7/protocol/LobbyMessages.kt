@@ -77,6 +77,10 @@ object LobbyMessages {
         val fields = LoginMessages.success(address, port, token).copyOfRange(8, 18)
         return LoginMessages.sessionMessage(0x200a, fields)
     }
-    fun selectionFailed() = LoginMessages.sessionMessage(0x200b, byteArrayOf(1, 0))
+    /** LobbySessionLoginNG reason codes used by the compatibility module. */
+    enum class SelectionFailure(val wire: Byte) { UNAVAILABLE(1), MAINTENANCE(2) }
+
+    fun selectionFailed(reason: SelectionFailure): ByteArray =
+        LoginMessages.sessionMessage(0x200b, byteArrayOf(reason.wire, 0))
     fun gameLoginOk() = LoginMessages.sessionMessage(0x0201, byteArrayOf(0))
 }

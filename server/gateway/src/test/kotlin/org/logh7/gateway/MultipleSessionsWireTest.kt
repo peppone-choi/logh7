@@ -26,6 +26,38 @@ class MultipleSessionsWireTest {
         lobby.send(ByteBuffer.allocate(4).putShort(0x2009).putShort(id.toShort()).array())
         return lobby.expect(0x200a)
     }
+    @Test fun maintenanceExplainsAStaleSelectionAndAValidTicketWithoutClosingTheLobby() {
+        val registry = GameSessionDirectory()
+        LoadFixture(directory.resolve("alpha"), 2, LoadMetrics(), sessionDirectory = registry,
+            sessionId = 1, sessionName = "Alpha", accountSource = accounts).use { alpha ->
+            LoadFixture(directory.resolve("beta"), 2, LoadMetrics(), sessionDirectory = registry,
+                sessionId = 2, sessionName = "Beta", accountSource = accounts).use { beta ->
+                lobby(alpha).use { client ->
+                    val issued = ByteBuffer.wrap(selected(client, 2)).getInt(12).toLong() and 0xffffffffL
+                    beta.gateway.maintenance.setClosed(true)
+                    client.send(SyntheticClient.opcode(0x2005) + byteArrayOf(0))
+                    assertEquals(1, client.expect(0x2006)[7].toInt())
+                    client.send(byteArrayOf(0x20, 0x09, 0, 2))
+                    assertContentEquals(byteArrayOf(0, 0, 0, 0, 0x20, 0x0b, 2, 0), client.expect(0x200b))
+                    assertEquals(alpha.sessionPort, ByteBuffer.wrap(selected(client, 1)).getShort(10).toInt() and 65535)
+
+                    SyntheticClient(beta.sessionPort, LoadMetrics()).use { game ->
+                        game.send(SyntheticClient.token(issued), SyntheticClient.opcode(0x0200))
+                        assertContentEquals(byteArrayOf(0, 0, 0, 0, 2, 2, 3, 1, 0, 0), game.expect(0x0202))
+                        game.expectClosed()
+                    }
+                    assertEquals(1, beta.gateway.maintenance.refused.get())
+                    assertEquals(0, beta.gateway.playerConnections().size)
+                    beta.gateway.maintenance.setClosed(false)
+                    val reopened = ByteBuffer.wrap(selected(client, 2)).getInt(12).toLong() and 0xffffffffL
+                    SyntheticClient(beta.sessionPort, LoadMetrics()).use { game ->
+                        game.send(SyntheticClient.token(reopened), SyntheticClient.opcode(0x0200))
+                        game.expect(0x0201)
+                    }
+                }
+            }
+        }
+    }
     @Test fun operatorDisconnectIsScopedToOneWorldEvenWithTheSameAccountInBoth() {
         val registry = GameSessionDirectory()
         LoadFixture(directory.resolve("alpha"), 2, LoadMetrics(), sessionDirectory = registry,
