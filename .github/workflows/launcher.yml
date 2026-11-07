@@ -17,6 +17,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo test --locked
       - run: cargo build --release --locked
+      - run: python tests/https_patch.py target/release/logh7-launcher.exe
       - uses: actions/upload-artifact@v4
         with:
           name: logh7-launcher-windows

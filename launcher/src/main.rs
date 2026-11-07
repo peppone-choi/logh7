@@ -46,7 +46,7 @@ fn run() -> Result<i32, String> {
                 }
                 let url = args
                     .next()
-                    .ok_or("--download-patch 뒤에 http 주소를 지정하세요")?;
+                    .ok_or("--download-patch 뒤에 HTTPS 또는 HTTP 주소를 지정하세요")?;
                 let out = args
                     .next()
                     .ok_or("--download-patch 주소 뒤에 받을 디렉터리를 지정하세요")?;
