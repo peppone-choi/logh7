@@ -15,6 +15,7 @@ static unsigned __stdcall decodedLobbyCountrySessions(void* record,void* reader)
     logh::LobbySessionList list;
     if(!result && logh::readLobbySessionList(static_cast<const BYTE*>(record),0x5304,list)) {
         resetCountryEndings();
+        resetTacticalCamps();
         AcquireSRWLockExclusive(&lobbyCountryLock);
         lobbyCountryInbox.sessions=list;++lobbyCountryInbox.sequence;
         ReleaseSRWLockExclusive(&lobbyCountryLock);

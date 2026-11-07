@@ -2,7 +2,7 @@
 #pragma once
 #include "country_colors_data.h"
 namespace logh {
-struct CountryMetadata {unsigned id=0;wchar_t name[25]={},calendar[13]={};int yearOffset=0;std::uint64_t revision=0;};
+struct CountryMetadata {unsigned id=0;wchar_t name[25]={},calendar[13]={};int yearOffset=0;std::uint64_t revision=0;unsigned emblem=0;bool emblemKnown=false;};
 inline bool countryMetadataText(const unsigned char* member,wchar_t (&text)[13]) {
     unsigned n=member[6];text[0]=0;
     if(!n)return true;
@@ -22,9 +22,10 @@ inline bool countryMetadataYearOffset(const wchar_t* offset,int& result) {
     result=negative?-static_cast<int>(value):static_cast<int>(value);return true;
 }
 inline bool readCountryMetadata(const unsigned char* p,std::size_t size,unsigned country,unsigned nonce,CountryMetadata& output) {
-    if(!p || size<24+6*36 || !country || !nonce || paintWord(p)!=country || paintWord(p+4)!=nonce || p[8]!=5 || p[20]!=6)return false;
-    CountryMetadata candidate;candidate.id=country;wchar_t text[6][13]={};
-    for(unsigned i=0;i<6;++i) {
+    if(!p || size<24+6*36 || !country || !nonce || paintWord(p)!=country || paintWord(p+4)!=nonce ||
+        !((p[8]==5 && p[20]==6) || (p[8]==16 && p[20]==7)) || size<24+p[20]*36u)return false;
+    CountryMetadata candidate;candidate.id=country;wchar_t text[7][13]={};
+    for(unsigned i=0;i<p[20];++i) {
         auto row=p+24+i*36;
         if(paintWord(row)!=i+1 || row[4]!=i || row[5] || !countryMetadataText(row,text[i]))return false;
     }
@@ -37,6 +38,10 @@ inline bool readCountryMetadata(const unsigned char* p,std::size_t size,unsigned
         if(*c<L'0' || *c>L'9')return false;unsigned digit=*c-L'0';
         if(candidate.revision>(0x7fffffffffffffffULL-digit)/10)return false;
         candidate.revision=candidate.revision*10+digit;
+    }
+    if(p[20]==7) {
+        if(text[6][1] || (text[6][0]!=L'0' && text[6][0]!=L'2' && text[6][0]!=L'3'))return false;
+        candidate.emblem=text[6][0]-L'0';candidate.emblemKnown=true;
     }
     output=candidate;return true;
 }

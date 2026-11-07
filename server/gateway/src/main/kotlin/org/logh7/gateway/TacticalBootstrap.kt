@@ -14,7 +14,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         .sortedBy {it.characterId}
     val characterIds get()=people.map {it.characterId}
     val grid get()=viewer.grid
-    val corps=people.mapNotNull {p->characterById(p.characterId)?.let { c->
+    val corps by lazy { people.mapNotNull {p->characterById(p.characterId)?.let { c->
         val state=snapshot.planetStocks!!.tacticalCommands
         val mission=state.missions[p.characterId]
         val chief=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==p.grid &&
@@ -31,35 +31,42 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             chief=chief?.characterId==p.characterId,formation=state.formations[p.characterId] ?: 7,
             beam=if(spec.number("ビーム兵装破壊力:ビーム兵装破壊力")>0) charge?.first ?: 0 else 0,
             gun=if(spec.number("ガン兵装破壊力/消費物資:ガン兵装破壊力/消費物資")>0) charge?.second ?: 0 else 0)
-    }}
+    }}}
     val bases=galaxy.bases.filter {it.grid==viewer.grid}.map {base->
         val point=TacticalBasePosition.at(base,snapshot.session?.gameSeconds ?: 0,snapshot.planetStocks)
         // 004c4240 imports wire x/y into native world x/z; wire z is not the map plane.
         TacticsMessages.Base(base.id,point.x,point.y,0f)
     }
-    val baseInformation=bases.map {base ->
+    val baseInformation by lazy { bases.map {base ->
         val cannon=snapshot.planetStocks!!.tacticalCommands.orders.singleOrNull {it.command.base==base.id && it.command.opcode==0x419}
         TacticsMessages.BaseInformation(base,cannonStart=cannon?.acceptedAt ?: 0,
             cannonAngle=cannon?.command?.direction?.let {(((it/(2*Math.PI)*65536).toInt()%65536)+65536)%65536} ?: 0,
-            stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id}))}
-    val units: List<TacticsMessages.Unit> = run {
-        data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val supplies:Int,val cruise:Float,
-            val destroyed:Int=0,val posture:TacticalPosture?=null)
+            stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id}))}}
+    /** [camp] is the unit's actual combat side (country + rebellion, an unaffiliated individual, or pirates). */
+    private data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val supplies:Int,val cruise:Float,
+        val camp:Camp,val destroyed:Int=0,val posture:TacticalPosture?=null)
+    private val sources:List<Source> = run {
         val stocks=checkNotNull(snapshot.planetStocks)
-        val sources=people.mapNotNull {p->characterById(p.characterId)?.let {c->
+        people.mapNotNull {p->characterById(p.characterId)?.let {c->
             val fleet=stocks.outfits.values.singleOrNull {p.characterId in it.members() && it.positionIn(galaxy)==OutfitPosition(p.grid)}
             Source(p.unitId,p.hull?.kind ?: c.shipKind,fleet?.id ?: 0,p.characterId,p.supplies,p.cruise.toFloat(),
-                posture=p.posture?.takeIf {it.grid==viewer.grid})
+                TacticalAuthority.camp(p,stocks),posture=p.posture?.takeIf {it.grid==viewer.grid})
         }} + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {fleet->
             val supplies=OutfitSupplies.distribution(fleet)
+            val camp=TacticalAuthority.camp(fleet,stocks)
             checkNotNull(fleet.activeShips).values.map {ship->
             Source(ship.id,ship.stack.kind,fleet.id,TacticalAuthority.commander(fleet,ship,stocks),supplies.getValue(ship.id),0f,
-                    UnitSpecifications.ships.single {it.kind==ship.stack.kind}.number-ship.boats,
+                    camp,UnitSpecifications.ships.single {it.kind==ship.stack.kind}.number-ship.boats,
                     ship.posture?.takeIf {it.grid==viewer.grid})
             }
         } + stocks.social.pirates.fleets.values.filter {it.grid==viewer.grid}.flatMap {f->f.units.map {u->
             Source(u.id,org.logh7.engine.PirateActions.kind(),org.logh7.engine.PirateActions.OUTFIT_BASE+f.id,0,
-                0,0f,org.logh7.engine.PirateActions.UNIT_BOATS-u.boats)}}
+                0,0f,Camp.PIRATES,org.logh7.engine.PirateActions.UNIT_BOATS-u.boats)}}
+    }
+    /** Actual camp of every unit in [units], keyed by the same unit ID; read-only, no wider world lookup. */
+    val unitCamps:Map<Int,Camp> get()=sources.associate {it.id to it.camp}
+    val units: List<TacticsMessages.Unit> by lazy {
+        val stocks=checkNotNull(snapshot.planetStocks)
         sources.sortedBy {it.id}.map {u->
             val initial by lazy {TacticalDeployment.initial(u.id,viewer.grid,people,stocks,galaxy,countries)}
             val pose=org.logh7.engine.PirateActions.pose(stocks,u.id) ?: people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
@@ -81,14 +88,14 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             if(leader==null)u else u.copy(leader=leader.id,leaderX=leader.x,leaderY=leader.y,leaderZ=leader.z,leaderDirection=leader.direction)
         }}.also {require(it.size<=600)}
     }
-    val groundDefinitions=snapshot.planetStocks?.outfits?.values.orEmpty().sortedBy {it.id}.flatMap {outfit ->
+    val groundDefinitions by lazy { snapshot.planetStocks?.outfits?.values.orEmpty().sortedBy {it.id}.flatMap {outfit ->
         val carriers=units.filter {it.outfit==outfit.id && it.destroyed<UnitSpecifications.ships.single {s->s.kind==it.kind}.number}
             .map {it.id}.toSet()
         outfit.activeGround?.values.orEmpty().filter {unit ->
             (unit.base>0 && galaxy.bases.any {it.id==unit.base && it.grid==viewer.grid}) ||
                 (unit.carrier>0 && unit.carrier in carriers)
         }.sortedBy {it.id}.map {unit -> TacticsMessages.GroundDefinition(unit.id,1000+unit.stack.kind,outfit.id,unit.base,unit.carrier,unit.origin>0)}
-    }
+    }}
     private fun rotations():List<ByteArray> {
         data class Entry(val id:Int,val character:Int,val motion:TacticalMotion)
         val entries=people.mapNotNull {p->p.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(p.unitId,p.characterId,it)}} +

@@ -44,8 +44,9 @@ class WorldBootstrap(val galaxy: Galaxy,
         val snapshot=org.logh7.engine.CountryCatalogLoader.snapshot()
         val catalog=configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog
         val country=catalog.countries[query.outfit];val calendar=catalog.calendar(query.outfit)
+        val emblem=when(country?.assets) {"empire"->2;"alliance"->3;else->0}
         return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryMetadataMessages.reply(query,viewerPower,
-            country?.name.orEmpty(),calendar?.name.orEmpty(),calendar?.yearOffset ?: 0,if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0))
+            country?.name.orEmpty(),calendar?.name.orEmpty(),calendar?.yearOffset ?: 0,if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0,emblem))
     }
     /** The authenticated viewer's real membership, including explicit unaffiliated/deleted definitions. */
     fun countryIdentity(query:OutfitPartyMessages.Query,countryId:Int?,nativePower:Int):ByteArray {

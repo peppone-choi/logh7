@@ -5,6 +5,7 @@
 #include "country_metadata.h"
 #include "base_affiliation.h"
 #include "outfit_affiliation.h"
+#include "tactical_camp.h"
 static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
@@ -23,7 +24,7 @@ static unsigned countryPaintRgb(unsigned country,unsigned field,unsigned fallbac
     ReleaseSRWLockShared(&countryPaintLock);return result;
 }
 static bool receiveCountryPaint(const BYTE* record) {
-    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12)return false;
+    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12 && record[8]!=16)return false;
     AcquireSRWLockExclusive(&countryPaintLock);
     auto& inbox=countryPaintInbox;logh::CountryPaint paint;
     if(inbox.pending && inbox.mode==12 && inbox.bases.accept(record,24+10*36)==2) {
@@ -40,7 +41,8 @@ static bool receiveCountryPaint(const BYTE* record) {
         inbox.pending=0;
     }
     logh::CountryMetadata metadata;
-    if(inbox.pending && inbox.mode==5 && logh::readCountryMetadata(record,24+6*36,inbox.pending,inbox.nonce,metadata)) {
+    if(inbox.pending && (inbox.mode==5 || inbox.mode==16) && inbox.mode==record[8] &&
+        logh::readCountryMetadata(record,24+10*36,inbox.pending,inbox.nonce,metadata)) {
         publishCountryMetadata(metadata);inbox.pending=0;
     }
     ReleaseSRWLockExclusive(&countryPaintLock);return true;
@@ -67,7 +69,7 @@ static void pollCountryPaint(void* world) {
         else if(now>=inbox.basesAt) {inbox.pending=1;inbox.mode=12;inbox.basesAt=now+5000;}
         else if(inbox.ownRegistered) {
             unsigned ids[353]={inbox.ownCountry},count=1;
-            auto add=[&](unsigned id) {if(!id)return;for(unsigned i=0;i<count;++i)if(ids[i]==id)return;ids[count++]=id;};
+            auto add=[&](unsigned id) {if(!id || count>=_countof(ids))return;for(unsigned i=0;i<count;++i)if(ids[i]==id)return;ids[count++]=id;};
             AcquireSRWLockShared(&baseAffiliationLock);
             if(baseAffiliationCache.world==world)for(unsigned i=0;i<baseAffiliationCache.value.count;++i)add(baseAffiliationCache.value.rows[i].country);
             ReleaseSRWLockShared(&baseAffiliationLock);
@@ -77,7 +79,14 @@ static void pollCountryPaint(void* world) {
                 if(count>=353)break;add(row.country);
             }
             ReleaseSRWLockShared(&outfitAffiliationLock);
-            inbox.pending=ids[(inbox.cursor/2)%count];inbox.mode=4+inbox.cursor++%2;
+            AcquireSRWLockShared(&tacticalCampLock);
+            if(tacticalCampCache.world==world)for(unsigned i=0;i<tacticalCampCache.published.count;++i) {
+                if(count>=353)break;
+                const auto& side=tacticalCampCache.published.rows[i].side;if(!side.kind)add(side.owner);
+            }
+            ReleaseSRWLockShared(&tacticalCampLock);
+            inbox.pending=ids[(inbox.cursor/2)%count];
+            inbox.mode=inbox.cursor++%2 ? (at<BYTE>(world,0x126718) ? 16u : 5u) : 4u;
         }
         if(inbox.pending) {
             inbox.nonce=(inbox.nonce%65535)+1;inbox.sentAt=now;inbox.pollAt=now+1000;

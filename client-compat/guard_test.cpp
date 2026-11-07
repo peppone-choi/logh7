@@ -8,6 +8,7 @@
 #include "country_metadata.h"
 #include "base_affiliation.h"
 #include "outfit_affiliation_data.h"
+#include "tactical_camp_data.h"
 #include "country_ending_data.h"
 #include "country_icon_data.h"
 #include "creation_menu_data.h"
@@ -938,6 +939,60 @@ static int outfitAffiliationTest() {
     if(draft.accept(record,sizeof(record))!=2 || draft.page.rows[0].id!=0x7fffffff)return 1062;
     return 0;
 }
+static int tacticalCampTest() {
+    BYTE record[384]={};
+    auto frame=[&](unsigned kind,unsigned number,unsigned count,unsigned cursor=0) {
+        memset(record,0,sizeof(record));*reinterpret_cast<unsigned*>(record)=65535;*reinterpret_cast<unsigned*>(record+4)=cursor;
+        record[8]=15;record[9]=2;record[20]=static_cast<BYTE>(count);
+        *reinterpret_cast<unsigned*>(record+12)=kind;*reinterpret_cast<unsigned*>(record+16)=number;
+    };
+    auto member=[&](unsigned slot,unsigned id,unsigned rebel,unsigned kind,const wchar_t* text) {
+        auto p=record+24+slot*36;*reinterpret_cast<unsigned*>(p)=id;p[4]=static_cast<BYTE>(kind);p[5]=static_cast<BYTE>(rebel);
+        p[6]=static_cast<BYTE>(wcslen(text)+1);memcpy(p+8,text,(wcslen(text)+1)*2);
+    };
+    const wchar_t* fields[]={L"UC1",L"60",L"60",L"1",L"3758",L"922337203685",L"4775807",L"123",L"",L"336"};
+    auto header=[&](unsigned cursor=0) {frame(0,0,10,cursor);for(unsigned i=0;i<10;++i)member(i,i+1,0,i,fields[i]);};
+    logh::TacticalCampDraft draft;draft.begin(65535,0,3758);header();
+    record[0]^=1;if(draft.accept(record,sizeof(record)))return 1100;record[0]^=1;
+    record[8]=13;if(draft.accept(record,sizeof(record)))return 1101;record[8]=15;
+    fields[9]=L"5";header();if(draft.accept(record,sizeof(record)))return 1102;fields[9]=L"336";
+    fields[4]=L"3757";header();if(draft.accept(record,sizeof(record)))return 1103;fields[4]=L"3758";
+    header();if(draft.accept(record,sizeof(record)-1) || draft.accept(record,sizeof(record))!=1)return 1104;
+    for(unsigned batch=0;batch<6;++batch) {
+        frame(1,batch,10);for(unsigned i=0;i<10;++i)member(i,batch*10+i+1,0,0,i%2 ? L"43" : L"42");
+        if(!batch) {
+            record[24+36]=record[24];if(draft.accept(record,sizeof(record)) || draft.received)return 1105;record[24+36]++;
+            record[24+4]=2;if(draft.accept(record,sizeof(record)) || draft.received)return 1106;record[24+4]=0;
+        }
+        if(draft.accept(record,sizeof(record))!=(batch==5 ? 2 : 1))return 1107;
+    }
+    logh::TacticalCampRoster roster;
+    if(!roster.append(draft.page) || roster.complete || roster.count!=60 || roster.viewer.owner!=42)return 1108;
+    draft.begin(65535,60,3758);fields[1]=L"1";fields[2]=L"61";fields[3]=L"0";header(60);
+    if(draft.accept(record,sizeof(record))!=1)return 1109;
+    frame(1,0,1,60);member(0,61,0,2,L"0");if(draft.accept(record,sizeof(record))!=2)return 1110;
+    auto changed=draft.page;changed.stamp++;if(roster.append(changed) || roster.count!=60)return 1111;
+    changed=draft.page;changed.generation--;if(roster.append(changed))return 1112;
+    changed=draft.page;changed.viewer.owner=43;if(roster.append(changed))return 1113;
+    if(!roster.append(draft.page) || !roster.complete || roster.count!=61 || roster.append(draft.page) || !roster.find(61) || roster.find(62))return 1114;
+    const logh::TacticalSide same={0,42,0},foreign={0,43,0},rebel={0,42,1},independent={1,42,0},otherPerson={1,43,0};
+    if(logh::tacticalRelation(1,1,same,foreign)!=0x400 || logh::tacticalRelation(2,1,same,same)!=0x800 ||
+        logh::tacticalRelation(2,1,same,foreign)!=0x1000 || logh::tacticalRelation(2,1,same,rebel)!=0x1000 ||
+        logh::tacticalRelation(2,1,independent,otherPerson)!=0x1000 || logh::tacticalRelation(2,1,same,independent)!=0x1000)return 1115;
+    logh::TacticalSide side;
+    if(!logh::TacticalSide::decode(0x3fffffff9ULL,side) || side.owner!=0x7fffffff || !side.insurgent ||
+        logh::TacticalSide::decode(0x400000000ULL,side) || logh::TacticalSide::decode(0,side) || logh::TacticalSide::decode(7,side))return 1116;
+    logh::TacticalCampRoster full;
+    for(unsigned page=0;page<10;++page) {
+        logh::TacticalCampPage p;p.count=60;p.generation=1;p.stamp=1;p.viewer=same;p.more=page!=9;p.next=(page+1)*60;
+        for(unsigned i=0;i<60;++i)p.rows[i]={page*60+i+1,same};
+        if(!full.append(p))return 1117;
+    }
+    if(full.count!=600 || !full.complete)return 1118;
+    draft.begin(65535,60,3758);fields[1]=L"0";fields[2]=L"60";header(60);
+    if(draft.accept(record,sizeof(record))!=2 || draft.page.count)return 1119;
+    return 0;
+}
 static int countryEndingTest() {
     BYTE p[384]={};
     auto frame=[&](unsigned kind,unsigned number,const wchar_t* const (&fields)[10]) {
@@ -967,6 +1022,9 @@ static int countryEndingTest() {
     return 0;
 }
 static int runGuard(int argc, wchar_t** argv) {
+    if(logh::countryAtlasScale(128,128,65536,1024)!=1 || logh::countryAtlasScale(128,128,262144,1024)!=2 ||
+        logh::countryAtlasScale(128,128,262144,512)!=0)return 1123;
+    if(int result=tacticalCampTest())return result;
     if(int result=countryEndingTest())return result;
     if(int result=outfitAffiliationTest())return result;
     if(int result=baseAffiliationTest())return result;
@@ -1640,6 +1698,14 @@ static int runGuard(int argc, wchar_t** argv) {
         metadata.revision!=9007199254740993ULL || logh::readCountryMetadata(paintPacket,sizeof(paintPacket),2,18,metadata) ||
         logh::readCountryMetadata(paintPacket,sizeof(paintPacket)-1,2,17,metadata))return 505;
     publishCountryMetadata(metadata);
+    BYTE emblemPacket[24+7*36]={};memcpy(emblemPacket,paintPacket,sizeof(paintPacket));emblemPacket[8]=16;emblemPacket[20]=7;
+    auto emblemRow=emblemPacket+24+6*36;*reinterpret_cast<unsigned*>(emblemRow)=7;emblemRow[4]=6;emblemRow[6]=2;emblemRow[8]=L'2';
+    logh::CountryMetadata emblemMetadata;
+    if(!logh::readCountryMetadata(emblemPacket,sizeof(emblemPacket),2,17,emblemMetadata) || emblemMetadata.emblem!=2 || !emblemMetadata.emblemKnown ||
+        logh::readCountryMetadata(emblemPacket,sizeof(emblemPacket)-1,2,17,emblemMetadata))return 1120;
+    publishCountryMetadata(emblemMetadata);publishCountryMetadata(metadata);
+    if(runtimeCountryEmblem(2)!=2 || runtimeCountryEmblem(42))return 1121;
+    emblemRow[8]=L'4';if(logh::readCountryMetadata(emblemPacket,sizeof(emblemPacket),2,17,emblemMetadata))return 1122;
     if(runtimeCountryAffiliation(2)!=L"제국 시험" || runtimeCountryAffiliation(2,1)!=L"제국 시험 반란군" ||
         runtimeCountryAffiliation(3)!=L"자유행성동맹" || runtimeCountryAffiliation(2,2)!=L"미확인")return 514;
     unsigned nameSequence=countryNameSequence.load();publishCountryMetadata(metadata);

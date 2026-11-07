@@ -1055,6 +1055,18 @@ class GameExchange(
                             }
                             return null
                         }
+                        if(party?.mode==org.logh7.protocol.TacticalCampMessages.MODE) {
+                            require(party.outfit in 1..65535)
+                            val snapshot=navigation?.snapshot() ?: return null
+                            val player=snapshot.navigators[identity.account] ?: return null
+                            val currentGeneration=checkNotNull(generation)
+                            // A poll in flight when leaving tactics must not close the connection.
+                            if(!worldInitialized || !player.cpPaused || player.baseId!=0 || player.characterId!=character.id.toInt() ||
+                                player.generation!=currentGeneration || snapshot.session?.generation!=currentGeneration ||
+                                snapshot.planetStocks?.generation!=currentGeneration)return null
+                            return handshake.stageAll(TacticalCampReport.reply(party,snapshot,world.galaxy,player,
+                                currentGeneration,::currentCharacterById),clearHeader=0)
+                        }
                         if(party?.mode==org.logh7.protocol.BaseAffiliationMessages.MODE) {
                             check(worldInitialized)
                             require(party.outfit==0 && party.base in 1..65535) {"Public base ownership snapshot only"}
@@ -1069,7 +1081,8 @@ class GameExchange(
                         // Display queries echo the viewer's actual country as its display code; no membership, no reply.
                         val viewerCountry by lazy {checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value}
                         if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,viewerCountry)),clearHeader=0)
-                        if(party?.mode==5)return handshake.stageAll(listOf(world.countryMetadata(party,viewerCountry)),clearHeader=0)
+                        if(party?.mode==5 || party?.mode==org.logh7.protocol.CountryMetadataMessages.EMBLEM_MODE)
+                            return handshake.stageAll(listOf(world.countryMetadata(party,viewerCountry)),clearHeader=0)
                         if(party?.mode==6) {
                             pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it)))}
                             return null
