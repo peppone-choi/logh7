@@ -731,6 +731,9 @@ static int facilityGuideTest() {
     if(logh::facilityLabel(104902,0,L"시설",label) || logh::facilityLabel(104901,39,L"시설",label) ||
         logh::facilityLabel(0,0,L"시설",label) || logh::facilityLabel(104901,0,std::wstring(25,L'가').c_str(),label) ||
         logh::facilityLabel(104901,0,L"줄\n바꿈",label) || label!=saved)return 624;
+    if(logh::facilityMoveName(L"은하제국오딘행성중앙행정민원통합지원센터본관")!=L"은하제국…터본관" ||
+        logh::facilityMoveName(L"에너지 플랜트")!=L"에너지 플랜트" ||
+        logh::facilityMoveName(L"Regional Office 20")!=L"Regional…ice 20")return 653;
     logh::FacilityNameCache names;logh::FacilityGuide value;value.id=101;value.revision=2;wcscpy_s(value.name,L"첫 시설");
     if(!names.publish(value,1))return 625;
     value.revision=1;if(names.publish(value,2) || names.find(101)->revision!=2)return 626;
