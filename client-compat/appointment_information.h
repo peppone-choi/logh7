@@ -113,13 +113,33 @@ static std::wstring warpConfirmationText(BYTE* command) {
     return text;
 }
 
+static std::wstring fuelConfirmationText(BYTE* command) {
+    if (!command || at<unsigned>(command,0x28)!=44) return {};
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if (!own || !at<BYTE>(own,0) || at<void*>(command,0x1c)!=own) return {};
+    const unsigned power=at<BYTE>(own,0x28),card=at<unsigned>(command,0x20);
+    if ((power!=2 || card!=59) && (power!=3 || card!=195)) return {};
+    const float cruise=at<float>(own,0x36c);
+    if (!(cruise>=0 && cruise<=1000)) return {};
+    const auto hours=logh::fuelServiceHours(static_cast<unsigned>(cruise));
+    if (!hours) return L"연료가 가득 찼습니다.\n현재 항속 1000광년\n보급 필요 없음";
+    wchar_t text[200];
+    swprintf_s(text,L"워프 연료를 보급합니다.\n항속 %u → 1000광년\nMCP 160 · 부족 시 PCP 320\n게임 내 8시간 대기 · %u시간 소요\n실행하시겠습니까?",
+        static_cast<unsigned>(cruise),hours);
+    return text;
+}
+
 static void __fastcall appointmentConfirmation(void* dialog, void*, const char* original) {
     reinterpret_cast<void(__thiscall*)(void*,const char*)>(0x5706e0)(dialog,original);
     AppointmentChoice choice;
     std::wstring body;
     auto command=*reinterpret_cast<BYTE**>(0xc9e2f8);
+    auto fuel=fuelConfirmationText(command);
     if (isWarpConfirmation(command)) {
         body=warpConfirmationText(command);
+    } else if (!fuel.empty()) {
+        body=std::move(fuel);
     } else {
     if (!logh::japaneseFragment(original,body)) return;
     auto newline=body.find(L'\n');

@@ -271,7 +271,7 @@ class GameExchange(
             NavigationRejection.RANGE -> "더 가까운 칸 선택"
             NavigationRejection.STAR_SYSTEM_NOT_ADJACENT -> "성계에 인접 필요"
             NavigationRejection.GRID -> "진입 불가·재선택"
-            NavigationRejection.CRUISE -> "항속 부족·보급 필요"
+            NavigationRejection.CRUISE -> "항속 부족·함장→연료 보급"
             NavigationRejection.CP -> "MCP/PCP 부족"
             NavigationRejection.CARD -> "함장 카드 필요"
             NavigationRejection.TACTICAL -> "전술 중 사용 불가"
@@ -297,6 +297,20 @@ class GameExchange(
             else -> "현재 기항 불가"
         }
         return ChatMessages.spot(ChatMessages.Spot(characterId, "[기항] $reason"), seconds)
+    }
+    private fun fuelRefusal(rejection: NavigationRejection?): ByteArray {
+        val reason = when (rejection) {
+            NavigationRejection.FUEL_FULL -> "연료가 가득 찼습니다"
+            NavigationRejection.CP -> "MCP 160 또는 PCP 320 필요"
+            NavigationRejection.CARD -> "함장 카드 필요"
+            NavigationRejection.TACTICAL -> "전술 중 사용 불가"
+            NavigationRejection.EMBARKED -> "먼저 우주로 출항하세요"
+            NavigationRejection.SUPPLYING -> "이미 보급 중입니다"
+            NavigationRejection.TRAVELLING -> "이동 완료까지 대기"
+            NavigationRejection.WOUNDED -> "부상 회복까지 대기"
+            else -> "현재 보급 불가"
+        }
+        return ChatMessages.invalidCommand(0x0b02, "[연료 보급] $reason")
     }
     private fun spotMoveRefusal(rejection: NavigationRejection?): ByteArray {
         val reason = when (rejection) {
@@ -1466,8 +1480,10 @@ class GameExchange(
                             if(traceOpcodes && result.player==null)System.err.println("trace ${identity.account} fuel card ${command.card} rejected: ${result.rejection}")
                             val player = checkNotNull(result.player ?: result.previous) { "Supply lost its authenticated session" }
                             publication = Publication(character, player, false)
-                            listOf(org.logh7.protocol.FuelMessages.reply(command, gameSeconds(), player.pcp, player.mcp, result.player != null),
-                                characterMessage(character, player, true)) + completedWork(result, character)
+                            val seconds=gameSeconds()
+                            listOf(org.logh7.protocol.FuelMessages.reply(command, seconds, player.pcp, player.mcp, result.player != null),
+                                characterMessage(character, player, true)) + completedWork(result, character) +
+                                listOfNotNull(if(result.player==null)fuelRefusal(result.rejection) else null)
                         }
                         return null
                     }
