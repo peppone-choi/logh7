@@ -549,6 +549,7 @@ static unsigned __stdcall decodedOutfitInformation(void* record,void* reader) {
     if(!result && receiveCountryEndings(p))return result;
     if(!result && receiveCountryPaint(p))return result;
     if(!result && receiveOutfitAffiliations(p))return result;
+    if(!result && receiveTacticalCamps(p))return result;
     if(!result && receiveFacilityGuide(p))return result;
     if(!result && groundPanelMarked(p))return result;
     if(!result && p[8]==2) {

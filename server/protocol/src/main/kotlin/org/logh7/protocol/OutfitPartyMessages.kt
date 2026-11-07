@@ -10,7 +10,7 @@ object OutfitPartyMessages {
     data class UnitQuery(val id: Int, val base: Int)
     private fun maximumBase(mode:Int)=when {
         mode==2 -> 999999
-        CountrySelectionMessages.matches(mode) || mode==OutfitAffiliationMessages.MODE -> Int.MAX_VALUE
+        CountrySelectionMessages.matches(mode) || mode==OutfitAffiliationMessages.MODE || mode==TacticalCampMessages.MODE -> Int.MAX_VALUE
         else -> 65535
     }
     data class Member(val id: Int, val kind: Int, val rank: Int, val name: String)

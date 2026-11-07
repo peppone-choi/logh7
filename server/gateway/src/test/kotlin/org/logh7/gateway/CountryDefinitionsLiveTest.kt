@@ -21,8 +21,8 @@ class CountryDefinitionsLiveTest {
         assertEquals(0,old.shipKind)
         try {
             publish(changed,firstRevision)
-            val query=OutfitPartyMessages.Query(2,17,5)
-            assertContentEquals(LoginMessages.sessionMessage(0x032f,CountryMetadataMessages.reply(query,2,"시험 제국","시험력",-310,firstRevision)),world.countryMetadata(query,2))
+            val query=OutfitPartyMessages.Query(2,17,CountryMetadataMessages.EMBLEM_MODE)
+            assertContentEquals(LoginMessages.sessionMessage(0x032f,CountryMetadataMessages.reply(query,2,"시험 제국","시험력",-310,firstRevision,2)),world.countryMetadata(query,2))
             val next=decode(service.accept("new",request.copy(surname="New")))
             val fresh=decode(service.accept("new",next.copy(category=1,age=18,birthMonth=1,birthDay=1,face=1000001)))
             assertEquals(89,fresh.shipKind)

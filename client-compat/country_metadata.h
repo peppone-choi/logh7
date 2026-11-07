@@ -25,9 +25,17 @@ static void publishCountryMetadata(const logh::CountryMetadata& value) {
     unsigned i=0;for(;i<cache.count && cache.rows[i].id!=value.id;++i){}
     if(i<350 && (i==cache.count || cache.rows[i].revision<=value.revision)) {
         if(i==cache.count || wcscmp(cache.rows[i].name,value.name))++countryNameSequence;
-        cache.rows[i]=value;if(i==cache.count)++cache.count;
+        const auto emblem=cache.rows[i].emblem;const bool known=i<cache.count && cache.rows[i].emblemKnown;
+        cache.rows[i]=value;
+        if(!value.emblemKnown && known) {cache.rows[i].emblem=emblem;cache.rows[i].emblemKnown=true;}
+        if(i==cache.count)++cache.count;
     }
     ReleaseSRWLockExclusive(&countryMetadataLock);
+}
+static unsigned runtimeCountryEmblem(unsigned country) {
+    unsigned emblem=0;AcquireSRWLockShared(&countryMetadataLock);
+    for(unsigned i=0;i<countryMetadataCache.count;++i)if(countryMetadataCache.rows[i].id==country) {emblem=countryMetadataCache.rows[i].emblem;break;}
+    ReleaseSRWLockShared(&countryMetadataLock);return emblem;
 }
 static std::wstring runtimeCountryAffiliation(unsigned id,unsigned camp=0,unsigned columns=80) {
     logh::CountryMetadata metadata;bool found=false;

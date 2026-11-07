@@ -7,13 +7,13 @@ struct CountrySurfaceDesc8 {unsigned format,type,usage,pool,size,multisample,wid
 struct CountryLockedRect8 {int pitch;BYTE* bits;};
 static struct {void* texture;ULONGLONG until;} neutralCountryCache[8]={};
 static unsigned neutralCountryCursor=0;
-static bool neutralizeCountryResource(BYTE* resource) {
+static bool neutralizeCountryResource(BYTE* resource,const char* asset="icon_country32.tga",bool exactSize=true) {
     if(!resource)return false;
     // Restrict this transform to the verified atlas and its four military tiles.
     const char* path=reinterpret_cast<const char*>(resource+8);
     if(strnlen_s(path,512)==512)return false;
     const char* name=path;for(auto p=path;*p;++p)if(*p=='/' || *p=='\\')name=p+1;
-    if(_stricmp(name,"icon_country32.tga"))return false;
+    if(_stricmp(name,asset))return false;
     auto texture=at<void*>(resource,0x220);if(!texture)return false;
     const auto now=GetTickCount64();
     for(const auto& cached:neutralCountryCache)if(cached.texture==texture && now<cached.until)return true;
@@ -21,11 +21,13 @@ static bool neutralizeCountryResource(BYTE* resource) {
     if(reinterpret_cast<unsigned(WINAPI*)(void*)>(methods[13])(texture)!=1)return false;
     CountrySurfaceDesc8 desc={};
     if(FAILED(reinterpret_cast<HRESULT(WINAPI*)(void*,unsigned,CountrySurfaceDesc8*)>(methods[14])(texture,0,&desc)) ||
-        desc.format!=21 || desc.type!=1 || desc.width!=128 || desc.height!=128)return false; // A8R8G8B8
+        desc.format!=21 || desc.type!=1 || desc.width<64 || desc.height<64 ||
+        (exactSize && (desc.width!=128 || desc.height!=128)))return false; // A8R8G8B8
     CountryLockedRect8 locked={};
     if(FAILED(reinterpret_cast<HRESULT(WINAPI*)(void*,unsigned,CountryLockedRect8*,const RECT*,DWORD)>(methods[16])
         (texture,0,&locked,nullptr,0)))return false;
-    const bool changed=logh::neutralCountryPixels(locked.bits,locked.pitch,64,64);
+    const unsigned scale=logh::countryAtlasScale(desc.width,desc.height,desc.size,locked.pitch);
+    const bool changed=scale && logh::neutralCountryPixels(locked.bits,locked.pitch,64*scale,64*scale);
     const HRESULT unlocked=reinterpret_cast<HRESULT(WINAPI*)(void*,unsigned)>(methods[17])(texture,0);
     if(!changed || FAILED(unlocked))return false;
     // Recheck periodically: a renderer reset may restore pixels using the same COM wrapper.
