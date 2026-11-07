@@ -197,6 +197,9 @@ class GameExchange(
         WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(account).also {
             check(it.character.id.toInt()==characterId) {"Command character identity mismatch"}
         }
+    private fun currencyLabel(country: org.logh7.engine.CountryId?): org.logh7.protocol.StrategyCurrencyLabel? =
+        country?.let(org.logh7.engine.CountryCatalogLoader::currency)
+            ?.takeIf { it.validForEditing() }?.let { org.logh7.protocol.StrategyCurrencyLabel(it.name, it.symbol) }
     private fun navigate(request:org.logh7.engine.NavigationRequest):CompletableFuture<org.logh7.engine.NavigationResult> {
         val profile=currentProfile(request.account,request.characterId)
         return checkNotNull(navigation).apply(request.copy(country=profile.country,shipStyle=profile.shipStyle))
@@ -1701,9 +1704,7 @@ class GameExchange(
                                     val v=result.view;val quote=v?.quote
                                     val view=v?.let {org.logh7.protocol.BudgetMessages.View(it.base,it.national,it.local,it.remittance,
                                         quote?.id ?: 0,quote?.amount ?: 0,quote?.phase?.ordinal?.plus(1) ?: 0,quote?.rate ?: 0)}
-                                    val currency=v?.country?.let {org.logh7.engine.CountryCatalogLoader.snapshot()?.currency(it)}
-                                        ?.takeIf {it.validForEditing()}?.let {org.logh7.protocol.BudgetMessages.CurrencyLabel(it.name,it.symbol)}
-                                    org.logh7.protocol.BudgetMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,view,currency)+
+                                    org.logh7.protocol.BudgetMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,view,currencyLabel(v?.country))+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
                                         (if(v!=null)listOf(world.conditions(listOf(v.base),result.stocks)) else emptyList())+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()
@@ -1835,7 +1836,7 @@ class GameExchange(
                                         }
                                         if(query.command==org.logh7.engine.FundActions.FUNDS) {
                                             // 資金投入 targets: governed planets, the two confidence choices, or same-side candidates.
-                                            val stocks=checkNotNull(navigation?.snapshot()?.planetStocks)
+                                            val stocks=inventory
                                             val country=currentProfile(identity.account,query.character).country
                                             val peers=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
                                                 .filter {country!=null && it.country==country}.map {it.id}.toSet()
@@ -1848,7 +1849,8 @@ class GameExchange(
                                                     .filter {it.id!=character.id && it.id>query.target && it.id.toInt() in peers}.sortedBy {it.id}
                                                     .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)}
                                             }.take(200)
-                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
+                                            val balance=stocks.strategic.people[character.id.toInt()]?.money ?: 0L
+                                            return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows,balance,currencyLabel(country))
                                         }
                                         if(query.command==org.logh7.engine.CoupActions.CONSPIRACY) {
                                             // 謀議: same-side people in the requester's spot who are not in a plot.
@@ -2069,8 +2071,11 @@ class GameExchange(
                                             presence?.groundRefresh(checkNotNull(generation),player.grid,result.found,gameSeconds(),snapshot,
                                                 checkNotNull(world).galaxy,::currentCharacterById)}
                                         // The strike's outcome is its attacker count (1..10); the native reply only carries success.
+                                        val fundBalance=if(query.command==org.logh7.engine.FundActions.FUNDS && result.rejection==null)
+                                            result.stocks?.strategic?.people?.get(query.character)?.money else null
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,
-                                            outcome=if(strike.isNotEmpty())minOf(result.outcome,1) else result.outcome,found=result.found,report=result.report)+
+                                            outcome=if(strike.isNotEmpty())minOf(result.outcome,1) else result.outcome,found=result.found,report=result.report,
+                                            fundBalance=fundBalance)+
                                             listOf(characterMessage(updated,player,true))+strike
                                     }
                                     return null

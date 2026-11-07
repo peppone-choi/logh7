@@ -99,6 +99,29 @@ class PostgresCountryDefinitionsTest {
         } }
     }
 
+    @Test fun imperialMarkMigrationKeepsOperatorChoicesAndDoesNotChangeTheRevisionTwice() = fixture { connect ->
+        val migration = checkNotNull(javaClass.getResourceAsStream("/db/migration/V7__imperial_mark.sql"))
+            .bufferedReader().use { it.readText() }
+        connect().use { db -> db.createStatement().use { statement ->
+            statement.execute("INSERT INTO nation_currency VALUES ('native_funds','원본 자금','',0)")
+            statement.execute("UPDATE nation_family SET currency_key='native_funds' WHERE family_key='empire'")
+            statement.execute("UPDATE nation_country SET currency_override='fixture' WHERE country_id=2")
+            statement.execute(migration)
+            statement.execute(migration)
+        } }
+        val store = PostgresCountryDefinitions(connect)
+        val first = store.load()
+        assertEquals(1L, first.revision)
+        assertEquals("제국마르크", first.currencies.getValue("imperial_mark").name)
+        assertEquals("imperial_mark", first.familyCurrencies["empire"])
+        assertEquals("fixture", first.familyCurrencies["new_empire"])
+        assertEquals("fixture", first.currency(CountryId(2))?.key)
+        assertEquals("fixture", first.currency(CountryId(3))?.key)
+        assertEquals(CountryDefinitionOutcome.CHANGED, store.save(1,
+            CountryDefinitionEdit.Country(first.catalog.countries.getValue(2).copy(currencyOverride = null))))
+        assertEquals("제국마르크", store.load().currency(CountryId(2))?.name)
+    }
+
     @Test fun creationPresetCanBeOverriddenWithoutChangingTheOfficeOrShipStyle()=fixture {connect->
         val store=PostgresCountryDefinitions(connect)
         val before=store.load().catalog.families.getValue("new_empire")

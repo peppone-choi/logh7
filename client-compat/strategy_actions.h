@@ -68,6 +68,18 @@ static void sendStrategyAction(bool preview=false,unsigned cursor=0) {
     // The dispatcher subtracts one before its switch: case 0x45 (1200) uses selector 0x46.
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
 }
+static void readStrategyCurrency(void* record,unsigned flag,wchar_t (&name)[13],wchar_t (&symbol)[5]) {
+    wchar_t* text=flag==16 ? name : flag==17 && name[6] ? name+7 : flag==18 ? symbol : nullptr;
+    if(!text)return;
+    const unsigned count=flag==16 ? 7 : flag==17 ? 5 : 4;
+    // The native reader swaps each numeric field as a whole.
+    constexpr unsigned offsets[]={14,12,22,20,24,30,28};
+    for(unsigned index=0;index<count;++index) {
+        const auto value=at<const unsigned short>(record,offsets[index]);
+        if(value<0x20 || (value>=0x7f && value<=0x9f) || (value>=0xd800 && value<=0xdfff))break;
+        text[index]=static_cast<wchar_t>(value);
+    }
+}
 #include "outfit_formation.h"
 #include "civic_actions.h"
 #include "budget_actions.h"
@@ -134,7 +146,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(command==75 || command==80 || command==81) {espionageReport[0]=0;sendEspionageAction(true);}
     else if(espionageCommand(command))espionageReport[0]=0;
     if(command==89) {coupReport[0]=0;sendCoupAction(true);}
-    if(command==95) {fundReport[0]=0;sendFundAction(true);}
+    if(command==95) {fundWindow={};sendFundAction(true);}
     if(command==offlineSettingsCommand)openOfflineSettings(own);
     if(command==15 || command==21)sendGoalAction(true);
     if(command==35 || command==36)sendProductionAction(true);
@@ -394,6 +406,7 @@ static unsigned __fastcall readStrategyPeople(void* codec,void*,void* record,voi
             if(state.strategyCommand==96)state.strategyValue=(state.strategyArgument==0 || state.strategyArgument==4) && count ? state.strategyTarget-1 : 0;
             state.pending=false;
             state.message=transportCommand(state.strategyCommand) ? (count ? L"패키지를 고른 뒤 실행하십시오." : L"처리할 수송 패키지가 없습니다.") :
+                state.strategyCommand==95 ? (count ? L"대상과 금액을 확인한 뒤 실행하세요." : L"대상 종류를 바꿔 다른 투입처를 확인하세요.") :
                 count ? L"항목을 선택한 뒤 실행하십시오. 서버에서 조건을 다시 확인합니다." : L"이 페이지에 대상 인물이 없습니다. 목록 갱신으로 처음부터 조회합니다.";
         }
     }

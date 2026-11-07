@@ -39,7 +39,7 @@ class BudgetMessagesTest {
     @Test fun currencyLabelsUseTheAuthorizedResponseBeforeTheQuoteTerminator() {
         val q = BudgetMessages.query(request())
         val view = BudgetMessages.View(1049, 12000, 300, 50)
-        val label = BudgetMessages.CurrencyLabel("은하제국마르크시험통화명", "ℳK")
+        val label = StrategyCurrencyLabel("은하제국마르크시험통화명", "ℳK")
         val records = BudgetMessages.response(q, 0, view, label).dropLast(1).map(ByteBuffer::wrap)
         assertEquals(listOf(10, 11, 16, 17, 18, 12), records.map { it.get(22).toInt() })
         fun text(record: ByteBuffer): String {
