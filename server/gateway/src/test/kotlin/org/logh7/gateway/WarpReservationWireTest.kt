@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.persistence.FileWorldStateStore
 import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.NavigationMessages
 import java.nio.ByteBuffer
@@ -50,30 +51,32 @@ class WarpReservationWireTest {
 
     @Test fun blockedReservationDuringLoginWaitsForTheNativeGridBootstrap() = blockedReservation(reconnecting = true)
 
-    private fun blockedReservation(reconnecting: Boolean) = runBlocking<Unit> {
+    @Test fun offlineCancellationSurvivesRestartAndInterruptedDelivery() =
+        blockedReservation(reconnecting = false, offlineSettlement = true)
+
+    private fun blockedReservation(reconnecting: Boolean, offlineSettlement: Boolean = false) = runBlocking<Unit> {
         val base = GalaxyBase(1177, 2015, 80, 0, "Alliance", 0, 20f, 86400, 0, 0f, 2f)
         val world = Galaxy(galaxy.systems.map { it.copy(power = if (it.grid == 2487) 2 else 3) }, listOf(base), galaxy.starts)
-        var players = mapOf("load-001" to Navigator(1, 10001, Power.ALLIANCE, 2587, 1000, 1000, 1000))
-        var stocks = ActiveShips.initialize(PlanetStocks(1, 0, mapOf(1177 to PlanetStock(1177, 3, 0, 100, 200, 300)),
+        val players = mapOf("load-001" to Navigator(1, 10001, Power.ALLIANCE, 2587, 1000, 1000, 1000))
+        val stocks = ActiveShips.initialize(PlanetStocks(1, 0, mapOf(1177 to PlanetStock(1177, 3, 0, 100, 200, 300)),
             mapOf(1 to OutfitStock(1, 3, OutfitKind.FLEET, 1177, 10, 10001,
                 UnitInventory(mapOf(UnitStack(119) to 1)), position = OutfitPosition(2587))),
             mapOf(10 to OutfitWarehouse(10, 3, OutfitKind.FLEET, 1177, 1)), deploymentInitialized = true))
-        val navigation = object : NavigationStore {
-            override fun load() = players
-            override fun save(saved: Map<String, Navigator>) { players = saved.toMap() }
+        val stateDirectory = directory.resolve("world")
+        FileWorldStateStore(stateDirectory).use { it.saveWorld(players, stocks) }
+        fun fixture(store: FileWorldStateStore) = LoadFixture(directory, 2, LoadMetrics(), world, ticking = false,
+            stockStore = store.stockStore, navigationStore = store.navigationStore, worldStateCommitter = store,
+            powerByIndex = { if (it == 0) 2 else 3 })
+        fun boot(client: SyntheticClient) {
+            client.send(SyntheticClient.opcode(0x0f00)); until(client, 0x0f01)
+            client.send(SyntheticClient.opcode(0x0f02)); until(client, 0x0f03)
+            client.send(SyntheticClient.opcode(0x0300)); until(client, 0x0301)
         }
-        val inventory = object : PlanetStockStore {
-            override fun load() = stocks
-            override fun save(saved: PlanetStocks) { stocks = saved }
+        fun assertNotice(client: SyntheticClient) {
+            val notice = until(client, 0x0f1d).array()
+            assertEquals(ChatMessages.Spot(10000, "[워프] 진입 불가·CP 미환불"), ChatMessages.spot(notice.copyOfRange(4, notice.size)))
         }
-        val committer = object : WorldStateCommitter {
-            override fun saveWorld(navigation: Map<String, Navigator>, inventory: PlanetStocks?) {
-                players = navigation.toMap(); stocks = checkNotNull(inventory)
-            }
-        }
-        LoadFixture(directory, 2, LoadMetrics(), world, ticking = false, stockStore = inventory,
-            navigationStore = navigation, worldStateCommitter = committer,
-            powerByIndex = { if (it == 0) 2 else 3 }).use { fixture ->
+        FileWorldStateStore(stateDirectory).use { store -> fixture(store).use firstRun@{ fixture ->
             var pilot = fixture.join(fixture.account(0), true, false).client
             val rival = fixture.join(fixture.account(1), true, false).client
             for (client in listOf(pilot, rival)) {
@@ -85,22 +88,24 @@ class WarpReservationWireTest {
             warp(rival, 2588, 10001, 195)
             assertEquals(2588, until(rival, 0x0b07).getInt(14))
             assertEquals(OutfitPosition(2588), fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).position)
-            if (reconnecting) {
+            if (reconnecting || offlineSettlement) {
                 pilot.close()
                 fixture.awaitState(online = 1, connections = 1, participants = 2)
-                pilot = fixture.join(fixture.account(0), false, false).client
+                if (reconnecting) pilot = fixture.join(fixture.account(0), false, false).client
             }
             fixture.engine.submit(WorldCommand.AdvanceTo(200_000))
+            if (offlineSettlement) {
+                val offline = fixture.engine.synchronizeTime().navigators.getValue(fixture.account(0))
+                assertEquals(NavigationRejection.GRID, offline.offlineWarpCancellation)
+                assertNull(offline.warpTarget); assertEquals(920, offline.mcp)
+                assertEquals(2487, offline.grid); assertEquals(1000, offline.cruise)
+                return@firstRun
+            }
             pilot.send(SyntheticClient.opcode(0x0300))
             val moved = until(pilot, 0x0b07)
             assertEquals(2487, moved.getInt(14)); assertEquals(1000, moved.getInt(29))
-            if (reconnecting) {
-                pilot.send(SyntheticClient.opcode(0x0f00)); until(pilot, 0x0f01)
-                pilot.send(SyntheticClient.opcode(0x0f02)); until(pilot, 0x0f03)
-                pilot.send(SyntheticClient.opcode(0x0300)); until(pilot, 0x0301)
-            }
-            val notice = until(pilot, 0x0f1d).array()
-            assertEquals(ChatMessages.Spot(10000, "[워프] 진입 불가·CP 미환불"), ChatMessages.spot(notice.copyOfRange(4, notice.size)))
+            if (reconnecting) boot(pilot)
+            assertNotice(pilot)
             val cancelled = fixture.engine.snapshot().navigators.getValue(fixture.account(0))
             assertNull(cancelled.warpTarget); assertEquals(920, cancelled.mcp)
             assertEquals(1000, cancelled.cruise); assertEquals(0L, cancelled.moves)
@@ -108,6 +113,31 @@ class WarpReservationWireTest {
             assertEquals(2488, until(pilot, 0x0b07).getInt(14))
             val arrived = fixture.engine.snapshot().navigators.getValue(fixture.account(0))
             assertEquals(880, arrived.mcp); assertEquals(900, arrived.cruise); assertEquals(1L, arrived.moves)
-        }
+        } }
+        if (!offlineSettlement) return@runBlocking
+        FileWorldStateStore(stateDirectory).use { store -> fixture(store).use restarted@{ fixture ->
+            val account = fixture.account(0)
+            assertEquals(NavigationRejection.GRID, store.loadNavigation().getValue(account).offlineWarpCancellation)
+            val first = fixture.join(account, false, false).client
+            boot(first); assertNotice(first)
+            first.close()
+            fixture.awaitState(online = 0, connections = 0, participants = 1)
+            assertEquals(NavigationRejection.GRID, store.loadNavigation().getValue(account).offlineWarpCancellation)
+            val second = fixture.join(account, false, false).client
+            boot(second); assertNotice(second)
+            second.send(SyntheticClient.opcode(0x0300)); until(second, 0x0301)
+            assertNull(store.loadNavigation().getValue(account).offlineWarpCancellation)
+            second.close()
+            fixture.awaitState(online = 0, connections = 0, participants = 1)
+            val third = fixture.join(account, false, false).client
+            boot(third)
+            third.send(SyntheticClient.opcode(0x0300))
+            repeat(300) {
+                val opcode = ByteBuffer.wrap(third.receive()).getShort(4).toInt()
+                assertNotEquals(0x0f1d, opcode)
+                if (opcode == 0x0301) return@restarted
+            }
+            error("No clock response")
+        } }
     }
 }
