@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.ChatMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
@@ -45,15 +46,18 @@ class CompletenessSupplyWireTest {
     private fun request(from:Int=1,to:Int=2)=ByteBuffer.allocate(32).putShort(0x0c01)
         .putInt(-1).putInt(10000).putInt(Int.MAX_VALUE).putInt(Int.MAX_VALUE)
         .putInt(from).putInt(to).putInt(Int.MAX_VALUE).put(0).put(0).array()
-    private fun acknowledge(client:SyntheticClient,accepted:Boolean) {
+    private fun acknowledge(client:SyntheticClient,accepted:Boolean,notice:String) {
         val packet=ByteBuffer.wrap(client.receive())
         assertEquals(0x0c01,packet.getShort(4).toInt())
         assertEquals(if(accepted)0 else 1,packet.int)
         assertEquals(1000,packet.getInt(14));assertEquals(840,packet.getInt(18))
+        if(accepted) assertEquals(1,packet.getInt(22))
         assertEquals(if(accepted)2 else 0,packet.getInt(26))
         assertEquals(if(accepted)1000 else 0,packet.getInt(30))
         client.expect(0x0356)
         if(accepted) {client.expect(0x032f);client.expect(0x032f)}
+        val message=client.expect(0x0f1d)
+        assertEquals("[보급] $notice",ChatMessages.spot(message.copyOfRange(4,message.size)).text)
     }
     private fun unitSupplies(client:SyntheticClient,id:Int):Int {
         client.send(ByteBuffer.allocate(10).putShort(0x0330).putInt(id).putInt(1049).array())
@@ -75,15 +79,15 @@ class CompletenessSupplyWireTest {
             assertEquals(1,directory.getShort(6).toInt());assertEquals(0,directory.getInt(8))
             assertEquals(450*760,directory.getInt(12))
             assertEquals(2,directory.getInt(16));client.expect(0x1201)
-            client.send(request());acknowledge(client,true)
+            client.send(request(from=0));acknowledge(client,true,"1000 이전 · MCP -160")
             assertEquals(0,state.stocks.outfits.getValue(1).supplies)
             assertEquals(1000,state.stocks.outfits.getValue(2).supplies)
             assertEquals(0,unitSupplies(client,1));assertEquals(1000,unitSupplies(client,2))
             assertEquals(0,unitSupplies(client,3))
             val saves=state.saves
-            client.send(request());acknowledge(client,true)
+            client.send(request());acknowledge(client,true,"보급원 물자 없음 · 비용 0")
             assertEquals(saves,state.saves);assertEquals(840,state.players.getValue("load-000").mcp)
-            client.send(request(to=999));acknowledge(client,false)
+            client.send(request(to=999));acknowledge(client,false,"대상·수송 지휘권 확인")
             assertEquals(saves,state.saves)
         }
         fixture(state,"reopen").use { server ->

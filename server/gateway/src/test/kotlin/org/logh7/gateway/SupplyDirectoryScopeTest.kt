@@ -60,4 +60,20 @@ class SupplyDirectoryScopeTest {
         assertEquals(100,stocks.bases.getValue(1049).supplies)
         assertEquals(290,stocks.outfits.getValue(2).activeShips!!.values.single().boats)
     }
+
+    @Test fun departedSourceOrTargetIsExcludedEvenWhenItsHomeBaseMatches() {
+        for (id in listOf(1, 2)) {
+            val departed = stocks.outfits.getValue(id).copy(position = OutfitPosition(2487))
+            val inventory = stocks.copy(outfits = stocks.outfits + (id to departed))
+            assertTrue(scope(42).supply(inventory, 10000, 2487).isEmpty())
+        }
+    }
+
+    @Test fun visitingOutfitsAreListedAtTheirCurrentFriendlyPort() {
+        val port = OutfitPosition(2487, 1051)
+        val visitors = listOf(1, 2).associateWith { stocks.outfits.getValue(it).copy(position = port) }
+        val inventory = stocks.copy(outfits = stocks.outfits + visitors,
+            bases = stocks.bases + (1051 to stocks.bases.getValue(1051).copy(owner = Allegiance.Country(CountryId(42)))))
+        assertEquals(listOf(2), scope(42).supply(inventory, 10000, 2487).map { it.id })
+    }
 }

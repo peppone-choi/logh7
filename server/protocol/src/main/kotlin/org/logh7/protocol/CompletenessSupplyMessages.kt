@@ -19,14 +19,14 @@ object CompletenessSupplyMessages {
             repeat(count) {b.int;b.int} // Client-provided outcome fields cannot mutate unit stock.
         }
         skipResults(26);skipResults(70)
-        require(!b.hasRemaining() && character>0 && from>0 && to>0 && from!=to)
+        require(!b.hasRemaining() && character>0 && from>=0 && to>0 && from!=to)
         return Query(character,from,to)
     }
 
     fun response(q:Query,seconds:Long,pcp:Int,mcp:Int,toSupplies:Int,
         fromUnits:List<UnitSupply>,toUnits:List<UnitSupply>,accepted:Boolean):ByteArray {
         require(seconds in 0..0xffffffffL && pcp>=0 && mcp>=0 && toSupplies>=0)
-        require(q.character>0 && q.from>0 && q.to>0 && q.from!=q.to)
+        require(q.character>0 && q.from>=0 && q.to>0 && q.from!=q.to && (!accepted || q.from>0))
         require(fromUnits.size<=26 && toUnits.size<=70)
         val units=fromUnits+toUnits
         require(units.all {it.unit>0 && it.supplies>=0} && units.distinctBy {it.unit}.size==units.size)

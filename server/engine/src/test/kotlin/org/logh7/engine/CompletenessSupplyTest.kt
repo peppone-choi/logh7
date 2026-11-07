@@ -80,6 +80,31 @@ class CompletenessSupplyTest {
         assertNull(result.rejection); assertEquals(0, result.player!!.pcp); assertEquals(0, result.player.mcp)
     }
 
+    @Test fun aFriendlyPortCanSupplyVisitingOutfitsButNotAnOutfitThatDeparted() {
+        val atPort = OutfitPosition(2488, 1050)
+        val stock = stocks().let { it.copy(outfits = it.outfits.mapValues { (_, outfit) -> outfit.copy(position = atPort) }) }
+        val visitor = player.copy(grid = 2488, baseId = 1050)
+        val supplied = CompletenessSupply.evaluate(request, session, visitor, stock)
+        assertNull(supplied.rejection)
+        assertEquals(capacity, supplied.transferred)
+        assertEquals(atPort, supplied.stocks!!.outfits.getValue(2).position)
+        val departed = stock.copy(outfits = stock.outfits + (2 to stock.outfits.getValue(2).copy(position = OutfitPosition(2488))))
+        assertEquals(LogisticsRejection.LOCATION, CompletenessSupply.evaluate(request, session, visitor, departed).rejection)
+    }
+
+    @Test fun omittedSourceRequiresExactlyOneCommandedTransportAtThePort() {
+        val request = request.copy(from = 0)
+        val stock = stocks()
+        val second = OutfitStock(3, 2, OutfitKind.TRANSPORT, 1049, 103, player.characterId)
+        val ambiguous = stock.copy(outfits = stock.outfits + (3 to second),
+            warehouses = stock.warehouses + (103 to OutfitWarehouse(103, 2, OutfitKind.TRANSPORT, 1049, 3)))
+        val refused = CompletenessSupply.evaluate(request, session, player, ambiguous)
+        assertEquals(LogisticsRejection.OUTFIT, refused.rejection)
+        assertEquals(player, refused.player)
+        assertEquals(ambiguous, refused.stocks)
+        assertEquals(1, CompletenessSupply.evaluate(request, session, player, stock).source)
+    }
+
     @Test fun perUnitProjectionIsStableConservesBulkCargoAndNeverExceedsCapacity() {
         val outfit = stocks(destination = capacity + 7).outfits.getValue(2)
         val result = OutfitSupplies.distribution(outfit)

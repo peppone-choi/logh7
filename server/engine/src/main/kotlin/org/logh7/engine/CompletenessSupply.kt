@@ -11,7 +11,7 @@ data class CompletenessSupplyRequest(val account: String, val connection: String
 
 data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetStocks?,
     val rejection: LogisticsRejection? = null, val transferred: Int = 0,
-    val recovery: NavigationResult? = null) {
+    val recovery: NavigationResult? = null, val payment: PaymentResult.Paid? = null, val source: Int = 0) {
     val changed: Boolean get() = transferred > 0
 }
 
@@ -30,14 +30,19 @@ internal object CompletenessSupply {
         if (player == null || player.generation != r.generation || player.characterId != r.characterId ||
             player.country != r.country || member.country != r.country) return reject(LogisticsRejection.IDENTITY)
         val country = r.country ?: return reject(LogisticsRejection.ACCESS)
-        val from = stocks.outfits[r.from] ?: return reject(LogisticsRejection.OUTFIT)
+        // The CD sends zero if the actor's current outfit is ambiguous among their offices.
+        val from = if (r.from != 0) stocks.outfits[r.from] else stocks.outfits.values.singleOrNull {
+            it.country == country && it.kind == OutfitKind.TRANSPORT && it.commanderId == r.characterId &&
+                (it.position?.baseId ?: it.baseId) == player.baseId
+        }
+        if (from == null) return reject(LogisticsRejection.OUTFIT)
         val to = stocks.outfits[r.to] ?: return reject(LogisticsRejection.OUTFIT)
         if (from.id == to.id) return reject(LogisticsRejection.OUTFIT)
         if (from.country != country || to.country != country || from.kind != OutfitKind.TRANSPORT || from.commanderId != r.characterId)
             return reject(LogisticsRejection.ACCESS)
-        val base = stocks.bases.getValue(from.baseId)
-        if (base.country != country || base.camp != 0 || from.baseId != to.baseId || player.baseId != from.baseId ||
-            (from.position?.baseId ?: from.baseId) != from.baseId || (to.position?.baseId ?: to.baseId) != to.baseId)
+        val base = stocks.bases[player.baseId]
+        if (base?.country != country || base.camp != 0 ||
+            (from.position?.baseId ?: from.baseId) != player.baseId || (to.position?.baseId ?: to.baseId) != player.baseId)
             return reject(LogisticsRejection.LOCATION)
         if (player.cpPaused || player.navigationPending)
             return reject(LogisticsRejection.BUSY)
@@ -49,13 +54,13 @@ internal object CompletenessSupply {
         if (to.supplies > maximum || from.supplies > OutfitSupplies.capacity(from))
             return reject(LogisticsRejection.STOCK)
         val amount = minOf(from.supplies, maximum - to.supplies)
-        if (amount == 0) return CompletenessSupplyResult(player, stocks)
+        if (amount == 0) return CompletenessSupplyResult(player, stocks, source = from.id)
         val paid = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), 160, CpPool.MCP)
         if (paid !is PaymentResult.Paid) return reject(LogisticsRejection.CP)
         val after = player.paidWith(paid.balance)
         val next = stocks.copy(outfits = stocks.outfits + mapOf(
             from.id to from.copy(supplies = from.supplies - amount),
             to.id to to.copy(supplies = Math.addExact(to.supplies, amount))))
-        return CompletenessSupplyResult(after, next, transferred = amount)
+        return CompletenessSupplyResult(after, next, transferred = amount, payment = paid, source = from.id)
     }
 }
