@@ -163,6 +163,7 @@ static void resetCountryEndings();
 #include "ground_battle_panel.h"
 #include "outfit_list_columns.h"
 #include "game_admission.h"
+#include "session_route_failure.h"
 #include "lobby_selection_recovery.h"
 #include "outfit_information.h"
 #include "outfit_warnings.h"
@@ -638,7 +639,7 @@ static void install() {
     for (unsigned address : cardGroups)
         if (*reinterpret_cast<BYTE*>(address) != oldCardGroup) { status = -2; return; }
     if (!installSessionEnding() || !installLobbyCountryTransport() || !installLobbyCountryIconDraw()) { status = -3; return; }
-    if (!installCreationMenus() || !installGameAdmission()) { status = -3; return; }
+    if (!installCreationMenus() || !installGameAdmission() || !installSessionRouteFailure()) { status = -3; return; }
     if (!installPlanetInformation()) { status = -3; return; }
     if (!installOutfitInformation()) { status = -3; return; }
     if (!installOutfitListColumns()) { status = -3; return; }
