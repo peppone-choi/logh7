@@ -51,4 +51,14 @@ object ChatMessages {
         message.text.forEach(out::putChar)
         return LoginMessages.sessionMessage(0x0f1c, out.array())
     }
+
+    /** Native NotifyInvalidMessage. Keep the trailing NUL and the reader's extra NUL within 128 units. */
+    fun invalidCommand(opcode: Int, text: String): ByteArray {
+        require(opcode in 1..0xffff)
+        require(text.length in 1..126 && text.none { it.isSurrogate() || it.isISOControl() })
+        val out = ByteBuffer.allocate(4 + (text.length + 1) * 2)
+            .putShort(opcode.toShort()).put(0).put((text.length + 1).toByte())
+        text.forEach(out::putChar)
+        return LoginMessages.sessionMessage(0x0500, out.putChar('\u0000').array())
+    }
 }

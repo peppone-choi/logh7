@@ -108,9 +108,8 @@ object MailMessages {
     /** 004391f0 reader: type:u16, error:raw u8, count:u8, UTF-16BE.
      * type=failed opcode/error=0 is our correlation policy, not a recovered enum.
      * Dispatch adds another NUL at count; keep that inside its 128-unit array. */
-    fun rejected(opcode:Int,message:String)=packet(0x0500) {
+    fun rejected(opcode:Int,message:String):ByteArray {
         require(opcode in listOf(0x0f06,0x0f08,0x0f0b,0x0f0c,0x0f0d,0x0f0e,0x0f0f,0x0f10,0x0f11,0x0f12))
-        require(message.isNotEmpty() && message.length<=126 && message.none {it=='\u0000' || it.isSurrogate() || it.isISOControl()})
-        putShort(opcode.toShort());put(0);text(message,128)
+        return ChatMessages.invalidCommand(opcode,message)
     }
 }
