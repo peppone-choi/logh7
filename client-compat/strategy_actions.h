@@ -150,7 +150,7 @@ static BYTE openStrategyAction(void* manager,int command,unsigned card) {
     if(command==offlineSettingsCommand)openOfflineSettings(own);
     if(command==15 || command==21)sendGoalAction(true);
     if(productionCommand(command)) {
-        productionQuote={};
+        productionQuote={};productionProgress={};
         if(command==35 || command==36)sendProductionAction(true);
     }
     if(command==233)sendSuccessionAction(true);

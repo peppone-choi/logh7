@@ -57,6 +57,19 @@ class UnitProductionTest {
         val fortress = galaxy.bases.single().copy(kind = 1)
         assertTrue(Places.forBase(fortress, 2).any { it.kind == 10 })
     }
+    @Test fun aRebuiltShipyardJoinsAutomaticProductionAtTheAbsoluteWorldClock() {
+        val start=SessionRules.load().startSeconds
+        val base=1049
+        val existing=PlanetProduction(galaxy,null,start,policy).settle(1,start)
+        val built=existing.copy(social=existing.social.copy(production=ProductionState(
+            built=mapOf(base to start+86400L+1),destroyed=setOf(base))))
+        val production=PlanetProduction(galaxy,null,start,policy,restored=built)
+        assertNull(production.settle(1,start+86400).bases.getValue(base).units.work["S32"])
+        assertEquals(24,production.settle(1,start+2*86400).bases.getValue(base).units.work["S32"])
+        val after=production.settle(1,start+5*86400)
+        assertEquals(1,after.bases.getValue(base).units.ships[UnitStack(32)])
+        assertEquals(after,PlanetProduction(galaxy,null,start,policy,restored=after).settle(1,start+5*86400))
+    }
     @Test fun shortagesCapacityAndNeutralOrRebelOwnerDoNotMintUnitsOrChargeFailedBatches() {
         val producer = producer(); val before = initial()
         for (stock in listOf(before.copy(owner=Allegiance.fromLegacy(0)), before.copy(camp = 1),
