@@ -28,6 +28,10 @@ struct SystemAffiliation {
         return mixed ? 11 : affiliation;
     }
 };
+inline unsigned systemEmblemAffiliation(unsigned affiliation,unsigned emblem) {
+    if(affiliation>=4 && affiliation<=7 && (emblem==2 || emblem==3))return emblem*2+(affiliation&1);
+    return affiliation;
+}
 inline unsigned systemAffiliationRgb(unsigned affiliation) {
     if (affiliation==10) return 0xffffff; // unknown: retain original white
     if (affiliation==11) return 0xd090ff; // mixed: purple

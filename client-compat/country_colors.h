@@ -86,7 +86,7 @@ static void pollCountryPaint(void* world) {
             }
             ReleaseSRWLockShared(&tacticalCampLock);
             inbox.pending=ids[(inbox.cursor/2)%count];
-            inbox.mode=inbox.cursor++%2 ? (at<BYTE>(world,0x126718) ? 16u : 5u) : 4u;
+            inbox.mode=inbox.cursor++%2 ? 16u : 4u;
         }
         if(inbox.pending) {
             inbox.nonce=(inbox.nonce%65535)+1;inbox.sentAt=now;inbox.pollAt=now+1000;

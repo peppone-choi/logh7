@@ -39,6 +39,7 @@ static unsigned __cdecl systemNameColor(const char* name,unsigned color) {
     for (unsigned i=0;i<5000;++i) if (world[0x2c03cc+i]==kind) {grid=i;break;}
     if (grid==5000) return color;
     unsigned country=0,affiliation=systemGridAffiliation(world,grid,&country);
+    affiliation=logh::systemEmblemAffiliation(affiliation,runtimeCountryEmblem(country));
     unsigned rgb=logh::systemAffiliationRgb(affiliation);
     if (affiliation>=4 && affiliation<=7) {
         auto palette=reinterpret_cast<const BYTE*>(0x771f68)+affiliation*3;
@@ -63,6 +64,7 @@ static void drawSystemAffiliationIcons(void* map) {
         float alpha=at<float>(node,0x38);
         if (!_finite(alpha) || alpha<=0) continue;
         unsigned country=0,affiliation=systemGridAffiliation(world,grid,&country);
+        affiliation=logh::systemEmblemAffiliation(affiliation,runtimeCountryEmblem(country));
         if (affiliation>9 || !sprites[affiliation]) continue; // no invented mixed/unknown glyph
         float position[3],screen[3];
         // Verified cdecl helpers: identical origin/projection to the original name.

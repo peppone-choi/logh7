@@ -1246,6 +1246,12 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::systemAffiliationRgb(4)!=0x4080ff || logh::systemAffiliationRgb(6)!=0x00dc80 ||
         logh::systemAffiliationRgb(5)!=0x40c0ff || logh::systemAffiliationRgb(7)!=0xffff40 ||
         logh::systemAffiliationRgb(11)==logh::systemAffiliationRgb(7)) return 81;
+    // Additional countries can share native power 3 while using Empire assets.
+    if(logh::systemEmblemAffiliation(6,2)!=4 || logh::systemEmblemAffiliation(7,2)!=5 ||
+        logh::systemEmblemAffiliation(4,3)!=6 || logh::systemEmblemAffiliation(5,3)!=7 ||
+        logh::systemEmblemAffiliation(6,0)!=6 || logh::systemEmblemAffiliation(4,42)!=4 ||
+        logh::systemEmblemAffiliation(0,2)!=0 || logh::systemEmblemAffiliation(8,3)!=8 ||
+        logh::systemEmblemAffiliation(10,2)!=10 || logh::systemEmblemAffiliation(11,3)!=11)return 81;
     if(!sessionEndingDataTest())return 86;
     if (!groundLocationPageTest()) return 85;
     if (!tacticalMotionOriginsTest()) return 81;
