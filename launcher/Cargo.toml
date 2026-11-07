@@ -5,6 +5,10 @@ edition = "2024"
 rust-version = "1.85"
 publish = false
 
+[dependencies]
+rustls-native-certs = "0.8"
+ureq = { version = "3.5.1", default-features = false, features = ["rustls"] }
+
 [profile.release]
 strip = true
 lto = true

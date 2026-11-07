@@ -1,9 +1,7 @@
 //! 패치 내려받기. 작성: Peppone Choi.
 //!
-//! `http://host:port/경로/` 아래의 `patch.manifest`와 그 목록의 파일을 새 디렉터리로 받는다.
-//! 외부 크레이트 없이 HTTP/1.0 GET만 쓰므로 TLS는 없다. 공개 배포에서는 같은 목록을
-//! HTTPS 프록시 뒤에 두거나 목록 해시를 다른 경로로 확인해야 한다. 받은 파일은 목록의
-//! SHA-256과 대조하고, 하나라도 다르면 실패한다(적용 전 `patch::apply`도 다시 확인한다).
+//! HTTPS 또는 시험용 HTTP에서 `patch.manifest`와 그 목록의 파일을 받는다.
+//! 받은 파일은 목록의 SHA-256과 대조한다. `patch::apply`도 적용 전에 다시 확인한다.
 use crate::patch::sha256;
 use std::{
     fs,
@@ -15,10 +13,84 @@ use std::{
 
 const LIMIT: usize = 256 << 20;
 
-fn get(base: &str, relative: &str) -> Result<Vec<u8>, String> {
+fn https_agent(base: &str) -> Result<ureq::Agent, String> {
+    use ureq::tls::{Certificate, RootCerts, TlsConfig};
+    let uri = base
+        .parse::<ureq::http::Uri>()
+        .map_err(|_| "HTTPS 패치 주소 형식이 올바르지 않습니다")?;
+    if !base.is_ascii()
+        || base.contains(['#', '?', '\\'])
+        || uri
+            .authority()
+            .is_none_or(|host| host.as_str().contains('@'))
+    {
+        return Err("HTTPS 패치 주소 형식이 올바르지 않습니다".into());
+    }
+    let roots = rustls_native_certs::load_native_certs();
+    if roots.certs.is_empty() {
+        return Err("HTTPS 패치 서버를 확인할 신뢰 인증서를 읽지 못했습니다".into());
+    }
+    let roots = RootCerts::from(
+        roots
+            .certs
+            .iter()
+            .map(|cert| Certificate::from_der(cert.as_ref()).to_owned()),
+    );
+    let timeout = Some(Duration::from_secs(30));
+    Ok(ureq::Agent::config_builder()
+        .https_only(true)
+        .max_redirects(0)
+        .timeout_resolve(timeout)
+        .timeout_connect(timeout)
+        .timeout_recv_response(timeout)
+        .timeout_per_read(timeout)
+        .timeout_per_write(timeout)
+        .tls_config(TlsConfig::builder().root_certs(roots).build())
+        .build()
+        .new_agent())
+}
+
+fn get_https(agent: &ureq::Agent, base: &str, relative: &str) -> Result<Vec<u8>, String> {
+    use std::fmt::Write as _;
+    let mut url = format!("{}/", base.trim_end_matches('/'));
+    for byte in relative.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-._~/".contains(&byte) {
+            url.push(char::from(byte));
+        } else {
+            write!(url, "%{byte:02X}").expect("writing to a String cannot fail");
+        }
+    }
+    let mut reply = agent
+        .get(url)
+        .call()
+        .map_err(|error| format!("HTTPS 패치 요청 실패: {relative} ({error})"))?;
+    if reply.status() != 200 {
+        return Err(format!("패치 서버 응답 {}: {relative}", reply.status()));
+    }
+    if reply
+        .body()
+        .content_length()
+        .is_some_and(|length| length > LIMIT as u64)
+    {
+        return Err(format!("패치 파일이 너무 큽니다: {relative}"));
+    }
+    let mut body = Vec::new();
+    reply
+        .body_mut()
+        .as_reader()
+        .take((LIMIT + 1) as u64)
+        .read_to_end(&mut body)
+        .map_err(|error| format!("HTTPS 패치 응답을 읽지 못했습니다: {relative} ({error})"))?;
+    if body.len() > LIMIT {
+        return Err(format!("패치 파일이 너무 큽니다: {relative}"));
+    }
+    Ok(body)
+}
+
+fn get_http(base: &str, relative: &str) -> Result<Vec<u8>, String> {
     let rest = base
         .strip_prefix("http://")
-        .ok_or("패치 주소는 http://로 시작해야 합니다")?;
+        .ok_or("패치 주소는 https:// 또는 http://로 시작해야 합니다")?;
     let (authority, prefix) = rest.split_once('/').unwrap_or((rest, ""));
     let address = if authority.contains(':') {
         authority.to_string()
@@ -111,7 +183,15 @@ pub fn download(
     if out.exists() {
         return Err(format!("받을 디렉터리가 이미 있습니다: {}", out.display()));
     }
-    let manifest = get(base, "patch.manifest")?;
+    let https = base
+        .starts_with("https://")
+        .then(|| https_agent(base))
+        .transpose()?;
+    let get = |relative: &str| match &https {
+        Some(agent) => get_https(agent, base, relative),
+        None => get_http(base, relative),
+    };
+    let manifest = get("patch.manifest")?;
     if let Some(expected) = expected {
         if sha256(&manifest) != expected.to_ascii_lowercase() {
             return Err("패치 목록 해시가 고정값과 다릅니다. 받지 않았습니다".into());
@@ -119,7 +199,7 @@ pub fn download(
     }
     let signature = match trusted {
         Some(key) => {
-            let signature = get(base, "patch.manifest.sig")?;
+            let signature = get("patch.manifest.sig")?;
             let text =
                 String::from_utf8(signature.clone()).map_err(|_| "서명 파일 형식이 아닙니다")?;
             crate::signature::verify(key, &manifest, &text)?;
@@ -183,7 +263,7 @@ pub fn download(
         eprintln!("이어받기: 이미 받은 파일 {reused}개를 다시 쓰고 나머지만 받습니다");
     }
     for (relative, hash) in pending {
-        let data = get(base, relative)?;
+        let data = get(relative)?;
         if sha256(&data) != *hash {
             return Err(format!("받은 파일 해시가 목록과 다릅니다: {relative}"));
         }
@@ -334,7 +414,7 @@ file	exe/dinput8.dll	11
                     .exists()
         );
         let _ = fs::remove_dir_all(out.with_extension("partial"));
-        assert!(download("https://example.invalid/", &out, None, None).is_err());
+        assert!(download("https://127.0.0.1/patch?x=y", &out, None, None).is_err());
     }
 
     #[test]
