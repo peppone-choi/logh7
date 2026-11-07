@@ -72,7 +72,9 @@ input[aria-invalid="true"] { border-color: var(--error); }
 .form-note { margin-block-start: .4rem; }
 .error { color: var(--error); font-size: .875rem; }
 .submission .error:not(:empty) { margin-block-end: .75rem; }
+.submission-status:not(:empty) { margin-block-end: .75rem; }
 .submission .submit { inline-size: 100%; }
+.registration-footer { margin-block-start: 1rem; }
 .submit { background: var(--accent); border-color: transparent; color: var(--page); }
 .submit[aria-disabled="true"] { cursor: wait; }
 @media (hover: hover) {
