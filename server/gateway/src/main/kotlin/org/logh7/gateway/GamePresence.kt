@@ -198,6 +198,7 @@ class GamePresence {
                     .take(10).ifBlank {"거점 ${event.base}"}
                 val winner=result.survivingCountry
                 val outcome=when {
+                    result.withdrawal->"철수로 종료"
                     winner==null->"생존 병력 없음"
                     winner==viewer.player.country->"아군 승리"
                     else->(countryName(winner)?.filterNot {it.isSurrogate() || it.isISOControl()}?.take(10)

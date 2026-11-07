@@ -5,7 +5,7 @@ package org.logh7.engine
 data class GroundBattleResult(val generation:Long,val grid:Int,val base:Int,val seconds:Long,
     val damaged:List<Int>,val destroyed:List<Int>,val recipients:Map<Int,String>,val conclusion:GroundBattleConclusion?=null)
 
-data class GroundBattleConclusion(val survivingCountry:CountryId?)
+data class GroundBattleConclusion(val survivingCountry:CountryId?,val withdrawal:Boolean=false)
 
 /** Public read of who actually fights on a base (manual p.51: 30 units per side; the rest wait in reserve). */
 object GroundBattleView {
@@ -27,14 +27,26 @@ internal object GroundBattleOperations {
     fun contested(stocks:PlanetStocks,base:GalaxyBase)=sides(stocks,base).size>1
 
     fun advance(session:SessionState,galaxy:Galaxy,players:Map<String,Navigator>,stocks:PlanetStocks,
-        scale:Long,events:MutableList<GroundBattleResult>):PlanetStocks {
+        scale:Long,events:MutableList<GroundBattleResult>,withdrawals:Set<Int> = emptySet()):PlanetStocks {
         if(session.ended!=null)return stocks
         require(scale in 1..86400)
         val now=session.gameMillis/1000;val step=5*scale
         var next=stocks
         val clocks=stocks.groundBattles.toMutableMap()
         for(base in galaxy.bases.sortedBy {it.id}) {
-            if(!contested(next,base)){clocks.remove(base.id);continue}
+            fun emit(seconds:Long,damaged:List<Int>,destroyed:List<Int>,conclusion:GroundBattleConclusion?) {
+                val recipients=session.participants.mapNotNull {(account,member)->players[account]?.takeIf {
+                    member.online && member.connection!=null && it.generation==session.generation &&
+                        it.cpPaused && it.baseId==0 && it.grid==base.grid
+                }?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
+                events+=GroundBattleResult(session.generation,base.grid,base.id,seconds,damaged,destroyed,recipients,conclusion)
+            }
+            val present=sides(next,base)
+            if(present.size<=1) {
+                clocks.remove(base.id)
+                if(base.id in withdrawals)emit(now,emptyList(),emptyList(),GroundBattleConclusion(present.singleOrNull()?.first,withdrawal=true))
+                continue
+            }
             var at=clocks[base.id] ?: now
             val damaged=linkedSetOf<Int>();val destroyed=linkedSetOf<Int>()
             // Bound each actor pass; the durable clock retains unprocessed exchanges.
@@ -82,12 +94,8 @@ internal object GroundBattleOperations {
             val survivors=sides(next,base)
             if(survivors.size>1)clocks[base.id]=at else clocks.remove(base.id)
             if(damaged.isNotEmpty()) {
-                val recipients=session.participants.mapNotNull {(account,member)->players[account]?.takeIf {
-                    member.online && member.connection!=null && it.generation==session.generation &&
-                        it.cpPaused && it.baseId==0 && it.grid==base.grid
-                }?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
                 val conclusion=if(survivors.size<=1)GroundBattleConclusion(survivors.singleOrNull()?.first) else null
-                events+=GroundBattleResult(session.generation,base.grid,base.id,at,damaged.toList(),destroyed.toList(),recipients,conclusion)
+                emit(at,damaged.toList(),destroyed.toList(),conclusion)
             }
         }
         // Orders end with either troop: a destroyed, withdrawn or re-embarked unit no longer holds or receives one.

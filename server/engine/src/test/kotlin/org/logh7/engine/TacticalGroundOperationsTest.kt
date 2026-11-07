@@ -52,6 +52,35 @@ class TacticalGroundOperationsTest {
         assertTrue(s.stocks.outfits.getValue(1).activeGround!!.values.filter {it.id in 2..3}.all {it.carrier==1 && it.base==0 && it.origin==0})
         assertEquals(0,TacticalBaseDefense.strength(s.stocks,1000));assertEquals(1000,s.stocks.nextShipId)
     }
+    @Test fun onlyWithdrawalOfTheLastOpposingTroopsEndsTheBattleAfterCommit() {
+        for ((defenders,opposed) in listOf(0 to true,1 to true,0 to false)) {
+            val s=state(defenders)
+            val own=s.stocks.outfits.getValue(1)
+            val landed=ActiveGroundUnits(own.activeGround!!.values.map {
+                if(it.carrier==1)it.copy(carrier=0,base=1000,origin=1) else it
+            })
+            val enemy=ActiveGroundUnits(listOf(ActiveGroundUnit(50,UnitStack(4),base=1000)))
+            val outfits=mapOf(1 to own.copy(activeGround=landed)) + (if(opposed)mapOf(
+                9 to OutfitStock(9,3,OutfitKind.GROUND,1000,11,units=UnitInventory(troops=enemy.quantities()),activeGround=enemy)) else emptyMap())
+            s.stocks=s.stocks.copy(outfits=outfits,warehouses=s.stocks.warehouses+(11 to OutfitWarehouse(11,3,OutfitKind.GROUND,1000)),
+                bases=s.stocks.bases+(1000 to PlanetStock(1000,if(opposed)3 else 2,0,0,0,0)),
+                groundBattles=if(opposed)mapOf(1000 to now+1800) else emptyMap())
+            val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+            assertNotNull(accept(s,n,p,request(TacticalGroundAction.WITHDRAW)).player)
+            val battles=mutableListOf<GroundBattleResult>()
+            fun tick(time:Long)=TacticalCombat.settle(session.copy(gameMillis=time*1000),galaxy,n,p,s.commit,onGroundBattle=battles::add)
+            tick(now+599);assertTrue(battles.isEmpty())
+            s.fail=true
+            assertFailsWith<java.io.IOException> {tick(now+600)}
+            assertTrue(battles.isEmpty())
+            s.fail=false
+            tick(now+600);tick(now+601)
+            assertEquals(if(opposed && defenders==0)listOf(GroundBattleConclusion(CountryId(3),withdrawal=true)) else emptyList(),
+                battles.map {it.conclusion})
+            assertTrue(s.stocks.outfits.getValue(1).activeGround!!.values.filter {it.id in 2..3}.all {it.carrier==1 && it.base==0})
+            assertEquals(opposed && defenders>0,1000 in s.stocks.groundBattles)
+        }
+    }
     @Test fun capacityIncludesOtherAcceptedLandingsAndMixedInvalidSelectionDoesNotPartiallySave() {
         val s=state(28);val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val before=s.stocks
