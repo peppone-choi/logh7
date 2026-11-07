@@ -75,7 +75,9 @@ input[aria-invalid="true"] { border-color: var(--error); }
 .submission .error:not(:empty) { margin-block-end: .75rem; }
 .submission-status:not(:empty) { margin-block-end: .75rem; }
 .submission .submit { inline-size: 100%; }
-.registration-footer { margin-block-start: 1rem; }
+.registration-footer { display: flex; flex-wrap: wrap; gap: 0 1rem; margin-block-start: 1rem; }
+.recovery-forms { display: grid; gap: 1rem; min-width: 0; }
+.recovery-code { padding: .75rem; background: var(--input); overflow-wrap: anywhere; }
 .submit { background: var(--accent); border-color: transparent; color: var(--page); }
 .submit[aria-disabled="true"] { cursor: wait; }
 @media (hover: hover) {

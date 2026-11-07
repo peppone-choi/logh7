@@ -346,7 +346,7 @@ class ServerReleaseTest(unittest.TestCase):
             jar.writestr(server_release.ACCOUNT_PASSWORD, constant("pbkdf2-sha256"))
         self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "hashed")
         with zipfile.ZipFile(jar_path, "a") as jar:
-            jar.writestr(server_release.FILE_ACCOUNTS, constant("pbkdf2-sha256:removed"))
+            jar.writestr(server_release.FILE_ACCOUNTS, constant("pbkdf2-sha256:removed") + constant(":recovery-v1:"))
             jar.writestr(server_release.FAME_STORAGE, constant("LOGH7-ACCOUNT-FAME-1"))
         self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "new")
         accounts = Path(self.temp.name) / "accounts.properties"
@@ -368,6 +368,12 @@ class ServerReleaseTest(unittest.TestCase):
         fame.write_text("@format=LOGH7-ACCOUNT-FAME-10\n", encoding="utf-8")
         with self.assertRaisesRegex(SystemExit, "unsupported shared account fame format"):
             self.tool("activate", "new", *options)
+        accounts.write_text("test=pbkdf2-sha256:1:salt:hash:recovery-v1:private-digest\n", encoding="utf-8")
+        options = ("--releases", str(self.releases), "--accounts", str(accounts))
+        self.tool("activate", "new", *options)
+        with self.assertRaisesRegex(SystemExit, "account recovery codes") as refused:
+            self.tool("rollback", *options)
+        self.assertNotIn("private-digest", str(refused.exception))
 
 if __name__ == "__main__":
     unittest.main()

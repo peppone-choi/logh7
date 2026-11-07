@@ -30,6 +30,7 @@ export default async function Page() {
         <RegistrationForm loginPort={loginPort} />
         <div className="registration-footer">
           <a className="portal-link" href="/password">기존 게임 비밀번호 변경</a>
+          <a className="portal-link" href="/password/recovery">비밀번호 복구</a>
         </div>
       </section>
     </main>

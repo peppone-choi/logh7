@@ -99,4 +99,39 @@ class PlayerRegistrationTest {
         assertFalse(AccountPassword.matches(stored, "original"))
         assertFalse(accounts.containsKey("deleted"))
     }
+
+    @Test fun recoveryRequiresProofAndItsOneTimeResponseCannotBeCached() {
+        val path = directory.resolve("accounts.properties")
+        Files.writeString(path, "pilot=original\n")
+        val accounts = FileAccounts(path)
+        val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
+        startPlayerRegistration(port, accounts).use {
+            HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build().use { client ->
+                fun post(route: String, body: String, portal: Boolean = true): HttpResponse<String> {
+                    val request = HttpRequest.newBuilder(URI("http://127.0.0.1:$port/$route"))
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .timeout(Duration.ofSeconds(5))
+                    if (portal) request.header("X-Logh7-Portal", "1")
+                    return client.send(request.POST(HttpRequest.BodyPublishers.ofString(body)).build(),
+                        HttpResponse.BodyHandlers.ofString())
+                }
+                val issue = "account=pilot&currentPassword=original"
+                assertEquals(403, post("recovery-code", issue, portal = false).statusCode())
+                assertEquals(401, post("recovery-code", issue.replace("original", "wrong")).statusCode())
+                val response = post("recovery-code", issue)
+                assertEquals(201, response.statusCode())
+                assertEquals("no-store", response.headers().firstValue("Cache-Control").orElseThrow())
+                val code = response.body().removePrefix("code:")
+                assertTrue(FileAccounts.validRecoveryCode(code))
+                val reset = "account=pilot&recoveryCode=$code&newPassword=changed"
+                val missing = post("password-reset", reset.replace("pilot", "missing"))
+                assertEquals(401, missing.statusCode())
+                assertEquals(200, post("password-reset", reset).statusCode())
+                val replay = post("password-reset", reset)
+                assertEquals(missing.statusCode() to missing.body(), replay.statusCode() to replay.body())
+                repeat(3) { assertEquals(401, post("password-reset", reset).statusCode()) }
+                assertEquals(429, post("password-reset", reset).statusCode())
+            }
+        }
+    }
 }
