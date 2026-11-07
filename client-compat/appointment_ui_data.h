@@ -1,6 +1,19 @@
 // Native selector card identity. Author: Peppone Choi.
 #pragma once
+#include <cmath>
 namespace logh {
+struct WarpRouteFare { unsigned lightYears=0, mcp=0, waitHours=0; };
+
+inline WarpRouteFare normalWarpFare(unsigned origin, unsigned target) {
+    if (origin>=5000 || target>=5000 || origin==target) return {};
+    const auto dx=static_cast<int>(target%100)-static_cast<int>(origin%100);
+    const auto dy=static_cast<int>(target/100)-static_cast<int>(origin/100);
+    // Production NavigationPolicy and WarpCourse charge by started 100 ly.
+    const auto lightYears=static_cast<unsigned>(std::ceil(std::sqrt(10000.0*(dx*dx+dy*dy))));
+    const auto intervals=(lightYears+99)/100;
+    return {lightYears,40*(intervals<4 ? intervals : 4),intervals-1};
+}
+
 inline bool appointmentAuthorityCard(unsigned card) {
     return card>=1 && card<=58 || card>=68 && card<=122 ||
         card>=132 && card<=194 || card>=197 && card<=256;
