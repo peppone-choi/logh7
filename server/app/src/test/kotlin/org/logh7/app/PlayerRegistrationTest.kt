@@ -25,7 +25,8 @@ class PlayerRegistrationTest {
         Files.writeString(path, "existing=original\n")
         val accounts = FileAccounts(path)
         val port = ServerSocket(0, 0, InetAddress.getByName("127.0.0.1")).use { it.localPort }
-        startPlayerRegistration(port, accounts).use {
+        val elapsed = java.util.concurrent.atomic.AtomicLong()
+        startPlayerRegistration(port, accounts, elapsed::get).use {
             HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build().use { client ->
                 fun post(body: String, route: String = "/register", origin: String? = null, portal: Boolean = true): Pair<Int, String> {
                     val builder = HttpRequest.newBuilder(URI("http://127.0.0.1:$port$route"))
@@ -47,6 +48,11 @@ class PlayerRegistrationTest {
                 assertEquals(409 to "duplicate", post("account=existing&password=other"))
                 assertEquals(201 to "created", post(valid))
                 assertEquals(409 to "duplicate", post("account=pilot.1&password=changed"))
+                repeat(3) { assertEquals(409 to "duplicate", post(valid)) }
+                assertEquals(429 to "retry_later", post(valid))
+                assertEquals(201 to "created", post("account=other&password=pass"))
+                elapsed.set(60_000_000_000L)
+                assertEquals(409 to "duplicate", post(valid))
             }
         }
         assertEquals("original", accounts["existing"])

@@ -8,6 +8,7 @@ const serverErrors = {
   duplicate: { field: "account", message: "이미 사용 중인 게임 아이디입니다. 다른 아이디를 입력하세요." },
   invalid_password: { field: "password", message: "공백 없이 영문, 숫자, 기호로 1~10자를 입력하세요." },
   too_large: { field: null, message: "입력이 너무 깁니다. 아이디와 비밀번호의 길이를 확인해 주세요." },
+  retry_later: { field: null, message: "가입 시도가 너무 많습니다. 1분 뒤 다시 시도해 주세요." },
   unavailable: { field: null, message: "가입 결과를 확인하지 못했습니다. 잠시 후 같은 아이디와 비밀번호로 다시 시도하세요." },
 } as const;
 const errors = {
@@ -24,7 +25,7 @@ type Result = { kind: "idle" | "pending" }
   | { kind: "error"; code: ErrorCode; announce: boolean }
   | { kind: "success"; account: string };
 
-export default function RegistrationForm({ loginPort }: { loginPort: number | null }) {
+export default function RegistrationForm({ login }: { login: { host: string; port: number } | null }) {
   const [result, setResult] = useState<Result>({ kind: "idle" });
   const [showPassword, setShowPassword] = useState(false);
   const accountInput = useRef<HTMLInputElement>(null);
@@ -96,13 +97,13 @@ export default function RegistrationForm({ loginPort }: { loginPort: number | nu
           <h3>게임에 로그인하기</h3>
           <ol>
             <li>
-              {loginPort === null
+              {login === null
                 ? "LOGH7 런처에서 가입한 서버의 주소와 로그인 포트를 확인하세요."
                 : <>
                   LOGH7 런처에 아래 값을 입력하세요.
                   <dl className="login-settings">
-                    <dt>서버 주소</dt><dd>127.0.0.1</dd>
-                    <dt>로그인 포트</dt><dd>{loginPort}</dd>
+                    <dt>서버 주소</dt><dd>{login.host}</dd>
+                    <dt>로그인 포트</dt><dd>{login.port}</dd>
                   </dl>
                 </>}
             </li>
