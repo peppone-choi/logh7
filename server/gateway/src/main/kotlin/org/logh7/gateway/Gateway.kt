@@ -17,6 +17,8 @@ import java.net.NetworkInterface
 import java.nio.file.*
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import io.netty.channel.group.DefaultChannelGroup
 import io.netty.util.concurrent.GlobalEventExecutor
@@ -73,6 +75,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
     private val clients = DefaultChannelGroup(GlobalEventExecutor.INSTANCE, true)
+    private data class PlayerConnection(val account: String, val channel: Channel)
+    private val players = ConcurrentHashMap<String, PlayerConnection>()
     private val closed = AtomicBoolean()
     @Volatile private var started=false
     /** Login/ticket/update/connection outcomes for the ops metrics (repeated-failure alerts). */
@@ -104,6 +108,22 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var communication:GameCommunication?=null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
     fun connections() = GatewayConnections(clients.count { it.isActive }, clients.size)
+    fun playerConnections(): Map<String, String> = players.entries.associate { (id, player) -> id to player.account }
+
+    fun disconnectPlayer(id: String): CompletableFuture<Boolean> {
+        val player = players[id] ?: return CompletableFuture.completedFuture(false)
+        val result = CompletableFuture<Boolean>()
+        val channel = player.channel
+        // Run with channel lifecycle callbacks. A request can only close the connection selected in the form.
+        channel.eventLoop().execute {
+            if (!channel.isActive || players[id] !== player) result.complete(false)
+            else channel.close().addListener { closed ->
+                if (closed.isSuccess) result.complete(true) else result.completeExceptionally(closed.cause())
+            }
+        }
+        return result
+    }
+
     fun start(gamePort: Int = 47900, updatePort: Int = 47902, bindAddress: String = "127.0.0.1", sessionPort: Int = 47903, sessionAddress: String = bindAddress,
         additionalBindAddresses: List<String> = emptyList()) {
         val hosts = (listOf(bindAddress) + additionalBindAddresses).map(::checkedBindAddress)
@@ -296,7 +316,11 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                             exchange.acceptOutbound(type, data)?.let { response -> SecureWriter.write(ctx, exchange, response) }
                                             val join = exchange.takePendingJoin()
                                             val operation = exchange.takePendingWorld()
-                                            val pending = join?.thenApply { exchangeResult -> ({ exchange.finishJoinOutbound(exchangeResult) }) }
+                                            val pending = join?.thenApply { exchangeResult -> ({
+                                                val response = exchange.finishJoinOutbound(exchangeResult)
+                                                exchange.joinedAccount()?.let { players[exchange.connection] = PlayerConnection(it, ctx.channel()) }
+                                                response
+                                            }) }
                                                 ?: operation?.thenApply { messages -> ({ exchange.finishWorld(messages) }) }
                                             if (pending != null) awaitPending(ctx, pending)
                                         } else {
@@ -354,6 +378,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         try { exchange.close() } finally { ctx.close() }
                                     }
                                     override fun channelInactive(ctx: ChannelHandlerContext) {
+                                        players.remove(exchange.connection)
                                         // A bare TCP probe never sends a frame; only a started, unfinished update is a failure.
                                         if (port == updatePort && updateExchange.state == UpdateExchange.State.AWAITING_VERSION)
                                             counters.updateFailed.incrementAndGet()

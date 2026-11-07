@@ -28,6 +28,14 @@ interface AccountAdmin {
     fun remove(account: String): Boolean
 }
 
+interface PlayerConnectionAdmin {
+    /** Connections admitted to this world, keyed by their unique connection ID. */
+    fun current(): Map<String, String>
+    suspend fun disconnect(id: String): Boolean
+}
+
+private val playerConnectionIdPattern = Regex("[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
+
 /** Live state backups (LOGH7_BACKUP_DIR): on demand from the operator page and on the app's schedule. */
 interface StateBackups {
     /** Takes one backup now; returns its directory name. */
@@ -70,11 +78,13 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     maintenance: MaintenanceControl? = null,countryDefinitions:CountryDefinitionStore?=null,
     /** Facility names/purposes: the editable store (null without a definitions DB), what the game shows, and engine-read commands. */
     facilityDefinitions:FacilityDefinitionStore?=null,publishedFacilities:PublishedFacilityDefinitions?=null,
-    facilityCommands:FacilityCommandCatalog=FacilityCommandCatalog.UNCONNECTED,countryImages:CountryImageStore?=null): AutoCloseable {
+    facilityCommands:FacilityCommandCatalog=FacilityCommandCatalog.UNCONNECTED,countryImages:CountryImageStore?=null,
+    playerConnections: PlayerConnectionAdmin? = null): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
         "a non-loopback ops bind requires LOGH7_OPS_TOKEN or LOGH7_OPS_USERS_FILE" }
+    val connectionAdmin = playerConnections.takeIf { audit != null && (token != null || users != null) }
     val server = embeddedServer(Netty, host = host, port = port) {
         intercept(io.ktor.server.application.ApplicationCallPipeline.Plugins) {
             if ((token != null || users != null) && call.request.local.uri.substringBefore('?') != "/health") {
@@ -106,7 +116,8 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             }
             get("/snapshot") { call.respondText(snapshots.snapshot().toString()) }
             get("/admin") {
-                call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names(), backups, maintenance), io.ktor.http.ContentType.Text.Html)
+                call.respondText(opsAdminPage(snapshots.health(), snapshots.snapshot(), accounts?.names(), backups, maintenance,
+                    connectionAdmin?.current()), io.ktor.http.ContentType.Text.Html)
             }
             get("/admin/text") { call.respondRedirect("/admin/text/") }
             get("/admin/text/") {
@@ -138,6 +149,23 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                     call.audited(audit, OpsAction.ACCOUNT_REMOVE, form["operator"].orEmpty()) {
                         val admin = accounts ?: return@audited OpsOutcome.FAILED
                         if (admin.remove(form["account"].orEmpty())) OpsOutcome.CHANGED else OpsOutcome.NOT_FOUND
+                    }
+                }
+            }
+            post("/admin/player/disconnect") {
+                val control = connectionAdmin ?: return@post call.respondText("접속 종료 기능을 사용할 수 없습니다.", status = HttpStatusCode.ServiceUnavailable)
+                val form = call.adminForm(port) ?: return@post
+                val id = form["connection"].orEmpty().takeIf(playerConnectionIdPattern::matches)
+                val account = id?.let { control.current()[it] }
+                call.audited(audit, OpsAction.PLAYER_DISCONNECT, form["operator"],
+                    details = id?.let { if (account == null) it else "$account:$it" },
+                    messages = mapOf(OpsOutcome.INVALID to "종료할 접속을 선택하세요.",
+                        OpsOutcome.NOT_FOUND to "이미 종료된 접속입니다. 운영 화면을 새로 고침하세요.",
+                        OpsOutcome.CHANGED to "선택한 접속을 종료했습니다.")) {
+                    when {
+                        id == null -> OpsOutcome.INVALID
+                        account == null || !control.disconnect(id) -> OpsOutcome.NOT_FOUND
+                        else -> OpsOutcome.CHANGED
                     }
                 }
             }
@@ -297,7 +325,7 @@ internal suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction
         OpsOutcome.RESTARTED -> respondText("restarted")
         OpsOutcome.CONFLICT -> respondText(messages[outcome] ?: "session is running or restart failed", status = HttpStatusCode.Conflict)
         OpsOutcome.FAILED -> respondText("operation failed; outcome unknown", status = HttpStatusCode.InternalServerError)
-        OpsOutcome.CHANGED -> respondText("changed")
+        OpsOutcome.CHANGED -> respondText(messages[outcome] ?: "changed")
         OpsOutcome.NOT_FOUND -> respondText(messages[outcome] ?: "no such account", status = HttpStatusCode.NotFound)
         OpsOutcome.INVALID -> respondText(messages[outcome] ?: "account 1-30 of [A-Za-z0-9._-], password 1-10 printable ASCII", status = HttpStatusCode.BadRequest)
         OpsOutcome.UNCHANGED -> respondText("unchanged")
@@ -366,7 +394,8 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: 
 
 /** Operator page (loopback, optional token). Its buttons post to the audited admin routes. */
 internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, accounts: List<String>? = null,
-    backups: StateBackups? = null, maintenance: MaintenanceControl? = null): String = buildString {
+    backups: StateBackups? = null, maintenance: MaintenanceControl? = null,
+    playerConnections: Map<String, String>? = null): String = buildString {
     fun esc(value: Any?) = value.toString().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
     fun row(vararg cells: Any?) { append("<tr>"); cells.forEach { append("<td>").append(esc(it)).append("</td>") }; append("</tr>") }
     val session = snapshot.session
@@ -401,6 +430,17 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, account
             .append("<select name=\"mode\"><option value=\"on\">새 로그인 차단</option><option value=\"off\">새 로그인 허용</option></select> <button>적용</button></form>")
         append("<form method=\"post\" action=\"/admin/notice\">").append(operator)
             .append("공지 <input name=\"text\" maxlength=\"60\" required size=\"60\"> <button>접속 중인 전원에게 보내기</button></form>")
+    }
+    if (playerConnections != null) {
+        append("<h2>현재 세션의 플레이어 접속</h2>")
+        if (playerConnections.isEmpty()) append("<p>현재 접속 중인 플레이어가 없습니다.</p>")
+        else {
+            append("<form method=\"post\" action=\"/admin/player/disconnect\"><label>운영자 <input name=\"operator\" pattern=\"[A-Za-z0-9._-]{1,64}\" required></label> ")
+            append("<label>종료할 계정의 접속 <select name=\"connection\" required><option value=\"\">선택</option>")
+            for ((id, account) in playerConnections.entries.sortedBy { it.value })
+                append("<option value=\"").append(esc(id)).append("\">").append(esc(account)).append("</option>")
+            append("</select></label> <button>선택한 접속 종료</button></form>")
+        }
     }
     if (accounts != null) {
         append("<h2>계정</h2><p>로그인 계정 ").append(accounts.size).append("개(비밀번호는 표시하지 않음): ")

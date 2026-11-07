@@ -1,6 +1,7 @@
 package org.logh7.app
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.future.await
 import org.logh7.engine.WorldEngine
 import org.logh7.engine.SessionRules
 import org.logh7.engine.MemorySessionGenerationStore
@@ -311,6 +312,10 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             facilityCommands=world?.facilityCommands ?: org.logh7.engine.FacilityCommandCatalog.UNCONNECTED,
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
+            playerConnections = object : org.logh7.ops.PlayerConnectionAdmin {
+                override fun current() = gateway.playerConnections()
+                override suspend fun disconnect(id: String) = gateway.disconnectPlayer(id).await()
+            },
             actorTimings=actorTimings,
             maintenance=object : org.logh7.ops.MaintenanceControl {
                 override fun closed() = gateway.maintenance.closed()
