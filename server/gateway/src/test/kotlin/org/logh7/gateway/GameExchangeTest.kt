@@ -106,6 +106,41 @@ class GameExchangeTest {
         assertNotEquals(GameExchange.State.AUTHENTICATED, session.state)
         assertEquals(1, gate.refused.get())
     }
+    @Test fun maintenanceRefusesFinalEntryOnAnAlreadyAuthenticatedGameConnection() {
+        val gate = MaintenanceGate()
+        val tickets = SessionTickets()
+        val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903, Handshake(b, 2),
+            maintenance = gate).also { it.accept(0x34, initial); it.accept(0x36, confirm) }
+        val token = tickets.issue("user", SessionTickets.Purpose.GAME)
+        game.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+        assertNotNull(game.accept(0x30, encrypted(hex("0200"), 2)))
+        gate.setClosed(true)
+        val reply = assertNotNull(game.accept(0x30, encrypted(hex("0205"), 3)))
+        val body = Envelope.decode(LegacyBlowfish(b).decrypt(reply.copyOfRange(8, reply.size)), 2).second
+        assertContentEquals(LoginMessages.sessionRejection(), body)
+        assertEquals(GameExchange.State.REJECTED, game.state)
+        assertNull(game.takePendingJoin())
+        assertEquals(1, gate.refused.get())
+        game.close()
+    }
+    @Test fun anOpenSingleWorldLobbyStopsIssuingEntryTicketsDuringMaintenance() {
+        val gate = MaintenanceGate()
+        val tickets = SessionTickets()
+        val lobby = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903, Handshake(b, 2),
+            maintenance = gate).also { it.accept(0x34, initial); it.accept(0x36, confirm) }
+        val token = tickets.issue("user")
+        lobby.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+        assertNotNull(lobby.accept(0x30, encrypted(hex("2000"), 2)))
+        gate.setClosed(true)
+        val reply = assertNotNull(lobby.accept(0x30, encrypted(hex("20090001"), 3)))
+        val body = Envelope.decode(LegacyBlowfish(b).decrypt(reply.copyOfRange(8, reply.size)), 2).second
+        assertContentEquals(LobbyMessages.selectionFailed(), body)
+        gate.setClosed(false)
+        val opened = assertNotNull(lobby.accept(0x30, encrypted(hex("20090001"), 4)))
+        val selection = Envelope.decode(LegacyBlowfish(b).decrypt(opened.copyOfRange(8, opened.size)), 3).second
+        assertEquals(0x200a, ByteBuffer.wrap(selection).getShort(4).toInt())
+        lobby.close()
+    }
     @Test fun badAccountGetsDirectionalFailureHeader() {
         val counters = GatewayCounters()
         val login = exchange(GameExchange.Role.LOGIN, counters = counters)
