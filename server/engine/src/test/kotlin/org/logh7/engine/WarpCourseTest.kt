@@ -64,7 +64,7 @@ class WarpCourseTest {
         val early = navigation.apply(request, start.copy(gameMillis = start.gameMillis + 3599_000L))
         assertEquals(2487, early.player!!.grid); assertFalse(early.completedWarp)
         val arrived = navigation.apply(request, later(1))
-        assertTrue(arrived.completedWarp); assertFalse(arrived.warpRejected)
+        assertTrue(arrived.completedWarp); assertNull(arrived.warpCancellation)
         assertEquals(2588, arrived.player!!.grid); assertEquals(858, arrived.player.cruise); assertNull(arrived.player.warpTarget)
         assertEquals(1, arrived.player.moves); assertEquals(arrived.player, store.saved.getValue("pilot"))
         // Three grids: 120 CP (40 per started 100 ly) and two G-hours.
@@ -80,7 +80,7 @@ class WarpCourseTest {
         assertEquals(920, pending.mcp)
         store.saved = mapOf("pilot" to pending.copy(cruise = 150)) // Fuel spent elsewhere before execution.
         val result = Navigation(galaxy, store, NavigationPolicy()).apply(request, later(1))
-        assertTrue(result.completedWarp); assertTrue(result.warpRejected)
+        assertTrue(result.completedWarp); assertEquals(NavigationRejection.CRUISE, result.warpCancellation)
         assertEquals(2487, result.player!!.grid); assertEquals(150, result.player.cruise); assertNull(result.player.warpTarget)
         assertEquals(920, result.player.mcp); assertEquals(0, result.player.moves)
     }

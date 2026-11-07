@@ -98,6 +98,8 @@ class GameExchange(
     private var deliveredPlayer: org.logh7.engine.Navigator? = null
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
+    private var startupWarpNotice: ByteArray? = null
+    private var startupGridReady = false
     private var tacticalInitializationPending = false
     private var tacticalExitPending = false
     private var pendingTacticalRevision = -1L
@@ -222,8 +224,8 @@ class GameExchange(
     }
     private fun completedWork(result: org.logh7.engine.NavigationResult, character: CharacterMessages.Generate,
         warpNotified: Boolean = false): List<ByteArray> {
-        val warpFinished = !warpNotified && (result.completedWarp || result.warpRejected)
-        if (!result.completedFuel && !result.completedDock && !warpFinished) return emptyList()
+        val warpFinished = !warpNotified && result.completedWarp
+        if (!result.completedFuel && !result.completedDock && !warpFinished && result.warpCancellation == null) return emptyList()
         val player = checkNotNull(result.player ?: result.previous)
         val seconds = gameSeconds()
         return (if (result.completedFuel) listOf(org.logh7.protocol.FuelMessages.supplied(seconds,
@@ -238,7 +240,18 @@ class GameExchange(
                     if (character.power == 2) 59 else 195, player.grid, 0, 5), seconds, player.unitId, player.cruise)) +
                 (if(player.baseId!=0 || player.mode!=5 || player.spotId!=0) listOf(
                     org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,seconds,
-                        player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) else emptyList())
+                        player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) else emptyList()) +
+            reservedWarpNotice(result, player.characterId, seconds)
+    }
+    private fun reservedWarpNotice(result: org.logh7.engine.NavigationResult, characterId: Int, seconds: Long): List<ByteArray> {
+        val reason = when (result.warpCancellation) {
+            NavigationRejection.GRID -> "진입 불가"
+            NavigationRejection.CRUISE -> "항속 부족"
+            NavigationRejection.STAR_SYSTEM_NOT_ADJACENT -> "성계 거리 초과"
+            null -> return emptyList()
+            else -> "예약 취소"
+        }
+        return listOf(ChatMessages.spot(ChatMessages.Spot(characterId, "[워프] $reason·CP 미환불"), seconds))
     }
     private fun warpRefusal(characterId: Int, rejection: NavigationRejection?, seconds: Long): ByteArray {
         // The original strategy chat shows only the tail of long notices.
@@ -280,6 +293,12 @@ class GameExchange(
             val changed = previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
             val relocated = previous?.let { it.grid != player.grid || it.baseId != player.baseId ||
                 it.mode != player.mode || it.spotId != player.spotId || it.spotOwner != player.spotOwner } == true
+            if (!worldInitialized) reservedWarpNotice(result, player.characterId, gameSeconds()).singleOrNull()?.let {
+                startupWarpNotice = it
+            }
+            // The CD can still clear chat while consuming 0f03. Send after its next clock request.
+            val startupNotice = if (clockRequest != null && startupGridReady)
+                listOfNotNull(startupWarpNotice.also { startupWarpNotice = null }) else emptyList()
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
                 (if (relocated) (if(previous.cpPaused && previous.grid != player.grid)
@@ -290,13 +309,14 @@ class GameExchange(
                             if(character.power==2)59 else 195,player.grid,0,5),gameSeconds(),player.unitId,player.cruise)) else emptyList()) +
                     (if (previous.baseId != player.baseId || previous.mode != player.mode) listOf(
                         org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
-                            gameSeconds(),player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList())
-                else completedWork(result, character)) +
+                            gameSeconds(),player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) +
+                    (if (worldInitialized) reservedWarpNotice(result, player.characterId, gameSeconds()) else emptyList())
+                else completedWork(if (worldInitialized) result else result.copy(warpCancellation = null), character)) +
                 (if(worldInitialized && player.cpPaused && deliveredTactics==true && previous?.grid==player.grid)
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
-                    ?.let(::listOf).orEmpty())
+                    ?.let(::listOf).orEmpty()) + startupNotice
         }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
     internal fun finishWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
@@ -1376,9 +1396,10 @@ class GameExchange(
                             publication = Publication(character, player, false)
                             player.warpReadyAt?.let { readyAt ->
                                 // Reserved: keep the origin, report CP and the wait; 0b07 is sent on execution.
-                                return@thenApply listOf(org.logh7.protocol.NavigationMessages.reserved(command,
+                                return@thenApply completedWork(result.copy(player = result.previous), character) +
+                                    listOf(org.logh7.protocol.NavigationMessages.reserved(command,
                                     seconds, player.pcp, player.mcp, maxOf(0, readyAt - seconds)),
-                                    characterMessage(character, player, true)) + completedWork(result, character)
+                                    characterMessage(character, player, true))
                             }
                             // A long warp may land on a neighbouring space grid; report the server's arrival.
                             val arrived = command.copy(grid = player.grid)
@@ -2211,6 +2232,8 @@ class GameExchange(
                                 val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(captured),
                                     world.galaxy,player,::currentCharacterById) else null
                                 tacticalResumeGrid=tactical?.grid
+                                reservedWarpNotice(result, player.characterId, gameSeconds()).singleOrNull()?.let { startupWarpNotice = it }
+                                if (opcode == 0x0f02) startupGridReady = true
                                 listOf(BootstrapMessages.characterId(character),
                                     characterMessage(character, player),
                                     unitMessage(character, player),
