@@ -101,7 +101,10 @@ class GameExchange(
     private var worldInitialized = false
     private var startupWarpNotice: ByteArray? = null
     private var startupGridReady = false
-    private var firstWarpGuideChecked = false
+    private enum class NavigationGuide(val text: String) {
+        WARP("직무카드→함장→워프"), DOCK("아군 성계에서 함장→기항"), FACILITY("직무카드→개인→원거리 이동")
+    }
+    private var lastNavigationGuide: NavigationGuide? = null
     private data class OfflineWarpNotice(val reason: NavigationRejection, val message: ByteArray, var batch: OutboundBatch? = null)
     private var pendingOfflineWarpNotice: OfflineWarpNotice? = null
     private var sentOfflineWarpCancellation: NavigationRejection? = null
@@ -333,19 +336,23 @@ class GameExchange(
                     if (cancellation != null) pendingOfflineWarpNotice = OfflineWarpNotice(cancellation, messages.single())
                 }
             } else emptyList()
-            val firstWarpGuide = if (readyForNotice && !firstWarpGuideChecked) {
-                firstWarpGuideChecked = true
-                val map = world
-                val canWarp = player.mode == 5 && player.baseId == 0 && !player.cpPaused && !player.navigationPending &&
-                    player.hull?.let { it.woundedUntil <= gameSeconds() } == true
-                if (map != null && character.generated && player.moves == 0L && canWarp &&
-                    player.country?.let { map.galaxy.countryStarts[it] } == player.grid &&
-                    startupNotice.isEmpty() && offlineNotice.isEmpty() &&
-                    org.logh7.engine.TacticalAuthority.captainCard(player, map.lobbyCountryDefinitions().first) != null) {
-                    // The original strategy HUD keeps only the most recent spot line visible.
-                    listOf(ChatMessages.spot(ChatMessages.Spot(player.characterId, "직무카드→함장→워프"), gameSeconds()))
-                } else emptyList()
-            } else emptyList()
+            val guide = if (readyForNotice && !relocated && character.generated && player.spotId == 0 &&
+                !player.cpPaused && !player.navigationPending && player.hull?.let { it.woundedUntil <= gameSeconds() } == true &&
+                startupNotice.isEmpty() && offlineNotice.isEmpty() && groundResult.isEmpty() && result.warpCancellation == null) {
+                when {
+                    player.mode == 4 && player.baseId != 0 -> NavigationGuide.FACILITY
+                    player.mode == 5 && player.moves == 1L -> NavigationGuide.DOCK
+                    player.mode == 5 && player.moves == 0L &&
+                        player.country?.let { world?.galaxy?.countryStarts?.get(it) } == player.grid -> NavigationGuide.WARP
+                    else -> null
+                }?.takeIf { it.ordinal > (lastNavigationGuide?.ordinal ?: -1) && world != null &&
+                    org.logh7.engine.TacticalAuthority.captainCard(player, world.lobbyCountryDefinitions().first) != null }
+            } else null
+            // The original strategy HUD clears chat on relocation and keeps only the latest line visible.
+            val navigationGuide = guide?.let {
+                lastNavigationGuide = it
+                listOf(ChatMessages.spot(ChatMessages.Spot(player.characterId, it.text), gameSeconds()))
+            }.orEmpty()
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
                 (if (relocated) (if(previous.cpPaused && previous.grid != player.grid)
@@ -363,7 +370,7 @@ class GameExchange(
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
-                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + firstWarpGuide + groundResult
+                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + navigationGuide + groundResult
         }
     }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
