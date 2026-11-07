@@ -18,9 +18,13 @@ static const char* __cdecl nativeFacilityMenuLabel(unsigned kind,unsigned id) {
     const bool sameFacility=current && id==at<unsigned>(const_cast<BYTE*>(current),4);
     // Match Navigation.movePlace and CpPayment's full other-pool substitution.
     std::string fare;
-    if(!logh::storeDisplayName(sameFacility ? L" · PCP 5 / 대체 MCP 10" : L" · PCP 10 / 대체 MCP 20",fare))return label;
+    if(!logh::storeDisplayName(sameFacility ? L" · PCP5/대체 MCP10" : L" · PCP10/대체 MCP20",fare))return label;
+    wchar_t published[64]={};std::wstring name;
+    if(facilityGuideName(id,published))name=published;
+    else logh::japaneseFragment(label,name);
     static thread_local std::string withFare;
-    withFare.assign(label);withFare+=fare;
+    if(name.empty() || !logh::storeDisplayName(logh::facilityMoveName(name).c_str(),withFare))withFare.assign(label);
+    withFare+=fare;
     return withFare.c_str();
 }
 static void __declspec(naked) facilityMenuLabel() {
