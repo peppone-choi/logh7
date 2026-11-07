@@ -1083,6 +1083,10 @@ class GameExchange(
                         if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,viewerCountry)),clearHeader=0)
                         if(party?.mode==5 || party?.mode==org.logh7.protocol.CountryMetadataMessages.EMBLEM_MODE)
                             return handshake.stageAll(listOf(world.countryMetadata(party,viewerCountry)),clearHeader=0)
+                        if(party?.mode==org.logh7.protocol.CountryImageMessages.MODE) {
+                            if(!worldInitialized)return null
+                            return handshake.stageAll(world.countryImageFrames(party),clearHeader=0)
+                        }
                         if(party?.mode==6) {
                             pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it)))}
                             return null

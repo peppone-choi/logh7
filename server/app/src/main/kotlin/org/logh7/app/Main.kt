@@ -104,13 +104,34 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         if(facilityStore!=null)try {facilities.publish(facilityStore.load())} catch(_:Exception) {
             System.err.println("Facility definitions unavailable; using the built-in facility definitions")
         }
+        val publishedImages=org.logh7.engine.PublishedCountryImages()
+        val imageStore=definitionsConnect?.let {connect->
+            val delegate=org.logh7.persistence.PostgresCountryImages(connect)
+            object:org.logh7.engine.CountryImageStore by delegate {
+                override fun snapshot()=delegate.snapshot().also(publishedImages::publish)
+                private fun refresh(result:org.logh7.engine.CountryImageOutcome):org.logh7.engine.CountryImageOutcome {
+                    if(result==org.logh7.engine.CountryImageOutcome.CHANGED || result==org.logh7.engine.CountryImageOutcome.UNCHANGED)
+                        try {snapshot();countryDefinitions?.load()}catch(_:Exception){System.err.println("Images saved; game refresh deferred")}
+                    return result
+                }
+                override fun save(key:String,kind:org.logh7.engine.CountryImageKind,expectedRevision:Long,title:String,description:String,upload:org.logh7.engine.CountryImageUpload?)=
+                    refresh(delegate.save(key,kind,expectedRevision,title,description,upload))
+                override fun restore(key:String,expectedRevision:Long,sourceRevision:Long)=refresh(delegate.restore(key,expectedRevision,sourceRevision))
+                override fun bind(country:Int,expectedDefinitionsRevision:Long,slot:org.logh7.engine.CountryImageKind,key:String?)=
+                    refresh(delegate.bind(country,expectedDefinitionsRevision,slot,key))
+            }
+        }
+        if(imageStore!=null)try {imageStore.snapshot()}catch(_:Exception) {
+            publishedImages.publish(org.logh7.engine.CountryImageSnapshot(org.logh7.engine.CountryCatalogLoader.snapshot()?.revision ?: 0,emptyMap()))
+            System.err.println("Image definitions unavailable; using native country images")
+        }
         val rules = environment["LOGH7_SESSION_RULES"]?.let { path -> java.nio.file.Files.newInputStream(Path.of(path)).use { SessionRules.load(it) } } ?: SessionRules.load()
         val characterFile = environment["LOGH7_CHARACTERS_FILE"]?.let { Path.of(it) }
         val generationFile = environment["LOGH7_SESSION_GENERATION_FILE"]?.let { Path.of(it) }
             ?: characterFile?.resolveSibling("${characterFile.fileName}.session-generation")
         val generations = generationFile?.let(::FileSessionGenerationStore) ?: MemorySessionGenerationStore()
         val sessionDirectory = environment["LOGH7_SESSION_STORE_DIR"]?.let { Path.of(it) }
-        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it)),facilityDefinitions=facilities::current) }
+        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it)),facilityDefinitions=facilities::current,countryImages=publishedImages::current) }
         val directorySync = when (environment["LOGH7_SESSION_DIRECTORY_SYNC"]) {
             null, "required" -> org.logh7.persistence.DirectorySync.REQUIRED
             "files-only" -> org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY
@@ -219,6 +240,14 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
                 catch(_:IllegalArgumentException) {if(!failed)System.err.println("Facility definitions invalid; retaining the last facility definitions");failed=true}
             }
         }
+        if(imageStore!=null)scope.launch(Dispatchers.IO) {
+            var failed=false
+            while(isActive) {
+                delay(5000)
+                try {imageStore.snapshot();failed=false}
+                catch(_:Exception) {if(!failed)System.err.println("Image definitions unavailable; retaining the last image snapshot");failed=true}
+            }
+        }
         val countryColors=definitionsConnect?.let {connect->
                 val delegate=org.logh7.persistence.PostgresCountryColors(connect)
                 object:org.logh7.engine.CountryColorStore {
@@ -246,7 +275,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             host = environment["LOGH7_OPS_BIND"] ?: "127.0.0.1",
             users = environment["LOGH7_OPS_USERS_FILE"]?.let { org.logh7.ops.OpsUsers(Path.of(it)) }, backups = backups,
             countryColors=countryColors,
-            countryDefinitions=countryDefinitions,
+            countryDefinitions=countryDefinitions,countryImages=imageStore,
             facilityDefinitions=facilityStore,publishedFacilities=facilities,
             facilityCommands=world?.facilityCommands ?: org.logh7.engine.FacilityCommandCatalog.UNCONNECTED,
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},

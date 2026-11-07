@@ -6,6 +6,7 @@
 #include "navigation_hud_data.h"
 #include "country_colors_data.h"
 #include "country_metadata.h"
+#include "country_image_test.h"
 #include "base_affiliation.h"
 #include "outfit_affiliation_data.h"
 #include "tactical_camp_data.h"
@@ -1025,6 +1026,7 @@ static int countryEndingTest() {
     return 0;
 }
 static int runGuard(int argc, wchar_t** argv) {
+    if(!countryImageDataTest())return 812;
     if(logh::countryAtlasScale(128,128,65536,1024)!=1 || logh::countryAtlasScale(128,128,262144,1024)!=2 ||
         logh::countryAtlasScale(128,128,262144,512)!=0)return 1123;
     if(int result=tacticalCampTest())return result;

@@ -16,6 +16,17 @@ static void __fastcall drawCountryTacticalIcon(void* manager,void*,const float* 
     const unsigned configured=found ? runtimeCountryEmblem(side.owner) : 0;
     const unsigned emblem=configured ? configured : static_cast<unsigned>(affiliation<0 ? -affiliation : affiliation);
     const bool rebel=found ? side.insurgent!=0 : affiliation<0;
+    if(point && found && !rebel)if(const auto uploaded=uploadedCountryTexture(side.owner,false)) {
+        if(!_finite(alpha) || alpha<0)alpha=0;if(alpha>1)alpha=1;
+        const unsigned tile=(emblem==2 ? 2u : 3u)*2;
+        const auto palette=reinterpret_cast<const BYTE*>(0x771f68)+tile*3;
+        const unsigned rgb=countryPaintRgb(side.owner,0,(palette[0]<<16)|(palette[1]<<8)|palette[2]);
+        const float color[]={float((rgb>>16)&255)/255,float((rgb>>8)&255)/255,float(rgb&255)/255,alpha};
+        const float rect[]={0,0,32,32};
+        reinterpret_cast<unsigned(__cdecl*)(void*,const float*,const float*,const float*,float,float)>(0x4ddc00)
+            (const_cast<BYTE*>(uploaded->quad),point,rect,color,size,size);
+        return;
+    }
     const auto texture=at<BYTE*>(manager,0xa6c8);
     if(!point || (emblem!=2 && emblem!=3) || !texture ||
         !neutralizeCountryResource(at<BYTE*>(texture,8),"icon_set.tga",false)) {

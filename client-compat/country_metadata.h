@@ -4,12 +4,14 @@
 #include "country_name_data.h"
 #include "navigation_hud_data.h"
 #include "country_identity_data.h"
+#include "country_images.h"
 #include <atomic>
 static SRWLOCK countryMetadataLock=SRWLOCK_INIT;
 static std::atomic<unsigned> countryNameSequence{0};
 static struct CountryMetadataCache {unsigned count;logh::CountryMetadata rows[350];} countryMetadataCache={};
 static struct OwnCountryIdentity {void* world=nullptr;logh::CountryIdentity value={};} ownCountryIdentity;
 static void resetCountryMetadata() {
+    resetCountryImages();
     AcquireSRWLockExclusive(&countryMetadataLock);countryMetadataCache={};ownCountryIdentity={};++countryNameSequence;ReleaseSRWLockExclusive(&countryMetadataLock);
 }
 static void publishOwnCountryIdentity(void* world,const logh::CountryIdentity& value) {

@@ -15,7 +15,8 @@ import org.logh7.protocol.LogisticsMessages
 
 class WorldBootstrap(val galaxy: Galaxy,
     private val configuredCountryCatalog:org.logh7.engine.CountryCatalog?=null,
-    private val facilityDefinitions:()->org.logh7.engine.FacilityDefinitionSnapshot={org.logh7.engine.FacilityDefinitionDefaults.snapshot()}) {
+    private val facilityDefinitions:()->org.logh7.engine.FacilityDefinitionSnapshot={org.logh7.engine.FacilityDefinitionDefaults.snapshot()},
+    private val countryImages:()->org.logh7.engine.CountryImageSnapshot={org.logh7.engine.CountryImageSnapshot(0,emptyMap())}) {
     private val countryCatalog get()=configuredCountryCatalog ?: org.logh7.engine.CountryCatalogLoader.current()
     @Volatile private var countryAppearances:List<org.logh7.engine.CountryAppearance> = emptyList()
     @Synchronized fun publishCountryAppearances(values:List<org.logh7.engine.CountryAppearance>) {
@@ -44,9 +45,13 @@ class WorldBootstrap(val galaxy: Galaxy,
         val snapshot=org.logh7.engine.CountryCatalogLoader.snapshot()
         val catalog=configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog
         val country=catalog.countries[query.outfit];val calendar=catalog.calendar(query.outfit)
-        val emblem=when(country?.assets) {"empire"->2;"alliance"->3;else->0}
+        val emblem=when(country?.assets) {"empire"->2;"alliance"->3;else->countryImages().countries[query.outfit]?.nativeEmblem ?: 0}
         return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryMetadataMessages.reply(query,viewerPower,
             country?.name.orEmpty(),calendar?.name.orEmpty(),calendar?.yearOffset ?: 0,if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0,emblem))
+    }
+    fun countryImageFrames(query:OutfitPartyMessages.Query):List<ByteArray> {
+        val snapshot=countryImages();val images=snapshot.countries[query.outfit]
+        return org.logh7.protocol.CountryImageMessages.replies(query,snapshot.revision,images?.emblem,images?.mapIcon)
     }
     /** The authenticated viewer's real membership, including explicit unaffiliated/deleted definitions. */
     fun countryIdentity(query:OutfitPartyMessages.Query,countryId:Int?,nativePower:Int):ByteArray {
