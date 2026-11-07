@@ -27,10 +27,21 @@ static void sendProductionAction(bool preview,bool quote=false) {
     strategyDirectory.receiving=false;
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
 }
-static const wchar_t* productionRejection(unsigned reply) {
+static const wchar_t* productionRejection(unsigned reply,unsigned command) {
+    if(reply==13) {
+        static const wchar_t* unavailable[]={
+            L"이미 조병창이 있습니다.", L"조병창이 없거나 이미 휴지 상태입니다.", L"휴지 중인 조병창이 없습니다.",
+            L"파기할 조병창이 없습니다.", L"가동 중인 조병창과 건조할 수 있는 함종이 필요합니다.", L"이 거점에서 해당 병종을 모병할 수 없습니다."
+        };
+        return unavailable[command-31];
+    }
+    if(reply==11) {
+        if(command==31)return L"지방 금고의 자금이 부족합니다.";
+        if(command==35)return L"광물이나 군수물자가 부족합니다.";
+        return L"성인·식량·군수물자가 부족하거나 병력 창고가 가득 찼습니다.";
+    }
     return reply==4 ? L"통치 카드(지사·사정관·봉토)가 필요합니다." : reply==6 ? L"자기가 통치하는 행성에서만 할 수 있습니다." :
         reply==7 ? L"이미 주문 중이거나 행동할 수 없습니다." : reply==8 ? L"MCP와 대체 PCP가 부족합니다." :
-        reply==11 ? L"금고·자원·인구가 부족합니다." : reply==13 ? L"조병창 상태나 선택한 품목을 확인하세요." :
         reply==14 ? L"거점이 바뀌었습니다. 비용을 다시 조회하세요." : L"실행할 수 없습니다.";
 }
 static bool readProductionAction(void* record) {
@@ -54,13 +65,13 @@ static bool readProductionAction(void* record) {
                 productionQuote.mcp=at<unsigned short>(record,30);
                 productionQuote.available=!reply && productionQuote.base;
                 state.pending=false;
-                state.message=reply ? productionRejection(reply) : L"비용을 확인한 뒤 실행하세요.";
+                state.message=reply ? productionRejection(reply,command) : L"비용을 확인한 뒤 실행하세요.";
             }
         }
         memset(static_cast<BYTE*>(record)+4,0,32);return true;
     }
     state.pending=false;productionQuote.available=false;
-    state.message=reply ? productionRejection(reply) :
+    state.message=reply ? productionRejection(reply,command) :
         command==31 ? L"조병창 건설을 시작했습니다." : command==32 ? L"조병창을 휴지했습니다." :
         command==33 ? L"조병창을 재가동했습니다." : command==34 ? L"조병창을 파기했습니다." :
         command==35 ? L"함정 1유닛을 주문했습니다. 완성품은 거점 창고로 들어갑니다." : L"육전병 1유닛을 모병했습니다.";
