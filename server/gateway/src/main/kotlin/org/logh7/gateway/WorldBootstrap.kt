@@ -46,6 +46,14 @@ class WorldBootstrap(val galaxy: Galaxy,
         return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryMetadataMessages.reply(query,viewerPower,
             country?.name.orEmpty(),calendar?.name.orEmpty(),calendar?.yearOffset ?: 0,if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0))
     }
+    /** The authenticated viewer's real membership, including explicit unaffiliated/deleted definitions. */
+    fun countryIdentity(query:OutfitPartyMessages.Query,countryId:Int?,nativePower:Int):ByteArray {
+        val (catalog,revision)=lobbyCountryDefinitions()
+        val country=countryId?.let {catalog.countries[it]};val calendar=country?.let {catalog.calendar(it.id)}
+        return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryIdentityMessages.reply(query,countryId ?: 0,nativePower,
+            country?.name ?: if(countryId==null)"무소속" else "미등록 국가",calendar?.name ?: "우주력",calendar?.yearOffset ?: 0,
+            revision,country!=null))
+    }
     private val officeCards=org.logh7.engine.OrganizationOffices.all.mapValues {(_,role)->
         val commands=buildList {
             addAll(WorldMessages.commandsForCard(role.card).filter {it !in 25..26})

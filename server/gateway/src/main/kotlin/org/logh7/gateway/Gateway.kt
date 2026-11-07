@@ -126,6 +126,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile,accountFame)
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
+        fun currentOffices(player:org.logh7.engine.Navigator)=player.country
+            ?.takeIf {world?.lobbyCountryDefinitions()?.first?.countries?.containsKey(it.value)==true}
+            ?.let {administration?.offices(player.characterId,it.value,player.generation)}.orEmpty()
         fun information(snapshot:org.logh7.engine.WorldSnapshot?,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {
             return SessionEndingReport.information(snapshot,registered,sessionId,sessionName,admission?.generation ?: 1L)
         }
@@ -190,7 +193,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                 // A later commit (return, reentry) supersedes this sinking; never roll the client back.
                 if(snapshot.navigators.values.none {it==departed})return@let
                 val character=currentCharacters().characterById(departed.characterId)?.let {WorldCharacters.view(it,snapshot)} ?: return@let
-                p.fortressSunk(departed,character,administration?.offices(departed.characterId,character.power,departed.generation).orEmpty(),
+                p.fortressSunk(departed,character,currentOffices(departed),
                     snapshot.session?.gameSeconds ?: 0L)
             }
         }}
@@ -199,7 +202,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             navigation.snapshot()?.let {snapshot->for(id in ids) {
                 val character=currentCharacters().characterById(id)?.let {WorldCharacters.view(it,snapshot)} ?: continue
                 val player=snapshot.navigators.values.singleOrNull {it.characterId==id} ?: continue
-                p.refreshCharacter(character,player,administration?.offices(id,character.power,player.generation).orEmpty(),
+                p.refreshCharacter(character,player,currentOffices(player),
                     snapshot.session?.gameSeconds ?: 0L,administration?.stationedOutfit(player) ?: 0)
             }}
         }}
