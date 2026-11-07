@@ -66,7 +66,7 @@ static unsigned tacticalUnitRelation(void* world,unsigned id,unsigned nativeRela
     logh::TacticalSide target,viewer;
     if(!runtimeTacticalSide(world,id,target,&viewer))return nativeRelation;
     const auto own=at<BYTE*>(world,8);
-    return logh::tacticalRelation(id,at<unsigned>(own,0x48),viewer,target);
+    return logh::tacticalRelation(id,at<unsigned>(own,0x48),viewer,target,nativeRelation);
 }
 static BYTE tacticalRelationTrampoline[10];
 using TacticalRelationLookup=BYTE*(__cdecl*)(unsigned);
@@ -89,7 +89,12 @@ static void refreshTacticalRelations(void* world) {
     const auto ownId=at<unsigned>(own,0x48);
     auto relation=[&](unsigned id,unsigned fallback) {
         auto unit=reinterpret_cast<BYTE*(__cdecl*)(void*,unsigned,int,int,int,int)>(0x4c7cd0)(table,id,1,255,255,255);
-        const auto native=unit ? id==ownId ? 0x400u : ownRecord[10]==unit[10] ? 0x800u : 0x1000u : fallback;
+        unsigned native=fallback;
+        if(unit) {
+            const unsigned commander=reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4b5c00)(unit);
+            if(id==ownId || commander==at<unsigned>(own,0x24))native=0x400;
+            else native=ownRecord[10]==unit[10] ? 0x800u : 0x1000u;
+        }
         return tacticalUnitRelation(world,id,native);
     };
     for(unsigned i=0;i<600;++i) {

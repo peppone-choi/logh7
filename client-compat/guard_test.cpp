@@ -979,6 +979,9 @@ static int tacticalCampTest() {
     if(logh::tacticalRelation(1,1,same,foreign)!=0x400 || logh::tacticalRelation(2,1,same,same)!=0x800 ||
         logh::tacticalRelation(2,1,same,foreign)!=0x1000 || logh::tacticalRelation(2,1,same,rebel)!=0x1000 ||
         logh::tacticalRelation(2,1,independent,otherPerson)!=0x1000 || logh::tacticalRelation(2,1,same,independent)!=0x1000)return 1115;
+    if(logh::tacticalRelation(2,1,same,same,0x400)!=0x400 ||
+        logh::tacticalRelation(2,1,same,foreign,0x400)!=0x1000 ||
+        logh::tacticalRelation(2,1,same,rebel,0x400)!=0x1000)return 1124;
     logh::TacticalSide side;
     if(!logh::TacticalSide::decode(0x3fffffff9ULL,side) || side.owner!=0x7fffffff || !side.insurgent ||
         logh::TacticalSide::decode(0x400000000ULL,side) || logh::TacticalSide::decode(0,side) || logh::TacticalSide::decode(7,side))return 1116;

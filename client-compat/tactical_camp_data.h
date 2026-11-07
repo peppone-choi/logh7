@@ -13,8 +13,8 @@ struct TacticalSide {
         if(!candidate.valid())return false;side=candidate;return true;
     }
 };
-inline unsigned tacticalRelation(unsigned id,unsigned own,const TacticalSide& viewer,const TacticalSide& target) {
-    if(id==own)return 0x400;
+inline unsigned tacticalRelation(unsigned id,unsigned own,const TacticalSide& viewer,const TacticalSide& target,unsigned nativeRelation=0) {
+    if(id==own || ((nativeRelation&0x400) && viewer==target))return 0x400;
     return viewer==target ? 0x800 : 0x1000;
 }
 struct TacticalCampPage {
