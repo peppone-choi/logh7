@@ -131,7 +131,8 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
         current
     }
     data class Joined(val client: SyntheticClient, val accepted: Boolean)
-    fun join(account: String, create: Boolean, initialize: Boolean = true): Joined {
+    fun join(account: String, create: Boolean, initialize: Boolean = true,
+        rejection: LoginMessages.SessionRejection = LoginMessages.SessionRejection.GENERIC): Joined {
         val client = game(account, create)
         try {
             val body = metrics.measure("join") {
@@ -139,7 +140,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
             }
             val accepted = ByteBuffer.wrap(body).getShort(4).toInt() == 0x0206
             check(if (accepted) body.size == 7 && body[6] == 0.toByte()
-                else body.contentEquals(LoginMessages.sessionRejection()))
+                else body.contentEquals(LoginMessages.sessionRejection(rejection)))
             if (accepted && initialize) bootstrap(client, characters.getValue(account)) else if (!accepted) client.expectClosed()
             return Joined(client, accepted)
         } catch (failure: Throwable) { client.close(); throw failure }

@@ -633,7 +633,7 @@ class GameExchangeTest {
         }
     }
     @Test fun gameLoginWaitsForActorAdmissionAndRejectsBeforeWorldInitialization() {
-        for (decision in listOf(Admission.ACCEPTED, Admission.FULL)) {
+        for (decision in listOf(Admission.ACCEPTED, Admission.FULL, Admission.ALREADY_ONLINE)) {
             var now = java.time.Instant.EPOCH
             val clock = object : java.time.Clock() {
                 override fun getZone() = java.time.ZoneOffset.UTC
@@ -654,8 +654,9 @@ class GameExchangeTest {
                 override fun disconnect(account: String, connection: String) { closed += account }
             }
             val tickets = SessionTickets()
+            val counters = GatewayCounters()
             val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903,
-                Handshake(b, 2), characters, admission = access)
+                Handshake(b, 2), characters, admission = access, counters = counters)
             game.accept(0x34, initial); game.accept(0x36, confirm)
             val token = tickets.issue("user", SessionTickets.Purpose.GAME)
             game.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
@@ -665,8 +666,15 @@ class GameExchangeTest {
             pending.complete(decision)
             val response = game.finishJoin(decision)!!
             val body = Envelope.decode(LegacyBlowfish(b).decrypt(response.copyOfRange(8, response.size)), 2).second
-            assertContentEquals(hex(if (decision == Admission.ACCEPTED) "00000000020600" else "00000000020201010000"), body)
-            if (decision == Admission.FULL) assertFails { game.accept(0x30, encrypted(hex("0300"), 4)) }
+            val expected = when (decision) {
+                Admission.ACCEPTED -> "00000000020600"
+                Admission.ALREADY_ONLINE -> "00000000020202010000"
+                else -> "00000000020201010000"
+            }
+            assertContentEquals(hex(expected), body)
+            assertEquals(if (decision == Admission.ALREADY_ONLINE) 1L else 0L,
+                counters.snapshot()["duplicate_admission_rejected_total"])
+            if (decision != Admission.ACCEPTED) assertFails { game.accept(0x30, encrypted(hex("0300"), 4)) }
             game.close(); game.close()
             assertEquals(listOf("user"), closed)
         }
