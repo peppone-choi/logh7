@@ -95,11 +95,13 @@ class LoadHarnessTest {
                 metrics.observe("initialChannels", fixture.gateway.connections().tracked.toLong())
                 assertTrue(fixture.captureFragmentObserved(), "A split TCP input chunk must be observed in the private capture")
                 metrics.observe("fragmentedChunkObserved", 1)
-                val duplicate = fixture.join(fixture.account(0), create = false)
+                val duplicate = fixture.join(fixture.account(0), create = false,
+                    rejection = org.logh7.protocol.LoginMessages.SessionRejection.ALREADY_ONLINE)
                 assertFalse(duplicate.accepted); duplicate.client.close()
                 fixture.awaitState(count, count, count)
                 fixture.await("duplicate admission observation") { Admission.ALREADY_ONLINE in fixture.decisions }
                 assertTrue(Admission.ALREADY_ONLINE in fixture.decisions)
+                fixture.clock(first.first().client)
                 val full = fixture.join(fixture.account(count), create = true)
                 assertFalse(full.accepted); full.client.close()
                 fixture.awaitState(count, count, count)

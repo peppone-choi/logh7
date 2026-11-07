@@ -12,6 +12,8 @@ class GatewayCounters {
     val loginRejected = AtomicLong()
     /** A session-port token that was unknown, expired, reused or bound to another session/generation. */
     val sessionTicketRejected = AtomicLong()
+    /** Authenticated admission attempts refused because the account already owns a connection to this world. */
+    val duplicateAdmissionRejected = AtomicLong()
     val updateCompleted = AtomicLong()
     /** An update exchange that started (sent its first frame) but closed before completing. */
     val updateFailed = AtomicLong()
@@ -26,6 +28,7 @@ class GatewayCounters {
     fun snapshot(): Map<String, Long> = linkedMapOf(
         "login_accepted_total" to loginAccepted.get(), "login_rejected_total" to loginRejected.get(),
         "session_ticket_rejected_total" to sessionTicketRejected.get(),
+        "duplicate_admission_rejected_total" to duplicateAdmissionRejected.get(),
         "update_completed_total" to updateCompleted.get(), "update_failed_total" to updateFailed.get(),
         "connection_errors_total" to connectionErrors.get(),
         "notification_overflow_total" to notificationOverflow.get())
