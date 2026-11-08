@@ -26,6 +26,7 @@ internal object TacticalOfflineAi {
         val mission=currentMission(p,stocks)
         val preferred=mission?.takeIf {it.mission==3}?.target
         if(eligible(session,account,p,stocks)) {
+            if(stocks.tacticalCommands.confused(p.unitId))return emptyList()
             when(mission?.mission) {
                 3 -> return listOf(mission.target)
                 4,5 -> return emptyList()
