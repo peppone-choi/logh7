@@ -104,10 +104,11 @@ internal object NpcTactics {
             val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
             if(live.isEmpty())continue
             val behavior=policy.behavior(session.generation,outfitId)
+            val camp=TacticalAuthority.camp(outfit,stocks)
             val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy)
             val detectsEnemies=enemies.isNotEmpty() && live.any { unit ->
                 val observer=initial(unit,outfit,position.grid,now,players,stocks,galaxy).position
-                enemies.any { !TacticalTerrain.sensorBlocked(galaxy,position.grid,observer,it.pose.position) }
+                enemies.any { !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,observer,it.pose.position,now,players.values,stocks) }
             }
             val returnJumps=if(policy.strategic && detectsEnemies)NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
             val cargo=OutfitSupplies.distribution(outfit)
@@ -130,7 +131,8 @@ internal object NpcTactics {
                 var state=before
                 if(state==null || now>=state.nextDecisionAt || state.retreat!=withdrawal) {
                     val target=enemies.map {it to hypot(it.pose.position.x.toDouble()-origin.position.x,it.pose.position.y.toDouble()-origin.position.y)}
-                        .filter {it.second<=policy.sight && !TacticalTerrain.sensorBlocked(galaxy,position.grid,origin.position,it.first.pose.position)}
+                        .filter {it.second<=policy.sight && !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,
+                            origin.position,it.first.pose.position,now,players.values,stocks)}
                         .minWithOrNull(compareBy<Pair<Contact,Double>> {it.second}.thenBy {it.first.id})
                     val goal=if(withdrawal!=null) {
                         val dx=(withdrawal.destination%100-position.grid%100).toFloat();val dy=(withdrawal.destination/100-position.grid/100).toFloat()
@@ -170,7 +172,8 @@ internal object NpcTactics {
                     val precision=behavior==NpcCombatBehavior.PRECISION
                     val nearby=contacts(outfit,position.grid,now,players,stocks,galaxy)
                     val inArc=(if(precision)nearby else nearby.sortedBy {it.id}).asSequence()
-                        .filterNot { TacticalTerrain.sensorBlocked(galaxy,position.grid,pose.position,it.pose.position) }
+                        .filterNot {TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,pose.position,it.pose.position,
+                            now,players.values,stocks)}
                         .mapNotNull { contact ->
                             val effect=TacticalArmaments.effectiveness(mount,pose,contact.pose.position)
                             if(effect==0)null else contact to effect
