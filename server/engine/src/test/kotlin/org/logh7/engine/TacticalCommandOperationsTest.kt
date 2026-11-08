@@ -134,7 +134,7 @@ class TacticalCommandOperationsTest {
     }
 
     private fun checkAntiAirSharedContact(keepContact:Boolean) {
-        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases.map {it.copy(radius=25f)},galaxy.starts)
         val s=state()
         s.players=s.players.mapValues {(_,p)->if(p.characterId==10000)
             p.copy(hull=FlagshipHull(4,now),motion=motion(0f,-21f)) else p}+

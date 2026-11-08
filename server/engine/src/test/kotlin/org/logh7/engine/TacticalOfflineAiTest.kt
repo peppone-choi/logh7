@@ -52,7 +52,7 @@ class TacticalOfflineAiTest {
     }
 
     @Test fun offlinePatrolAndAttackMissionsRequireDirectOrSharedContact() {
-        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases.map {it.copy(radius=25f)},galaxy.starts)
         for(mission in listOf(0,3))for((observer,scout) in listOf(21f to 22f,16f to 22f,22f to 16f)) {
             val players=players()
             players["pilot"]=players.getValue("pilot").copy(motion=motion(0f,observer))
