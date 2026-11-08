@@ -541,6 +541,28 @@ class TacticalCommandOperationsTest {
         assertEquals(listOf(1,2),s.stocks.outfits.getValue(1).activeShips!!.values.map {it.id})
         assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.retreat)
     }
+    @Test fun woundedCommanderCannotIssueRegularRetreatUntilRecovery() {
+        val s=state()
+        val pilot=s.players.getValue("pilot")
+        val wounded=pilot.copy(motion=motion(260f),hull=pilot.hull!!.copy(woundedUntil=now+1))
+        s.players=s.players+("pilot" to wounded)
+        val outfit=s.stocks.outfits.getValue(1)
+        val ships=ActiveShipUnits(outfit.activeShips!!.values.map {
+            it.copy(tactical=NpcTacticalState(motion(260f,it.id*.4f),now,now))
+        })
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(activeShips=ships)))
+        val r=run(s)
+        val req=request(TacticalCommand(0x40d,listOf(1))).copy(tacticalCommand=null,tacticalRetreat=listOf(1))
+        val before=r.production.snapshot(1)!!
+        assertEquals(NavigationRejection.WOUNDED,TacticalFleetRetreat.accept(req,session,galaxy,
+            r.navigation,r.production,before,s.commit,1).rejection)
+        assertEquals(wounded,r.navigation.snapshot(1).getValue("pilot"))
+        assertEquals(ships,s.stocks.outfits.getValue(1).activeShips)
+        val recovered=session.copy(gameMillis=(now+1)*1000)
+        assertNotNull(TacticalFleetRetreat.accept(req,recovered,galaxy,r.navigation,r.production,before,s.commit,1).player)
+        assertNotNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.retreat)
+    }
+
     @Test fun regularRetreatMovesOnlySelectedStableIdsAndLeavesLandedTroopsBehind() {
         val s=state();s.players=s.players.mapValues {(account,p)->if(account=="pilot")p.copy(motion=motion(260f)) else p}
         val o=s.stocks.outfits.getValue(1)
