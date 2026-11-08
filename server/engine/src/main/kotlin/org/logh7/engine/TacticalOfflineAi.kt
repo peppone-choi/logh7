@@ -103,6 +103,13 @@ internal object TacticalOfflineAi {
                 }
                 val updated=original.activeShips?.values?.map {unit ->
                     if(unit.id !in commandable || unit.posture?.mode?.requiresBase==true)return@map unit
+                    if(kind in 0..1) {
+                        val support=TacticalSupportOperations.offlineFlagshipOrder(original,unit,p,now,scale,players,stocks,g)
+                        if(support!=null) {
+                            commanded=true
+                            return@map unit.copy(support=support,attack=null,shot=null)
+                        }
+                    }
                     val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
                         ?: TacticalDeployment.initial(unit.id,p.grid,players.values,stocks,g)
                     val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
