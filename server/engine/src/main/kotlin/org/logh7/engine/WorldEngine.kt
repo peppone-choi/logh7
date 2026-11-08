@@ -436,15 +436,17 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         published.set(snapshot.copy(result=result))
         if(result!=null && previousResult==null)published.get().let {s->resultObservers.forEach {it(s)}}
         val inventory=snapshot.planetStocks
-        // Monthly rank and chair changes are committed before the online character view is refreshed.
+        // Monthly personnel changes are committed before the online character view is refreshed.
         if(inventory!=null && old!=null && old.generation==inventory.generation &&
             inventory.producedDays/PoliticianLadder.PERIOD_DAYS>old.producedDays/PoliticianLadder.PERIOD_DAYS) {
-            val changedRanks=inventory.strategic.people.keys.filter {id ->
-                old.strategic.people[id]?.rank!=inventory.strategic.people[id]?.rank
+            val changedPeople=inventory.strategic.people.keys.filter {id ->
+                val before=old.strategic.people[id]
+                val after=inventory.strategic.people[id]
+                before?.rank!=after?.rank || before?.abilities!=after?.abilities
             }
             val oldChairs=old.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
             val newChairs=inventory.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
-            val changed=(changedRanks+((oldChairs-newChairs)+(newChairs-oldChairs)).map {it.character}).distinct()
+            val changed=(changedPeople+((oldChairs-newChairs)+(newChairs-oldChairs)).map {it.character}).distinct()
             if(changed.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changed)}
             catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
         }
