@@ -63,7 +63,7 @@ class OutfitWarehouseWireTest {
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,1,40000,2,stocks.copy(strategic=StrategicState(capitals=mapOf(CountryId(2) to 1049))))).getShort(4).toInt())
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,3,20000,2,stocks)).getShort(4).toInt())
     }
-    @Test fun encryptedFacilityQueryUsesSavedOwnerDespiteDifferentSeed() = runBlocking<Unit> {
+    @Test fun capturedBaseShowsNewFacilitiesAndDeniesTheFormerOwnersWarehouseQuery() = runBlocking<Unit> {
         val original = snapshot()
         val captured = original.copy(bases=original.bases +
             (1049 to original.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))
@@ -93,6 +93,13 @@ class OutfitWarehouseWireTest {
             val condition = client.request(ByteBuffer.allocate(7).putShort(0x031e).put(1).putInt(1049).array(),
                 0x031f,"capturedCondition")
             assertEquals(3,condition[11].toInt())
+            val warehouse = client.request(ByteBuffer.allocate(10).putShort(0x0326).putInt(1049).putInt(1).array(),
+                0x0327,"capturedOutfitWarehouse")
+            val denied = ByteBuffer.wrap(warehouse).position(6)
+            assertEquals(1049,denied.int)
+            assertEquals(1,denied.int)
+            assertEquals(1,denied.int)
+            assertContentEquals(ByteArray(14),ByteArray(denied.remaining()).also {denied.get(it)})
         }
     }
 
