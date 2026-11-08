@@ -425,6 +425,25 @@ class TacticalCommandOperationsTest {
         assertEquals(overloaded,s.stocks.outfits.getValue(1))
     }
 
+    @Test fun fortressSupplyRequiresAFlagshipEvenIfTheCharacterIsInTheBattlefield() {
+        val s=state()
+        val ally=s.players.getValue("ally").copy(motion=motion(0f,.5f),supplies=400)
+        val noFlagship=ally.copy(hull=null)
+        val command=TacticalCommand(0x41c,listOf(ally.unitId),base=1000)
+        s.players=s.players+("ally" to noFlagship)
+        assertEquals(NavigationRejection.TARGET,accept(run(s),command).rejection)
+        s.players=s.players+("ally" to ally)
+        assertNotNull(accept(run(s),command).player)
+        s.players=s.players+("ally" to noFlagship)
+        val before=s.stocks.bases.getValue(1000).supplies
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(run(s),now+5,events)
+        assertTrue(events.single().cancelled)
+        assertEquals(400,s.players.getValue("ally").supplies)
+        assertEquals(before,s.stocks.bases.getValue(1000).supplies)
+        assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+    }
+
     @Test fun fortressSupportDoesNotAcceptWrongBerthsEnemiesOrStationedCombatCommands() {
         for(opcode in listOf(0x41b,0x41c)) {
             val s=state();val outfit=s.stocks.outfits.getValue(1)

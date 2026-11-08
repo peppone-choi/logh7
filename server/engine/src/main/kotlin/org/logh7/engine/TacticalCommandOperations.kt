@@ -203,7 +203,8 @@ internal object TacticalCommandOperations {
             0x41b,0x41c -> {
                 if(s.bases.getValue(c.base).supplies==0)return NavigationRejection.SUPPLY
                 for(id in c.units) {
-                    if(players.values.any {it.unitId==id && BattleDeath.deceased(s,it.characterId)})return NavigationRejection.TARGET
+                    if(players.values.any {it.unitId==id && (it.hull==null || BattleDeath.deceased(s,it.characterId))})
+                        return NavigationRejection.TARGET
                     if(c.opcode==0x41b && ship(id,s)?.outfit?.guard!=null)return NavigationRejection.TARGET
                     val at=supportPoint(id,base!!,now,players,s,g) ?: return NavigationRejection.TARGET
                     if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>maxOf(1f,base.diameter))return NavigationRejection.RANGE
