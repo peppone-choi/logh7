@@ -9,6 +9,12 @@ internal object TacticalMotionProgress {
             it.online && it.country==p.country && p.grid==grid && p.baseId==0 && p.cpPaused
         }?.connection?.let {p.characterId to it}}.toMap()
         fun progress(unit:Int,character:Int,motion:TacticalMotion,driftLimit:Float=BlackHoleTides.DRIFT_VELOCITY):TacticalMotion {
+            if(motion.rotation!=null && BattleDeath.deceased(original,character)) {
+                val stopped=motion.copy(direction=motion.origin.direction,waypoints=listOf(motion.origin.position),rotation=null)
+                events+=TacticalMovement(session.generation,unit,motion.grid,now,stopped,audience(motion.grid),
+                    character=character,waypoint=-1)
+                return stopped
+            }
             val completed=motion.completedWaypoints(now)
             // A still player-commanded unit beside a black hole is pulled toward the field edge (BlackHoleTides).
             // Autonomous units are excluded: NpcTactics owns their motion and would cancel the drift every tick.
@@ -41,7 +47,8 @@ internal object TacticalMotionProgress {
             val units=outfit.activeShips ?: continue
             val next=units.values.map {unit ->
                 val state=unit.tactical?.takeIf {unit.boats>0 && it.motion.grid==position.grid &&
-                    (unit.motionCommander==0 || unit.motionCommander==TacticalAuthority.commander(outfit,unit,stocks))} ?: return@map unit
+                    (unit.motionCommander==0 || unit.motionCommander==TacticalAuthority.commander(outfit,unit,stocks) ||
+                        it.motion.rotation!=null && BattleDeath.deceased(stocks,unit.motionCommander))} ?: return@map unit
                 val motion=progress(unit.id,unit.motionCommander,state.motion)
                 if(motion==state.motion)unit else unit.copy(tactical=state.copy(motion=motion,
                     nextDecisionAt=maxOf(state.nextDecisionAt,motion.acceptedAt)))
