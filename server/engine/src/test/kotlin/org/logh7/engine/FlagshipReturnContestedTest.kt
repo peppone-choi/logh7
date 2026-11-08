@@ -26,6 +26,15 @@ class FlagshipReturnContestedTest {
         assertEquals(0,moved.returnBase)
         assertEquals(1060,moved.originBase)
     }
+    @Test fun noSafeSystemFallsBackToTheDesignatedFriendlyDock() {
+        val hostilePresence=listOf(enemy,enemy.copy(characterId=10002,grid=2490),enemy.copy(characterId=10003,grid=2015))
+        val recovered=FlagshipRecovery.defeated(victim.copy(originBase=1060),100,galaxy,stocks,hostilePresence)
+        assertEquals(1048,recovered.baseId)
+        assertEquals(2487,recovered.grid)
+        assertEquals(4,recovered.mode)
+        assertEquals(1048,recovered.returnBase)
+        assertEquals(1060,recovered.originBase)
+    }
     @Test fun everyOwnSystemInTacticsKeepsTheDesignationAndReturnsToSafeSpace() {
         val other=enemy.copy(characterId=10002,grid=2490)
         val moved=FlagshipRecovery.defeated(victim,100,galaxy,stocks,listOf(victim,enemy,other))
