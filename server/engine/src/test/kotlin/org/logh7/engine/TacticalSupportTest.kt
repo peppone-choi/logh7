@@ -197,6 +197,34 @@ class TacticalSupportTest {
         }
     }
 
+    @Test fun supportRequiresAtLeastOneOperationalShipAtAdmissionAndSettlement() {
+        for(action in TacticalSupportAction.entries) {
+            val s=state(repair=action==TacticalSupportAction.REPAIR)
+            val command=request(action,2)
+            fun damageSource(stocks:PlanetStocks,operational:Int):PlanetStocks {
+                val fleet=stocks.outfits.getValue(1)
+                val ships=fleet.activeShips!!.values.map {u->
+                    if(u.id==1)u.copy(damaged=u.boats-operational) else u
+                }
+                return stocks.copy(outfits=stocks.outfits+(1 to fleet.copy(activeShips=ActiveShipUnits(ships))))
+            }
+            val before=s.stocks
+            s.stocks=damageSource(before,0)
+            assertEquals(NavigationRejection.TARGET,
+                accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).rejection)
+            s.stocks=damageSource(before,1)
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+            s.stocks=damageSource(s.stocks,0)
+            val out=mutableListOf<TacticalSupportResult>()
+            settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+120,out)
+            assertTrue(out.single().cancelled)
+            val fleet=s.stocks.outfits.getValue(1)
+            assertNull(fleet.activeShips!!.values.first().support)
+            assertEquals(before.outfits.getValue(1).activeShips!!.values.last(),fleet.activeShips.values.last())
+            assertEquals(10000,fleet.supplies)
+        }
+    }
+
     @Test fun supplyBetweenUnitsOfTheSameFleetDoesNotChangeItsTotal() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
