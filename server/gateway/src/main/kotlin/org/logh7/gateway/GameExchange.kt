@@ -615,7 +615,7 @@ class GameExchange(
     }
     internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
         if (state == State.CLOSED || !gameStarted || obsolete() || sessionEndingAvailable()) null else {
-            val current=tacticalPresence(messages)
+            val current=deduplicateSameGridExit(tacticalPresence(messages))
             fun entering(message:ByteArray)=message.size>=7 &&
                 java.nio.ByteBuffer.wrap(message).getShort(4).toInt() and 65535==0x0f1f && message[6].toInt()==1
             val output=if(current.any(::entering)) {
@@ -628,6 +628,26 @@ class GameExchange(
             if(output.isEmpty())null else {
                 presence?.observeMotions(connection,output)
                 handshake.stageAll(output, clearHeader = 0)
+            }
+        }
+    }
+    private fun deduplicateSameGridExit(messages:List<ByteArray>):List<ByteArray> {
+        val prior=deliveredPlayer ?: return messages
+        if(!worldInitialized || deliveredTactics==null)return messages
+        fun exitsCurrentGrid(message:ByteArray)=message.size>=11 && java.nio.ByteBuffer.wrap(message).let {
+            it.getShort(4).toInt()==0x0f1f && it.get(6).toInt()==0 && it.getInt(7)==prior.grid
+        }
+        if(messages.none(::exitsCurrentGrid))return messages
+        val current=navigation?.snapshot()?.navigators?.get(ticket?.account) ?: return messages
+        if(current.cpPaused || current.grid!=prior.grid || current.generation!=prior.generation)return messages
+        // The world observer and request publication can both report this same transition.
+        return messages.filter {message->
+            if(!exitsCurrentGrid(message))true
+            else if(deliveredTactics!=true)false
+            else {
+                deliveredTactics=false
+                tacticalExitPending=true
+                true
             }
         }
     }
