@@ -10,8 +10,11 @@ internal object TacticalOfflineAi {
         p.baseId==0 && p.mode==5 && p.hull!=null && p.hull.woundedUntil<=session.gameMillis/1000 &&
         stocks.tacticalCommands.tacticalAi(p.characterId)
 
+    private fun currentMission(p:Navigator,stocks:PlanetStocks)=stocks.tacticalCommands.missions[p.characterId]
+        ?.takeIf {!it.completed && (it.grid==null || it.grid==p.grid)}
+
     fun automaticTargets(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks,ids:List<Int>):List<Int> {
-        val mission=stocks.tacticalCommands.missions[p.characterId]?.takeUnless {it.completed}
+        val mission=currentMission(p,stocks)
         val preferred=mission?.takeIf {it.mission==3}?.target
         if(eligible(session,account,p,stocks)) {
             when(mission?.mission) {
@@ -34,7 +37,7 @@ internal object TacticalOfflineAi {
             if(p.retreat!=null || p.fire?.pending!=null || p.posture?.let {it.mode.requiresBase || it.order!=null}==true ||
                 stocks.tacticalCommands.orders.any {p.unitId in it.command.units})continue
             val pose=p.motion?.pose(now,p.posture,g,stocks) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,stocks,g)
-            val mission=stocks.tacticalCommands.missions[p.characterId]?.takeUnless {it.completed}
+            val mission=currentMission(p,stocks)
             val kind=if(stocks.tacticalCommands.confused(p.unitId))5 else mission?.mission ?: 0
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)).distinct()
             val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)?.let {

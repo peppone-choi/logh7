@@ -72,6 +72,23 @@ class TacticalOfflineAiTest {
         assertNull(next.outfits.getValue(1).activeShips!!.values.single().attack)
     }
 
+    @Test fun missionsFromAnotherGridDoNotOverrideLocalOfflinePatrol() {
+        for (kind in 3..5) {
+            val players=players()
+            val pilot=players.getValue("pilot")
+            val plain=stocks(kind)
+            val command=plain.tacticalCommands
+            val stale=command.missions.getValue(10000).copy(grid=2487,target=98)
+            val stock=plain.copy(tacticalCommands=command.copy(missions=mapOf(10000 to stale)))
+            assertEquals(listOf(99),TacticalOfflineAi.automaticTargets(offline,"pilot",pilot,stock,listOf(99)))
+            val next=TacticalOfflineAi.advance(offline,galaxy,players,stock,1,mutableListOf())
+            val acting=players.getValue("pilot")
+            assertNotNull(acting.attack)
+            assertEquals(TacticalPoint(0f,28f),acting.motion!!.waypoints.single())
+            assertNotNull(next.outfits.getValue(1).activeShips!!.values.single().attack)
+        }
+    }
+
     @Test fun anExistingFleetAttackHonorsTheOfflineMissionBeforeTheNextAiDecision() {
         for(mission in listOf(3,4,5)) assertExistingFleetAttackIsSuppressed(mission)
     }
