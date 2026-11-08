@@ -459,7 +459,7 @@ internal object TacticalCommandOperations {
                     val maximum=p?.let {(it.energy ?: TacticalEnergy.ZERO).values[0]/100f*(if(m.parallel)0.5f else 1f)}
                     val restored=minOf(wing.slowVelocity,maximum ?: wing.slowVelocity)
                     updateWingTargetMotion(wing,m.copy(acceptedAt=now,origin=at,velocity=restored,
-                        waypoints=m.remaining(now),reportedWaypoints=0,waitSeconds=0))
+                        waypoints=m.remaining(now),reportedWaypoints=0,waitSeconds=(m.startsAt-now).coerceAtLeast(0)))
                 }
             }
         }
@@ -508,7 +508,8 @@ internal object TacticalCommandOperations {
                             val existing=stocks.tacticalCommands.air.values.firstOrNull {it.source!=id && it.target==wing.target && it.slowVelocity!=null}?.slowVelocity
                             wing=wing.copy(slowVelocity=existing ?: moving.velocity)
                             if(existing==null)updateWingTargetMotion(wing,moving.copy(acceptedAt=now,origin=target,
-                                velocity=moving.velocity*.5f,waypoints=moving.remaining(now),reportedWaypoints=0,waitSeconds=0))
+                                velocity=moving.velocity*.5f,waypoints=moving.remaining(now),reportedWaypoints=0,
+                                waitSeconds=(moving.startsAt-now).coerceAtLeast(0)))
                         }
                     }
                 }
