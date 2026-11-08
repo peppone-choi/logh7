@@ -60,7 +60,10 @@ internal object FleetNavigation {
         val position = OutfitPosition(after.grid, after.baseId)
         val starting = preview.rejection == null && (request.destination != null || request.place is PlaceMove.Dock ||
             request.place == PlaceMove.SwitchMode(5))
-        if ((starting || position != outfit.positionIn(galaxy)) && followers.values.any { it.cpPaused || it.navigationPending })
+        val now = session.gameMillis / 1000
+        if ((starting || position != outfit.positionIn(galaxy)) && followers.values.any {
+            it.cpPaused || it.navigationPending || (it.hull?.woundedUntil ?: 0) > now
+        })
             return deferred(NavigationRejection.BUSY)
         if (position == outfit.positionIn(galaxy))
             return personal(units,false)
@@ -70,7 +73,6 @@ internal object FleetNavigation {
         // A reserved warp moves the fleet when its job completes, not on the accepting request.
         val cruiseCost = if (request.destination != null || preview.completedWarp) (before.cruise - after.cruise).coerceAtLeast(0) else 0
         if (followers.values.any { it.cruise < cruiseCost }) return deferred(NavigationRejection.CRUISE)
-        val now = session.gameMillis / 1000
         val departureBase = before.baseId.takeIf { it != 0 && after.baseId == 0 && after.cpPaused }
             ?.let { id -> galaxy.bases.single { it.id == id } }
         var slot = 1
