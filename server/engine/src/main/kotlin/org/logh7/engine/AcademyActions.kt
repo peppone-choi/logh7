@@ -21,7 +21,8 @@ data class AcademyState(val experience:Map<Int,List<Int>> = emptyMap(),val lectu
 }
 /** Query/commit view: [content] -1 without a lecture; [gained] the experience of the last commit. */
 data class AcademyView(val ticket:Int,val base:Int,val spot:Int,val content:Int,val lectureRemaining:Long,
-    val ability:Int,val value:Int,val experience:Int,val wait:Long,val usesLeft:Int,val gained:Int=0)
+    val ability:Int,val value:Int,val experience:Int,val wait:Long,val usesLeft:Int,val gained:Int=0,
+    val cost:Int=0,val quote:Int=0)
 
 /**
  * 受講(93)·兵棋演習(94)·講義(27), manual W69–71 and constmsg group 0 #94/#160/#161 (MCP 160/10/160, academy only).
@@ -56,7 +57,7 @@ object AcademyActions {
         if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
         val ability=i.argument
         if(i.command !in commands || r.phase !in 0..1 || (if(r.phase==0)r.ticket!=0 else r.ticket<=0) ||
-            i.target!=0 || i.outfit!=0 || i.base!=0 || i.value!=0 || i.amount!=0L ||
+            i.target!=0 || i.outfit!=0 || i.base!=0 || i.value !in (if(r.phase==0)0..0 else 0..18) || i.amount!=0L ||
             ability !in (if(i.command==LECTURE)0..3 else if(i.command==WARGAME)4..7 else 0..7))return reject(SocialRejection.COMMAND)
         val now=session.gameMillis/1000
         val person=s.strategic.people[i.characterId] ?: r.profile ?: StrategicPerson(rank=i.rank)
@@ -79,10 +80,15 @@ object AcademyActions {
         val shown=if(i.command==LECTURE)own else lecture
         val target=if(i.command==ATTEND && lecture!=null)contentAbilities[lecture.content][0] else if(i.command==LECTURE)
             contentAbilities[ability][0] else ability
+        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command==WARGAME)10 else 160,CpPool.MCP)
+            as? PaymentResult.Paid
+        // Each command has a fixed price per pool. The quoted lesson also controls the gain for attendance.
+        val lesson=if(i.command==ATTEND)lecture?.content ?: -1 else -1
+        val quote=paid?.let {(lesson+1)*4+if(it.chargedPool==CpPool.MCP)1 else 2} ?: 0
         val view=AcademyView(s.social.nextId,p.baseId,p.spotId,shown?.content ?: -1,((shown?.until ?: now)-now).coerceAtLeast(0),
-            target,abilities[target],exp[target],wait,if(i.command==WARGAME)WARGAMES_PER_DAY-used else if(wait>0)0 else 1)
-        if(r.phase==0)return SocialResult(p,s,academy=view)
-        if(r.ticket!=s.social.nextId)return reject(SocialRejection.STALE,view)
+            target,abilities[target],exp[target],wait,if(i.command==WARGAME)WARGAMES_PER_DAY-used else if(wait>0)0 else 1,
+            cost=paid?.spent?.toInt() ?: 0,quote=quote)
+        if(r.phase==1 && r.ticket!=s.social.nextId)return reject(SocialRejection.STALE,view)
         if(i.command==LECTURE && (i.card !in lecturerCards ||
                 OrganizationalOfficePolicy(g,countries).holders(s,i.card,i.country).none {it.character==i.characterId}))return reject(SocialRejection.CARD,view)
         if(i.command!=LECTURE && i.card!=0)return reject(SocialRejection.CARD,view)
@@ -97,8 +103,9 @@ object AcademyActions {
             WARGAME->listOf(ability to 5)
             else->emptyList()}
         if(gains.isNotEmpty() && gains.all {(k,_)->abilities[k]>=ABILITY_CAP})return reject(SocialRejection.MAXIMUM,view)
-        val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command==WARGAME)10 else 160,CpPool.MCP)
-        if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP,view)
+        if(paid==null)return reject(SocialRejection.CP,view)
+        if(r.phase==0)return SocialResult(p,s,academy=view)
+        if(i.value!=0 && i.value!=quote)return reject(SocialRejection.QUOTE_CHANGED,view)
         val values=abilities.toMutableList();val points=exp.toMutableList()
         for((k,amount) in gains) {
             if(values[k]>=ABILITY_CAP)continue
@@ -112,10 +119,14 @@ object AcademyActions {
         }.let {if(gains.isEmpty())it else it.copy(experience=it.experience+(i.characterId to points.toList()))}
         val people=if(gains.isEmpty())s.strategic.people else s.strategic.people+(i.characterId to person.copy(abilities=values.toList()))
         val next=s.copy(strategic=s.strategic.copy(people=people),social=s.social.copy(nextId=s.social.nextId+1,academy=academy))
-        val after=AcademyView(next.social.nextId,p.baseId,p.spotId,if(i.command==LECTURE)ability else lecture?.content ?: -1,
+        val after=AcademyView(0,p.baseId,p.spotId,if(i.command==LECTURE)ability else lecture?.content ?: -1,
             if(i.command==LECTURE)LECTURE_SECONDS else ((lecture?.until ?: now)-now).coerceAtLeast(0),
-            target,values[target],points[target],if(i.command==WARGAME && used+1<WARGAMES_PER_DAY)0 else SocialActions.DAY,
-            if(i.command==WARGAME)WARGAMES_PER_DAY-used-1 else 0,gains.sumOf {it.second})
+            target,values[target],points[target],when(i.command) {
+                LECTURE->LECTURE_SECONDS
+                WARGAME->if(used+1<WARGAMES_PER_DAY)0 else (day+1)*SocialActions.DAY-now
+                else->SocialActions.DAY
+            },
+            if(i.command==WARGAME)WARGAMES_PER_DAY-used-1 else 0,gains.sumOf {it.second},paid.spent.toInt(),quote)
         return SocialResult(p.paidWith(paid.balance),next,changed=true,academy=after)
     }
     /** The lecture ends when its lecturer is no longer in that classroom (offline lecturers keep their saved spot). */

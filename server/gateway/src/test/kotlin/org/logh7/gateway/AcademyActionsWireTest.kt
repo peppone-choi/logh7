@@ -28,16 +28,41 @@ class AcademyActionsWireTest {
         val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
         override fun saveWorld(navigation:Map<String,Navigator>,inventory:PlanetStocks?){players=navigation;stocks=checkNotNull(inventory)}
     }
-    private fun request(command:Int,argument:Int,phase:Int=0,ticket:Int=0,character:Int=10000,card:Int=0,token:Int=37)=
+    private fun request(command:Int,argument:Int,phase:Int=0,ticket:Int=0,character:Int=10000,card:Int=0,token:Int=37,quote:Int=0)=
         ByteBuffer.allocate(31).putShort(0x1200).putInt(character).putShort(0x7f11).putShort(command.toShort()).putShort(card.toShort())
-            .putShort(0).putInt(ticket).put(phase.toByte()).putInt(0).putShort(argument.toShort()).putInt(0).putShort(token.toShort()).array()
+            .putShort(0).putInt(ticket).put(phase.toByte()).putInt(0).putShort(argument.toShort()).putInt(quote).putShort(token.toShort()).array()
     private fun next(client:SyntheticClient,opcode:Int):ByteArray {
         repeat(200){val b=client.receive();if(ByteBuffer.wrap(b).getShort(4).toInt()==opcode)return b};error("Missing $opcode")
     }
-    private fun action(client:SyntheticClient,body:ByteArray,status:Int=0):Pair<ByteBuffer,ByteBuffer> {
-        client.send(body);val current=next(client,0x1200);val last=next(client,0x1200)
-        for(b in listOf(current,last))assertEquals(status,ByteBuffer.wrap(b).getShort(16).toInt())
-        next(client,0x1201);next(client,0x0356);return ByteBuffer.wrap(current) to ByteBuffer.wrap(last)
+    private data class Reply(val first:ByteBuffer,val second:ByteBuffer,val payment:ByteBuffer)
+    private fun action(client:SyntheticClient,body:ByteArray,status:Int=0):Reply {
+        client.send(body);val current=next(client,0x1200);val payment=next(client,0x1200);val last=next(client,0x1200)
+        for(b in listOf(current,payment,last))assertEquals(status,ByteBuffer.wrap(b).getShort(16).toInt())
+        next(client,0x1201);next(client,0x0356);return Reply(ByteBuffer.wrap(current),ByteBuffer.wrap(last),ByteBuffer.wrap(payment))
+    }
+    @Test fun practiceQuotesSubstitutePcpAndRejectsAChangedQuoteBeforeCharging() {
+        val state=State()
+        val simulator=galaxy.facilities.getValue(1049).single {it.kind==20}.spots.single {it.kind==AcademyActions.SIMULATOR}.id
+        val account="load-000"
+        state.players=state.players+(account to state.players.getValue(account).copy(spotId=simulator,mcp=9,pcp=20))
+        LoadFixture(directory.resolve("practice-quote"),2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
+            stockStore=state.inventory,worldStateCommitter=state).use {server ->
+            val student=server.join(account,true,false).client;student.send(SyntheticClient.opcode(0x0f00));next(student,0x0f01)
+            val preview=action(student,request(94,4))
+            val ticket=preview.first.getInt(18)
+            assertEquals(13,preview.payment.get(22).toInt())
+            assertEquals(20,preview.payment.getInt(18))
+            assertEquals(2,preview.payment.getShort(27).toInt())
+            action(student,request(94,4,1,ticket,token=38,quote=1),14)
+            assertEquals(20,state.players.getValue(account).pcp)
+            assertTrue(state.stocks.social.academy.wargames.isEmpty())
+            val committed=action(student,request(94,4,1,ticket,token=39,quote=2))
+            assertEquals(12,committed.second.get(22).toInt())
+            assertEquals(0,state.players.getValue(account).pcp)
+            assertEquals(9,state.players.getValue(account).mcp)
+            assertEquals(5,state.stocks.social.academy.experience.getValue(10000)[4])
+            action(student,request(94,4),8)
+        }
     }
     @Test fun aLectureAndAttendanceCommitThroughTheOriginalEnvelope() {
         val state=State()

@@ -1713,12 +1713,12 @@ class GameExchange(
                                     abilities=character.abilities,decorations=character.decorations)
                                 val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                     q.character,currentProfile(identity.account,q.character).country,
-                                    checkNotNull(generation),q.command,q.card,character.rank,argument=q.argument),q.phase,q.ticket,profile)
+                                    checkNotNull(generation),q.command,q.card,character.rank,value=q.quote,argument=q.argument),q.phase,q.ticket,profile)
                                 pendingWorld=administration.social(request).thenApply {result ->
                                     val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                                     publication=Publication(updated,player,false)
                                     val view=result.academy?.let {org.logh7.protocol.AcademyMessages.View(it.ticket,it.base,it.content,
-                                        it.lectureRemaining,it.usesLeft,it.ability,it.value,it.experience,it.wait,it.gained)}
+                                        it.lectureRemaining,it.usesLeft,it.ability,it.value,it.experience,it.wait,it.gained,it.cost,it.quote)}
                                     org.logh7.protocol.AcademyMessages.response(q,result.rejection?.let {it.ordinal+1} ?: 0,result.changed,view)+
                                         listOf(characterMessage(updated,player,true),unitMessage(updated,player))+
                                         result.recovery?.let {completedWork(it.copy(player=player),updated)}.orEmpty()

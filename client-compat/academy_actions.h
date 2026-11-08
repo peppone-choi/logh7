@@ -1,9 +1,9 @@
 // Academy editor: 受講 93, 兵棋演習 94, 講義 27. Explicit 7f11/native1200. Author: Peppone Choi.
 #pragma once
 static struct AcademyWindow {
-    unsigned argument,ticket,base,content,remaining,usesLeft,ability,value,experience,wait,gained;
+    unsigned argument,ticket,base,content,remaining,usesLeft,ability,value,experience,wait,gained,cost,quote;
     ULONGLONG queryAt;
-    bool loaded;
+    bool eligible;
     wchar_t outcome[180];
 } academyWindow={};
 static bool academyCommand(unsigned command) {return command==27 || command==93 || command==94;}
@@ -26,10 +26,11 @@ static void sendAcademyAction(unsigned phase) {
     at<unsigned short>(record,8)=static_cast<unsigned short>(state.card);
     at<unsigned>(record,12)=phase ? academy.ticket : 0;at<BYTE>(record,16)=static_cast<BYTE>(phase);
     at<unsigned short>(record,24)=static_cast<unsigned short>(academy.argument);
+    at<unsigned>(record,28)=phase ? academy.quote : 0;
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
     academy.queryAt=GetTickCount64();state.pending=true;state.sentAt=academy.queryAt;
-    state.message=phase ? L"MCP와 경험치를 함께 저장합니다." : L"현재 교실·강의·횟수를 조회합니다.";
+    state.message=phase ? L"결제와 연습 결과를 처리합니다." : L"현재 시설·강의·결제 비용을 조회합니다.";
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
 }
 static bool readAcademyAction(void* record) {
@@ -41,24 +42,26 @@ static bool readAcademyAction(void* record) {
         at<unsigned short>(record,32)==state.strategyToken) {
         unsigned flag=at<BYTE>(record,16),responseStatus=at<unsigned short>(record,10),value=at<unsigned short>(record,24);
         if(flag==10) {
-            if(!responseStatus || !academy.loaded) {
-                academy.ticket=at<unsigned>(record,12);academy.remaining=at<unsigned>(record,20);academy.base=at<unsigned>(record,28);
-                academy.content=value/256;academy.usesLeft=value%256;
-            }
+            academy.ticket=at<unsigned>(record,12);academy.remaining=at<unsigned>(record,20);academy.base=at<unsigned>(record,28);
+            academy.content=value/256;academy.usesLeft=value%256;
             return true;
+        }
+        if(flag==13) {
+            academy.cost=at<unsigned>(record,12);academy.quote=value;
         }
         if(flag==11 || flag==12) {
             state.pending=false;
+            academy.eligible=!responseStatus && flag==11 && academy.quote && academy.cost;
             academy.ability=at<unsigned>(record,12);academy.wait=at<unsigned>(record,20);
             academy.value=value/128;academy.experience=value%128;academy.gained=at<unsigned>(record,28);
             if(responseStatus)state.message=responseStatus==4 ? L"사관학교 교장·교관 직책 카드(강의) 또는 개인 카드(수강·병기연습)로 실행합니다." :
                 responseStatus==6 ? L"아군 거점 사관학교의 교실(병기연습은 시뮬레이터실)에 머물러야 합니다." :
                 responseStatus==7 ? L"다른 작업(보급·입항·워프 대기)을 마친 뒤 실행하세요." :
-                responseStatus==8 ? L"MCP가 부족합니다." : responseStatus==9 ? L"아직 대기 시간이 남아 있습니다." :
+                responseStatus==8 ? L"MCP와 대체 PCP가 부족합니다." : responseStatus==9 ? L"아직 대기 시간이 남아 있습니다." :
                 responseStatus==10 ? L"조회 뒤 다른 명령이 처리됐습니다. 새로 조회하세요." :
-                responseStatus==11 ? L"능력치가 이미 상한이거나 저장 한도에 도달했습니다." : L"요청 거부 · 세션·카드·현재 상태를 확인하세요.";
+                responseStatus==11 ? L"능력치가 이미 상한이거나 저장 한도에 도달했습니다." :
+                responseStatus==14 ? L"결제 또는 강의가 바뀌었습니다. 다시 조회하고 확인하세요." : L"요청 거부 · 세션·카드·현재 상태를 확인하세요.";
             else {
-                academy.loaded=true;
                 if(flag==12) {
                     if(state.strategyCommand==27)swprintf_s(academy.outcome,L"강의 개시 · %ls · 게임 내 120분",academyContent(academy.content ? academy.content-1 : 4));
                     else swprintf_s(academy.outcome,L"경험치 +%u · %ls %u (경험 %u/100)",academy.gained,academyAbility(academy.ability),academy.value,academy.experience);
@@ -86,13 +89,17 @@ static void drawAcademyAction() {
     else if(command==27 && academy.content)swprintf_s(label,L"내 강의 진행 중 · 남은 게임 내 %u초",academy.remaining);
     else swprintf_s(label,L"재실행까지 게임 내 %u초",academy.wait);
     taxText(4,label);
-    taxText(5,command==94 ? L"MCP 10 · 경험치 +5" : command==27 ? L"MCP 160 · 게임 내 120분, 수강생 두 능력 +50" : L"MCP 160 · 강의 중 두 능력 +50, 없으면 +20 · 하루 1회");
+    const wchar_t* effect=command==94 ? L"경험치 +5" : command==27 ? L"강의 120분 · 두 능력 +50" :
+        academy.content ? L"두 능력 각각 +50" : L"선택 능력 +20";
+    if(academy.cost)swprintf_s(label,L"%ls %u · %ls",academy.quote%4==2 ? L"대체 PCP" : L"MCP",academy.cost,effect);
+    else swprintf_s(label,L"결제 가능 여부 확인 · %ls",effect);
+    taxText(5,label);
     taxText(6,state.message);
     bool fixed=command==93 && academy.content;
     taxText(10,L"◀");taxText(11,command==27 ? L"내용 변경" : L"능력 변경");taxText(12,L"▶");
     taxText(13,L"조회");taxText(14,command==27 ? L"강의 실행" : command==93 ? L"수강 실행" : L"연습 실행");taxText(15,L"닫기");
     taxEnabled(10,!state.pending && !fixed);taxEnabled(11,false);taxEnabled(12,!state.pending && !fixed);taxEnabled(13,!state.pending);
-    taxEnabled(14,!state.pending && academy.loaded && academy.ticket && !academy.wait);
+    taxEnabled(14,!state.pending && academy.eligible && academy.ticket && !academy.wait);
 }
 static void academyNextArgument(int direction) {
     auto& academy=academyWindow;unsigned command=taxWindow.strategyCommand;
@@ -110,7 +117,7 @@ static bool updateAcademyAction() {
         else if(!state.pending) {
             if(id==10 || id==12) {academyNextArgument(id==10 ? -1 : 1);sendAcademyAction(0);}
             else if(id==13)sendAcademyAction(0);
-            else if(id==14 && academy.loaded && academy.ticket && !academy.wait)sendAcademyAction(1);
+            else if(id==14 && academy.eligible && academy.ticket && !academy.wait)sendAcademyAction(1);
         }
         break;
     }
