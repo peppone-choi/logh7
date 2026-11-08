@@ -367,7 +367,9 @@ class TacticalCombatTest {
     @Test fun sameGridDefeatPublishesOnlyTheVictimsCombatExit() = runBlocking {
         val state = state()
         val home = galaxy.bases.single().copy(grid = 2488)
-        val world = Galaxy(galaxy.systems, listOf(home), galaxy.starts)
+        // With no alternate system, the defeated flagship still docks in this battlefield.
+        val world = Galaxy(galaxy.systems.filter { it.grid == home.grid }, listOf(home),
+            Power.entries.associateWith { home.grid })
         val target = TacticalPoint(180f, -95f)
         val victim = Navigator(1, 10001, Power.EMPIRE, 2488, 1000, 1000, 900, cpPaused = true,
             hull = FlagshipHull(0, now, hp = 1, shields = List(6) { 0L }),
