@@ -57,6 +57,35 @@ class NavigationForcesTest {
             Navigation(galaxy,Store(),NavigationPolicy()).apply(request,session,stocks(camp=1)).rejection)
     }
 
+    @Test fun onlyDeployedAlliedShipsGrantSoloWarpIntoHostileSystems() {
+        val hostile=stocks(power=3)
+        val fleet=stocks(power=3,count=1)
+        val dockedAlly=Navigator(1,10001,Power.EMPIRE,2488,1000,1000,1000,mode=4,baseId=1000)
+        val departedAlly=dockedAlly.copy(mode=5,baseId=0)
+        val dockedFleet=fleet.copy(outfits=fleet.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2488,1000))})
+        val departedFleet=fleet.copy(outfits=fleet.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2488))})
+
+        fun attempt(inventory:PlanetStocks,ally:Navigator?,allowed:Boolean) {
+            val store=Store()
+            val setup=Navigation(galaxy,store,NavigationPolicy())
+            val before=assertNotNull(setup.apply(request.copy(destination=null),session).player)
+            if(ally!=null)store.saved=store.saved+("ally" to ally)
+            val result=Navigation(galaxy,store,NavigationPolicy()).apply(request,session,inventory)
+            if(allowed) {
+                val arrived=assertNotNull(result.player)
+                assertEquals(2488,arrived.grid)
+                assertTrue(arrived.cpPaused)
+            } else {
+                assertEquals(NavigationRejection.GRID,result.rejection)
+                assertEquals(before,store.saved.getValue("pilot"))
+            }
+        }
+        attempt(hostile,dockedAlly,allowed=false)
+        attempt(hostile,departedAlly,allowed=true)
+        attempt(dockedFleet,null,allowed=false)
+        attempt(departedFleet,null,allowed=true)
+    }
+
     @Test fun enemyDeploymentBlocksSoloShipEvenWhenPlanetIsFriendly() {
         val inventory=stocks(count=1)
         val enemy=inventory.copy(outfits=inventory.outfits.mapValues { it.value.copy(country=CountryId(3),shipStyle=ShipStyleId.fromLegacy(3)) },
