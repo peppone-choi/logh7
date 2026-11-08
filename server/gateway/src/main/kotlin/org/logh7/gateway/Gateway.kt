@@ -165,9 +165,11 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             val (catalog,revision)=world?.lobbyCountryDefinitions()
                 ?: org.logh7.engine.CountryCatalogLoader.snapshot()?.let {it.catalog to it.revision}
                 ?: (org.logh7.engine.CountryCatalogLoader.current() to 0L)
+            val snapshot=navigation?.snapshot()
+            val starts=(world?.galaxy?.countryStarts?.keys ?: setOf(org.logh7.engine.CountryId(2),org.logh7.engine.CountryId(3)))+
+                org.logh7.engine.CountryFounding.activeCapitals(snapshot?.planetStocks,catalog).keys
             return LobbyCountryCatalogue.reply(request,LobbyCountryCatalogue.Source(admission?.generation ?: 1L,
-                navigation?.snapshot(),currentCharacters().profiles(),catalog,revision,world?.publishedCountryAppearances().orEmpty(),
-                world?.galaxy?.countryStarts?.keys ?: setOf(org.logh7.engine.CountryId(2),org.logh7.engine.CountryId(3)),
+                snapshot,currentCharacters().profiles(),catalog,revision,world?.publishedCountryAppearances().orEmpty(),starts,
                 world?.galaxy?.unaffiliatedStart!=null))
         }
         fun countryEndings(request:org.logh7.protocol.CountryEndingMessages.Request,account:String):List<ByteArray> {

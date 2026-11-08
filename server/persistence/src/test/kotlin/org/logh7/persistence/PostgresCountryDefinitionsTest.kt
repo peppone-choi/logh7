@@ -73,6 +73,27 @@ class PostgresCountryDefinitionsTest {
         }}
     }
 
+    @Test fun concurrentFoundingReservationsUseOneDefinitionPerWorldAndFounder()=fixture {connect->
+        val store=PostgresCountryDefinitions(connect)
+        val world=UUID.randomUUID()
+        val style=ShipStyleId("alliance")
+        val pool=Executors.newFixedThreadPool(2)
+        val same=try {
+            (1..2).map {
+                CompletableFuture.supplyAsync({
+                    checkNotNull(CountryFoundingRegistry(world,store).reserve(1,10000,"captain","자유 항성국",style))
+                },pool)
+            }.map {it.get(12,java.util.concurrent.TimeUnit.SECONDS)}
+        } finally {pool.shutdownNow()}
+        assertEquals(same[0],same[1])
+        val other=checkNotNull(CountryFoundingRegistry(UUID.randomUUID(),store).reserve(1,10000,"captain","다른 세계",style))
+        assertNotEquals(same[0].id,other.id)
+        val snapshot=store.load()
+        assertEquals(2,snapshot.catalog.countries.values.count(CountryFounding::isFounded))
+        assertEquals(CountryDefinitionOutcome.INVALID,store.save(snapshot.revision,CountryDefinitionEdit.Country(same[0].copy(key="changed_key"))))
+        assertEquals(CountryDefinitionOutcome.CHANGED,store.save(snapshot.revision,CountryDefinitionEdit.Country(same[0].copy(name="수정 항성국"))))
+    }
+
     @Test fun displayCurrencyCanBeCreatedRenamedAndOverriddenWithoutEditingAccounts() = fixture { connect ->
         val store = PostgresCountryDefinitions(connect)
         val original = store.load()

@@ -63,7 +63,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val worldStateCommitter: WorldStateCommitter? = null,
     private val npcPolicy:NpcTacticalPolicy=NpcTacticalPolicy(),
     /** The app wires recovery and character identities after construction; hold the clock until then. */
-    private val awaitIdentities:Boolean=false) : CommandSink, SnapshotSource, AutoCloseable {
+    private val awaitIdentities:Boolean=false,
+    private val founding:CountryFoundingRegistry?=null) : CommandSink, SnapshotSource, AutoCloseable {
+    val foundingEnabled:Boolean get()=founding!=null && worldStateCommitter!=null
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null,
         val applied: CompletableDeferred<Unit>? = null, val advanceNow:Boolean=false)
@@ -251,11 +253,24 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed,initialWorld.second) }
     private var durableState = durability?.let { store ->
         try {
-            val restored = store.load()
+            var restored = store.load()
             // A restored membership must still reference a registered actual country before connection recovery.
             if(galaxy!=null) {
                 restored.session.participants.values.forEach {validateWorldCountry(it.country)}
                 restored.session.countries.forEach(::validateWorldCountry)
+            }
+            // A founding world checkpoint may have committed just before the participant journal.
+            if(founding!=null)for((account,player) in initialWorld.second) {
+                val country=player.country ?: continue
+                val member=restored.session.participants[account] ?: continue
+                val stocks=initialWorld.first ?: continue
+                if(restored.session.ended!=null || player.generation!=restored.session.generation ||
+                    stocks.generation!=player.generation || member.original || member.country!=null ||
+                    country !in stocks.strategic.capitals || !founding.matches(country,player.generation,player.characterId,account))continue
+                val action=SessionAction.Defect(account,country)
+                val next=transitionSession(rules,restored,action)
+                check(!next.rejected) {"Founding membership recovery was rejected"}
+                store.commit(action,next);restored=next.state
             }
             if (restored.session.participants.values.any { it.online || it.connection != null }) {
                 val recovered = transitionSession(rules, restored, SessionAction.RecoverConnections)
@@ -543,14 +558,17 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) {"World storage is unavailable"}
                     val request=command.request
                     val session=durableState?.session ?: simulation.exportState()
-                    val useSnapshot=request.repairPreview || request.command==IndependentBaseClaim.COMMAND
+                    val isFounding=request.command==CountryFounding.COMMAND
+                    val useSnapshot=request.repairPreview || request.command==IndependentBaseClaim.COMMAND || isFounding
                     val recovered=if(useSnapshot)null else recoverNavigation(NavigationRequest(request.account,request.characterId,request.country,
                         request.connection,request.generation,politics=request.politics,administration=request.administration),session)
                     val inventory=checkNotNull(production).settle(session)
                     val players=checkNotNull(navigation).snapshot(session.generation)
                     val player=if(useSnapshot)players[request.account] else recovered?.player
-                    var result=StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
-                        navigators=players),session,player,inventory)
+                    var result=if(isFounding && worldStateCommitter==null)
+                        StrategyActionResult(player,inventory,StrategyActionRejection.STORAGE)
+                    else StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
+                        navigators=players),session,player,inventory,founding=founding)
                     val civicReadOrCancel=request.command in CivicActions.supported && request.value!=0
                     if(!civicReadOrCancel && result.rejection==null && request.outfit>0 && logistics.blocksSupply(session,inventory,setOf(request.outfit)))
                         result=StrategyActionResult(player,inventory,StrategyActionRejection.BUSY)
@@ -566,18 +584,34 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             require(result.navigators.all {(account,player)->previous[account]?.let {
                                 it.generation==player.generation && it.characterId==player.characterId && it.country==player.country}==true})
                             val next=previous+result.navigators+(request.account to after)
+                            val membership=if(isFounding)SessionAction.Defect(request.account,checkNotNull(after.country)) else null
+                            val transition=if(membership!=null && durability!=null)
+                                transitionSession(rules,checkNotNull(durableState),membership).also {
+                                    check(!it.rejected) {"Founding membership was rejected"}
+                                } else null
                             worldStateCommitter.saveWorld(next,prepared)
+                            if(membership!=null) {
+                                if(transition!=null) {
+                                    try {checkNotNull(durability).commit(membership,transition)} catch(failure:Exception) {
+                                        throw java.io.IOException("Founding membership must be recovered",failure)
+                                    }
+                                    durableState=transition.state
+                                } else simulation.defect(membership.account,membership.country)
+                            }
                             navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
                             result=result.copy(stocks=prepared)
+                            if(isFounding)reconcileTerritory()
                         }
                     }
-                    state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),
+                    state=(if(isFounding) durableState?.snapshot(rules) ?: state.copy(session=simulation.snapshot())
+                        else published.get()).copy(navigators=navigation?.snapshot(session.generation).orEmpty(),
                         planetStocks=production.snapshot(session.generation))
                     publish(state);command.result.complete(result.copy(recovery=recovered))
                 } catch(failure:Exception) {
                     if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}
-                    if(failure is java.io.IOException && command.request.command==IndependentBaseClaim.COMMAND)
+                    if(failure is java.io.IOException &&
+                        command.request.command in setOf(IndependentBaseClaim.COMMAND,CountryFounding.COMMAND))
                         command.result.complete(StrategyActionResult(null,null,StrategyActionRejection.STORAGE))
                     else command.result.completeExceptionally(failure)
                 }

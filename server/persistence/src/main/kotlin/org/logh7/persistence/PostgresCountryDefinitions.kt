@@ -66,6 +66,7 @@ class PostgresCountryDefinitions(private val connect:()->Connection):CountryDefi
                     is CountryDefinitionEdit.Country -> {
                         val current=countries[edit.value.id]
                         val value=if(edit.keepCurrencyOverride)edit.value.copy(currencyOverride=current?.currencyOverride) else edit.value
+                        require(!CountryFounding.isFounded(current) || current?.key==value.key)
                         require(value.currencyOverride==null || value.currencyOverride in currencies)
                         countries.put(value.id,value)==value
                     }

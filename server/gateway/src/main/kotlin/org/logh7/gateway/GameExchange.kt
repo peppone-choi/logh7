@@ -22,6 +22,8 @@ import java.util.Properties
 import java.util.concurrent.CompletableFuture
 import org.logh7.engine.Admission
 import org.logh7.engine.IndependentBaseClaim
+import org.logh7.engine.CountryFounding
+import org.logh7.engine.CountryDefinitionSnapshot
 import org.logh7.engine.StrategyActionRejection
 import org.logh7.engine.members
 import org.logh7.engine.country
@@ -263,6 +265,40 @@ class GameExchange(
         }
         return true
     }
+    private fun handleFounding(account:String,character:CharacterMessages.Generate,text:String):Boolean {
+        val words=text.trim().split(' ',limit=2)
+        if(words[0] !in setOf("/건국","/found"))return false
+        val id=character.id.toInt()
+        fun notice(message:String)=ChatMessages.spot(ChatMessages.Spot(id,"[건국] $message"),gameSeconds())
+        val name=words.getOrNull(1)?.trim()?.takeIf {CountryDefinitionSnapshot.validName(it,24)}
+        val admin=administration
+        val bootstrap=world
+        pendingWorld=when {
+            name==null -> CompletableFuture.completedFuture(listOf(notice("/건국 국가명 · 24자 이내")))
+            admin?.foundingEnabled!=true || bootstrap?.galaxy?.unaffiliatedStart==null ->
+                CompletableFuture.completedFuture(listOf(notice("이 월드에서는 사용할 수 없습니다.")))
+            else -> admin.strategyAction(org.logh7.engine.StrategyActionRequest(account,connection,id,
+                currentProfile(account,id).country,checkNotNull(generation),CountryFounding.COMMAND,0,character.rank,
+                countryName=name)).thenApply {result->
+                val player=result.player
+                if(result.changed && player!=null) {
+                    val updated=checkNotNull(currentCharacter(account))
+                    val country=checkNotNull(player.country)
+                    val definition=bootstrap.lobbyCountryDefinitions().first.countries.getValue(country.value)
+                    publication=Publication(updated,player,false)
+                    listOf(bootstrap.conditions(listOf(player.baseId),result.stocks),
+                        bootstrap.places(listOf(player.baseId),result.stocks),characterMessage(updated,player,true),
+                        unitMessage(updated,player),notice("${definition.name} 건국 · 현재 거점을 수도로 지정"))
+                } else listOf(notice(when(result.rejection) {
+                    StrategyActionRejection.LOCATION -> "지배 중인 거점에 기항한 뒤 다시 시도하세요."
+                    StrategyActionRejection.AUTHORITY -> "건국이 가능한 월드의 무소속 캐릭터가 필요합니다."
+                    StrategyActionRejection.STORAGE -> "저장을 확인할 수 없습니다. 잠시 뒤 다시 확인하세요."
+                    else -> "지금은 건국할 수 없습니다."
+                }))
+            }
+        }
+        return true
+    }
     private fun navigate(request:org.logh7.engine.NavigationRequest):CompletableFuture<org.logh7.engine.NavigationResult> {
         val profile=currentProfile(request.account,request.characterId)
         return checkNotNull(navigation).apply(request.copy(country=profile.country,shipStyle=profile.shipStyle))
@@ -454,7 +490,8 @@ class GameExchange(
                 } else if(player.country==null && it==NavigationGuide.FACILITY &&
                     navigation?.snapshot()?.planetStocks?.bases?.get(player.baseId)?.owner==
                     org.logh7.engine.Allegiance.Independent(player.characterId)) {
-                    "무소속 지배 거점 · 개인→원거리 이동"
+                    if(administration?.foundingEnabled==true)"무소속 지배 거점 · 채팅에 /건국 국가명"
+                    else "무소속 지배 거점 · 개인→원거리 이동"
                 } else it.text
                 listOf(ChatMessages.spot(ChatMessages.Spot(player.characterId, text), gameSeconds()))
             }.orEmpty()
@@ -1294,9 +1331,14 @@ class GameExchange(
                                         world?.galaxy?.unaffiliatedStart?.takeIf {admission?.running!=false}?.shipStyle?.let {
                                             CharacterCreation.CountrySelection(null,it.nativePower,it)
                                         }
-                                    else LobbyCountryCatalogue.selection(request.countryId,catalog,
-                                        (world?.galaxy?.countryStarts?.keys ?: setOf(org.logh7.engine.CountryId(2),org.logh7.engine.CountryId(3)))-
-                                            navigation?.snapshot()?.session?.eliminated.orEmpty().keys)
+                                    else {
+                                        val snapshot=navigation?.snapshot()
+                                        val starts=(world?.galaxy?.countryStarts?.keys ?: setOf(org.logh7.engine.CountryId(2),org.logh7.engine.CountryId(3)))+
+                                            CountryFounding.activeCapitals(snapshot?.planetStocks,catalog).keys
+                                        LobbyCountryCatalogue.selection(request.countryId,catalog,starts-snapshot?.session?.eliminated.orEmpty().keys)
+                                            ?.takeUnless {request.query.mode==org.logh7.protocol.CountrySelectionMessages.LOTTERY &&
+                                                CountryFounding.isFounded(catalog.countries[request.countryId])}
+                                    }
                                     val entries=characters.entries(identity.account)
                                     if (entries.isNotEmpty()) {
                                         val available = selected
@@ -1686,7 +1728,8 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         require(message.characterId.toLong() == character.id)
                         if (message.text.isBlank()) return null
-                        if(handleBaseClaim(identity.account,character,message.text))return null
+                        if(handleBaseClaim(identity.account,character,message.text) ||
+                            handleFounding(identity.account,character,message.text))return null
                         presence.gridChat(connection, message, gameSeconds())
                     }
                     0x0f1d -> {
@@ -1695,7 +1738,8 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         require(message.characterId.toLong() == character.id)
                         if (message.text.isBlank()) return null
-                        if(handleBaseClaim(identity.account,character,message.text))return null
+                        if(handleBaseClaim(identity.account,character,message.text) ||
+                            handleFounding(identity.account,character,message.text))return null
                         presence.spotChat(connection, message, gameSeconds())
                     }
                     0x0f13 -> {

@@ -55,7 +55,7 @@ data class StrategyActionRequest(val account:String,val connection:String,val ch
     val generation:Long,val command:Int,val card:Int,val rank:Int,val outfit:Int=0,
     val politics:Int=50,val administration:Int=50,val target:Int=0,val base:Int=0,val value:Int=0,
     val amount:Long=0,val identities:List<StrategicIdentity> = emptyList(),val argument:Int=0,
-    val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0,val repairPreview:Boolean=false) {
+    val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0,val repairPreview:Boolean=false,val countryName:String?=null) {
     constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,command:Int,card:Int,rank:Int,outfit:Int=0,
         politics:Int=50,administration:Int=50,target:Int=0,base:Int=0,value:Int=0,amount:Long=0,
         identities:List<StrategicIdentity> = emptyList(),argument:Int=0,navigators:Map<String,Navigator> = emptyMap(),requestToken:Int=0,
@@ -82,19 +82,32 @@ internal object StrategyActions {
     val supported=setOf(46,47,48,49,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+
         CompleteRepairActions.supported+FlagshipMarketActions.supported+CivicActions.supported+TransportActions.supported
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks,
-        countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
+        countries:CountryCatalog=CountryCatalogLoader.current(),founding:CountryFoundingRegistry?=null):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val member=s.participants[r.account]
         if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection)return reject(StrategyActionRejection.SESSION)
         if(p==null || p.generation!=r.generation || p.characterId!=r.characterId || p.country!=r.country || member.country!=r.country)
             return reject(StrategyActionRejection.IDENTITY)
-        if(r.country==null && r.command!=IndependentBaseClaim.COMMAND)return reject(StrategyActionRejection.IDENTITY)
+        if(r.country==null && r.command !in setOf(IndependentBaseClaim.COMMAND,CountryFounding.COMMAND))
+            return reject(StrategyActionRejection.IDENTITY)
         if(r.country in s.eliminated)return reject(StrategyActionRejection.SESSION)
         if(BattleDeath.deceased(stocks,r.characterId))return reject(StrategyActionRejection.IDENTITY)
         // U-25: a detainee cannot run strategy commands until released.
         if(stocks.social.justice.detained(r.characterId))return reject(StrategyActionRejection.BUSY)
         if(r.command==IndependentBaseClaim.COMMAND)return IndependentBaseClaim.evaluate(galaxy,r,s,p,stocks)
+        if(r.command==CountryFounding.COMMAND) {
+            if(p.country!=null || member.original || r.card!=0 || r.outfit!=0 || founding==null)
+                return reject(StrategyActionRejection.AUTHORITY)
+            val base=CountryFounding.candidate(galaxy,p,stocks) ?: return reject(StrategyActionRejection.LOCATION)
+            val name=r.countryName?.takeIf {CountryDefinitionSnapshot.validName(it,24)}
+                ?: return reject(StrategyActionRejection.TARGET)
+            val definition=try {founding.reserve(r.generation,p.characterId,r.account,name,p.shipStyle)} catch(_:Exception) {null}
+                ?: return reject(StrategyActionRejection.STORAGE)
+            if(CountryId(definition.id) in s.countries || CountryId(definition.id) in stocks.strategic.capitals)
+                return reject(StrategyActionRejection.TARGET)
+            return CountryFounding.establish(galaxy,p,stocks,base,definition)
+        }
         val country=checkNotNull(r.country)
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(r.command in CivicActions.supported)return CivicActions.evaluate(galaxy,r,s,p,stocks,countries)
