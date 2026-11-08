@@ -81,6 +81,29 @@ class TacticalGroundOperationsTest {
             assertEquals(opposed && defenders>0,1000 in s.stocks.groundBattles)
         }
     }
+    @Test fun groundOrdersLoseHostileStationedBerthsButCanUseHostileOrbit() {
+        for(mode in listOf(TacticalShipMode.STATIONED,TacticalShipMode.ANCHORED)) {
+            val s=state()
+            val own=s.stocks.outfits.getValue(1)
+            val ships=ActiveShipUnits(own.activeShips!!.values.map {
+                it.copy(posture=TacticalPosture(2487,mode,1000))
+            })
+            s.stocks=s.stocks.copy(outfits=mapOf(1 to own.copy(activeShips=ships)))
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).player)
+            val base=s.stocks.bases.getValue(1000)
+            s.stocks=s.stocks.copy(bases=s.stocks.bases+(1000 to base.copy(camp=1)))
+            val n=Navigation(galaxy,s.nav,NavigationPolicy())
+            val p=production(s)
+            val events=mutableListOf<TacticalGroundResult>()
+            val stationed=mode==TacticalShipMode.STATIONED
+            if(stationed)assertEquals(NavigationRejection.BASE,accept(s,n,p,request(ids=listOf(4))).rejection)
+            settle(s,n,p,now+600,events)
+            assertEquals(stationed,events.single().cancelled)
+            val troops=s.stocks.outfits.getValue(1).activeGround!!.values.filter {it.id in 2..3}
+            assertEquals(setOf(if(stationed)0 else 1000),troops.map {it.base}.toSet())
+            assertTrue(troops.all {it.order==null})
+        }
+    }
     @Test fun capacityIncludesOtherAcceptedLandingsAndMixedInvalidSelectionDoesNotPartiallySave() {
         val s=state(28);val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val before=s.stocks
