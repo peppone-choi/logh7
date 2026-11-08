@@ -71,6 +71,7 @@ internal object TacticalPostureOperations {
         var player=preview.player ?: return preview
         fun reject(why:NavigationRejection)=NavigationResult(null,player,why)
         if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(player.hull?.woundedUntil?.let {it>session.gameMillis/1000}==true)return reject(NavigationRejection.WOUNDED)
         val command=checkNotNull(request.tacticalPosture);val now=session.gameMillis/1000
@@ -122,7 +123,8 @@ internal object TacticalPostureOperations {
                 recipients[grid].orEmpty(),cancelled=cancelled)
         for((account,p) in players.toMap()) {
             val state=p.posture ?: continue;val order=state.order ?: continue
-            val context=session.ended==null && p.cpPaused && p.baseId==0 && p.grid==state.grid && order.character==p.characterId
+            val context=session.ended==null && p.cpPaused && p.baseId==0 && p.grid==state.grid && order.character==p.characterId &&
+                !BattleDeath.deceased(stocks,order.character)
             if(order.readyAt>now && context)continue
             val at=pose(p,minOf(now,order.readyAt),players.values,stocks,galaxy)
             val valid=context &&
@@ -140,7 +142,8 @@ internal object TacticalPostureOperations {
         for(id in due) {
             val s=ship(id,stocks) ?: continue;val state=checkNotNull(s.unit.posture);val order=checkNotNull(state.order)
             val p=commanders.values.singleOrNull {it.characterId==order.character}
-            val context=session.ended==null && p!=null && p.cpPaused && p.baseId==0 && p.grid==state.grid && owned(s,p,galaxy,stocks)
+            val context=session.ended==null && p!=null && p.cpPaused && p.baseId==0 && p.grid==state.grid &&
+                !BattleDeath.deceased(stocks,order.character) && owned(s,p,galaxy,stocks)
             if(order.readyAt>now && context)continue
             val at=pose(s,state.grid,minOf(now,order.readyAt),players.values,stocks,galaxy)
             val valid=context && p!=null &&

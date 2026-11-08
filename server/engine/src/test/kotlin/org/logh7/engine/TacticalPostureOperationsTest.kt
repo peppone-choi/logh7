@@ -50,6 +50,23 @@ class TacticalPostureOperationsTest {
         assertEquals(1000,s.players.getValue("pilot").mcp)
         settle(s,n,p,now+480,out);assertEquals(3,out.size)
     }
+    @Test fun deceasedCommanderCannotChangePostureAndSavedStationingIsCancelled() {
+        val s=state()
+        val command=request(TacticalShipMode.STATIONED,1000)
+        assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+        s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now) {_,_->true}
+        val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        val saves=s.saves
+        assertEquals(NavigationRejection.IDENTITY,accept(s,n,p,command).rejection)
+        assertEquals(saves,s.saves)
+        val out=mutableListOf<TacticalPostureResult>();settle(s,n,p,now+240,out)
+        assertEquals(setOf(1010000,1,2),out.flatMap {it.units.keys}.toSet())
+        assertTrue(out.all {it.cancelled})
+        val player=s.players.getValue("pilot")
+        assertEquals(0,player.baseId);assertTrue(player.cpPaused)
+        assertEquals(TacticalPosture(2487),player.posture)
+        assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture==TacticalPosture(2487)})
+    }
     @Test fun mixedStationingCompletesForShipsEvenWhenTheirCommanderEntersTheBase() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,n,p,request(TacticalShipMode.STATIONED,1000)).player)
