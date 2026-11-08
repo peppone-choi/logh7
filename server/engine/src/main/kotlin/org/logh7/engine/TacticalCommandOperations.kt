@@ -202,7 +202,11 @@ internal object TacticalCommandOperations {
                     if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>maxOf(1f,base.diameter))return NavigationRejection.RANGE
                 }
             }
-            0x41f -> if(base?.kind!=1 || base.mobile!=true || c.points.isEmpty() || !FortressArmor.propulsion(s,base.id))return NavigationRejection.BASE
+            0x41f -> {
+                if(base?.kind!=1 || !base.mobile || c.points.isEmpty() || !FortressArmor.propulsion(s,base.id))
+                    return NavigationRejection.BASE
+                if(TacticalTerrain.pathBlocked(g,p.grid,centre,c.points))return NavigationRejection.RANGE
+            }
             0x408,0x421 -> {
                 if(c.kind !in 0..5)return NavigationRejection.TARGET
                 val chief=supreme(p,players,s)
