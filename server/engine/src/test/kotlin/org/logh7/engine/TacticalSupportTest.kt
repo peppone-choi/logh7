@@ -275,7 +275,7 @@ class TacticalSupportTest {
         }
     }
 
-    @Test fun supplyAcrossFriendlyFleetsConservesCombinedCargoAndLeavesEnemyStockAlone() {
+    @Test fun supplyAcrossFriendlyFleetsConservesCargoAndRestoresNpcReturn() {
         val s=state();val source=s.stocks.outfits.getValue(1)
         val receiver=source.activeShips!!.values.last()
         val remaining=ActiveShipUnits(source.activeShips.values.filter {it.id!=receiver.id})
@@ -286,6 +286,19 @@ class TacticalSupportTest {
         val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val enemy=s.stocks.outfits.getValue(2)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
+        val moved=s.stocks.outfits.getValue(3).let { outfit ->
+            outfit.copy(position=OutfitPosition(2487),
+                activeShips=ActiveShipUnits(listOf(receiver.copy(tactical=null))))
+        }
+        val departed=State(s.players,s.stocks.copy(outfits=s.stocks.outfits+(3 to moved)))
+        val departedNav=Navigation(galaxy,departed.nav,NavigationPolicy())
+        val cancelled=mutableListOf<TacticalSupportResult>()
+        settle(departed,departedNav,production(departed),now+120,cancelled)
+        assertTrue(cancelled.single().cancelled)
+        assertNull(departed.stocks.outfits.getValue(1).activeShips!!.values.single().support)
+        assertEquals(10000,departed.stocks.outfits.getValue(1).supplies)
+        assertEquals(moved,departed.stocks.outfits.getValue(3))
+
         val out=mutableListOf<TacticalSupportResult>();settle(s,nav,p,now+120,out)
         assertEquals(0,s.stocks.outfits.getValue(1).supplies)
         assertEquals(10000,s.stocks.outfits.getValue(3).supplies)
@@ -293,6 +306,25 @@ class TacticalSupportTest {
         assertEquals(enemy,s.stocks.outfits.getValue(2))
         assertEquals(10000,s.stocks.outfits.values.sumOf {it.supplies})
         assertEquals(10000,out.single().targetSupplies)
+
+        val peaceful=s.stocks.copy(outfits=s.stocks.outfits-2,warehouses=s.stocks.warehouses-20)
+        val supplied=peaceful.outfits.getValue(3)
+        val dry=peaceful.copy(outfits=peaceful.outfits+(3 to OutfitSupplies.withBalances(supplied,mapOf(2 to 0))))
+        val movements=mutableListOf<NpcStrategicMovement>()
+        fun advance(at:Long,stocks:PlanetStocks)=NpcStrategy.advance(
+            session.copy(gameMillis=at*1000),galaxy,mutableMapOf(),stocks,movements)
+        val dryFleet=advance(now+120,dry).outfits.getValue(3)
+        assertNull(dryFleet.strategy?.destination)
+        assertEquals(OutfitPosition(2488),dryFleet.position)
+        assertTrue(movements.isEmpty())
+
+        val reserved=advance(now+120,peaceful)
+        assertEquals(2487,reserved.outfits.getValue(3).strategy?.destination)
+        val returned=advance(now+3720,reserved)
+        assertEquals(OutfitPosition(2487,1000),returned.outfits.getValue(3).position)
+        assertEquals(10000-receiver.boats,returned.outfits.getValue(3).supplies)
+        assertEquals(peaceful.bases,returned.bases)
+        assertEquals(3,movements.single().outfit)
     }
 
     @Test fun aSavedRepairCannotSpendSuppliesOnAGuardShip() {
