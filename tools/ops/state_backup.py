@@ -119,7 +119,9 @@ def backup(args: argparse.Namespace) -> None:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
             files.append({"group": group, "name": name, "size": target.stat().st_size, "sha256": sha256(target)})
-    manifest = {"format": FORMAT, "created": time.strftime("%Y-%m-%dT%H:%M:%S") + f".{time.time_ns() % 1_000_000_000:09d}",
+    seconds, nanos = divmod(time.time_ns(), 1_000_000_000)
+    created = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(seconds)) + f".{nanos:09d}"
+    manifest = {"format": FORMAT, "created": created,
                 "roots": {k: str(v) for k, v in roots.items()}, "characters": characters.name, "files": files}
     if accounts is not None:
         manifest["accounts"] = accounts.name
