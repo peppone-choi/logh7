@@ -200,10 +200,12 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         }
         // World actor queue/tick timings for the lag alerts (ops /metrics).
         val actorTimings = org.logh7.ops.ActorTimingHistograms()
+        val npcProfiles=org.logh7.engine.PublishedNpcFleetDialogue()
         val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store, timings = actorTimings,
             galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState,
             npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true,
-                chooseFireTarget = jev?.let { advisor -> { decision -> advisor.choose(sessionId,decision) } }),
+                chooseFireTarget = jev?.let { advisor -> { decision -> advisor.choose(sessionId,decision) } },
+                behavior = { generation,outfit -> npcProfiles.current(generation,outfit)?.behavior ?: org.logh7.engine.NpcCombatBehavior.STANDARD }),
             awaitIdentities = world != null) }
         catch (failure: Throwable) {
             try { stockStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
@@ -220,7 +222,6 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         } else null
         val fame=accountFame?.forWorld(checkNotNull(worldIdentity))
             ?.also {it.importLegacy(characterFile?.resolveSibling("${characterFile.fileName}.fame"))}
-        val npcProfiles=org.logh7.engine.PublishedNpcFleetDialogue()
         val npcProfileStore=if(worldIdentity!=null && definitionsConnect!=null)org.logh7.persistence.PostgresNpcFleetDialogue(
             definitionsConnect,java.util.UUID.fromString(worldIdentity)) else null
         if(npcProfileStore!=null)engine.snapshot().session?.generation?.let { generation ->

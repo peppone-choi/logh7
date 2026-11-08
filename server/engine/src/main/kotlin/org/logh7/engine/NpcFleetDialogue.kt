@@ -15,11 +15,21 @@ data class NpcFleetDialogue(val fallback:String="",val style:String="",val promp
     }
 }
 
-data class NpcFleetDialogueRow(val generation:Long,val outfit:Int,val revision:Long,val dialogue:NpcFleetDialogue)
+enum class NpcCombatBehavior(val key:String) {
+    STANDARD("standard"), PRECISION("precision"), CAUTIOUS("cautious");
+
+    companion object {
+        fun fromKey(key:String?)=entries.firstOrNull {it.key==key}
+    }
+}
+
+data class NpcFleetDialogueRow(val generation:Long,val outfit:Int,val revision:Long,val dialogue:NpcFleetDialogue,
+    val behavior:NpcCombatBehavior=NpcCombatBehavior.STANDARD)
 
 interface NpcFleetDialogueStore {
     fun load(generation:Long):List<NpcFleetDialogueRow>
-    fun save(generation:Long,outfit:Int,expected:Long,dialogue:NpcFleetDialogue):NpcFleetDialogueRow?
+    fun save(generation:Long,outfit:Int,expected:Long,dialogue:NpcFleetDialogue,
+        behavior:NpcCombatBehavior=NpcCombatBehavior.STANDARD):NpcFleetDialogueRow?
 }
 
 /** Each instance belongs to one persistent world. Late reads cannot undo a newer edit or generation. */
