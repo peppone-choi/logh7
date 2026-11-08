@@ -136,12 +136,13 @@ internal object NpcStrategy {
     private fun depot(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy)=
         stocks.bases[outfit.positionIn(galaxy).baseId]?.takeIf {it.country==outfit.country && it.camp==0}
 
-    private fun jumpShortfall(ships:List<ActiveShipUnit>,balances:Map<Int,Int>)=
-        ships.sumOf {max(0,it.boats-balances.getValue(it.id)).toLong()}
+    private fun jumpShortfall(ships:List<ActiveShipUnit>,balances:Map<Int,Int>,jumps:Int)=
+        ships.sumOf {max(0,it.boats*jumps-balances.getValue(it.id)).toLong()}
 
     private fun canDepart(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy):Boolean {
         val ships=outfit.activeShips!!.values.filter {it.boats>0}
-        return jumpShortfall(ships,OutfitSupplies.distribution(outfit))<=(depot(stocks,outfit,galaxy)?.supplies ?: 0)
+        val source=depot(stocks,outfit,galaxy)
+        return jumpShortfall(ships,OutfitSupplies.distribution(outfit),if(source==null)1 else 2)<=(source?.supplies ?: 0)
     }
 
     private fun supplied(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy,departing:Boolean=true):Pair<PlanetStocks,OutfitStock>? {
@@ -149,9 +150,11 @@ internal object NpcStrategy {
         val balances=OutfitSupplies.distribution(outfit).toMutableMap()
         val depot=depot(stocks,outfit,galaxy)
         var available=depot?.supplies ?: 0
-        if(departing && jumpShortfall(live,balances)>available)return null
+        // Every ship launching from a depot carries enough for the next jump and a return.
+        val jumps=if(!departing)0 else if(depot==null)1 else 2
+        if(jumpShortfall(live,balances,jumps)>available)return null
         for(unit in live) {
-            val amount=max(0,(if(departing)unit.boats else 0)-balances.getValue(unit.id))
+            val amount=max(0,unit.boats*jumps-balances.getValue(unit.id))
             balances[unit.id]=balances.getValue(unit.id)+amount;available-=amount
         }
         // Carry several future jumps where the real depot and surviving cargo permit it.
