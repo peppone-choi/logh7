@@ -44,15 +44,17 @@ class TransportActionsWireTest {
         next(client,0x1201);next(client,0x0356)
         if(warehouse>0)assertEquals(warehouse,ByteBuffer.wrap(next(client,0x0327)).getInt(6))
     }
-    private fun listed(client:SyntheticClient,command:Int):List<Int> {
+    private fun listed(client:SyntheticClient,command:Int):List<Int> = listedRows(client,command).map {it.first}
+    private fun listedRows(client:SyntheticClient,command:Int):List<Pair<Int,String>> {
         client.send(request(command,preview=true));next(client,0x1200)
         val rows=ByteBuffer.wrap(next(client,0x1202));val count=rows.get(6).toInt() and 255
         rows.position(7)
-        val ids=List(count){
+        val selections=List(count){
             val id=rows.int;val length=rows.get().toInt() and 255
-            rows.position(rows.position()+length*2+15);id
+            val name=CharArray(length){rows.char}.concatToString().removeSuffix("\u0000")
+            rows.position(rows.position()+15);id to name
         }
-        next(client,0x1201);return ids
+        next(client,0x1201);return selections
     }
     @Test fun encryptedPlanListsOnlyOwnCargoAndRestoresLoadedCargoForDeliveryAndCancellation() {
         val state=State()
@@ -71,10 +73,15 @@ class TransportActionsWireTest {
             assertEquals(200,state.stocks.strategic.transports.single {it.id==2}.carrier)
             assertEquals(emptyList(),listed(client,29))
         }
+        val packageWithLoss=state.stocks.strategic.transports.single {it.id==2}.let {
+            it.copy(survivingBoats=it.carrierBoats/2)
+        }
+        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(
+            transports=state.stocks.strategic.transports.map {if(it.id==2)packageWithLoss else it}))
         server("restart").use {fixture->
             val client=fixture.join(fixture.account(0),true,false).client
             client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
-            assertEquals(listOf(2),listed(client,65))
+            assertEquals(listOf(2 to "1050/500*"),listedRows(client,65))
             action(client,29,2,StrategyActionRejection.BUSY.ordinal+1)
             assertEquals(760,state.players.getValue("load-000").mcp)
             action(client,65,1,StrategyActionRejection.TARGET.ordinal+1)
@@ -87,7 +94,7 @@ class TransportActionsWireTest {
             val client=fixture.join(fixture.account(0),true,false).client
             client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
             action(client,65,2,warehouse=1050);assertEquals(600,state.players.getValue("load-000").mcp)
-            assertEquals(1100,state.stocks.bases.getValue(1050).supplies)
+            assertEquals(600,state.stocks.bases.getValue(1050).supplies)
             assertEquals(listOf(1),state.stocks.strategic.transports.map {it.id})
             action(client,28,warehouse=1049);assertEquals(520,state.players.getValue("load-000").mcp)
             action(client,29,2,warehouse=1049);assertEquals(440,state.players.getValue("load-000").mcp)
