@@ -325,6 +325,23 @@ class TacticalCommandOperationsTest {
         assertEquals(5,r.state.stocks.tacticalCommands.missions[10000]?.mission)
         assertEquals(5,r.state.stocks.tacticalCommands.missions[10001]?.mission)
     }
+    @Test fun withdrawalRewardsAnExitButNotDefeatAndReturn() {
+        val s=state()
+        val mission=TacticalMissionState(10000,5,0,0,now,grid=2488)
+        val stock=s.stocks.copy(tacticalCommands=TacticalCommandState(missions=mapOf(10000 to mission)))
+        for (defeated in listOf(emptySet(),setOf(10000))) {
+            val players=s.players.toMutableMap()
+            val pilot=players.getValue("pilot")
+            players["pilot"]=pilot.copy(grid=2487,cpPaused=false,energy=null,motion=null,charge=null,commandRange=null)
+            val events=mutableListOf<TacticalCommandResult>()
+            val settled=TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,events,mutableListOf(),defeated)
+            val reward=if(defeated.isEmpty())10L else 0L
+            assertTrue(settled.tacticalCommands.missions.getValue(10000).completed)
+            assertEquals(reward,settled.tacticalCommands.merits[10000] ?: 0L)
+            assertEquals(5 to reward,events.single().finishedMissions[10000])
+        }
+    }
+
     @Test fun missionInterceptionCreditsTheActualCommanderEvenWhenItsLastEnemyDies() {
         val s=state();val enemy=s.stocks.outfits.getValue(2);val target=enemy.activeShips!!.values.single()
         val maximum=UnitSpecifications.ships.single {it.kind==target.stack.kind}.number
@@ -333,14 +350,14 @@ class TacticalCommandOperationsTest {
             tacticalCommands=TacticalCommandState(missions=mapOf(10000 to TacticalMissionState(10000,3,1,99,now,grid=2488))))
         val impacts=mutableListOf(TacticalImpact(1,1010000,TacticalWeapon.BEAM,TacticalHit(1,2488,now,99,maximum),emptyMap()))
         val events=mutableListOf<TacticalCommandResult>();val players=s.players.toMutableMap()
-        val next=TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,events,impacts)
+        val next=TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,events,impacts,emptySet())
         assertEquals(30L,next.strategic.people.getValue(10000).merit)
         assertEquals(30L,next.tacticalCommands.creditedMerits[10000]);assertTrue(next.tacticalCommands.missions.getValue(10000).completed)
         assertTrue(events.single().stateOnly);assertEquals(mapOf(10000 to 30L),events.single().merits)
         assertEquals(mapOf(10000 to (3 to 30L)),events.single().finishedMissions)
-        assertEquals(next,TacticalCommandOperations.finishMissions(session,galaxy,players,next,1,mutableListOf(),impacts))
+        assertEquals(next,TacticalCommandOperations.finishMissions(session,galaxy,players,next,1,mutableListOf(),impacts,emptySet()))
         val another=impacts.map {it.copy(source=1010001)}.toMutableList()
-        assertTrue(TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,mutableListOf(),another)
+        assertTrue(TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,mutableListOf(),another,emptySet())
             .tacticalCommands.merits.isEmpty())
     }
     @Test fun offlineMissionRequiresAiOnAndStrategicPersonnelDecidesTheSupremeCommander() {
