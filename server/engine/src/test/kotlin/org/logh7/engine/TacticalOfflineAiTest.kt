@@ -72,18 +72,22 @@ class TacticalOfflineAiTest {
         assertNull(next.outfits.getValue(1).activeShips!!.values.single().attack)
     }
 
-    @Test fun anExistingFleetAttackDoesNotSwitchTargetsDuringOfflineInterception() {
-        val plain=stocks(3)
+    @Test fun anExistingFleetAttackHonorsTheOfflineMissionBeforeTheNextAiDecision() {
+        for(mission in listOf(3,4,5)) assertExistingFleetAttackIsSuppressed(mission)
+    }
+
+    private fun assertExistingFleetAttackIsSuppressed(mission:Int) {
+        val plain=stocks(mission)
         val own=plain.outfits.getValue(1)
         val enemy=plain.outfits.getValue(2)
         val shooting=own.activeShips!!.values.single().copy(
             attack=TacticalUnitAttack(10000,TacticalAttackOrder(2,now,now,now)))
         val nearby=enemy.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,3f),now,now))
         val command=plain.tacticalCommands
-        val missing=command.missions.getValue(10000).copy(target=98)
+        val assigned=command.missions.getValue(10000).let {if(mission==3)it.copy(target=98) else it}
         val stock=plain.copy(outfits=mapOf(1 to own.copy(activeShips=ActiveShipUnits(listOf(shooting))),
             2 to enemy.copy(activeShips=ActiveShipUnits(listOf(nearby)))),
-            tacticalCommands=command.copy(missions=mapOf(10000 to missing)))
+            tacticalCommands=command.copy(missions=mapOf(10000 to assigned)))
         val impacts=mutableListOf<TacticalImpact>()
         TacticalFleetAttack.advance(offline,galaxy,players(),stock,1,impacts)
         assertTrue(impacts.isEmpty())
