@@ -50,6 +50,23 @@ class TacticalBaseDefenseTest {
         val captured=contested.copy(bases=contested.bases+(1000 to owner.copy(camp=1)))
         assertEquals(2000,TacticalBaseDefense.strength(captured,base))
         assertEquals(2000,TacticalBaseDefense.strength(captured,base.id))
+
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Here",2)),listOf(base),Power.entries.associateWith {2488})
+        val session=SessionSimulation(SessionRules.load()).exportState()
+        val events=mutableListOf<GroundBattleResult>()
+        val weak=regulars.copy(activeGround=ActiveGroundUnits(regulars.activeGround!!.values.map {it.copy(strength=1)}))
+        val fighting=contested.copy(outfits=contested.outfits+(2 to weak),
+            tacticalCommands=TacticalCommandState(groundTargets=mapOf(2 to 7)))
+        assertTrue(GroundBattleOperations.contested(fighting,base))
+        assertNull(BaseOccupationOperations.victor(fighting,base))
+        val started=GroundBattleOperations.advance(session,galaxy,emptyMap(),fighting,1,events)
+        assertEquals(mapOf(2 to 7),started.tacticalCommands.groundTargets)
+        val finished=GroundBattleOperations.advance(session.copy(gameMillis=session.gameMillis+5000),galaxy,emptyMap(),started,1,events)
+        assertEquals(listOf(7),events.single().destroyed)
+        assertEquals(GroundBattleConclusion(country,insurgent=true),events.single().conclusion)
+        assertTrue(finished.tacticalCommands.groundTargets.isEmpty())
+        assertNull(BaseOccupationOperations.victor(finished,base))
+
     }
 
     @Test fun legacyKnownGroundBaseWorksButUnresolvedFleetTroopsAreNotInventedAshore() {

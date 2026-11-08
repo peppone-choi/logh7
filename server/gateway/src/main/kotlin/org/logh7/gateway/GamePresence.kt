@@ -238,8 +238,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 val outcome=when {
                     result.withdrawal->"철수로 종료"
                     winner==null->"생존 병력 없음"
-                    winner==current.country->"아군 승리"
-                    else->groundNoticeCountry(countryName(winner),winner)+" 승리"
+                    winner==current.country && result.insurgent==org.logh7.engine.CoupActions.rebel(checkNotNull(snapshot.planetStocks),current.characterId,current.country)->"아군 승리"
+                    else->groundNoticeCountry(countryName(winner),winner)+(if(result.insurgent)" 반란군" else "")+" 승리"
                 }
                 val line="[지상전] $name · $outcome"
                 val notice=ChatMessages.spot(ChatMessages.Spot(viewer.character.id.toInt(),line),event.seconds.coerceIn(0,0xffffffffL))

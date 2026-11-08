@@ -47,8 +47,8 @@ internal object TacticalGroundOperations {
             }
     }
 
-    internal fun landingSlotsUsed(base:GalaxyBase,country:CountryId,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
-        stocks.outfits.values.filter {it.country==country}.sumOf {outfit->
+    internal fun landingSlotsUsed(base:GalaxyBase,camp:Camp,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
+        stocks.outfits.values.filter {TacticalAuthority.camp(it,stocks)==camp}.sumOf {outfit->
             val troops=outfit.activeGround?.values.orEmpty()
             val pending=troops.filter {it.order?.let {order->
                 order.action==TacticalGroundAction.DEPLOY && order.base==base.id && order.grid==base.grid
@@ -80,18 +80,19 @@ internal object TacticalGroundOperations {
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
         val now=session.gameMillis/1000;val command=checkNotNull(request.tacticalGround)
         if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)
-        val own=p.country ?: return reject(NavigationRejection.CARD)
+        if(p.country==null)return reject(NavigationRejection.CARD)
         fun landed(id:Int)=stocks.outfits.values.firstNotNullOfOrNull {o->o.activeGround?.values?.singleOrNull {it.id==id && it.base>0}?.let {o to it}}
+        val camp=TacticalAuthority.camp(p,stocks)
         val sites=command.units.map {id->
             val (outfit,unit)=landed(id) ?: return reject(NavigationRejection.UNIT)
-            if(outfit.country!=own || GroundCommandAuthority.commander(outfit,unit,stocks,galaxy)!=p.characterId)return reject(NavigationRejection.CARD)
+            if(TacticalAuthority.camp(outfit,stocks)!=camp || GroundCommandAuthority.commander(outfit,unit,stocks,galaxy)!=p.characterId)return reject(NavigationRejection.CARD)
             if(galaxy.bases.singleOrNull {it.id==unit.base}?.grid!=p.grid)return reject(NavigationRejection.GRID)
             unit.base
         }.toSet()
         val c=stocks.tacticalCommands
         val targets=if(command.action==TacticalGroundAction.CLEAR)c.groundTargets-command.units.toSet() else {
             val (enemy,victim)=landed(command.target) ?: return reject(NavigationRejection.TARGET)
-            if(enemy.country==own || sites!=setOf(victim.base))return reject(NavigationRejection.TARGET)
+            if(TacticalAuthority.camp(enemy,stocks)==camp || sites!=setOf(victim.base))return reject(NavigationRejection.TARGET)
             c.groundTargets+command.units.associateWith {command.target}
         }
         val players=navigation.snapshot(session.generation)
@@ -138,7 +139,7 @@ internal object TacticalGroundOperations {
             if(command.action==TacticalGroundAction.DEPLOY) {
                 // p.51: fortresses and special (gas etc.) planets refuse 装甲兵 (U-09).
                 if(!admits(base,troops))return reject(NavigationRejection.CREW)
-                val occupied=landingSlotsUsed(base,o.country,players.values,next,galaxy)
+                val occupied=landingSlotsUsed(base,TacticalAuthority.camp(o,next),players.values,next,galaxy)
                 if(occupied+troops.size>GroundBattleRules.BOX_CAPACITY_PER_FACTION)return reject(NavigationRejection.GRID)
             } else if(!hasRoom(o,ship,troops.size))return reject(NavigationRejection.UNIT)
             val order=TacticalGroundOrder(command.action,p.characterId,p.grid,id,state.base,now,readyAt)
@@ -164,7 +165,7 @@ internal object TacticalGroundOperations {
             val valid=session.ended==null && base!=null && validOrder(o,order,units,base,players.values,next,galaxy)
             if(valid && now<order.readyAt)continue
             val completed=valid && (order.action!=TacticalGroundAction.DEPLOY ||
-                next.outfits.values.filter {it.country==o.country}.sumOf {other->
+                next.outfits.values.filter {TacticalAuthority.camp(it,next)==TacticalAuthority.camp(o,next)}.sumOf {other->
                     other.activeGround?.values.orEmpty().count {it.base==order.base}
                 }+units.size<=GroundBattleRules.BOX_CAPACITY_PER_FACTION)
             val ids=units.map {it.id}.toSet()
