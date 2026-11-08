@@ -436,7 +436,8 @@ internal object TacticalCommandOperations {
                 var wing=stocks.tacticalCommands.air[id] ?: continue
                 val p=players.values.singleOrNull {it.characterId==wing.character}
                 val at=pose(id,wing.grid,now,players,stocks,g)
-                if(session.ended!=null || p==null || p.grid!=wing.grid || !p.cpPaused || at==null) {removeWing(id);continue}
+                if(session.ended!=null || p==null || BattleDeath.deceased(stocks,wing.character) ||
+                    p.grid!=wing.grid || !p.cpPaused || at==null) {removeWing(id);continue}
                 if(wing.nextAt>now)continue
                 if(wing.mode==0) {
                     val hostiles=stocks.tacticalCommands.air.filterValues {other->other.grid==wing.grid && other.character!=wing.character &&
