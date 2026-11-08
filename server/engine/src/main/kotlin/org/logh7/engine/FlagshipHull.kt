@@ -50,6 +50,7 @@ internal object FlagshipRecovery {
             mode=if(home==null)5 else 4,spotId=0,spotOwner=0,cpPaused=false,cpRecoveryAt=seconds,
             motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null,energy=TacticalEnergy.ZERO,
             fuelReadyAt=null,strategy=null,dockTarget=null,warpTarget=null,supplies=0,
+            returnBase=player.returnBase.takeIf { id -> owned.any { it.id==id } } ?: 0,
             hull=FlagshipHull(kind,seconds,woundedUntil=until,clockScale=player.hull?.clockScale ?: 24))
     }
 }
