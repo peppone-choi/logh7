@@ -39,6 +39,18 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun offlineAiIgnoresADeceasedCommanderInAnOlderTacticalSave() {
+        val players=players()
+        val before=players.toMap()
+        val plain=stocks()
+        val stock=plain.copy(strategic=plain.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+        val events=mutableListOf<TacticalCommandResult>()
+        assertFalse(TacticalOfflineAi.eligible(offline,"pilot",players.getValue("pilot"),stock))
+        assertEquals(stock,TacticalOfflineAi.advance(offline,galaxy,players,stock,1,events))
+        assertEquals(before,players)
+        assertTrue(events.isEmpty())
+    }
+
     @Test fun offlinePatrolAndAttackMissionsCannotTrackAnEnemyUnderStarCover() {
         val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
         for(mission in listOf(0,3))for(observer in listOf(21f,16f)) {
