@@ -299,6 +299,27 @@ class TacticalCommandOperationsTest {
         }
     }
 
+    @Test fun wingStopsSlowingATargetThatBecomesFriendlyBeforeTheNextAttack() {
+        val s=state()
+        val foe=s.stocks.outfits.getValue(2)
+        val target=foe.activeShips!!.values.single()
+        val moving=target.copy(tactical=target.tactical!!.copy(
+            motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to foe.copy(activeShips=ActiveShipUnits(listOf(moving)))))
+        val r=run(s)
+        assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=1,target=99)).player)
+        settle(r,now+5)
+        val next=s.stocks.tacticalCommands.air.getValue(1).nextAt
+        assertEquals(.25f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+        val allied=s.stocks.outfits.getValue(2).copy(country=Power.EMPIRE.country)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to allied),
+            warehouses=s.stocks.warehouses+(20 to s.stocks.warehouses.getValue(20).copy(country=Power.EMPIRE.country)))
+        val hits=settle(run(s),next-1)
+        assertTrue(hits.none {it.airBattle})
+        assertTrue(s.stocks.tacticalCommands.air.isEmpty())
+        assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+    }
+
     @Test fun carrierLaunchSpendsExactlyTenAndLandingRestoresTargetSpeed() {
         val s=state();val foe=s.stocks.outfits.getValue(2)
         val moving=foe.activeShips!!.values.single().let {it.copy(tactical=it.tactical!!.copy(motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))}
