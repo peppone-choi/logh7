@@ -76,6 +76,23 @@ class GroundCountryViewTest {
         assertEquals(1 to emptyList(),view(2,2490))
     }
 
+    @Test fun aCrowdedBattleKeepsAllOwnFightersTheirTargetsAndEachOpposingCountry() {
+        val fourth=ground(4,CountryId(3),41,4,10004,ShipStyleId.fromLegacy(Power.ALLIANCE))
+        val outfits=(stocks.outfits+(4 to fourth.first)).mapValues {(id,outfit)->
+            val kind=outfit.activeGround!!.values.single().stack.kind
+            val roster=ActiveGroundUnits((1..31).map {ActiveGroundUnit(id*100+it,UnitStack(kind),base=1049)})
+            outfit.copy(activeGround=roster,units=UnitInventory(troops=roster.quantities()))
+        }
+        val crowded=stocks.copy(outfits=outfits,warehouses=stocks.warehouses+(4 to fourth.second),
+            tacticalCommands=TacticalCommandState(groundTargets=mapOf(401 to 330)),nextShipId=500)
+        val rows=battle(3,crowded).first
+        assertEquals(70,rows.size)
+        assertEquals((401..430).map {it to 10004},rows.filter {it.second!=0})
+        assertTrue(330 to 0 in rows,"the selected target is still visible")
+        assertEquals(setOf(1,2,3),rows.filter {it.second==0}.map {it.first/100}.toSet())
+        assertTrue(rows.none {it.first%100==31},"no reserves displace fighting units")
+    }
+
     @Test fun groundLocationsOpenOnlyForTheOutfitsActualCountry() {
         val query=OutfitPartyMessages.Query(1,0,2)
         val own=world.outfitGround(query,42,stocks)
