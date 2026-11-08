@@ -61,6 +61,30 @@ class GroundTransferTest {
         val afloat=moved.copy(outfits=moved.outfits+(1 to moved.outfits.getValue(1).copy(position=OutfitPosition(2487))))
         assertEquals(LogisticsRejection.LOCATION,GroundTransfer.evaluate(request(),session,pilot,afloat).rejection)
     }
+    @Test fun rebelTransferUsesTheCurrentStationAndRejectsRetakenBaseWithoutCharging() {
+        val before=stocks()
+        val coup=CoupState(mapOf(10000 to Plot(10000,Power.EMPIRE.country,0,revolt=5,bases=setOf(1050))),
+            loyalty=mapOf(1 to 100))
+        val station=before.bases.getValue(1050)
+        val friendly=before.copy(bases=before.bases+(1050 to station.copy(camp=1)),
+            outfits=before.outfits+(1 to before.outfits.getValue(1).copy(position=OutfitPosition(2487,1050))),
+            social=before.social.copy(coup=coup))
+        val docked=pilot.copy(baseId=1050)
+        val loaded=GroundTransfer.evaluate(request(),session,docked,friendly)
+        assertEquals(listOf(3,4),loaded.moved)
+        assertEquals(920,loaded.player?.mcp)
+        val carrying=assertNotNull(loaded.stocks)
+        val retaken=carrying.copy(bases=carrying.bases+(1050 to station))
+        val unload=request(GroundTransferAction.UNLOAD)
+        val denied=GroundTransfer.evaluate(unload,session,loaded.player,retaken)
+        assertEquals(LogisticsRejection.ACCESS,denied.rejection)
+        assertSame(loaded.player,denied.player)
+        assertSame(retaken,denied.stocks)
+        val unloaded=GroundTransfer.evaluate(unload,session,loaded.player,carrying)
+        assertEquals(listOf(3,4),unloaded.moved)
+        assertEquals(840,unloaded.player?.mcp)
+    }
+
     @Test fun pendingTacticalOrderBlocksWholeOutfitAndSavedOriginIsPreferred() {
         val ordered=stocks(listOf(ActiveGroundUnit(2,UnitStack(0),carrier=1,order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,1,1049,0,25))))
         assertEquals(LogisticsRejection.BUSY,GroundTransfer.evaluate(request(),session,pilot,ordered).rejection)
