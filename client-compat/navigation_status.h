@@ -52,6 +52,20 @@ static void __fastcall setHudCalendarText(void* root,void*,void* widget,const ch
         reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x503560)(root,widget,date);
 }
 
+// HUD slot 7 numeric cruise value. The native 0x5034d0 call keeps its text; this replaces only the
+// wide text with the server-side cruise at own+0x36c when it is a valid 0..1000 value.
+static void __fastcall setHudCruiseValue(void* root,void*,void* widget,const char* original) {
+    reinterpret_cast<void(__thiscall*)(void*,void*,const char*)>(0x5034d0)(root,widget,original);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if(!own || !at<BYTE>(own,0))return;
+    const float cruise=at<float>(own,0x36c);
+    if(!(cruise>=0 && cruise<=1000))return;
+    wchar_t text[32];
+    swprintf_s(text,L"%u광년 남음",static_cast<unsigned>(cruise));
+    reinterpret_cast<void(__thiscall*)(void*,void*,const wchar_t*)>(0x503560)(root,widget,text);
+}
+
 static void __fastcall acceptedWarp(void* world, void*, void* message, int result) {
     if (!result && world && message) {
         unsigned wait = at<unsigned>(message, 4), grid = at<unsigned short>(message, 0x18);
@@ -183,9 +197,9 @@ static void drawDockingStatus() {
     drawNavigationNotice(title,time);
 }
 static bool installNavigationStatus() {
-    const unsigned calls[] = {0x4bcbcc, 0x4bcfad, 0x4bcc1d, 0x4bcf79,0x58f0c6};
-    const BYTE expected[][5] = {{0xe8,0xaf,0x8b,0,0}, {0xe8,0xae,0x1e,0,0}, {0xe8,0x6e,0x1e,0,0}, {0xe8,0xa2,0x1e,0,0},{0xe8,0x05,0x44,0xf7,0xff}};
-    const void* functions[] = {&acceptedDock, &arrivedDock, &acceptedWarp, &movedGrid,&setHudCalendarText};
+    const unsigned calls[] = {0x4bcbcc, 0x4bcfad, 0x4bcc1d, 0x4bcf79,0x58f0c6,0x58d559,0x58f81b};
+    const BYTE expected[][5] = {{0xe8,0xaf,0x8b,0,0}, {0xe8,0xae,0x1e,0,0}, {0xe8,0x6e,0x1e,0,0}, {0xe8,0xa2,0x1e,0,0},{0xe8,0x05,0x44,0xf7,0xff},{0xe8,0x72,0x5f,0xf7,0xff},{0xe8,0xb0,0x3c,0xf7,0xff}};
+    const void* functions[] = {&acceptedDock, &arrivedDock, &acceptedWarp, &movedGrid,&setHudCalendarText,&setHudCruiseValue,&setHudCruiseValue};
     for (unsigned i = 0; i < _countof(calls); ++i)
         if (memcmp(reinterpret_cast<void*>(calls[i]), expected[i], 5)) return false;
     for (unsigned i = 0; i < _countof(calls); ++i) {
