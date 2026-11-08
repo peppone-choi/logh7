@@ -10,7 +10,7 @@ static void receivedTacticalSupportStop(void* world,const BYTE* record);
 
 static struct OutfitInformation {
     void* manager; void* root; void* world; void* pages[4]; void* lists[4];
-    unsigned character, grid, id, power, kind, number, token, expectedBase, countrySeen;
+    unsigned character, grid, id, power, kind, number, token, expectedBase, countrySeen, warehouseBase;
     bool selected, loaded, warehouseRequested, warehouseLoaded, timeoutShown, partyRequested;
     ULONGLONG sentAt, groundSentAt, groundAcceptAfter;
     unsigned groundArmed, groundPending;
@@ -24,7 +24,7 @@ static struct OutfitInformation {
 static SRWLOCK outfitReplyLock = SRWLOCK_INIT;
 static struct OutfitInbox {
     logh::OutfitReplyQueue queue;
-    unsigned token, partyToken, warehouseToken, character, grid; void* world;
+    unsigned token, partyToken, warehouseRequest, warehouseToken, character, grid; void* world;
     unsigned groundCharacter, groundOutfit, groundAction, groundReply;
     struct GroundRequest {bool pending,marked;unsigned outfit,cursor,token;ULONGLONG sentAt;} groundRequest;
     unsigned groundReady;bool groundFailed;logh::GroundPage groundData;bool groundRecordPending,groundDispatchMarked;
@@ -89,13 +89,28 @@ static bool outfitWarehouseAccess() {
     }
     return false;
 }
+// The party's current base while this window may show its warehouse, otherwise zero.
+static unsigned outfitWarehouseBase() {
+    auto& state=outfitInformation;
+    const unsigned base=state.loaded ? logh::infoWord(state.party,4) : 0;
+    if(!base || !outfitWarehouseAccess())return 0;
+    logh::BaseAffiliation::Owner owner;
+    const bool known=runtimeBaseOwner(state.world,base,owner);
+    const auto own=at<BYTE*>(state.world,8);
+    return logh::outfitWarehouseBaseAllowed(known ? &owner : nullptr,
+        runtimeOwnCountry(state.world,at<unsigned>(own,0x24),own[0x28])) ? base : 0;
+}
 static bool requestOutfit(bool warehouse) {
     auto& state=outfitInformation;
     if(!runtimeFriendlyOutfit(state.world,state.id))return false;
     unsigned base=warehouse ? logh::infoWord(state.party,4) : 0;
     if(warehouse && !base)return false;
+    unsigned token=state.token;
+    // A warehouse query outlives access changes, so only its own token may fill the tab.
+    if(warehouse) {if(++outfitToken==0)++outfitToken;token=outfitToken;}
     AcquireSRWLockExclusive(&outfitReplyLock);
-    bool queued=outfitInbox.queue.add(state.id,base,state.token,warehouse);
+    bool queued=outfitInbox.queue.add(state.id,base,token,warehouse);
+    if(queued && warehouse)outfitInbox.warehouseRequest=token;
     ReleaseSRWLockExclusive(&outfitReplyLock);
     if (!queued) return false;
     unsigned query[]={warehouse ? base : state.id,warehouse ? state.id : 0,0};
@@ -391,7 +406,8 @@ static void renderOutfitInformation() {
         outfitCell(0,7+i,1,rank[0] ? rank : L"계급 미확인");outfitCell(0,7+i,2,L"등록 인물");
     }
     if (!state.warehouseLoaded) {
-        outfitCell(3,1,0,!logh::infoWord(state.party,4) ? L"정박 후 부대 창고를 조회할 수 있습니다." : outfitWarehouseAccess() ? L"창고 응답 대기 중" : L"부대 지휘관만 창고를 조회할 수 있습니다.");
+        outfitCell(3,1,0,!logh::infoWord(state.party,4) ? L"정박 후 부대 창고를 조회할 수 있습니다." : !outfitWarehouseAccess() ? L"부대 지휘관만 창고를 조회할 수 있습니다." :
+            outfitWarehouseBase() ? L"창고 응답 대기 중" : L"이 거점에서는 부대 창고를 조회할 수 없습니다.");
         return;
     }
     auto w=state.warehouse;
@@ -428,7 +444,7 @@ static void __cdecl buildOutfitInformation(void* manager,int kind) {
     state.character=at<unsigned>(own,0x24);state.grid=at<unsigned>(state.world,0x2b6a70);
     AcquireSRWLockExclusive(&outfitReplyLock);
     if (outfitInbox.world!=state.world || outfitInbox.character!=state.character || outfitInbox.grid!=state.grid) {
-        outfitInbox.queue={};outfitInbox.partyToken=outfitInbox.warehouseToken=0;
+        outfitInbox.queue={};outfitInbox.partyToken=outfitInbox.warehouseRequest=outfitInbox.warehouseToken=0;
         outfitInbox.world=state.world;outfitInbox.character=state.character;outfitInbox.grid=state.grid;
         // An earlier page may still be in flight on the same connection.
         // Its marker/record must be consumed before a new page can be requested.
@@ -478,12 +494,12 @@ static bool selectOutfitIdentity(unsigned id,unsigned kind,unsigned power,unsign
     auto& state=outfitInformation;
     if (!state.root || !state.world || !id || kind>3 || power<2 || power>3 || number>255 || base>65535) return false;
     state.id=id;state.kind=kind;state.power=power;state.number=number;state.expectedBase=base;
-    state.loaded=state.warehouseLoaded=state.warehouseRequested=state.timeoutShown=false;state.selected=true;
+    state.loaded=state.warehouseLoaded=state.warehouseRequested=state.timeoutShown=false;state.selected=true;state.warehouseBase=0;
     state.groundArmed=state.groundPending=0;state.groundMessage=nullptr;state.groundAcceptAfter=GetTickCount64()+250;
     invalidateOutfitGround(true);
     memset(state.party,0,sizeof(state.party));memset(state.warehouse,0,sizeof(state.warehouse));
     if (++outfitToken==0) ++outfitToken;state.token=outfitToken;state.sentAt=GetTickCount64();
-    AcquireSRWLockExclusive(&outfitReplyLock);outfitInbox.token=state.token;ReleaseSRWLockExclusive(&outfitReplyLock);
+    AcquireSRWLockExclusive(&outfitReplyLock);outfitInbox.token=state.token;outfitInbox.warehouseRequest=outfitInbox.warehouseToken=0;ReleaseSRWLockExclusive(&outfitReplyLock);
     state.partyRequested=runtimeFriendlyOutfit(state.world,id) && requestOutfit(false);
     state.countrySeen=countryNameSequence.load();
     renderOutfitInformation();return true;
@@ -579,11 +595,14 @@ static unsigned __stdcall decodedOutfitInformation(void* record,void* reader) {
     }
     ReleaseSRWLockExclusive(&outfitReplyLock);return result;
 }
-static void outfitWarehouseResponse(void*,const BYTE* record) {
+static void outfitWarehouseResponse(void* world,const BYTE* record) {
+    // Requests are matched once, by the decoder below, in wire order. The queued UI callback
+    // (non-null world) runs later, so matching there could pair a reply with a newer request.
+    if (world) return;
     unsigned token=0;
     if (record[12]>99 || record[0x260]>24) return;
     AcquireSRWLockExclusive(&outfitReplyLock);
-    if (outfitInbox.queue.take(logh::infoWord(record,4),logh::infoWord(record,0),true,token) && token==outfitInbox.token) {
+    if (outfitInbox.queue.take(logh::infoWord(record,4),logh::infoWord(record,0),true,token) && token==outfitInbox.warehouseRequest) {
         memcpy(outfitInbox.warehouse,record,sizeof(outfitInbox.warehouse));outfitInbox.warehouseToken=token;
     }
     ReleaseSRWLockExclusive(&outfitReplyLock);
@@ -591,8 +610,8 @@ static void outfitWarehouseResponse(void*,const BYTE* record) {
 static unsigned __stdcall decodedOutfitWarehouse(void* record,void* reader) {
     unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x41a870)(record,reader);
     const auto reply=static_cast<const BYTE*>(record);
-    // Refusals can bypass the normal warehouse UI callback.
-    if(!result && logh::infoWord(reply,4) && logh::infoWord(reply,8)==1)
+    // Refusals can also bypass the normal warehouse UI callback.
+    if(!result && logh::infoWord(reply,4))
         outfitWarehouseResponse(nullptr,reply);
     return result;
 }
@@ -603,7 +622,7 @@ static void updateOutfitInformation(void* manager) {
         at<unsigned>(own,0x24)!=state.character || at<unsigned>(world,0x2b6a70)!=state.grid ||
         !at<BYTE>(world,0x2a58f8) || (at<BYTE>(world,0x3579cc) && !state.groundPending)) {
         AcquireSRWLockExclusive(&outfitReplyLock);
-        outfitInbox.queue={};outfitInbox.token=outfitInbox.partyToken=outfitInbox.warehouseToken=0;
+        outfitInbox.queue={};outfitInbox.token=outfitInbox.partyToken=outfitInbox.warehouseRequest=outfitInbox.warehouseToken=0;
         outfitInbox.world=nullptr;
         if(!world || !at<BYTE>(world,0x2a58f8)) {
             outfitInbox.groundRequest={};outfitInbox.groundReady=0;outfitInbox.groundRecordPending=outfitInbox.groundDispatchMarked=false;
@@ -633,7 +652,18 @@ static void updateOutfitInformation(void* manager) {
         }
         outfitInbox.partyToken=0;
     }
-    if (outfitInbox.warehouseToken==state.token) {
+    ReleaseSRWLockExclusive(&outfitReplyLock);
+    // Compared before taking a reply: a grant already received under the previous
+    // access must not refill the tab, and a restored access queries the server again.
+    const unsigned warehouseBase=outfitWarehouseBase();
+    const bool warehouseAccessChanged=warehouseBase!=state.warehouseBase;
+    if(warehouseAccessChanged) {
+        state.warehouseBase=warehouseBase;state.warehouseLoaded=state.warehouseRequested=false;
+        memset(state.warehouse,0,sizeof(state.warehouse));changed=true;
+    }
+    AcquireSRWLockExclusive(&outfitReplyLock);
+    if(warehouseAccessChanged)outfitInbox.warehouseRequest=outfitInbox.warehouseToken=0;
+    if (outfitInbox.warehouseToken) {
         if(friendly) {
             changed=changed || !state.warehouseLoaded || memcmp(state.warehouse,outfitInbox.warehouse,sizeof(state.warehouse));
             memcpy(state.warehouse,outfitInbox.warehouse,sizeof(state.warehouse));state.warehouseLoaded=true;
@@ -641,7 +671,7 @@ static void updateOutfitInformation(void* manager) {
         outfitInbox.warehouseToken=0;
     }
     ReleaseSRWLockExclusive(&outfitReplyLock);
-    if (state.loaded && logh::infoWord(state.party,4) && !state.warehouseRequested && outfitWarehouseAccess()) state.warehouseRequested=requestOutfit(true);
+    if (warehouseBase && !state.warehouseRequested) state.warehouseRequested=requestOutfit(true);
     if (!state.loaded && !state.timeoutShown && GetTickCount64()-state.sentAt>=5000) {state.timeoutShown=true;changed=true;}
     changed=updateOutfitGroundPage() || changed;
     if (changed) renderOutfitInformation();
