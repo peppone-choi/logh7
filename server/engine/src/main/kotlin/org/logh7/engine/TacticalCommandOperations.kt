@@ -458,6 +458,14 @@ internal object TacticalCommandOperations {
                 val at=pose(id,wing.grid,now,players,stocks,g)
                 if(session.ended!=null || p==null || BattleDeath.deceased(stocks,wing.character) ||
                     p.grid!=wing.grid || !p.cpPaused || at==null) {removeWing(id);continue}
+                if(id!=p.unitId) {
+                    val source=ship(id,stocks)
+                    if(source==null || TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(p,stocks) ||
+                        TacticalAuthority.commander(source.outfit,source.unit,stocks)!=p.characterId) {
+                        removeWing(id)
+                        continue
+                    }
+                }
                 if(wing.nextAt>now)continue
                 if(wing.mode==0) {
                     val hostiles=stocks.tacticalCommands.air.filterValues {other->other.grid==wing.grid && other.character!=wing.character &&
