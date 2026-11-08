@@ -64,15 +64,22 @@ class BaseOccupationTest {
         val country=Power.ALLIANCE.country
         val rebels=original.outfits.getValue(1).copy(country=country,commanderId=10000)
         val coup=CoupState(mapOf(10000 to Plot(10000,country,0,revolt=5)),loyalty=mapOf(1 to 100))
+        val neighboring=base.copy(id=1001)
+        val world=Galaxy(galaxy.systems,listOf(base,neighboring),galaxy.starts)
+        val otherBase=original.bases.getValue(1000).copy(baseId=1001)
+        val openSupply=mapOf(1000 to country.value,1001 to country.value)
         val before=original.copy(outfits=original.outfits+(1 to rebels),
+            bases=original.bases+(1001 to otherBase),
+            tacticalCommands=original.tacticalCommands.copy(emergencySupplies=openSupply),
             warehouses=original.warehouses+(101 to original.warehouses.getValue(101).copy(country=country)),
             social=original.social.copy(coup=coup))
         val regular=Navigator(1,10001,Power.ALLIANCE,2487,777,555,321,baseId=1000,mode=4,returnBase=1000)
         val rebel=regular.copy(characterId=10000)
         val players=mutableMapOf("regular" to regular,"rebel" to rebel)
         val events=mutableListOf<BaseOccupation>()
-        val captured=advance(before,players,events)
+        val captured=advance(before,players,events,world=world)
         assertEquals(1,captured.bases.getValue(1000).camp)
+        assertEquals(openSupply-1000,captured.tacticalCommands.emergencySupplies)
         assertEquals(setOf(1000),captured.social.coup.plots.getValue(10000).bases)
         assertEquals(1,events.single().camp)
         assertEquals(setOf("regular"),events.single().expelled.keys)
@@ -87,8 +94,9 @@ class BaseOccupationTest {
         val returned=ActiveGroundUnits(defenders.activeGround!!.values.map {it.copy(carrier=0,base=1000)})
         val counterattack=captured.copy(outfits=mapOf(1 to routed,2 to defenders.copy(activeGround=returned)))
         events.clear()
-        val retaken=advance(counterattack,players,events)
+        val retaken=advance(counterattack,players,events,world=world)
         assertEquals(0,retaken.bases.getValue(1000).camp)
+        assertEquals(openSupply-1000,retaken.tacticalCommands.emergencySupplies)
         assertTrue(retaken.social.coup.plots.getValue(10000).bases.isEmpty())
         assertEquals(setOf("rebel"),events.single().expelled.keys)
         assertEquals(before.warehouses,retaken.warehouses)

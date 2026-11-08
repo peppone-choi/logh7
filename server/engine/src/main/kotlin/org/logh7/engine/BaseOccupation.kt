@@ -91,6 +91,7 @@ internal object BaseOccupationOperations {
                 logisticsOfficers=stocks.logisticsOfficers.filterValues {it.capital!=capital},
                 nationalOffices=stocks.nationalOffices.filterKeys {it.capital!=capital},
                 groundBattles=stocks.groundBattles-base.id,
+                tacticalCommands=stocks.tacticalCommands.copy(emergencySupplies=stocks.tacticalCommands.emergencySupplies-base.id),
                 strategic=stocks.strategic.copy(suppressions=stocks.strategic.suppressions.filter {it.base!=base.id},
                     fiefs=stocks.strategic.fiefs-base.id,offices=stocks.strategic.offices.filter {holding ->
                         if(OrganizationOffices.of(holding.card)?.scope==OfficeScope.OUTFIT)
