@@ -349,19 +349,29 @@ class TacticalCommandOperationsTest {
 
     @Test fun carrierLaunchSpendsExactlyTenAndLandingRestoresTargetSpeed() {
         val s=state();val foe=s.stocks.outfits.getValue(2)
-        val moving=foe.activeShips!!.values.single().let {it.copy(tactical=it.tactical!!.copy(motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))}
+        val moving=foe.activeShips!!.values.single().let {it.copy(tactical=it.tactical!!.copy(motion=motion(0f,1.5f).copy(velocity=.5f,waitSeconds=60,waypoints=listOf(TacticalPoint(0f,40f)))))}
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to foe.copy(activeShips=ActiveShipUnits(listOf(moving)))))
         val r=run(s);assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=1,target=99)).player)
-        val hits=mutableListOf<TacticalImpact>();settle(r,now+5,impacts=hits)
+        val hits=mutableListOf<TacticalImpact>()
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(r,now+5,events,hits)
         assertEquals(90,s.stocks.outfits.getValue(1).supplies);assertTrue(hits.single().airBattle)
-        assertEquals(.25f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+        val slowed=s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion
+        assertEquals(.25f,slowed.velocity)
+        assertEquals(now+60,slowed.startsAt)
+        assertEquals(slowed,events.single {it.stateOnly}.motions.getValue(99))
         // CRC regrowth is required for another squadron command.
         val later=session.copy(gameMillis=(now+20)*1000)
         assertNotNull(TacticalCommandOperations.accept(request(TacticalCommand(0x40e,listOf(1),kind=2)),later,galaxy,
             r.navigation,r.production,r.production.snapshot(1)!!,s.commit,1).player)
-        settle(r,now+25)
+        events.clear()
+        settle(r,now+25,events)
         assertTrue(s.stocks.tacticalCommands.air.isEmpty());assertEquals(90,s.stocks.outfits.getValue(1).supplies)
-        assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+        val restored=s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion
+        assertEquals(.5f,restored.velocity)
+        assertEquals(now+60,restored.startsAt)
+        assertEquals(moving.tactical!!.motion.origin,restored.pose(now+59))
+        assertEquals(restored,events.single {it.stateOnly}.motions.getValue(99))
     }
     @Test fun airTacticsOfTheLaunchingCharacterShortensTheWingCycle() {
         fun nextStrike(airTactics:Int):Long {
