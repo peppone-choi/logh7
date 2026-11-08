@@ -153,12 +153,14 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 packets+=BootstrapMessages.changedCharacter(member.character,player.pcp,player.mcp,player.spotId,
                     player.spotOwner,player.returnBase,cards)
             }
-            val expelled=event.expelled.values.any {it.characterId==player.characterId}
+            val expelled=previous.player.baseId==event.base && player.grid==event.grid &&
+                player.cpPaused && player.baseId==0 && event.expelled.values.any {it.characterId==player.characterId}
             if(expelled) {
                 packets+=unit(member)
                 packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,0,5,event.seconds)
                 packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,player.cpPaused)
-            } else if(player.grid==event.grid && previous.player.cpPaused) {
+            } else if(occupationLine!=null && player.grid==event.grid &&
+                previous.player.grid==event.grid && previous.player.cpPaused && player.cpPaused && player.baseId==0) {
                 val tactical=TacticalBootstrap(snapshot,world.galaxy,player,countries,characterById)
                 val display=countries.nativePower(org.logh7.engine.Allegiance.Country(event.country))
                 packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,display,event.camp)

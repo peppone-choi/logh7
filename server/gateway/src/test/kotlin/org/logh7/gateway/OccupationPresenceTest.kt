@@ -74,5 +74,19 @@ class OccupationPresenceTest {
         presence.groundResultGridReady("c0",returning)
         assertEquals(occupationLine,notice(checkNotNull(presence.takeGroundResult("c0",returning))))
         assertNull(presence.takeGroundResult("c0",returning),"occupation replaces the queued result for this base")
+        assertTrue(listOf(0x0442,0x0325,0x0345).all {messages(0,it).isEmpty()})
+        presence.update(GamePresence.Member("c1",people[1],loser,packets[1]::add))
+        packets.forEach {it.clear()}
+        val relocated=returning.copy(characterId=loser.characterId,country=loser.country,grid=2488)
+        deliver(s=snapshot.copy(navigators=snapshot.navigators+("loser" to relocated)))
+        assertTrue(listOf(0x0b0b,0x0f1f,0x0442).all {messages(1,it).isEmpty()})
+        assertEquals(1,messages(1,0x031f).size)
+        presence.update(GamePresence.Member("c0",people[0],winner,packets[0]::add))
+        packets.forEach {it.clear()}
+        val laterStocks=stocks.copy(bases=stocks.bases.mapValues {(_,base)->base.copy(camp=1-camp)})
+        deliver(s=snapshot.copy(planetStocks=laterStocks))
+        assertTrue(listOf(0x0442,0x0f1d).all {messages(0,it).isEmpty()})
+        assertEquals(1,messages(0,0x031f).size)
+
     }
 }
