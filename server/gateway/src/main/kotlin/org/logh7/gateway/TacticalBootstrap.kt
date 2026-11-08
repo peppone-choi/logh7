@@ -87,8 +87,10 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             val observer=units.singleOrNull {it.id==viewer.unitId}
             val camps=unitCamps
             val own=TacticalAuthority.camp(viewer,stocks)
+            val headquarters=TacticalTerrain.defenseObserver(galaxy,viewer.grid,own,snapshot.session?.gameSeconds ?: 0,stocks)
             val detected=units.associate { u -> u.id to (
                 observer==null || camps[u.id]==own ||
+                    (headquarters!=null && !TacticalTerrain.sensorBlocked(galaxy,viewer.grid,headquarters,TacticalPoint(u.x,u.y))) ||
                     !TacticalTerrain.sensorBlocked(galaxy,viewer.grid,TacticalPoint(observer.x,observer.y),TacticalPoint(u.x,u.y))) }
             units.map { u ->
                 val visible=detected.getValue(u.id)

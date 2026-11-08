@@ -80,6 +80,26 @@ class TacticalCampReportTest {
         assertTrue(insideBoot.detectionChanges(hidden).single {it.id==enemy.unitId}.detected)
     }
 
+    @Test fun aFriendlyDefenseHeadquartersRevealsTheTargetUntilItChangesSides() {
+        val base=galaxy.bases.first().copy(radius=15f)
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},listOf(base),galaxy.starts)
+        fun position(p:Navigator,y:Float):Navigator {
+            val point=TacticalPoint(0f,y)
+            return p.copy(motion=TacticalMotion(10,250,TacticalPose(point,0f),0f,0f,listOf(point)))
+        }
+        val outside=position(viewer,21f)
+        val enemy=position(navigators.getValue("other"),19f)
+        val original=stocks(emptyList())
+        val owned=PlanetStock(base.id,Allegiance.Country(CountryId(42)),0,0,0,0)
+        fun detected(owner:PlanetStock):Boolean {
+            val sample=snapshot(original.copy(bases=mapOf(base.id to owner)))
+                .copy(navigators=mapOf("viewer" to outside,"other" to enemy))
+            return TacticalBootstrap(sample,world,outside,catalog,::person).units.single {it.id==enemy.unitId}.detected
+        }
+        assertTrue(detected(owned))
+        assertFalse(detected(owned.copy(camp=1)))
+    }
+
     @Test fun onlyTheViewersCurrentGridAndGenerationInTacticsAreServed() {
         // The away viewer sees its own grid only: the away fleet and itself.
         val away=reply(who=navigators.getValue("away"))

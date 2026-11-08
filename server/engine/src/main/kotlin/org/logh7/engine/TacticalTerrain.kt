@@ -44,10 +44,19 @@ object TacticalTerrain {
             hypot(target.x.toDouble(), target.y.toDouble()) < radius
     }
 
+    /** Nearest friendly defense headquarters under the current star-only contact model. */
+    fun defenseObserver(galaxy:Galaxy,grid:Int,camp:Camp,now:Long,stocks:PlanetStocks):TacticalPoint? =
+        galaxy.bases.asSequence().filter {base->
+            base.grid==grid && stocks.bases[base.id]?.let(TacticalAuthority::camp)==camp
+        }.map {TacticalBasePosition.at(it,now,stocks)}
+            .minByOrNull {it.x.toDouble()*it.x+it.y.toDouble()*it.y}
+
     /** Manual p.49: any active ally can share a contact. Physical fire clearance is separate. */
     internal fun sharedSensorBlocked(galaxy:Galaxy,grid:Int,camp:Camp,observer:TacticalPoint,target:TacticalPoint,
         now:Long,players:Collection<Navigator>,stocks:PlanetStocks):Boolean {
         if(!sensorBlocked(galaxy,grid,observer,target))return false
+        val headquarters=defenseObserver(galaxy,grid,camp,now,stocks)
+        if(headquarters!=null && !sensorBlocked(galaxy,grid,headquarters,target))return false
         fun sees(unit:Int,motion:TacticalMotion?,posture:TacticalPosture?):Boolean {
             val position=motion?.takeIf {it.grid==grid}?.pose(now,posture,galaxy,stocks)?.position
                 ?: posture?.takeIf {it.grid==grid && it.mode.requiresBase}
