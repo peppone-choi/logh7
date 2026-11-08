@@ -30,6 +30,8 @@ internal object TacticalGroundOperations {
     private fun admits(base:GalaxyBase,troops:List<ActiveGroundUnit>)=troops.all {u->
         GroundBattleRules.admitsCrewType(base,UnitSpecifications.crews.single {it.kind==u.stack.kind}.type)
     }
+    private fun operational(ship:ActiveShipUnit,stocks:PlanetStocks)=
+        ship.boats>ship.damaged && !stocks.tacticalCommands.confused(ship.id)
     private fun hasRoom(o:OutfitStock,ship:ActiveShipUnit,returning:Int)=
         o.activeGround?.values.orEmpty().count {it.carrier==ship.id}+returning<=GroundTransfer.capacity(ship.stack.kind)
     fun guard(request:NavigationRequest,session:SessionState,navigation:Navigation,stocks:PlanetStocks):NavigationResult? {
@@ -99,6 +101,7 @@ internal object TacticalGroundOperations {
             if(!owned(o,id,p,galaxy,next))return reject(NavigationRejection.CARD)
             val ship=o.activeShips!!.values.single {it.id==id}
             val state=berth(o,id,p.grid) ?: return reject(NavigationRejection.BASE)
+            if(!operational(ship,next))return reject(NavigationRejection.ACCESS)
             val base=galaxy.bases.singleOrNull {it.id==state.base && it.grid==p.grid} ?: return reject(NavigationRejection.BASE)
             if(ship.support!=null || ship.tactical?.retreat!=null || o.activeGround?.values?.any {it.order?.carrier==id}==true)
                 return reject(NavigationRejection.BUSY)
@@ -134,17 +137,17 @@ internal object TacticalGroundOperations {
             val o=next.outfits.values.singleOrNull {it.activeGround?.values?.any {u->u.order==order}==true} ?: continue
             val p=players.values.singleOrNull {it.characterId==order.character}
             val state=berth(o,order.carrier,order.grid)
+            val carrier=o.activeShips?.values?.singleOrNull {it.id==order.carrier}
             val reserved=next.outfits.values.filter {it.country==o.country}.sumOf {other->other.activeGround?.values.orEmpty().count {
                 it.base==order.base || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==order.base}==true}}
             val units=o.activeGround!!.values.filter {it.order==order}
             val base=galaxy.bases.singleOrNull {it.id==order.base && it.grid==order.grid}
-            val valid=session.ended==null && p!=null && base!=null &&
+            val valid=session.ended==null && p!=null && base!=null && carrier!=null && operational(carrier,next) &&
                 !BattleDeath.deceased(next,p.characterId) && p.cpPaused && p.baseId==0 && p.grid==order.grid &&
                 owned(o,order.carrier,p,galaxy,next) && state?.base==order.base &&
                 when(order.action) {
                     TacticalGroundAction.DEPLOY -> reserved<=GroundBattleRules.BOX_CAPACITY_PER_FACTION && admits(base,units)
-                    TacticalGroundAction.WITHDRAW -> o.activeShips?.values?.singleOrNull {it.id==order.carrier}
-                        ?.let {hasRoom(o,it,units.size)}==true
+                    TacticalGroundAction.WITHDRAW -> hasRoom(o,carrier,units.size)
                     else -> false
                 }
             if(valid && now<order.readyAt)continue

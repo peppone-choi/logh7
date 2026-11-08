@@ -125,6 +125,28 @@ class TacticalGroundOperationsTest {
         galaxy=galaxy(80)
         val h=state(kind=2);assertNotNull(accept(h,Navigation(galaxy,h.nav,NavigationPolicy()),production(h)).player)
     }
+    @Test fun disabledOrConfusedCarrierCannotStartOrFinishALanding() {
+        for(confused in listOf(false,true)) {
+            val s=state()
+            val before=s.stocks
+            fun disable(stocks:PlanetStocks):PlanetStocks {
+                if(confused)return stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(morale=mapOf(1 to 15)))
+                val outfit=stocks.outfits.getValue(1)
+                val ships=outfit.activeShips!!.values.map {u->if(u.id==1)u.copy(damaged=u.boats) else u}
+                return stocks.copy(outfits=stocks.outfits+(1 to outfit.copy(activeShips=ActiveShipUnits(ships))))
+            }
+            s.stocks=disable(before)
+            assertEquals(NavigationRejection.ACCESS,accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).rejection)
+            s.stocks=before
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).player)
+            s.stocks=disable(s.stocks)
+            val events=mutableListOf<TacticalGroundResult>()
+            settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+600,events)
+            assertTrue(events.single().cancelled)
+            assertEquals(before.outfits.getValue(1).activeGround,s.stocks.outfits.getValue(1).activeGround)
+        }
+    }
+
     @Test fun restoredWithdrawalRechecksTheCurrentCarrierCapacity() {
         val s=state()
         val own=s.stocks.outfits.getValue(1)
