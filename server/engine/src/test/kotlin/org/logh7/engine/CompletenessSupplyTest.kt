@@ -18,6 +18,26 @@ class CompletenessSupplyTest {
         mapOf(101 to OutfitWarehouse(101, 2, OutfitKind.TRANSPORT, 1049, 1),
             102 to OutfitWarehouse(102, 2, OutfitKind.FLEET, 1049, 2)), deploymentInitialized = true))
 
+    @Test fun rebelSupplyCannotCrossCampOrContinueAfterThePortIsRetaken() {
+        val initial=stocks()
+        val country=Power.EMPIRE.country
+        val plot=Plot(10000,country,0,members=listOf(10001),revolt=5,bases=setOf(1049))
+        val coup=CoupState(mapOf(10000 to plot),loyalty=mapOf(1 to 100,2 to 100))
+        val rebel=initial.copy(bases=initial.bases+(1049 to initial.bases.getValue(1049).copy(camp=1)),
+            social=initial.social.copy(coup=coup))
+        val result=CompletenessSupply.evaluate(request,session,player,rebel)
+        assertEquals(capacity,result.transferred)
+        assertEquals(840,result.player?.mcp)
+        val opposing=rebel.copy(social=rebel.social.copy(coup=coup.copy(loyalty=mapOf(1 to 100))))
+        val retaken=rebel.copy(bases=initial.bases)
+        for((state,reason) in listOf(opposing to LogisticsRejection.ACCESS,retaken to LogisticsRejection.LOCATION)) {
+            val denied=CompletenessSupply.evaluate(request,session,player,state)
+            assertEquals(reason,denied.rejection)
+            assertSame(player,denied.player)
+            assertSame(state,denied.stocks)
+        }
+    }
+
     @Test fun partialDeliveryConservesCargoChargesOnceAndLeavesWarehousesAndShipsIntact() {
         val before = stocks()
         val result = CompletenessSupply.evaluate(request, session, player, before)
