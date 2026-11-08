@@ -47,11 +47,14 @@ internal object TacticalSupportOperations {
             target.outfit.positionIn(galaxy)!=OutfitPosition(player.grid))return null
         return pose(target,player.grid,now,players.values,stocks,galaxy).position
     }
+    private fun movingOrder(unit:ActiveShipUnit,grid:Int):Boolean =
+        unit.posture?.takeIf {it.grid==grid}?.order!=null ||
+            unit.tactical?.takeIf {it.motion.grid==grid}?.retreat!=null
     private fun eligible(source: Ship, player: Navigator, order: TacticalSupportOrder, now: Long,
         players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy,commandRadius:Float?=null): Boolean {
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5 || player.grid!=order.grid ||
             player.hull?.woundedUntil?.let {now<it}==true || source.unit.boats==0 || source.unit.id==order.target ||
-            stocks.tacticalCommands.confused(source.unit.id) ||
+            stocks.tacticalCommands.confused(source.unit.id) || movingOrder(source.unit,order.grid) ||
             TacticalAuthority.commander(source.outfit,source.unit,stocks)!=player.characterId || TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(player,stocks) ||
             source.outfit.positionIn(galaxy)!=OutfitPosition(order.grid))return false
         val spec=UnitSpecifications.ships.single {it.kind==source.unit.stack.kind}
@@ -140,7 +143,7 @@ internal object TacticalSupportOperations {
         val command=checkNotNull(request.tacticalSupport)
         if(!validCombatTarget(command.target))return reject(NavigationRejection.TARGET)
         val source=ship(command.unit,stocks) ?: return reject(NavigationRejection.UNIT)
-        if(source.unit.support!=null)return reject(NavigationRejection.BUSY)
+        if(source.unit.support!=null || movingOrder(source.unit,player.grid))return reject(NavigationRejection.BUSY)
         val now=session.gameMillis/1000
         if(now>0xffffffffL-5*scale)return reject(NavigationRejection.CLOCK)
         val order=TacticalSupportOrder(command.action,player.characterId,command.target,player.grid,now,now+5*scale)

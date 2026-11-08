@@ -145,6 +145,36 @@ class TacticalSupportTest {
         }
     }
 
+    @Test fun supportCannotOverlapAQueuedPostureChangeOrRetreat() {
+        for(retreat in listOf(false,true)) {
+            val s=state()
+            val command=request(TacticalSupportAction.SUPPLY,2)
+            val before=s.stocks
+            fun queueMovement(stocks:PlanetStocks):PlanetStocks {
+                val outfit=stocks.outfits.getValue(1)
+                val ships=outfit.activeShips!!.values.map {u->
+                    if(u.id!=1)u
+                    else if(retreat)u.copy(tactical=u.tactical!!.copy(retreat=TacticalRetreat(2487,now,120,3600)))
+                    else u.copy(posture=TacticalPosture(2488,order=TacticalPostureOrder(
+                        10000,TacticalShipMode.BATTLE,0,now,now+300)))
+                }
+                return stocks.copy(outfits=stocks.outfits+(1 to outfit.copy(activeShips=ActiveShipUnits(ships))))
+            }
+            s.stocks=queueMovement(before)
+            assertEquals(NavigationRejection.BUSY,
+                accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).rejection)
+            s.stocks=before
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+            s.stocks=queueMovement(s.stocks)
+            val out=mutableListOf<TacticalSupportResult>()
+            settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+120,out)
+            assertTrue(out.single().cancelled)
+            val outfit=s.stocks.outfits.getValue(1)
+            assertNull(outfit.activeShips!!.values.first().support)
+            assertEquals(OutfitSupplies.distribution(before.outfits.getValue(1)),OutfitSupplies.distribution(outfit))
+        }
+    }
+
     @Test fun supplyBetweenUnitsOfTheSameFleetDoesNotChangeItsTotal() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
