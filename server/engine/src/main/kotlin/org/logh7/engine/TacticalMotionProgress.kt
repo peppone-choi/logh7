@@ -26,8 +26,12 @@ internal object TacticalMotionProgress {
                 val pose=motion.pose(now)
                 motion.copy(origin=pose,velocity=0f,direction=pose.direction,waypoints=listOf(pose.position),reportedWaypoints=0,rotation=null)
             } else motion.copy(reportedWaypoints=completed)
+            // The native executor uses the supplied angle to choose its rotation direction.
+            val reverseTarget=motion.rotation?.takeIf {it.kind==TacticalManeuver.REVERSE}?.let {
+                (motion.origin.direction+(if(it.reverseSide==0)-Math.PI else Math.PI)).toFloat()
+            }
             events+=TacticalMovement(session.generation,unit,motion.grid,now,next,audience(motion.grid),character=character,
-                waypoint=if(next.velocity==0f)-1 else completed,turned=motion.rotation?.kind==TacticalManeuver.REVERSE)
+                waypoint=if(next.velocity==0f)-1 else completed,reverseTarget=reverseTarget)
             return next
         }
         for((account,player) in players.toMap()) {

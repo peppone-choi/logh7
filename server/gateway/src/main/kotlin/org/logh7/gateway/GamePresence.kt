@@ -484,7 +484,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character))
                     return@forEach
                 }
-                val packet=if(event.turned)org.logh7.protocol.TacticalTurnMessages.turned(event.seconds,event.unit,checkNotNull(event.motion).direction)
+                val packet=if(event.reverseTarget!=null)org.logh7.protocol.TacticalTurnMessages.turned(event.seconds,event.unit,checkNotNull(event.reverseTarget))
                 else if(event.destination!=null)
                     org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,checkNotNull(event.destination),listOf(event.unit))
                 else if(event.waypoint!=null)checkNotNull(event.motion).let {motion ->

@@ -1210,11 +1210,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             .mapNotNull {(account,member)->state.navigators[account]?.takeIf {
                                 it.grid==player.grid && it.baseId==0 && it.cpPaused}?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
                         val formation=result.tacticalMotions.takeIf {it.values.any {m->m.rotation!=null}}.orEmpty()
-                        val deliveries=if(formation.isEmpty())result.tacticalMotions.filterKeys {it in 1..999999}
+                        val stopped=command.request.tacticalStop!=null
+                        val deliveries=if(formation.isEmpty())result.tacticalMotions.filterKeys {stopped || it in 1..999999}
                             else formation.entries.take(1).associate {it.key to it.value}
                         for((id,motion) in deliveries) {
                             val event=TacticalMovement(session.generation,id,player.grid,session.gameMillis/1000,motion,recipients,
-                                character=player.characterId,stopped=command.request.tacticalStop!=null,formation=formation)
+                                character=player.characterId,stopped=stopped,formation=formation)
                             for(observer in movementObservers)try {observer(event)}
                             catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
                         }

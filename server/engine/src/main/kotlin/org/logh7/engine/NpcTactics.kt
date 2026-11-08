@@ -23,11 +23,11 @@ data class NpcTacticalState(val motion:TacticalMotion,val nextDecisionAt:Long,va
 data class TacticalMovement(val generation:Long,val unit:Int,val grid:Int,val seconds:Long,
     val motion:TacticalMotion?,val recipients:Map<Int,String>,val destination:Int?=null,
     val character:Int=0,val stopped:Boolean=false,val waypoint:Int?=null,
-    val formation:Map<Int,TacticalMotion> = emptyMap(),val turned:Boolean=false) {
+    val formation:Map<Int,TacticalMotion> = emptyMap(),val reverseTarget:Float?=null) {
     init { require(character>=0 && (waypoint==null || waypoint in -1..31) && (!stopped || character>0 && motion?.velocity==0f) && generation>0 &&
-        (unit in 1..999999 || (waypoint!=null || formation.isNotEmpty()) && unit>=1000000) && grid in 0..4999 && seconds in 0..0xffffffffL &&
+        (unit in 1..999999 || (stopped || waypoint!=null || formation.isNotEmpty()) && unit>=1000000) && grid in 0..4999 && seconds in 0..0xffffffffL &&
         (formation.isEmpty() || character>0 && formation.size in 1..32 && unit in formation && formation.values.all {it.grid==grid && it.rotation!=null}) &&
-        (!turned || waypoint==-1 && motion!=null && formation.isEmpty()) &&
+        (reverseTarget==null || reverseTarget.isFinite() && waypoint==-1 && motion!=null && formation.isEmpty()) &&
         recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()} &&
         ((motion!=null && destination==null && motion.grid==grid) || (motion==null && destination in 0..4999))) }
 }
