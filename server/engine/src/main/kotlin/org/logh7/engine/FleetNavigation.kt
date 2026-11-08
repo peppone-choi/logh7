@@ -3,9 +3,15 @@ package org.logh7.engine
 /** Commander-led deployment uses the same durable transaction as the flagship. Author: Peppone Choi. */
 internal object FleetNavigation {
     fun apply(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
-        production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?, blocked: (Int) -> Boolean): NavigationResult {
+        production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?,
+        initialProfile:StrategicPerson?=null,blocked: (Int) -> Boolean): NavigationResult {
         val players = navigation.snapshot(session.generation)
         val before = players[request.account]
+        val startingPerson=initialProfile?.takeIf {committer!=null && before==null &&
+            it.peerage!=null && request.characterId !in stocks.strategic.people}?.let {person->
+            val supports=request.country?.let {CountryCatalogLoader.current().supportsNativePeerage(it)}==true
+            person.copy(peerage=person.peerage.takeIf {supports})
+        }
         fun configured(inventory:PlanetStocks,player:Navigator)=request.offlineDirection?.let {mask ->
             inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(
                 aiSwitches=inventory.tacticalCommands.aiSwitches+(player.characterId to mask)))
@@ -15,13 +21,17 @@ internal object FleetNavigation {
             if(committer==null)return NavigationResult(null,before ?: after,NavigationRejection.DISABLED)
             val next=players+(request.account to after)
             val settled=CivicActions.settle(galaxy,stocks,session.gameMillis/1000,next.values)
-            val prepared=production.prepareReplacement(stocks,configured(settled,after))
+            val updated=configured(settled,after)
+            val withPerson=if(startingPerson!=null && result.rejection==null)
+                updated.copy(strategic=updated.strategic.copy(people=updated.strategic.people+(after.characterId to startingPerson)))
+            else updated
+            val prepared=production.prepareReplacement(stocks,withPerson)
             committer.saveWorld(next,prepared)
             navigation.publishCommitted(players,next,session.generation);production.publishCommitted(stocks,prepared)
             return result
         }
         fun personal(movingUnits:Int=1,soloShip:Boolean=true):NavigationResult {
-            if(request.offlineDirection==null && (before==null || stocks.civic.active.none {it.character==before.characterId}))
+            if(startingPerson==null && request.offlineDirection==null && (before==null || stocks.civic.active.none {it.character==before.characterId}))
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
             return commitPersonal(navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip))
         }

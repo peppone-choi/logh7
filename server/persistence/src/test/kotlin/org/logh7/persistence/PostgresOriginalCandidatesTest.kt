@@ -4,7 +4,9 @@ import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.logh7.engine.CountryId
 import org.logh7.engine.OriginalCandidateProfile
+import org.logh7.engine.Peerage
 import java.sql.DriverManager
+import java.sql.SQLException
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
@@ -36,10 +38,13 @@ class PostgresOriginalCandidatesTest {
                         ('$world',1001,1,'키르히아이스','지크프리트',112,10,'{90,85,80,75,70,65,60,55}')""")
                 }}
                 assertEquals(profile,store.load().single().profile)
-                assertFalse(store.supportsCountryBinding)
+                assertFalse(store.supportsEditing)
                 migrate("V12__original_candidate_country.sql")
                 assertEquals(profile,store.load().single().profile)
-                assertTrue(store.supportsCountryBinding)
+                assertFalse(store.supportsEditing)
+                migrate("V13__original_candidate_peerage.sql")
+                assertEquals(profile,store.load().single().profile)
+                assertTrue(store.supportsEditing)
                 assertNull(store.save(1003,1,profile,CountryId(42)))
                 assertNull(store.save(1001,0,profile))
                 val go=CountDownLatch(1)
@@ -55,7 +60,11 @@ class PostgresOriginalCandidatesTest {
                 val first=store.save(1003,0,profile,CountryId(42))
                 assertEquals(CountryId(42),first?.country)
                 assertNull(store.save(1003,0,profile,CountryId(2)))
-                assertEquals(CountryId(2),store.save(1003,1,profile,CountryId(2))?.country)
+                val titled=profile.copy(peerage=Peerage.COUNT)
+                val moved=store.save(1003,1,titled,CountryId(2))
+                assertEquals(CountryId(2),moved?.country)
+                assertEquals(moved,PostgresOriginalCandidates(::connect,world).load().single {it.id==1003L})
+                assertFailsWith<SQLException> {store.save(1001,2,titled)}
                 connect().use {test->test.createStatement().use {
                     it.execute("""INSERT INTO original_candidate_profile
                         SELECT '$world',id,1,'후보','시험',112,10,'{50,50,50,50,50,50,50,50}',42

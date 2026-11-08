@@ -4,13 +4,14 @@ import org.logh7.engine.OriginalCandidateEdit
 import org.logh7.engine.OriginalCandidateProfile
 import org.logh7.engine.OriginalCandidateStore
 import org.logh7.engine.CountryId
+import org.logh7.engine.Peerage
 import org.logh7.engine.PublishedOriginalCandidates
 import java.sql.Connection
 import java.sql.Types
 import java.util.UUID
 
 class PostgresOriginalCandidates(private val connect:()->Connection,private val world:UUID):OriginalCandidateStore {
-    @Volatile override var supportsCountryBinding=false
+    @Volatile override var supportsEditing=false
         private set
 
     override fun load():List<OriginalCandidateEdit> = connect().use { db ->
@@ -19,16 +20,19 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
             query.setObject(1,world)
             query.executeQuery().use { rows -> buildList {
                 val columns=rows.metaData
-                val scoped=(1..columns.columnCount).any {columns.getColumnLabel(it)=="country_id"}
+                val labels=(1..columns.columnCount).map(columns::getColumnLabel).toSet()
+                val scoped="country_id" in labels
+                val peerageColumn="peerage" in labels
                 while(rows.next()) {
                     val values=rows.getArray("abilities")
                     val abilities=try {(values.array as Array<*>).map {(it as Number).toInt()}} finally {values.free()}
                     val country=if(scoped)rows.getInt("country_id").takeUnless {rows.wasNull()}?.let(::CountryId) else null
+                    val peerage=if(peerageColumn)rows.getInt("peerage").takeUnless {rows.wasNull()}?.let {Peerage.entries[it-1]} else null
                     add(OriginalCandidateEdit(rows.getLong("candidate_id"),rows.getLong("revision"),
                         OriginalCandidateProfile(rows.getString("surname"),rows.getString("given_name"),
-                            rows.getInt("face"),rows.getInt("rank"),abilities),country))
+                            rows.getInt("face"),rows.getInt("rank"),abilities,peerage),country))
                 }
-                supportsCountryBinding=scoped
+                supportsEditing=peerageColumn
             } }
         }
     }
@@ -36,9 +40,9 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
     override fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?):OriginalCandidateEdit? {
         require(id in 1..9999 && expected>=0)
         val sql=if(expected==0L)"""INSERT INTO original_candidate_profile
-            (surname,given_name,face,rank,abilities,country_id,world_identity,candidate_id,revision)
-            VALUES (?,?,?,?,?,?,?,?,1) ON CONFLICT (world_identity,candidate_id) DO NOTHING RETURNING revision"""
-        else """UPDATE original_candidate_profile SET surname=?,given_name=?,face=?,rank=?,abilities=?,country_id=?,revision=revision+1
+            (surname,given_name,face,rank,abilities,country_id,peerage,world_identity,candidate_id,revision)
+            VALUES (?,?,?,?,?,?,?,?,?,1) ON CONFLICT (world_identity,candidate_id) DO NOTHING RETURNING revision"""
+        else """UPDATE original_candidate_profile SET surname=?,given_name=?,face=?,rank=?,abilities=?,country_id=?,peerage=?,revision=revision+1
             WHERE world_identity=? AND candidate_id=? AND revision=? RETURNING revision"""
         return connect().use { db ->
             db.autoCommit=false
@@ -57,9 +61,11 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                     try {
                         query.setArray(5,abilities)
                         if(country==null)query.setNull(6,Types.BIGINT) else query.setLong(6,country.value.toLong())
-                        query.setObject(7,world)
-                        query.setInt(8,id.toInt())
-                        if(expected>0)query.setLong(9,expected)
+                        val peerage=profile.peerage
+                        if(peerage==null)query.setNull(7,Types.SMALLINT) else query.setInt(7,peerage.ordinal+1)
+                        query.setObject(8,world)
+                        query.setInt(9,id.toInt())
+                        if(expected>0)query.setLong(10,expected)
                         query.executeQuery().use {rows ->
                             if(rows.next())OriginalCandidateEdit(id,rows.getLong(1),profile,country) else null
                         }

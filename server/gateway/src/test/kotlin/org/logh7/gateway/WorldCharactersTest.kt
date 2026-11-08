@@ -28,5 +28,8 @@ class WorldCharactersTest {
         // Viewing a legacy ledger never mutates or double-credits the stored personnel.
         assertEquals(projected,WorldCharacters.view(projected,snapshot))
         assertEquals(120L,stocks.strategic.people.getValue(10001).merit)
+        val titled=person(10001).copy(title=Peerage.COUNT.ordinal+1)
+        assertEquals(titled.title,WorldCharacters.view(titled,null).title)
+        assertEquals(0,WorldCharacters.view(titled,snapshot).title)
     }
 }

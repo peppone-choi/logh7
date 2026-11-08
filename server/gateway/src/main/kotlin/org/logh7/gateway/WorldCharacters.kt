@@ -34,7 +34,7 @@ internal object WorldCharacters {
         val player=entry?.value
         val switches=stocks?.tacticalCommands?.ai(id) ?: List(5){0}
         val updated=profile?.let {character.copy(rank=it.rank ?: character.rank,abilities=it.abilities ?: character.abilities,
-            title=it.peerage?.let {title->title.ordinal+1} ?: character.title,merit=it.merit,influence=it.influence,
+            title=it.peerage?.let {title->title.ordinal+1} ?: 0,merit=it.merit,influence=it.influence,
             evaluation=it.evaluation,money=it.money,decorations=it.decorations)} ?: character
         val configured=updated.copy(merit=stocks?.takeIf {profile!=null || id in it.tacticalCommands.merits}?.let {TacticalPersonnel.merit(it,id)} ?: updated.merit,
             ai=listOf(0)+switches,experience=stocks?.social?.academy?.experience?.get(id) ?: updated.experience)

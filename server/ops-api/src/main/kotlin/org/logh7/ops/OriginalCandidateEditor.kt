@@ -11,6 +11,7 @@ import org.logh7.engine.*
 private val abilities=listOf("통솔","정치","운영","정보","지휘","기동","공격","방어")
 private val militaryRanks=listOf("원수","상급대장","대장","중장","소장","준장","대령","중령","소령","대위",
     "중위","소위","준위","상사","중사","하사","상등병","일등병","이등병")
+private val peerageNames=listOf("공작","후작","백작","자작","남작","제국기사")
 
 private fun CountryCatalog.candidatePower(id:Int)=countries[id]?.takeIf {it.nativePower in 2..3}
     ?.let {families.getValue(it.family).creationPower}
@@ -29,7 +30,7 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         val id=call.request.queryParameters["candidate"]?.toLongOrNull()
         val newCountry=call.request.queryParameters["new"]?.toIntOrNull()
         call.response.headers.append(HttpHeaders.CacheControl,"no-store")
-        call.respondText(candidatePage(published,id,newCountry,loaded && audit!=null && store?.supportsCountryBinding==true),ContentType.Text.Html)
+        call.respondText(candidatePage(published,id,newCountry,loaded && audit!=null && store?.supportsEditing==true),ContentType.Text.Html)
     }
     post("/admin/original-candidates") {
         if(!authenticated) {
@@ -43,23 +44,28 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         val country=rawCountry?.toIntOrNull()?.takeIf {it>0}?.let(::CountryId)
         val creating=form["create"]=="1"
         val profile=runCatching {
+            val title=requireNotNull(form["peerage"]).toInt()
+            require(title in 0..Peerage.entries.size)
             OriginalCandidateProfile(form["surname"].orEmpty().trim(),form["given"].orEmpty().trim(),
                 form["face"].orEmpty().toInt(),form["rank"].orEmpty().toInt(),
-                abilities.indices.map {form["ability$it"].orEmpty().toInt()})
+                abilities.indices.map {form["ability$it"].orEmpty().toInt()},Peerage.entries.getOrNull(title-1))
         }.getOrNull()
         call.audited(audit,OpsAction.ORIGINAL_CANDIDATE_EDIT,form["operator"],
             "candidate=$id,revision=$revision,country=${country?.value},create=$creating",
             mapOf(OpsOutcome.CONFLICT to "이미 쓰는 번호이거나 편집 버전이 바뀌었거나 국가의 후보 한도에 도달했습니다.",
-                OpsOutcome.INVALID to "후보 번호, 국가의 생성 계열, 이름, 얼굴 번호, 계급과 능력치 범위를 확인하세요.")) {
+                OpsOutcome.INVALID to "후보 번호, 응모 국가의 생성 계열과 작위 체계, 얼굴 번호, 계급과 능력치 범위를 확인하세요.")) {
             if(id==null || revision==null || revision<0 || profile==null || rawCountry==null ||
                 (rawCountry.isNotEmpty() && country==null) || !published.accepts(id,profile,country))
                 return@audited OpsOutcome.INVALID
-            if(country!=null && CountryCatalogLoader.current().candidatePower(country.value)!=profile.creationPower)
+            val catalog=CountryCatalogLoader.current()
+            if(country!=null && catalog.candidatePower(country.value)!=profile.creationPower)
+                return@audited OpsOutcome.INVALID
+            if(profile.peerage!=null && (!published.canGrantPeerage || country==null || !catalog.supportsNativePeerage(country)))
                 return@audited OpsOutcome.INVALID
             if(creating) {
                 if(revision!=0L || id in published.defaults || country==null)return@audited OpsOutcome.INVALID
             } else if(id !in published.defaults && id !in published.current())return@audited OpsOutcome.INVALID
-            if(store?.supportsCountryBinding!=true)return@audited OpsOutcome.UNAVAILABLE
+            if(store?.supportsEditing!=true)return@audited OpsOutcome.UNAVAILABLE
             withContext(Dispatchers.IO) {
                 val saved=store.save(id,revision,profile,country) ?: return@withContext OpsOutcome.CONFLICT
                 published.publish(listOf(saved))
@@ -101,7 +107,7 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
     val empire=profile.creationPower==2
     val revision=edit?.revision ?: 0
     append("<p>생성 계열 ${if(empire)"제국" else "동맹"} · 편집 버전 $revision</p>")
-    if(!editable)append("<p>저장하려면 운영자 인증, 감사 기록, 정의 DB V12가 필요합니다.</p>")
+    if(!editable)append("<p>저장하려면 운영자 인증, 감사 기록, 정의 DB V13이 필요합니다.</p>")
     append("<form id=\"edit\" method=\"post\"><fieldset${if(editable)"" else " disabled"}><legend>추첨 시작 데이터</legend>")
     append("<input type=\"hidden\" name=\"revision\" value=\"$revision\">")
     if(creating) {
@@ -126,7 +132,9 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
         val code=index+2
         if(empire || code!=3)append("<option value=\"$code\"${if(code==profile.rank)" selected" else ""}>$rank</option>")
     }
-    append("</select></label><div class=\"abilities\">")
+    append("</select></label><label>시작 작위 <select name=\"peerage\"><option value=\"0\">작위 없음</option>")
+    for(peerage in Peerage.entries)append("<option value=\"${peerage.ordinal+1}\"${if(profile.peerage==peerage)" selected" else ""}>${peerageNames[peerage.ordinal]}</option>")
+    append("</select></label><p>작위를 주려면 제국 작위 카드를 지원하는 응모 국가와 영속 월드 저장이 필요합니다.</p><div class=\"abilities\">")
     for((index,name) in abilities.withIndex())append("<label>$name ${number("ability$index",profile.abilities[index],0,255)}</label>")
     append("</div><button>저장</button></fieldset></form><p id=\"status\" role=\"status\"></p>")
     append("""<script>const form=document.querySelector('#edit'),status=document.querySelector('#status');
