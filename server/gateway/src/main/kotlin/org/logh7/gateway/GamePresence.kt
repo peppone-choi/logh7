@@ -128,10 +128,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         val stocks=snapshot.planetStocks ?: return
         if(stocks.generation!=event.generation)return
         val countries=world.lobbyCountryDefinitions().first
-        val occupationLine=if(stocks.bases[event.base]?.country==event.country) {
+        val occupationLine=if(stocks.bases[event.base]?.let {it.country==event.country && it.camp==event.camp}==true) {
             val base=groundNoticeBase(world.galaxy,event.base)
             val nation=groundNoticeCountry(countries.countries[event.country.value]?.name,event.country)
-            "[점령] $base · $nation"
+            "[점령] $base · $nation"+(if(event.camp==1)" 반란군" else "")
         } else null
         // Office cards belong to the actual country of the current snapshot, never the display byte (2/3 shared by
         // added countries); no membership or a removed country holds no national office.
@@ -161,7 +161,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             } else if(player.grid==event.grid && previous.player.cpPaused) {
                 val tactical=TacticalBootstrap(snapshot,world.galaxy,player,countries,characterById)
                 val display=countries.nativePower(org.logh7.engine.Allegiance.Country(event.country))
-                packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,display,0)
+                packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,display,event.camp)
                 // Imported definitions and states retain real zero-boat identities; no fake weapon hit.
                 packets+=event.expelled.values.mapNotNull {p->characterById(p.characterId)?.let {c->
                     BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,

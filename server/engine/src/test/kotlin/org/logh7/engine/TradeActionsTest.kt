@@ -141,7 +141,7 @@ class TradeActionsTest {
         val landed=violated.copy(outfits=violated.outfits+(7 to violated.outfits.getValue(7).copy(
             units=UnitInventory(mapOf(UnitStack(76) to 1),mapOf(UnitStack(0) to 1)),
             activeGround=ActiveGroundUnits(listOf(ActiveGroundUnit(71,UnitStack(0),base=1210))))),nextShipId=72)
-        assertEquals(CountryId(2),BaseOccupationOperations.victor(landed,fezzan))
+        assertEquals(Camp(CountryId(2)),BaseOccupationOperations.victor(landed,fezzan))
         val occupied=landed.copy(bases=landed.bases+(1210 to landed.bases.getValue(1210).copy(owner=Allegiance.fromLegacy(2))))
         assertNull(TradeActions.fezzan(galaxy,occupied),"occupation abandons neutrality")
         val later=TradeActions.neutrality(galaxy,occupied,now+40*86400)
