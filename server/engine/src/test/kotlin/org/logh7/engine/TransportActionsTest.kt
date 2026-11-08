@@ -79,6 +79,33 @@ class TransportActionsTest {
         if(room<4000)assertEquals(StrategyActionRejection.TROOPS,act(load(big.strategic.transports.single().id),big).rejection)
         assertEquals(StrategyActionRejection.CARD,act(load(1).copy(card=39),big).rejection)
     }
+    @Test fun shipLossIsCommittedBeforeReinforcementAndWipedCargoCannotReturn() {
+        val planned=assertNotNull(act(plan(),stocks()).stocks)
+        val aboard=assertNotNull(act(load(1),planned).stocks)
+        val store=object:PlanetStockStore {
+            var saved=aboard
+            override fun load()=saved
+            override fun save(stocks:PlanetStocks){saved=stocks}
+        }
+        val now=session.gameMillis/1000
+        val production=PlanetProduction(galaxy,store,now,PlanetProductionPolicy())
+        val initial=production.settle(1,now)
+        val carrier=initial.outfits.getValue(200)
+        val half=TacticalLosses.apply(carrier,1,boats/2)
+        val damaged=production.replace(initial,initial.copy(outfits=initial.outfits+(200 to half)))
+        assertEquals(boats-boats/2,store.saved.strategic.transports.single().survivingBoats)
+        val restored=production.replace(damaged,damaged.copy(outfits=damaged.outfits+
+            (200 to carrier.copy(position=OutfitPosition(2488,1050)))))
+        val unloaded=assertNotNull(act(load(1),restored).stocks)
+        assertEquals(restored.bases.getValue(1050).supplies+1000*(boats-boats/2)/boats,
+            unloaded.bases.getValue(1050).supplies)
+        val wiped=TacticalLosses.apply(carrier,1,boats)
+        val destroyed=production.replace(restored,restored.copy(outfits=restored.outfits+(200 to wiped)))
+        assertTrue(destroyed.strategic.transports.isEmpty())
+        val reinforced=production.replace(destroyed,destroyed.copy(outfits=restored.outfits))
+        assertEquals(StrategyActionRejection.TARGET,act(load(1),reinforced).rejection)
+    }
+
     @Test fun deliveredScalesByTheSurvivingShare() {
         val p=TransportPackage(1,CountryId(2),1049,1050,1000,UnitInventory(mapOf(cargo to 3)),carrier=200,carrierBoats=100)
         assertEquals(1000 to p.units,TransportActions.delivered(p,100))

@@ -119,7 +119,7 @@ class StrategicStateStoreTest {
     @Test fun transportPackagesKeepActualCountryIdentityAndCargoAcrossReopening() {
         val cargo=UnitInventory(mapOf(UnitStack(32,1) to 2),mapOf(UnitStack(3) to 1))
         val packages=listOf(TransportPackage(1,CountryId(42),1049,1050,1000,cargo),
-            TransportPackage(2,CountryId(43),1049,1050,5,carrier=200,carrierBoats=300))
+            TransportPackage(2,CountryId(43),1049,1050,5,carrier=200,carrierBoats=300,survivingBoats=297))
         val value=stocks.copy(strategic=state.copy(transports=packages))
         val encoded=StrategicStateCodec.encode(value.strategic)
         assertEquals(value.strategic,StrategicStateCodec.decode(encoded))

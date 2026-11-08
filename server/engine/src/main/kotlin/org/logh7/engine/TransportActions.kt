@@ -5,10 +5,11 @@ import org.logh7.engine.strategy.*
 /** One transport package. [carrier] 0 = in the source transport warehouse; otherwise the transport outfit
  * carrying it, which had [carrierBoats] live boats at loading. */
 data class TransportPackage(val id:Int,val country:CountryId,val source:Int,val destination:Int,val supplies:Int,
-    val units:UnitInventory=UnitInventory(),val carrier:Int=0,val carrierBoats:Int=0) {
+    val units:UnitInventory=UnitInventory(),val carrier:Int=0,val carrierBoats:Int=0,val survivingBoats:Int=carrierBoats) {
     init {require(id>0 && source in 1..65535 && destination in 1..65535 && source!=destination &&
         supplies>=0 && (supplies>0 || units.ships.isNotEmpty() || units.troops.isNotEmpty()) && carrier>=0 &&
-        (carrier==0) == (carrierBoats==0) && carrierBoats>=0)}
+        (carrier==0) == (carrierBoats==0) && carrierBoats>=0 &&
+        survivingBoats in (if(carrier==0)0 else 1)..carrierBoats)}
 }
 
 /**
@@ -108,7 +109,7 @@ object TransportActions {
                     val slots=unitSlots(o)-(o.activeGround?.values.orEmpty().count {it.carrier>0})-carried.sumOf {unitCount(it.units)}
                     val alive=boats(o)
                     if(alive<=0 || pack.supplies>room || unitCount(pack.units)>slots)return reject(StrategyActionRejection.TROOPS)
-                    stocks.copy(strategic=stocks.strategic.copy(transports=packages.map {if(it.id==pack.id)it.copy(carrier=o.id,carrierBoats=alive) else it}))
+                    stocks.copy(strategic=stocks.strategic.copy(transports=packages.map {if(it.id==pack.id)it.copy(carrier=o.id,carrierBoats=alive,survivingBoats=alive) else it}))
                 } else {
                     if(pack.carrier!=o.id)return reject(StrategyActionRejection.AUTHORITY)
                     // A destination lost to capture or revolt while the cargo is aboard would strand it: the carrier
@@ -126,10 +127,26 @@ object TransportActions {
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         return StrategyActionResult(p.paidWith(paid.balance),next,changed=true,warehouseBase=warehouseBase)
     }
+    internal fun settleCargo(stocks:PlanetStocks):PlanetStocks {
+        val existing=stocks.strategic.transports
+        val settled=existing.mapNotNull {pack->
+            if(pack.carrier==0)pack else {
+                val alive=stocks.outfits[pack.carrier]?.let(::boats) ?: 0
+                when {
+                    alive==0 -> null
+                    alive<pack.survivingBoats -> pack.copy(survivingBoats=alive)
+                    else -> pack
+                }
+            }
+        }
+        return if(settled==existing)stocks else stocks.copy(strategic=stocks.strategic.copy(transports=settled))
+    }
+
     /** The share of a carried package that survives with [boats] of its [TransportPackage.carrierBoats]. */
     fun delivered(pack:TransportPackage,boats:Int):Pair<Int,UnitInventory> {
-        if(boats>=pack.carrierBoats)return pack.supplies to pack.units
-        fun scale(v:Int)=(v.toLong()*maxOf(0,boats)/pack.carrierBoats).toInt()
+        val surviving=minOf(boats,pack.survivingBoats)
+        if(surviving>=pack.carrierBoats)return pack.supplies to pack.units
+        fun scale(v:Int)=(v.toLong()*maxOf(0,surviving)/pack.carrierBoats).toInt()
         return scale(pack.supplies) to UnitInventory(pack.units.ships.mapValues {scale(it.value)}.filterValues {it>0},
             pack.units.troops.mapValues {scale(it.value)}.filterValues {it>0})
     }
