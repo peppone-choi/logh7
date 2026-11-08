@@ -138,7 +138,7 @@ internal object TacticalCombat {
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)
         val preferred=stocks.tacticalCommands.missions[player.characterId]?.takeIf {it.mission==3 && !it.completed}?.target
         return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).firstOrNull {id -> target(id,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players)?.let {
-            effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
+            effectiveness(player,mount,it,now,players.values,stocks,galaxy,automatic=true)>0 } == true }
     }
 
     // CD manual omits later ammunition costs. One supply per flagship shot is explicit replacement policy.
@@ -152,12 +152,13 @@ internal object TacticalCombat {
     }
 
     private fun effectiveness(player: Navigator, mount: TacticalWeaponMount, victim: Target, now: Long,
-        players: Collection<Navigator>, stocks: PlanetStocks, galaxy: Galaxy): Int {
+        players: Collection<Navigator>, stocks: PlanetStocks, galaxy: Galaxy, automatic: Boolean = false): Int {
         val source = player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId, player.grid, players, stocks, galaxy)
         val target = victim.pirate?.let {PirateActions.pose(stocks,it)} ?: victim.personal?.second?.let {p -> p.motion?.pose(now,p.posture,galaxy,stocks) ?:
             TacticalDeployment.initial(p.unitId,p.grid,players,stocks,galaxy)} ?: victim.regular!!.let {
             it.second.tactical?.takeIf {t->t.motion.grid==player.grid}?.motion?.pose(now,it.second.posture,galaxy,stocks) ?: TacticalDeployment.initial(it.second.id,
                 player.grid,players,stocks,galaxy)}
+        if(automatic && TacticalTerrain.sensorBlocked(galaxy,player.grid,source.position,target.position))return 0
         if(TacticalLineOfFire.blocked(player.unitId,player.grid,TacticalAuthority.camp(player,stocks),source.position,target.position,now,players,stocks,galaxy))return 0
         return TacticalArmaments.effectiveness(mount, source, target.position)
     }
@@ -280,7 +281,7 @@ internal object TacticalCombat {
                 val charge = player.charge?.settle(shot.firesAt, player.energy ?: TacticalEnergy.ZERO)
                 val spec = UnitSpecifications.ships.single { it.kind == shot.shipKind }
                 val mount = TacticalArmaments.mount(spec, shot.weapon)
-                val effect = effectiveness(player, mount, victim, shot.firesAt, players.values, inventory, galaxy)
+                val effect = effectiveness(player, mount, victim, shot.firesAt, players.values, inventory, galaxy, automatic)
                 if (effect > 0 && ready(charge, shot.weapon) && player.supplies >= supplyCost(mount, shot.weapon)) {
                     val origin=player.motion?.pose(shot.firesAt,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.grid,players.values,inventory,galaxy)
                     val resolved=strike(session,galaxy,players,inventory,player.unitId,shot.grid,shot.sequence,

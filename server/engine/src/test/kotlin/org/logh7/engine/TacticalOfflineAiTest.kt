@@ -39,6 +39,27 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun offlinePatrolAndAttackMissionsCannotTrackAnEnemyUnderStarCover() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
+        for(mission in listOf(0,3))for(observer in listOf(21f,16f)) {
+            val players=players()
+            players["pilot"]=players.getValue("pilot").copy(motion=motion(0f,observer))
+            val plain=stocks(mission)
+            val enemy=plain.outfits.getValue(2)
+            val ship=enemy.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,19f),now,now))
+            val stock=plain.copy(outfits=plain.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(ship)))))
+            TacticalOfflineAi.advance(offline,world,players,stock,1,mutableListOf())
+            val pilot=players.getValue("pilot")
+            if(observer>20f) {
+                assertNull(pilot.attack)
+                assertEquals(0f,pilot.motion!!.velocity)
+            } else {
+                assertNotNull(pilot.attack)
+                assertTrue(pilot.motion!!.velocity>0f)
+            }
+        }
+    }
+
     @Test fun occupationAnchorsTroopCarriersAtTheEnemyBaseAndThenLandsTheirTroops() {
         // The fortress belongs to the alliance; the pilot's mission 2 (占領) targets it with a light infantry unit aboard ship 1.
         val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(5,UnitStack(0),carrier=1),ActiveGroundUnit(6,UnitStack(2),carrier=1)))

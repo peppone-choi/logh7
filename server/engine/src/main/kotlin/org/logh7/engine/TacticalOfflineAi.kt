@@ -27,6 +27,7 @@ internal object TacticalOfflineAi {
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)).distinct()
             val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)?.let {
                 id to TacticalFleetAttack.pose(it,now,players,stocks,g)}}
+                .filterNot { TacticalTerrain.sensorBlocked(g,p.grid,pose.position,it.second.position) }
             val enemy=enemies.singleOrNull {kind in 3..4 && it.first==mission?.target}
                 ?: if(kind==0)enemies.minWithOrNull(compareBy<Pair<Int,TacticalPose>> {
                     distance(pose.position,it.second.position)}.thenBy {it.first}) else null
