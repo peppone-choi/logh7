@@ -208,12 +208,13 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
         for(event in postures)for(observer in postureObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("Tactical posture delivery failed: ${failure.javaClass.simpleName}")}
-        // Deliver committed damage before leaving the winner's native battlefield. A defeated
-        // flagship changes grid and already has its own departure/return notification.
+        // The impact already exits the defeated client's battlefield, including same-grid returns.
+        // Other viewers still need the generic end after the final hit.
         for((account,player) in navigation.snapshot(session.generation)) {
             val old=before[account] ?: continue
             val connection=session.participants[account]?.connection ?: continue
-            if(!old.cpPaused || player.cpPaused || old.grid!=player.grid)continue
+            if(!old.cpPaused || player.cpPaused || old.grid!=player.grid ||
+                impacts.any {it.departed==player && it.recipients[player.characterId]==connection})continue
             val event=TacticalEnd(session.generation,player.characterId,player.grid,connection)
             for(observer in tacticalEndObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Tactical end delivery failed: ${failure.javaClass.simpleName}")}
