@@ -84,9 +84,19 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 troops=stocks.outfits[u.outfit]?.activeGround?.values.orEmpty().filter {it.carrier==u.id}.sortedBy {it.id}.map {it.id},
                 morale=stocks.tacticalCommands.morale[u.id] ?: 100,confused=stocks.tacticalCommands.confused(u.id))
         }.let { units ->
-            val observer=units.singleOrNull {it.id==viewer.unitId}
             val camps=unitCamps
             val own=TacticalAuthority.camp(viewer,stocks)
+            val activeObservers=people.filter {it.cpPaused && !BattleDeath.deceased(stocks,it.characterId)}
+                .map {it.unitId}.toMutableSet()
+            stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.forEach {outfit->
+                outfit.activeShips?.values.orEmpty().filter {ship->ship.boats>0 &&
+                    ship.posture?.takeIf {it.grid==viewer.grid}?.mode!=TacticalShipMode.STATIONED
+                }.mapTo(activeObservers) {it.id}
+            }
+            // Under the star-only rule the closest allied observer can see everything any ally can see.
+            val observer=units.asSequence().filter {it.id in activeObservers && camps[it.id]==own}
+                .minByOrNull {it.x.toDouble()*it.x+it.y.toDouble()*it.y}
+                ?: units.singleOrNull {it.id==viewer.unitId}
             val detected=units.associate { u -> u.id to (
                 observer==null || camps[u.id]==own ||
                     !TacticalTerrain.sensorBlocked(galaxy,viewer.grid,TacticalPoint(observer.x,observer.y),TacticalPoint(u.x,u.y))) }
