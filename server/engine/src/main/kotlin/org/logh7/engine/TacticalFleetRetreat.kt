@@ -57,11 +57,14 @@ internal object TacticalFleetRetreat {
         events:MutableList<TacticalMovement>):PlanetStocks {
         var stocks=initial;val now=session.gameMillis/1000
         for(outfitId in initial.outfits.keys.sorted()) {
-            var outfit=stocks.outfits[outfitId] ?: continue;val grid=outfit.positionIn(g).grid
+            var outfit=stocks.outfits[outfitId] ?: continue
+            val position=outfit.positionIn(g)
+            val grid=position.grid
             val checked=outfit.activeShips?.values.orEmpty().map {u->
                 val state=u.tactical ?: return@map u;val retreat=state.retreat ?: return@map u
                 if(u.motionCommander==0)return@map u
-                if(BattleDeath.deceased(stocks,u.motionCommander) ||
+                if(position.baseId!=0 || state.motion.grid!=grid ||
+                    BattleDeath.deceased(stocks,u.motionCommander) ||
                     TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander)
                     return@map u.copy(tactical=state.copy(retreat=null))
                 if(retreat.membershipChecked || now<retreat.startsAt)return@map u
