@@ -325,6 +325,30 @@ class TacticalCommandOperationsTest {
         assertEquals(5,r.state.stocks.tacticalCommands.missions[10000]?.mission)
         assertEquals(5,r.state.stocks.tacticalCommands.missions[10001]?.mission)
     }
+    @Test fun defaultDefenseCreditsOnlyFullIntervalsAndStopsWhenTheOfficeIsLost() {
+        val s=state()
+        val players=s.players.toMutableMap()
+        val offline=session.copy(participants=session.participants.mapValues {(account,p)->
+            if(account=="pilot")p.copy(online=false,connection=null) else p})
+        val initial=s.stocks.copy(tacticalCommands=TacticalCommandState(aiSwitches=mapOf(10000 to 16)))
+        val interval=TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS
+        fun settle(at:Long,stock:PlanetStocks)=TacticalCommandOperations.finishMissions(
+            offline.copy(gameMillis=at*1000),galaxy,players,stock,1,mutableListOf(),mutableListOf(),emptySet())
+        val withdrawal=TacticalMissionState(10000,5,0,0,now,grid=2487)
+        val explicit=settle(now,initial.copy(tacticalCommands=initial.tacticalCommands.copy(missions=mapOf(10000 to withdrawal))))
+        assertEquals(withdrawal.copy(completed=true),explicit.tacticalCommands.missions.getValue(10000))
+        assertEquals(10L,explicit.strategic.people.getValue(10000).merit)
+        val assigned=settle(now,initial)
+        assertTrue(assigned.tacticalCommands.missions.getValue(10000).defaultDefense)
+        assertEquals(assigned,settle(now+interval-1,assigned))
+        val credited=settle(now+interval,assigned)
+        assertEquals(1L,credited.strategic.people.getValue(10000).merit)
+        assertEquals(credited,settle(now+interval,credited))
+        val relieved=settle(now+2*interval,credited.copy(strategic=credited.strategic.copy(offices=emptyList())))
+        assertNull(relieved.tacticalCommands.missions[10000])
+        assertEquals(1L,relieved.strategic.people.getValue(10000).merit)
+    }
+
     @Test fun withdrawalRewardsAnExitButNotDefeatAndReturn() {
         val s=state()
         val mission=TacticalMissionState(10000,5,0,0,now,grid=2488)
