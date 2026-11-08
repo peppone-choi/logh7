@@ -78,9 +78,9 @@ class TacticalPostureOperationsTest {
         assertEquals(NavigationRejection.BASE,accept(far,Navigation(galaxy,far.nav,NavigationPolicy()),production(far),
             request(TacticalShipMode.ANCHORED,1000,listOf(1010000))).rejection)
     }
-    @Test fun reachablePlanetPerimeterAcceptsMixedDockingButOutsideAndFortressDoNotGainUnlimitedRange() {
+    @Test fun mixedDockingUsesThePlanetApproachMarginAndKeepsTheFortressLimit() {
         for(mode in listOf(TacticalShipMode.ANCHORED,TacticalShipMode.STATIONED))
-            for((kind,distance,allowed) in listOf(Triple(0,5.5f,true),Triple(0,5.501f,false),Triple(1,5.5f,false))) {
+            for((kind,distance,allowed) in listOf(Triple(0,8f,true),Triple(0,8.001f,false),Triple(1,5.5f,false))) {
                 val local=Galaxy(galaxy.systems,galaxy.bases.map {if(it.id==1000)it.copy(kind=kind) else it},galaxy.starts)
                 val s=state()
                 s.players=s.players.mapValues {(_,p)->p.copy(motion=motion(distance))}
