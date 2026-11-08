@@ -126,6 +126,32 @@ class JusticeActionsTest {
             state=JusticeActions.settle(galaxy,session.copy(gameMillis=(session.gameMillis/1000+day*86400)*1000),accounts.toMutableMap(),state);day++}
         assertTrue(state.social.justice.watches.isEmpty(),"noticed within 60 days")
     }
+    @Test fun activeSpecialGuardLetsTheRaidTargetEvadeAtThatSpotOnly() {
+        val start=session.gameMillis/1000
+        val now=(start..start+1000).first {JusticeActions.roll(a.characterId,c.characterId,it) in 40..59}
+        val at=session.copy(gameMillis=now*1000)
+        val target=c.copy(country=CountryId(3),shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(93,now))
+        val players=accounts+("c" to target)
+        val inventory=policy.set(stocks(),OfficeHolding(32,1049,a.characterId))
+        val order=CivicOrder(b.characterId,55,59,CountryId(2),9,1049,0,spot,now-1,now+1,CivicPhase.GUARDING)
+        val request=SocialRequest(StrategyActionRequest("a","a",a.characterId,Power.EMPIRE,1,
+            Justice.RAID,32,9,target=c.characterId,identities=ids))
+        fun raid(guard:CivicOrder):SocialResult {
+            val guarded=inventory.copy(civic=CivicState(mapOf(guard.character to guard)))
+            return JusticeActions.evaluate(galaxy,request,at,a,guarded,players).also {
+                assertNull(it.rejection)
+                assertEquals(840,it.player?.mcp)
+            }
+        }
+        val defended=raid(order)
+        assertEquals(JusticeActions.Outcome.EVADED.ordinal,defended.outcome)
+        assertTrue(defended.navigators.isEmpty())
+        for(inactive in listOf(order.copy(readyAt=now),order.copy(spot=spot+1))) {
+            val hit=raid(inactive)
+            assertEquals(JusticeActions.Outcome.ARRESTED.ordinal,hit.outcome)
+            assertEquals(now+Justice.WOUND_SECONDS,hit.navigators.getValue("c").hull?.woundedUntil)
+        }
+    }
     @Test fun aDefectorSwitchesSideLosesOfficesAndWaitsInTheOtherCapital() {
         val twoCapitals=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2015,4,"Away",3)),listOf(
             GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),

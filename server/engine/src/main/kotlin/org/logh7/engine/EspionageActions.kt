@@ -44,7 +44,7 @@ object EspionageActions {
     const val DISABLED_DAYS=7L
 
     /** U-25's formula against a guard of intelligence 50; a special guard (strength 2) takes 20 off. */
-    fun threshold(intelligence:Int,guard:Int)=Justice.arrestThreshold(intelligence,50)-if(guard>=2)20 else 0
+    fun threshold(intelligence:Int,guard:Int)=Justice.arrestThreshold(intelligence,50)-CivicActions.guardPenalty(guard)
     fun roll(actor:Int,spot:Int,seconds:Long)=java.util.Random(seconds*1_000_003L+actor*131L+spot*7L+53).nextInt(100)
 
     /** A forged identity cannot follow an agent who changed country or left its host country. */

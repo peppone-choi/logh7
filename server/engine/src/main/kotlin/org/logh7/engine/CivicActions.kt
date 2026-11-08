@@ -162,7 +162,9 @@ object CivicActions {
         }
         return next
     }
-    /** Security strength is available to spot/espionage policy; hostile infiltration/assassination remains unimplemented. */
+    /** Security strength applies only at the guarded spot and before its expiry. */
     fun guardStrength(stocks:PlanetStocks,base:Int,spot:Int,seconds:Long)=if(stocks.civic.active.any {
         it.command==55 && it.base==base && it.spot==spot && seconds in it.acceptedAt until it.readyAt})2 else 1
+
+    internal fun guardPenalty(strength:Int)=if(strength>=2)20 else 0
 }
