@@ -13,9 +13,11 @@ internal object TacticalFleetRetreat {
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(BattleDeath.deceased(s,p.characterId))return reject(NavigationRejection.IDENTITY)
+        val now=session.gameMillis/1000
+        if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(!n.captainCard(r,p))return reject(NavigationRejection.CARD)
-        val now=session.gameMillis/1000;val units=checkNotNull(r.tacticalRetreat)
+        val units=checkNotNull(r.tacticalRetreat)
         if(now>0xffffffffL-155*scale)return reject(NavigationRejection.CLOCK)
         val players=n.snapshot(session.generation)
         val own=p.motion?.pose(now,p.posture,g,s) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,s,g)
