@@ -32,10 +32,11 @@ internal object GroundTransfer {
         if(p==null || p.characterId!=r.characterId || p.generation!=r.generation || p.country!=r.country || member.country!=r.country)
             return reject(LogisticsRejection.IDENTITY)
         val o=stocks.outfits[r.outfit] ?: return reject(LogisticsRejection.OUTFIT)
-        val country=r.country ?: return reject(LogisticsRejection.ACCESS)
+        if(r.country==null)return reject(LogisticsRejection.ACCESS)
         val base=o.position?.baseId ?: o.baseId
         val owner=stocks.bases[base] ?: return reject(LogisticsRejection.LOCATION)
-        if(o.commanderId!=r.characterId || o.country!=country || owner.country!=country || owner.camp!=0)
+        val camp=TacticalAuthority.camp(p,stocks)
+        if(o.commanderId!=r.characterId || TacticalAuthority.camp(o,stocks)!=camp || TacticalAuthority.camp(owner)!=camp)
             return reject(LogisticsRejection.ACCESS)
         if(p.baseId!=base || p.cpPaused || p.navigationPending)return reject(LogisticsRejection.LOCATION)
         val roster=o.activeGround ?: return reject(LogisticsRejection.STOCK)
