@@ -17,7 +17,8 @@ internal object BaseOccupationOperations {
     fun pending(stocks:PlanetStocks,galaxy:Galaxy)=galaxy.bases.any {victor(stocks,it)!=null}
 
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
-        maximumStock:Int,scale:Long,events:MutableList<BaseOccupation>):PlanetStocks {
+        maximumStock:Int,scale:Long,events:MutableList<BaseOccupation>,
+        commands:MutableList<TacticalCommandResult>):PlanetStocks {
         if(session.ended!=null)return original
         val now=session.gameMillis/1000
         var stocks=original
@@ -86,12 +87,14 @@ internal object BaseOccupationOperations {
                 // Captured works restart, including recruitment; never revive progress on recapture.
                 units=UnitInventory(troops=previous.units.troops),productionCountry=null,
                 spareShips=SpareShipBoats())
+            val cancelled=stocks.tacticalCommands.orders.filter {it.command.base==base.id}
             val capital=Capital.of(base)
             stocks=stocks.copy(bases=stocks.bases+(base.id to occupied),outfits=outfits,warehouses=warehouses,
                 logisticsOfficers=stocks.logisticsOfficers.filterValues {it.capital!=capital},
                 nationalOffices=stocks.nationalOffices.filterKeys {it.capital!=capital},
                 groundBattles=stocks.groundBattles-base.id,
-                tacticalCommands=stocks.tacticalCommands.copy(emergencySupplies=stocks.tacticalCommands.emergencySupplies-base.id),
+                tacticalCommands=stocks.tacticalCommands.copy(orders=stocks.tacticalCommands.orders-cancelled.toSet(),
+                    emergencySupplies=stocks.tacticalCommands.emergencySupplies-base.id),
                 strategic=stocks.strategic.copy(suppressions=stocks.strategic.suppressions.filter {it.base!=base.id},
                     fiefs=stocks.strategic.fiefs-base.id,offices=stocks.strategic.offices.filter {holding ->
                         if(OrganizationOffices.of(holding.card)?.scope==OfficeScope.OUTFIT)
@@ -132,6 +135,11 @@ internal object BaseOccupationOperations {
             for((character,points) in EvaluationPoints.shares(if(base.kind==1)EvaluationPoints.FORTRESS else EvaluationPoints.PLANET,earners))
                 stocks=EvaluationPoints.award(stocks,character,points)
             stocks=GoalActions.achieved(stocks,base.id,winner,earners)
+            for(order in cancelled) {
+                val audience=players.values.filter {it.grid==order.grid && (it.cpPaused || it.baseId>0)}
+                    .map {it.characterId}.toSet()
+                commands+=TacticalCommandResult(session.generation,order,now,recipients.filterKeys {it in audience},true)
+            }
             events+=BaseOccupation(session.generation,base.grid,base.id,previous.owner,winner,now,destroyed,expelled,recipients,winningCamp)
         }
         return stocks
