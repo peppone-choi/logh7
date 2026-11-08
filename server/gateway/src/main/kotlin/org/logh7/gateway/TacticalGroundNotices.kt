@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import org.logh7.engine.NavigationRejection
+import org.logh7.engine.PlanetStocks
 import org.logh7.engine.TacticalGroundAction
 import org.logh7.engine.TacticalGroundOrder
 
@@ -8,6 +9,13 @@ import org.logh7.engine.TacticalGroundOrder
 object TacticalGroundNotices {
     private fun label(deploy:Boolean)=if(deploy)"육전" else "철수"
     fun accepted(deploy:Boolean)="[${label(deploy)}] 접수 · 약 ${TacticalGroundOrder.PREPARATION_SECONDS}초 · CP 0"
+    internal fun resumed(orders: Collection<TacticalGroundOrder>, now: Long, speed: Long): String? {
+        val pending = orders.filter { it.readyAt > now }
+        val next = pending.minByOrNull { it.readyAt } ?: return null
+        val seconds = (next.readyAt - now + speed - 1) / speed
+        return if (pending.size == 1) "[${label(next.action == TacticalGroundAction.DEPLOY)}] 진행 중 · 약 ${seconds}초 남음"
+            else "[육전대] ${pending.size}건 진행 중 · 다음 완료 약 ${seconds}초"
+    }
     fun finished(deploy:Boolean,cancelled:Boolean,count:Int)=if(cancelled)"[${label(deploy)}] 조건 변경으로 취소"
         else "[${label(deploy)}] ${count}유닛 ${if(deploy)"상륙" else "재탑승"} 완료"
     fun stopped(actions:Set<TacticalGroundAction>):String? = actions.takeIf {it.isNotEmpty()}?.joinToString(
@@ -32,6 +40,12 @@ object TacticalGroundNotices {
         return "[$action] $why"
     }
 }
+
+internal fun pendingGroundOrders(stocks: PlanetStocks?, grid: Int): Set<TacticalGroundOrder> =
+    stocks?.outfits.orEmpty().values.asSequence()
+        .flatMap { it.activeGround?.values.orEmpty() }
+        .mapNotNull { it.order?.takeIf { order -> order.grid == grid } }
+        .toSet()
 
 /** Refused 041f of a mobile fortress whose propulsion an orbital attack broke (CD p.46); the CD shows no result. */
 internal const val FORTRESS_PROPULSION_LOST = "[이동] 추진 장치가 파괴되어 요새를 움직일 수 없습니다."

@@ -25,6 +25,7 @@ import org.logh7.engine.IndependentBaseClaim
 import org.logh7.engine.CountryFounding
 import org.logh7.engine.CountryDefinitionSnapshot
 import org.logh7.engine.StrategyActionRejection
+import org.logh7.engine.TacticalGroundOrder
 import org.logh7.engine.members
 import org.logh7.engine.country
 
@@ -119,6 +120,7 @@ class GameExchange(
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
     private var startupWarpNotice: ByteArray? = null
+    private var startupGroundOrders = emptySet<TacticalGroundOrder>()
     private var startupGridReady = false
     private enum class NavigationGuide(val text: String) {
         WARP("직무카드→함장→워프"), DOCK("아군 성계에서 함장→기항"), FACILITY("직무카드→개인→원거리 이동")
@@ -458,6 +460,16 @@ class GameExchange(
             // The CD can still clear chat while consuming 0f03. Send after its next clock request.
             val startupNotice = if (readyForNotice)
                 listOfNotNull(startupWarpNotice.also { startupWarpNotice = null }) else emptyList()
+            val groundStatus = if (readyForNotice && !tacticalInitializationPending && startupGroundOrders.isNotEmpty()) {
+                // Recheck the login-time orders after the native screen finishes loading.
+                val restored = startupGroundOrders.also { startupGroundOrders = emptySet() }
+                val snapshot = navigation?.snapshot()
+                val now = snapshot?.session?.gameSeconds
+                val speed = navigation?.clockSpeed
+                val text = if (player.cpPaused && now != null && speed != null) TacticalGroundNotices.resumed(
+                    restored.intersect(pendingGroundOrders(snapshot.planetStocks, player.grid)), now, speed) else null
+                text?.let { ChatMessages.spot(ChatMessages.Spot(player.characterId, it), gameSeconds()) }
+            } else null
             // A screen change clears chat. Release the ground result on the clock after the new grid is ready.
             val groundResult = if (readyForNotice) listOfNotNull(presence?.takeGroundResult(connection,player)) else emptyList()
             val offlineNotice = if (canQueueOfflineNotice) {
@@ -512,7 +524,7 @@ class GameExchange(
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
-                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + navigationGuide + groundResult
+                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + navigationGuide + listOfNotNull(groundStatus) + groundResult
         }
     }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
@@ -2637,6 +2649,8 @@ class GameExchange(
                                 publication = Publication(entered, player, true,opcode,captured?.revision)
                                 val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(captured),
                                     world.galaxy,player,::currentCharacterById) else null
+                                if (!worldInitialized && tactical != null) startupGroundOrders =
+                                    tactical.groundOrders.filterTo(mutableSetOf()) { it.character == player.characterId }
                                 tacticalResumeGrid=tactical?.grid
                                 reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()).singleOrNull()?.let { startupWarpNotice = it }
                                 if (opcode == 0x0f02) startupGridReady = true

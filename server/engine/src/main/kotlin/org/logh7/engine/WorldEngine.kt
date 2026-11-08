@@ -66,6 +66,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val awaitIdentities:Boolean=false,
     private val founding:CountryFoundingRegistry?=null) : CommandSink, SnapshotSource, AutoCloseable {
     val foundingEnabled:Boolean get()=founding!=null && worldStateCommitter!=null
+    val clockSpeed: Long get() = rules.speed
     private data class Queued(val command: WorldCommand, val submittedNanos: Long? = null,
         val backpressured: Boolean = false, val scheduledTickNanos: Long? = null,
         val applied: CompletableDeferred<Unit>? = null, val advanceNow:Boolean=false)

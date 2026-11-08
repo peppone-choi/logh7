@@ -8,6 +8,7 @@ fun interface GameNavigation {
     fun apply(request: NavigationRequest): CompletableFuture<NavigationResult>
     fun synchronizeTime(): CompletableFuture<Unit> = CompletableFuture.completedFuture(Unit)
     fun snapshot(): WorldSnapshot? = null
+    val clockSpeed: Long? get() = null
     fun observeTacticalEnds(observer:(TacticalEnd)->Unit):AutoCloseable = AutoCloseable {}
     fun observeCombat(observer: (TacticalImpact) -> Unit): AutoCloseable = AutoCloseable {}
     fun observeMovements(observer:(TacticalMovement)->Unit):AutoCloseable = AutoCloseable {}
@@ -23,6 +24,7 @@ fun interface GameNavigation {
 }
 
 class EngineGameNavigation(private val engine: WorldEngine, private val scope: CoroutineScope) : GameNavigation {
+    override val clockSpeed get() = engine.clockSpeed
     override fun observeTacticalEnds(observer:(TacticalEnd)->Unit) = engine.observeTacticalEnds(observer)
     override fun observeCombat(observer: (TacticalImpact) -> Unit) = engine.observeCombat(observer)
     override fun observeMovements(observer:(TacticalMovement)->Unit) = engine.observeMovements(observer)
