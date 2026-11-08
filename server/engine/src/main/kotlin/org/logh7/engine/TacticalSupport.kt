@@ -132,6 +132,7 @@ internal object TacticalSupportOperations {
         var player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
         val command=checkNotNull(request.tacticalSupport)
         if(!validCombatTarget(command.target))return reject(NavigationRejection.TARGET)
         val source=ship(command.unit,stocks) ?: return reject(NavigationRejection.UNIT)
@@ -172,7 +173,8 @@ internal object TacticalSupportOperations {
             var source=ship(id,stocks) ?: continue
             val order=source.unit.support ?: continue
             val player=players.values.singleOrNull {it.characterId==order.character}
-            if(session.ended!=null || player==null || !eligible(source,player,order,now,players,stocks,galaxy)) {
+            if(session.ended!=null || player==null || BattleDeath.deceased(stocks,order.character) ||
+                !eligible(source,player,order,now,players,stocks,galaxy)) {
                 results+=cancelled(session,source,order,players)
                 stocks=replace(stocks,source,source.unit.copy(support=null)); continue
             }
