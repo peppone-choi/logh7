@@ -53,7 +53,7 @@ internal object TacticalSupportOperations {
     private fun eligible(source: Ship, player: Navigator, order: TacticalSupportOrder, now: Long,
         players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy,commandRadius:Float?=null): Boolean {
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5 || player.grid!=order.grid ||
-            player.hull?.woundedUntil?.let {now<it}==true || source.unit.boats==0 || source.unit.id==order.target ||
+            player.hull?.woundedUntil?.let {now<it}==true || source.unit.boats<=source.unit.damaged || source.unit.id==order.target ||
             stocks.tacticalCommands.confused(source.unit.id) || movingOrder(source.unit,order.grid) ||
             TacticalAuthority.commander(source.outfit,source.unit,stocks)!=player.characterId || TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(player,stocks) ||
             source.outfit.positionIn(galaxy)!=OutfitPosition(order.grid))return false
