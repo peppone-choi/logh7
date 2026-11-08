@@ -71,12 +71,13 @@ class WorldBootstrap(val galaxy: Galaxy,
         else -> uploadedSlot ?: 0
     }
     /** The authenticated viewer's real membership, including explicit unaffiliated/deleted definitions. */
-    fun countryIdentity(query:OutfitPartyMessages.Query,countryId:Int?,nativePower:Int,portrait:Boolean=false):ByteArray {
+    fun countryIdentity(query:OutfitPartyMessages.Query,countryId:Int?,nativePower:Int,portrait:Boolean=false,
+        spotPortrait:Boolean=false):ByteArray {
         val (catalog,revision)=lobbyCountryDefinitions()
         val country=countryId?.let {catalog.countries[it]};val calendar=country?.let {catalog.calendar(it.id)}
         return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryIdentityMessages.reply(query,countryId ?: 0,nativePower,
             country?.name ?: if(countryId==null)"무소속" else "미등록 국가",calendar?.name ?: "우주력",calendar?.yearOffset ?: 0,
-            revision,country!=null,portrait))
+            revision,country!=null,portrait,spotPortrait))
     }
     private val officeCards=org.logh7.engine.OrganizationOffices.all.mapValues {(_,role)->
         val commands=buildList {

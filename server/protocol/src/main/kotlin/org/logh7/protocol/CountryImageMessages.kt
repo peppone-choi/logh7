@@ -8,6 +8,7 @@ object CountryImageMessages {
     const val LOBBY_MODE=18
     const val PORTRAIT_MODE=20
     const val LOBBY_PORTRAIT_MODE=21
+    const val SPOT_PORTRAIT_MODE=22
 
     data class LobbyPortraitRequest(val query:OutfitPartyMessages.Query) {
         val sessionId:Int get()=query.base and 0xffff
@@ -33,7 +34,8 @@ object CountryImageMessages {
 
     fun portraitReply(query:OutfitPartyMessages.Query,revision:Long,rgba:ByteArray?):List<ByteArray> {
         if(query.mode==LOBBY_PORTRAIT_MODE)LobbyPortraitRequest(query)
-        else require(query.mode==PORTRAIT_MODE && query.outfit>0 && query.base in 1..65535)
+        else require((query.mode==PORTRAIT_MODE || query.mode==SPOT_PORTRAIT_MODE) &&
+            query.outfit>0 && query.base in 1..65535)
         require((revision>0)==(rgba!=null))
         return encode(query,revision,rgba,null,"")
     }

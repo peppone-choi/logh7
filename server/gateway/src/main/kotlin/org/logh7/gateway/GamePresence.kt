@@ -576,6 +576,17 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         return members.values.singleOrNull { it.character.id == id.toLong() &&
             it.player.generation == viewer.player.generation && (it.connection == connection || visible(viewer, it)) }
     }
+    @Synchronized fun spotPortrait(connection:String,id:Int): CharacterMessages.Generate? {
+        val viewer=members[connection] ?: return null
+        val room=viewer.player
+        if(room.baseId==0 || room.spotId==0)return null
+        return members.values.singleOrNull { member ->
+            val peer=member.player
+            member.connection!=connection && member.character.id==id.toLong() && !member.character.generated &&
+                room.generation==peer.generation && room.grid==peer.grid && room.baseId==peer.baseId &&
+                room.spotId==peer.spotId && room.spotOwner==peer.spotOwner
+        }?.character
+    }
     /** Spot zero means one's own ship, not a public room shared by every undocked player. */
     @Synchronized fun spotChat(connection: String, message: ChatMessages.Spot, seconds: Long): ByteArray {
         val sender = checkNotNull(members[connection]) { "Chat requires published world membership" }
