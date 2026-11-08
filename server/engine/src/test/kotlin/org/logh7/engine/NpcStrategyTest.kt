@@ -172,7 +172,7 @@ class NpcStrategyTest {
         }
     }
 
-    @Test fun capturedDepotReroutesTheReturningFleetWithoutChargingTheCancelledJump() {
+    @Test fun capturedOrDepletedDepotReroutesTheReturningFleetWithoutChargingTheCancelledJump() {
         val alternate=galaxy.bases.single().copy(id=1001,grid=2588,name="Alternate")
         val world=Galaxy(galaxy.systems+GalaxySystem(5,2588,4,"Alternate",2),galaxy.bases+alternate,galaxy.starts)
         val original=stocks()
@@ -185,20 +185,23 @@ class NpcStrategyTest {
             NpcStrategy.advance(simulation.copy(gameMillis=at*1000),world,observers,stocks,events)
         val reserved=advanceWorld(0,initial)
         assertEquals(2487,reserved.outfits.getValue(1).strategy?.destination)
-        val captured=reserved.copy(bases=reserved.bases+(1000 to depot.copy(owner=Allegiance.fromLegacy(3))))
-        val rerouted=advanceWorld(3600,captured)
-        assertEquals(NpcStrategicState(25200,2588,7200),rerouted.outfits.getValue(1).strategy)
-        assertEquals(fleet.position,rerouted.outfits.getValue(1).position)
-        assertEquals(300,rerouted.outfits.getValue(1).supplies)
-        assertEquals(captured.bases,rerouted.bases)
-        assertTrue(events.isEmpty())
-        assertEquals(rerouted,advanceWorld(7199,rerouted.copy()))
-        val arrived=advanceWorld(7200,rerouted)
-        assertEquals(OutfitPosition(2588,1001),arrived.outfits.getValue(1).position)
-        assertEquals(3000,arrived.outfits.getValue(1).supplies)
-        assertEquals(97000,arrived.bases.getValue(1001).supplies)
-        assertEquals(captured.bases.getValue(1000),arrived.bases.getValue(1000))
-        assertEquals(2588,events.single().destination)
+        for(unavailable in listOf(depot.copy(owner=Allegiance.fromLegacy(3)),depot.copy(supplies=0))) {
+            events.clear()
+            val changed=reserved.copy(bases=reserved.bases+(1000 to unavailable))
+            val rerouted=advanceWorld(3600,changed)
+            assertEquals(NpcStrategicState(25200,2588,7200),rerouted.outfits.getValue(1).strategy)
+            assertEquals(fleet.position,rerouted.outfits.getValue(1).position)
+            assertEquals(300,rerouted.outfits.getValue(1).supplies)
+            assertEquals(changed.bases,rerouted.bases)
+            assertTrue(events.isEmpty())
+            assertEquals(rerouted,advanceWorld(7199,rerouted.copy()))
+            val arrived=advanceWorld(7200,rerouted)
+            assertEquals(OutfitPosition(2588,1001),arrived.outfits.getValue(1).position)
+            assertEquals(3000,arrived.outfits.getValue(1).supplies)
+            assertEquals(97000,arrived.bases.getValue(1001).supplies)
+            assertEquals(changed.bases.getValue(1000),arrived.bases.getValue(1000))
+            assertEquals(2588,events.single().destination)
+        }
     }
 
     @Test fun strandedFleetCanDockAndReloadWithoutAnotherJumpAndCannotUseAnOccupiedDepot() {
