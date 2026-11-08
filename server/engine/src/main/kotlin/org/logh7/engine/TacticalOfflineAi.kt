@@ -10,6 +10,18 @@ internal object TacticalOfflineAi {
         p.baseId==0 && p.mode==5 && p.hull!=null && p.hull.woundedUntil<=session.gameMillis/1000 &&
         stocks.tacticalCommands.tacticalAi(p.characterId)
 
+    fun automaticTargets(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks,ids:List<Int>):List<Int> {
+        val mission=stocks.tacticalCommands.missions[p.characterId]?.takeUnless {it.completed}
+        val preferred=mission?.takeIf {it.mission==3}?.target
+        if(eligible(session,account,p,stocks)) {
+            when(mission?.mission) {
+                3 -> return listOf(mission.target)
+                4,5 -> return emptyList()
+            }
+        }
+        return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it})
+    }
+
     fun advance(session:SessionState,g:Galaxy,players:MutableMap<String,Navigator>,initial:PlanetStocks,scale:Long,
         events:MutableList<TacticalCommandResult>):PlanetStocks {
         var stocks=initial

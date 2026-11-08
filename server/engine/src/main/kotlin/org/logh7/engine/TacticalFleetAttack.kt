@@ -96,9 +96,7 @@ internal object TacticalFleetAttack {
                 val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                 if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                 val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
-                val preferred=stocks.tacticalCommands.missions[command.commander]?.takeIf {it.mission==3 && !it.completed}?.target
-                val candidates=if(preferred!=null && TacticalOfflineAi.eligible(session,checkNotNull(commanderEntry).key,commander,stocks))
-                    listOf(preferred) else ids.sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it})
+                val candidates=TacticalOfflineAi.automaticTargets(session,commanderEntry.key,commander,stocks,ids)
                 val victim=candidates.asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
                         val targetPosition=pose(t,now,players,stocks,galaxy).position

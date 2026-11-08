@@ -136,9 +136,7 @@ internal object TacticalCombat {
         if(mount.power==0 || player.supplies<supplyCost(mount,weapon) ||
             !ready(player.charge?.settle(now,player.energy ?: TacticalEnergy.ZERO),weapon))return null
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)
-        val preferred=stocks.tacticalCommands.missions[player.characterId]?.takeIf {it.mission==3 && !it.completed}?.target
-        val candidates=if(preferred!=null && TacticalOfflineAi.eligible(session,account,player,stocks))
-            listOf(preferred) else ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it})
+        val candidates=TacticalOfflineAi.automaticTargets(session,account,player,stocks,ids)
         return candidates.firstOrNull {id -> target(id,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players)?.let {
             effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
     }
