@@ -175,6 +175,28 @@ class TacticalSupportTest {
         }
     }
 
+    @Test fun aSupportOrderWithNothingLeftToTransferIsCancelledInsteadOfCompleted() {
+        for(action in TacticalSupportAction.entries) {
+            val s=state(repair=action==TacticalSupportAction.REPAIR)
+            val pilot=s.players.getValue("pilot")
+            val command=request(action,pilot.unitId)
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+            val queued=s.players.getValue("pilot")
+            val restored=if(action==TacticalSupportAction.SUPPLY)queued.copy(supplies=10000)
+                else queued.copy(hull=queued.hull!!.copy(hp=100))
+            s.players=s.players+("pilot" to restored)
+            val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+            val production=production(s)
+            val out=mutableListOf<TacticalSupportResult>()
+            settle(s,nav,production,now+120,out)
+            assertTrue(out.single().cancelled)
+            assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
+            assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().support)
+            settle(s,nav,production,now+240,out)
+            assertEquals(1,out.size)
+        }
+    }
+
     @Test fun supplyBetweenUnitsOfTheSameFleetDoesNotChangeItsTotal() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
