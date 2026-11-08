@@ -143,8 +143,10 @@ internal object NpcTactics {
                             (origin.position.y+(c.pose.position.y-origin.position.y)*ratio).toFloat())}
                     val facing=if(withdrawal!=null)direction(origin.position,checkNotNull(goal)) else target?.let {direction(origin.position,it.first.pose.position)} ?: origin.direction
                     val pose=origin.copy(direction=facing)
-                    val motion=if(goal==null)stationary(position.grid,now,pose) else TacticalMotion(position.grid,now,origin,
-                        (spec.number("最高速度（km/1G秒）:最高速度（km/1G秒）")/20000f).coerceIn(0.1f,1f),facing,listOf(goal),
+                    val waypoints=goal?.let {TacticalTerrain.route(galaxy,position.grid,origin.position,it)} ?: listOf(origin.position)
+                    val moving=waypoints.size>1 || waypoints.single()!=origin.position
+                    val motion=if(!moving)stationary(position.grid,now,pose) else TacticalMotion(position.grid,now,origin,
+                        (spec.number("最高速度（km/1G秒）:最高速度（km/1G秒）")/20000f).coerceIn(0.1f,1f),facing,waypoints,
                         turnRate=TacticalMotion.NATIVE_TURN_RATE)
                     // No idle write loop: retain an already stationary guard or firing pose.
                     if(before==null && target==null && withdrawal==null)continue
