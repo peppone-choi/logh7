@@ -34,6 +34,24 @@ class TacticalBaseDefenseTest {
         assertEquals(0,TacticalBaseDefense.strength(rebel,1000))
         assertEquals(0,TacticalBaseDefense.strength(state.copy(bases=state.bases+(1000 to base.copy(owner=Allegiance.fromLegacy(0)))),1000))
     }
+    @Test fun defenseCountsOnlyTheOwnersCampAmongUnitsOfTheSameCountry() {
+        val state=mixed()
+        val country=Power.EMPIRE.country
+        val rebels=state.outfits.getValue(1).copy(commanderId=10000)
+        val regulars=state.outfits.getValue(2).copy(country=country)
+        val coup=CoupState(mapOf(10000 to Plot(10000,country,0,revolt=5)),loyalty=mapOf(1 to 100))
+        val contested=state.copy(outfits=mapOf(1 to rebels,2 to regulars),
+            warehouses=state.warehouses+(102 to state.warehouses.getValue(102).copy(country=country)),
+            social=state.social.copy(coup=coup))
+        val base=GalaxyBase(1000,2488,80,0,"Battle",0,0f,86400,0,0f,2f)
+        val owner=contested.bases.getValue(1000)
+        assertEquals(1000,TacticalBaseDefense.strength(contested,base))
+        assertEquals(1000,TacticalBaseDefense.strength(contested,base.id))
+        val captured=contested.copy(bases=contested.bases+(1000 to owner.copy(camp=1)))
+        assertEquals(2000,TacticalBaseDefense.strength(captured,base))
+        assertEquals(2000,TacticalBaseDefense.strength(captured,base.id))
+    }
+
     @Test fun legacyKnownGroundBaseWorksButUnresolvedFleetTroopsAreNotInventedAshore() {
         val state=mixed();val outfit=state.outfits.getValue(1)
         val legacy=state.copy(outfits=state.outfits+(1 to outfit.copy(activeGround=null)))

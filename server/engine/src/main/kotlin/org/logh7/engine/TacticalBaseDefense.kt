@@ -11,15 +11,12 @@ object TacticalBaseDefense {
     fun strength(stocks:PlanetStocks,base:GalaxyBase):Int {
         val owner=stocks.bases.getValue(base.id)
         val country=owner.country ?: return 0
-        if(owner.camp!=0)return 0
-        return GroundBattleOperations.participants(stocks,base,country).sumOf {it.strength}
+        return GroundBattleOperations.participants(stocks,base,country,owner.camp).sumOf {it.strength}
     }
     fun strength(stocks:PlanetStocks,base:Int):Int {
         val owner=stocks.bases.getValue(base)
-        // Outfit insurgency is not represented yet; regular units cannot defend a rebel owner.
         val country=owner.country ?: return 0
-        if(owner.camp!=0)return 0
-        val outfits=stocks.outfits.values.filter {it.country==country}
+        val outfits=stocks.outfits.values.filter {it.country==country && CoupActions.outfitCamp(stocks,it)==owner.camp}
         val known=outfits.flatMap {it.activeGround?.values.orEmpty()}.filter {it.base==base}
             .sortedBy {it.id}.take(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
         val legacy=outfits.filter {it.activeGround==null && it.kind==OutfitKind.GROUND &&

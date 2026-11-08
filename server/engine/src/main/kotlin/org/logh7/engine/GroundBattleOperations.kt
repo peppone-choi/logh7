@@ -16,8 +16,9 @@ internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
     fun countries(stocks:PlanetStocks)=stocks.outfits.values.map {it.country}.distinct().sortedBy {it.value}
 
-    fun participants(stocks:PlanetStocks,base:GalaxyBase,country:CountryId):List<ActiveGroundUnit> =
-        stocks.outfits.values.filter {it.country==country}.flatMap {it.activeGround?.values.orEmpty()}
+    fun participants(stocks:PlanetStocks,base:GalaxyBase,country:CountryId,camp:Int?=null):List<ActiveGroundUnit> =
+        stocks.outfits.values.filter {it.country==country && (camp==null || CoupActions.outfitCamp(stocks,it)==camp)}
+            .flatMap {it.activeGround?.values.orEmpty()}
             .filter {it.base==base.id && GroundBattleRules.admitsCrewType(base,specifications.getValue(it.stack.kind).type)}
             .sortedBy {it.id}.take(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
 
