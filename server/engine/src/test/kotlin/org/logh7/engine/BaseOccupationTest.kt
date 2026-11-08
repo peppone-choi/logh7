@@ -209,6 +209,25 @@ class BaseOccupationTest {
         assertEquals(loser.copy(characterId=10002,baseId=0,mode=5,spotId=0,returnBase=0),players["remote"])
         assertEquals(setOf("offline"),events.single().expelled.keys)
     }
+    @Test fun occupationExpelsDockedFlagshipsBesideTheMovingFortress() {
+        val fortress=base.copy(kind=1,mobile=true)
+        val world=Galaxy(galaxy.systems,listOf(fortress),galaxy.starts)
+        val capturedAt=now+50
+        val motion=TacticalMotion(2487,now,TacticalPose(TacticalPoint(30f,40f),0f),TacticalFortressMotion.VELOCITY,0f,
+            listOf(TacticalPoint(60f,40f)),waitSeconds=0)
+        val original=stocks()
+        val prepared=original.copy(tacticalCommands=original.tacticalCommands.copy(
+            fortresses=mapOf(1000 to TacticalFortressMotion(2487,motion))))
+        val loser=Navigator(1,10001,Power.ALLIANCE,2487,777,555,321,baseId=1000,mode=4)
+        val players=mutableMapOf("first" to loser,"second" to loser.copy(characterId=10002))
+        val after=advance(prepared,players,state=session.copy(gameMillis=capturedAt*1000),world=world)
+        assertEquals(CountryId(2),after.bases.getValue(1000).country)
+        assertEquals(listOf(TacticalPoint(39f,40f),TacticalPoint(41f,40f)),
+            players.values.map {it.motion!!.origin.position})
+        assertEquals(listOf(TacticalPoint(41f,40f),TacticalPoint(43f,40f)),
+            players.values.map {it.motion!!.pose(capturedAt+20,it.posture,world,after).position})
+    }
+
     @Test fun fortressIneligibleGarrisonIsEliminatedAndWarehouseOverflowIsBounded() {
         val fortress=base.copy(kind=1)
         val world=Galaxy(galaxy.systems,listOf(fortress),galaxy.starts)
