@@ -249,10 +249,11 @@ static void updateOutfitGroundControls() {
     outfitInbox.groundReply=0;
     ReleaseSRWLockExclusive(&outfitReplyLock);
     if(reply && state.groundPending) {
+        bool boarding=state.groundPending==0x41;
         state.groundPending=0;state.groundArmed=0;
         // reply = 1 + server reason (GroundTransferMessages: LogisticsRejection ordinal+1, 0x40 no change).
         unsigned reason=reply-1;
-        state.groundMessage=reason==0 ? L"승하선을 저장했습니다. 최신 편성을 조회합니다." :
+        state.groundMessage=reason==0 ? (boarding ? L"육전대 탑승을 저장했습니다." : L"육전대 하선을 저장했습니다.") :
             reason==0x40 ? L"옮길 육전대가 없습니다. CP를 사용하지 않았습니다." :
             reason==4 ? L"명령 거부 · 부대 지휘관이 아니거나 아군 정규 거점이 아닙니다." :
             reason==5 ? L"명령 거부 · 지휘관이 부대와 같은 거점에 있어야 합니다(이동·보급 중 불가)." :
@@ -270,11 +271,12 @@ static void updateOutfitGroundControls() {
         requestOutfit(false);
     }
     bool enabled=outfitGroundAccess() && !state.groundPending && !at<BYTE>(state.world,0x3579cc);
-    outfitText(state.root,22,state.groundArmed==0x40 ? L"육전대 출격 확정" : L"육전대 출격 · MCP 80");
-    outfitText(state.root,23,state.groundArmed==0x41 ? L"육전대 철수 확정" : L"육전대 철수 · MCP 80");
+    outfitText(state.root,22,state.groundArmed==0x40 ? L"하선 확정 · MCP 80" : L"거점에 내리기 · MCP 80");
+    outfitText(state.root,23,state.groundArmed==0x41 ? L"탑승 확정 · MCP 80" : L"함정에 태우기 · MCP 80");
     outfitText(state.root,25,L"배치 이전");outfitText(state.root,26,L"배치 다음");
     outfitText(state.root,24,state.groundMessage ? state.groundMessage :
-        enabled ? L"전체 병력을 대상으로 합니다. 버튼을 다시 누르면 실행합니다." : L"같은 아군 거점에 정박한 부대의 지휘관만 실행할 수 있습니다.");
+        enabled ? L"이 부대의 육전대를 한꺼번에 옮깁니다. 같은 버튼을 다시 누르면 실행합니다." :
+        L"같은 아군 거점에 정박한 부대의 지휘관만 실행할 수 있습니다.");
     BYTE event[52]={};
     for(int n=0;n<4;++n) {
         auto button=outfitWidget(state.root,1,n<2 ? 22+n : 23+n);
@@ -291,8 +293,8 @@ static void updateOutfitGroundControls() {
         unsigned action=0x40+n;
         if(state.groundArmed!=action) {
             state.groundArmed=action;state.groundMessage=action==0x40 ?
-                L"전 육전대를 현재 거점에 주둔시킵니다. 다시 눌러 확정하십시오." :
-                L"현재 거점의 전 육전대를 함정에 태웁니다. 다시 눌러 확정하십시오.";
+                L"탑승 병력을 현재 거점에 내립니다. 다시 누르면 MCP 80을 사용합니다." :
+                L"현재 거점의 이 부대 육전대를 태웁니다. 다시 누르면 MCP 80을 사용합니다.";
         } else {
             BYTE record[36]={};at<unsigned>(record,4)=state.character;at<unsigned>(record,16)=state.id;
             // Count zero is the explicit whole-outfit extension. Opaque native values stay empty.
