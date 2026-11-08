@@ -817,6 +817,24 @@ class TacticalCommandOperationsTest {
         assertEquals(10000,TacticalAuthority.commander(moved,moved.activeShips!!.values.single(),s.stocks))
         assertEquals(100,s.stocks.outfits.values.sumOf {it.supplies})
     }
+    @Test fun rebelDetachmentRetainsItsCampAfterPartialRetreat() {
+        val s=state()
+        val fleet=s.stocks.outfits.getValue(1)
+        val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=true)
+        val ships=ActiveShipUnits(fleet.activeShips!!.values.map {
+            if(it.id==1)it.copy(motionCommander=10000,tactical=NpcTacticalState(motion(260f),now,now,retreat=retreat)) else it
+        })
+        val plot=Plot(10000,fleet.country,0,revolt=5)
+        val coup=CoupState(mapOf(10000 to plot),loyalty=mapOf(1 to 100))
+        val before=s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ships)),social=s.stocks.social.copy(coup=coup))
+        val events=mutableListOf<TacticalMovement>()
+        val after=TacticalFleetRetreat.advance(session.copy(gameMillis=(now+155)*1000),galaxy,s.players.toMutableMap(),before,events)
+        val moved=after.outfits.values.single {it.activeShips?.values?.any {unit->unit.id==1}==true}
+        assertEquals(2489,moved.positionIn(galaxy).grid)
+        assertTrue(TacticalAuthority.camp(moved,after).insurgent)
+        assertEquals(1,events.size)
+    }
+
     @Test fun partialRetreatKeepsTheIndependentFleetAndWarehouseModelsAndStableIdentities() {
         val s=state();s.players=s.players.mapValues {(account,p)->if(account=="pilot")p.copy(motion=motion(260f)) else p}
         val outfit=s.stocks.outfits.getValue(1)
