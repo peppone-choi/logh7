@@ -6,7 +6,8 @@ import org.logh7.engine.WorldSnapshot
 
 /** Preserve previous generations' files; a new session never reuses its previous characters. */
 class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
-    private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates()) {
+    private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates(),
+    private val worldSnapshot: () -> WorldSnapshot? = { null }) {
     /** U-27: account fame carried across generations. */
     val fame = sharedFame ?: FameLedger(file?.resolveSibling("${file.fileName}.fame"))
     private var cached: Pair<Long, CharacterCreation>? = null
@@ -16,7 +17,13 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
         cached?.takeIf { it.first == generation }?.let { return it.second }
         return open(generation).also { cached = generation to it }
     }
-    private fun open(generation:Long)=CharacterCreation(path(generation),accountFame=fame.accounts,publishedOriginals=publishedOriginals)
+    private fun open(generation:Long)=CharacterCreation(path(generation),accountFame=fame.accounts,publishedOriginals=publishedOriginals,
+        worldDeaths = {
+            val stocks = worldSnapshot()?.takeIf { it.session?.generation == generation }?.planetStocks
+            stocks?.strategic?.people.orEmpty().asSequence()
+                .filter { (id, person) -> id in 1..9999 && person.deceasedAt > 0 }
+                .map { (id, _) -> id.toLong() }.toSet()
+        })
     /** U-27 carry-over (W p.11): writes this generation's qualifying characters into the next generation's store. */
     @Synchronized fun carryOver(snapshot: WorldSnapshot): List<String> {
         val generation = snapshot.session?.generation ?: return emptyList()

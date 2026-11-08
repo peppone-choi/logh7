@@ -154,7 +154,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         } }
         civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
-        val characterStores = CharacterStores(characterFile,accountFame,originalCandidates)
+        val characterStores = CharacterStores(characterFile,accountFame,originalCandidates) { navigation?.snapshot() }
         fun currentCharacters() = characterStores.get(admission?.generation ?: 1)
         fun currentOffices(player:org.logh7.engine.Navigator)=player.country
             ?.takeIf {world?.lobbyCountryDefinitions()?.first?.countries?.containsKey(it.value)==true}
