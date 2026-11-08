@@ -10,11 +10,12 @@ static const char* creationCountryResource(const char* translated) {
     auto& view=lobbyCountryWindow;auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
     auto own=world ? at<BYTE*>(world,8) : nullptr;
     if(!translated || !view.selectionBound || view.active || (view.mode!=2 && view.mode!=3) || own && own[0])return translated;
-    const auto row=selectedLobbyCountry();if(!row)return translated;
+    const bool unaffiliated=view.mode==2 && !view.country;
+    const auto row=selectedLobbyCountry();if(!row && !unaffiliated)return translated;
     static std::string empire,alliance;static const bool ready=logh::encodeKoreanResource(L"제국",empire) && logh::encodeKoreanResource(L"동맹",alliance);
     if(!ready || std::strcmp(translated,empire.c_str()) && std::strcmp(translated,alliance.c_str()))return translated;
     static thread_local std::string actual;
-    const auto label=logh::fitCountryLabel(row->name,16);
+    const auto label=logh::fitCountryLabel(unaffiliated ? L"무소속 " : row->name,16);
     return logh::encodeKoreanResource(label.c_str(),actual) || logh::storeDisplayName(label.c_str(),actual,25) ? actual.c_str() : translated;
 }
 static const char* creationStaticCountryResource(const char* original) {
@@ -176,8 +177,15 @@ static const char* __fastcall lookupKoreanResource(void* table, void*, unsigned 
     // Verified CD constmsg instance; other message tables keep their own
     // indices. Identical Japanese words may mean a name or a count unit.
     if (table != reinterpret_cast<void*>(0x2217400)) return original;
-    // U-31: commander tab slot 21 is the orbital ground attack button (help index = slot + 4).
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    const auto& wizard=lobbyCountryWindow;
+    auto own=world ? at<BYTE*>(world,8) : nullptr;
+    if(group==78 && index==74 && wizard.mode==2 && wizard.selectionBound && !wizard.active && !wizard.country && (!own || !own[0])) {
+        static std::string starter;
+        static const bool encoded=logh::encodeKoreanResource(L"로 시작하며 다음 함선을 기함으로 받습니다.",starter);
+        if(encoded)return starter.c_str();
+    }
+    // U-31: commander tab slot 21 is the orbital ground attack button (help index = slot + 4).
     if (group==0 && index==25 && *reinterpret_cast<unsigned*>(0x77a8f8)==4 && world && at<BYTE>(world,0x126718)) {
         static std::string strike;
         static const bool ready=logh::encodeKoreanResource(L"[ \ub300\uc9c0 \uacf5\uaca9 ]\n\uc801 \ud589\uc131\uc758 \uc218\ube44\ub300\ub97c \uacf5\uaca9\ud569\ub2c8\ub2e4.\n\uae30\ud568 \ubb3c\uc790 100",strike);

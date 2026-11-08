@@ -5,6 +5,9 @@ import java.nio.file.Path
 import java.util.Properties
 
 data class GalaxySystem(val kind: Int, val grid: Int, val star: Int, val name: String, val power: Int = 0)
+data class UnaffiliatedStart(val grid:Int,val shipStyle:ShipStyleId) {
+    init { require(shipStyle.value in setOf("empire","alliance")) }
+}
 data class GalaxyBase(val id: Int, val grid: Int, val model: Int, val kind: Int, val name: String,
     val physicalClass: Int, val radius: Float, val cycle: Int, val direction: Int, val angle: Float, val diameter: Float,
     /** CD manual p.54: only mobile fortresses take the in-grid 【移動】 command (U-26). */
@@ -13,11 +16,13 @@ data class GalaxyBase(val id: Int, val grid: Int, val model: Int, val kind: Int,
 /** Confirmed manual placements plus explicitly labelled local defaults, loaded outside the repository. */
 class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, starts: Map<Power, Int>,
     val defaultCell: Int = 1, terrain: List<String>? = null,
-    countryStarts:Map<CountryId,Int> = emptyMap(),initialOwners:Map<Int,Allegiance> = emptyMap()) {
+    countryStarts:Map<CountryId,Int> = emptyMap(),initialOwners:Map<Int,Allegiance> = emptyMap(),
+    val unaffiliatedStart:UnaffiliatedStart?=null) {
     /** Keep existing two-country consumers consistent when their own starts are explicitly edited. */
     val starts:Map<Power,Int> = starts.mapValues {(power,grid)->countryStarts[power.country] ?: grid}
     /** Per-world spawn locations; an additional country never inherits another country's start. */
     val countryStarts:Map<CountryId,Int> = this.starts.mapKeys {it.key.country}+countryStarts
+    fun startFor(country:CountryId?):Int? = if(country==null)unaffiliatedStart?.grid else countryStarts[country]
     /** Historical owners stay independent of current occupation and the original system display code. */
     val initialOwners:Map<Int,Allegiance>
     val width = 100
@@ -45,6 +50,13 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
         require(initialOwners.keys.all {id->bases.any {it.id==id}}) {"Initial owner references an unknown base"}
         this.initialOwners=java.util.Collections.unmodifiableMap(bases.associate {base->base.id to
             (initialOwners[base.id] ?: Allegiance.fromLegacy(systems.single {it.grid==base.grid}.power))})
+        if(unaffiliatedStart!=null) {
+            require(unaffiliatedStart.grid !in this.countryStarts.values &&
+                systems.any {it.grid==unaffiliatedStart.grid && it.power in 0..1} &&
+                bases.filter {it.grid==unaffiliatedStart.grid}.all {
+                    this.initialOwners.getValue(it.id) in setOf(Allegiance.Unspecified,Allegiance.Neutral)
+                }) {"Unaffiliated start requires a neutral star system"}
+        }
         val map = terrain?.let(::terrainCells)
         if (map != null) require(systems.all { map[it.grid] == SPACE_CELL }) { "A star system lies outside the navigable terrain" }
         cells = MutableList(5000) { map?.get(it) ?: defaultCell }.also { values -> systems.forEach { values[it.grid] = it.kind } }.toList()
@@ -101,7 +113,7 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
             require(Files.size(path) <= 1_000_000) { "World seed too large" }
             val p = Properties().also { Files.newBufferedReader(path).use(it::load) }
             val schema=p.getProperty("schema")
-            require(schema in setOf("1","2","3") && p.getProperty("unmapped.cells") == "local-space-default")
+            require(schema in setOf("1","2","3","4") && p.getProperty("unmapped.cells") == "local-space-default")
             fun int(key: String) = requireNotNull(p.getProperty(key)) { "Missing world key $key" }.toInt()
             val systems = List(int("systems").also { require(it in 1..86) }) { i ->
                 val prefix = "system.$i."
@@ -123,7 +135,7 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
                 val id=CountryId(value.toInt().also {require(it.toString()==value) {"Invalid country start ID"}})
                 id to int(key)
             }
-            require(countryStarts.isEmpty() || schema in setOf("2","3")) {"Country starts require world schema 2"}
+            require(countryStarts.isEmpty() || schema in setOf("2","3","4")) {"Country starts require world schema 2"}
             val owners=p.stringPropertyNames().filter {it.startsWith("base.") && it.endsWith(".owner")}.associate {key->
                 val index=key.removePrefix("base.").removeSuffix(".owner")
                 val i=index.toInt().also {require(it.toString()==index && it in bases.indices) {"Invalid initial owner base index"}}
@@ -139,9 +151,14 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
                 }
                 bases[i].id to owner
             }
-            require(owners.isEmpty() || schema=="3") {"Initial owners require world schema 3"}
+            require(owners.isEmpty() || schema in setOf("3","4")) {"Initial owners require world schema 3"}
+            val unaffiliated=if(p.containsKey("start.unaffiliated") || p.containsKey("start.unaffiliated.style")) {
+                require(schema=="4") {"Unaffiliated starts require world schema 4"}
+                UnaffiliatedStart(int("start.unaffiliated"),ShipStyleId(requireNotNull(p.getProperty("start.unaffiliated.style"))))
+            } else null
+            require(schema!="4" || unaffiliated!=null) {"World schema 4 requires an unaffiliated start"}
             return Galaxy(systems, bases, mapOf(Power.EMPIRE to int("start.empire"), Power.ALLIANCE to int("start.alliance")),
-                terrain = terrain,countryStarts=countryStarts,initialOwners=owners)
+                terrain = terrain,countryStarts=countryStarts,initialOwners=owners,unaffiliatedStart=unaffiliated)
         }
     }
 }

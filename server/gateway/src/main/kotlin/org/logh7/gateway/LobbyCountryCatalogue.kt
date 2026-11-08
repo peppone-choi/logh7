@@ -28,7 +28,8 @@ internal object LobbyCountryCatalogue {
 
     class Source(val generation:Long,val snapshot:WorldSnapshot?,
         val profiles:Map<String,CharacterProfile>,val catalog:CountryCatalog,val revision:Long,
-        val appearances:List<CountryAppearance>,val starts:Set<CountryId> = defaultStarts)
+        val appearances:List<CountryAppearance>,val starts:Set<CountryId> = defaultStarts,
+        val unaffiliatedCreation:Boolean=false)
 
     fun reply(request:LobbyCountryMessages.Request,source:Source):List<ByteArray> {
         if (request.query.base == LobbyCountryMessages.EMBLEM_PROBE) {
@@ -49,7 +50,8 @@ internal object LobbyCountryCatalogue {
                     LobbyCountryMessages.CREATE or LobbyCountryMessages.LOTTERY else 0)
         }
         val header=LobbyCountryMessages.Header(countries.size,request.offset,rows.size,source.revision,
-            snapshot?.session?.elapsedGameSeconds ?: 0,source.generation,totalBases)
+            snapshot?.session?.elapsedGameSeconds ?: 0,source.generation,totalBases,
+            source.unaffiliatedCreation && snapshot?.session?.ended==null)
         return LobbyCountryMessages.reply(request,header,rows).map {LoginMessages.sessionMessage(0x032f,it)}
     }
 

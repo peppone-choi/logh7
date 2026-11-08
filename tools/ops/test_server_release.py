@@ -245,11 +245,19 @@ class ServerReleaseTest(unittest.TestCase):
         world.write_text("systems=1\n", encoding="utf-8")
         with self.assertRaises(SystemExit):
             self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
-        world.write_text("schema=4\n", encoding="utf-8")
+        world.write_text("schema=5\n", encoding="utf-8")
         with self.assertRaises(SystemExit) as unknown:
             self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
-        self.assertIn("unknown world schema 4", str(unknown.exception))
+        self.assertIn("unknown world schema 5", str(unknown.exception))
         self.assertEqual("new", (self.releases / "CURRENT").read_text().strip())
+        world.write_text("schema=4\nstart.unaffiliated=2489\nstart.unaffiliated.style=alliance\n", encoding="utf-8")
+        with self.assertRaisesRegex(SystemExit, "world schema 4"):
+            self.tool("activate", "new", "--releases", str(self.releases), "--world-definition", str(world))
+        with zipfile.ZipFile(self.build / "lib" / "engine.jar", "w") as jar:
+            jar.writestr(reader, b"\xca\xfe" + constant("Unaffiliated starts require world schema 4"))
+        self.tool("install", str(self.build), "--releases", str(self.releases), "--name", "unaffiliated")
+        self.tool("activate", "unaffiliated", "--releases", str(self.releases), "--world-definition", str(world))
+        self.assertEqual("unaffiliated", (self.releases / "CURRENT").read_text().strip())
 
     def test_initial_owner_world_requires_schema_three_reader_and_preserves_current_on_refusal(self):
         import zipfile

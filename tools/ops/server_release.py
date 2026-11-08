@@ -64,6 +64,7 @@ HEADER_READERS = (("LOGH7-STOCK-", "org/logh7/persistence/FilePlanetStockStore.c
 WORLD_SCHEMAS = {
     "2": ("org/logh7/engine/Galaxy$Companion.class", "Country starts require world schema 2"),
     "3": ("org/logh7/engine/Galaxy$Companion.class", "Initial owners require world schema 3"),
+    "4": ("org/logh7/engine/Galaxy$Companion.class", "Unaffiliated starts require world schema 4"),
 }
 SCHEMA_READERS_CLASSES = {reader for reader, _ in WORLD_SCHEMAS.values()}
 

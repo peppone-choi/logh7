@@ -47,4 +47,17 @@ $extra
         assertFailsWith<IllegalArgumentException> {world("2",(10..359).joinToString("\n") {"start.country.$it=2490"})}
         assertFailsWith<IllegalArgumentException> {world("4","")}
     }
+    @Test fun unaffiliatedStartIsASeparateNeutralSystemWithAPlayableShipStyle() {
+        val neutral="systems=3\nsystem.2.kind=5\nsystem.2.grid=2489\nsystem.2.star=4\nsystem.2.name=Neutral"
+        val start="start.unaffiliated=2489\nstart.unaffiliated.style=alliance"
+        val galaxy=world("4","$neutral\n$start")
+        assertEquals(2489,galaxy.startFor(null))
+        assertEquals(ShipStyleId("alliance"),galaxy.unaffiliatedStart?.shipStyle)
+        assertEquals(2,galaxy.countryStarts.size)
+        assertNull(world("3",neutral).startFor(null))
+        assertFailsWith<IllegalArgumentException> {world("3","$neutral\n$start")}
+        assertFailsWith<IllegalArgumentException> {world("4","$neutral\n${start.replace("alliance","unknown")}")}
+        assertFailsWith<IllegalArgumentException> {world("4","$neutral\n$start\nsystem.2.power=2")}
+        assertFailsWith<IllegalArgumentException> {world("4","$neutral\n$start\nstart.country.42=2489")}
+    }
 }

@@ -162,7 +162,7 @@ static void renderLobbyCountries() {
         reinterpret_cast<void(__thiscall*)(void*,void*,float,float,float,float)>(0x502f40)(view.root,view.bars[i],red,green,blue,1.f);
     }
     const auto selected=selectedLobbyCountry();
-    if(view.selecting)wcscpy_s(text,L"선택한 국가를 확인하고 있습니다.");
+    if(view.selecting)wcscpy_s(text,view.country ? L"선택한 국가를 확인하고 있습니다." : L"무소속 시작을 확인하고 있습니다.");
     else if(view.selectionError)wcscpy_s(text,L"국가 선택을 확인하지 못했습니다. 다시 선택하세요.");
     else if(selected)swprintf_s(text,L"%s  ·  국가 ID %u%s",selected->name,selected->id,
         view.mode!=1 && !lobbyCountryEligible(selected) ? L"  ·  현재 참가 준비 중" : L"");
@@ -175,6 +175,10 @@ static void renderLobbyCountries() {
     lobbyCountryText(26,720,477,100,42,listing ? L"세션 선택" : L"국가 선택",true);
     planetEnabled(26,!view.selecting && (listing ? view.page.session==view.session && view.page.generation>0 : lobbyCountryEligible(selected)));
     lobbyCountryText(27,184,477,192,42,L"돌아가기",true);
+    const bool unaffiliated=view.mode==2 && view.page.session==view.session && view.page.unaffiliatedCreation;
+    if(unaffiliated)lobbyCountryText(31,390,477,192,42,L"무소속으로 시작",true);
+    else reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(view.root,planetWidget(31),0);
+    planetEnabled(31,unaffiliated && !view.selecting);
 }
 static bool openLobbyCountries(void* controller,unsigned mode) {
     auto& view=lobbyCountryWindow;auto gui=at<void*>(controller,12);auto world=*reinterpret_cast<void**>(0x7ccffc);
@@ -395,6 +399,10 @@ static bool updateLobbyCountryWindow(void* controller) {
             }
         }
         return true;
+    }
+    if(view.mode==2 && view.page.session==view.session && view.page.unaffiliatedCreation && lobbyCountryClick(31)) {
+        view.country=0;view.selecting=requestLobbyCountrySelection(view.world,view.session,0,8);
+        view.selectionError=!view.selecting;renderLobbyCountries();return true;
     }
     if(lobbyCountryClick(26)) {
         const unsigned mode=view.mode;const auto selected=selectedLobbyCountry();

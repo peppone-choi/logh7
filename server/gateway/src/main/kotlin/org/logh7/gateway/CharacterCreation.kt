@@ -41,11 +41,11 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val configuredStarters=starterKinds?.mapValues {(_,kinds)->kinds.toList()}
     private val starters get()=configuredStarters ?: styles.mapValues {(_,style)->listOf(Flagships.forType(style.nativePower,0).kind)}
     /** The wizard uses [creationPower]. Once registered the original game uses [nativePower]. */
-    data class CountrySelection(val country:CountryId,val nativePower:Int,val shipStyle:ShipStyleId,
+    data class CountrySelection(val country:CountryId?,val nativePower:Int,val shipStyle:ShipStyleId,
         val creationPower:Int=nativePower) {
         init { require(nativePower in 2..3 && creationPower in 2..3) { "Invalid native power" }; shipStyle.nativePower }
         internal fun encoded(): String {
-            val legacy = "${country.value}:$nativePower:${shipStyle.value}"
+            val legacy = "${checkNotNull(country).value}:$nativePower:${shipStyle.value}"
             return if (creationPower == nativePower) legacy else "$legacy:$creationPower"
         }
         internal companion object {
@@ -197,6 +197,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         return OriginalCharacterMessages.entryState(id, eligible, competingPreferences)
     }
     @Synchronized fun apply(account: String, ids: List<Long>, selection: CountrySelection? = null): ByteArray {
+        require(selection==null || selection.country!=null) { "Original characters require a country" }
         require(ids.size in 1..5 && ids.distinct().size == ids.size)
         // An application keeps the country it was made for; changing it needs a new session flow, not a resubmit.
         require(account !in applications || applicationSelections[account] == selection) { "Application country changed" }

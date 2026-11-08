@@ -1,7 +1,7 @@
 package org.logh7.protocol
 
 /** Pre-game country choice on 032e/032f. Actual country ids never occupy native power slots.
- * outfit = country id (0 for cancel), base = nonce*65536+session, mode = create/lottery/cancel.
+ * outfit = country id (0 for unaffiliated creation or cancel), base = nonce*65536+session.
  * A successful NS1 acknowledgement precedes opening the native wizard. Author: Peppone Choi. */
 object CountrySelectionMessages {
     const val CREATE=8
@@ -14,7 +14,7 @@ object CountrySelectionMessages {
         val nonce get()=query.base ushr 16
         init {
             require(matches(query.mode) && sessionId in 1..65535 && nonce in 1..32767)
-            require(if(query.mode==CANCEL)countryId==0 else countryId>0)
+            require(when(query.mode) { CANCEL->countryId==0; LOTTERY->countryId>0; else->countryId>=0 })
         }
     }
     fun request(query:OutfitPartyMessages.Query)=Request(query)
