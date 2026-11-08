@@ -228,6 +228,27 @@ class TacticalOfflineAiTest {
         val before=p.toMap();TacticalOfflineAi.advance(offline,galaxy,p,stocks(),1,mutableListOf())
         assertEquals(before,p)
     }
+    @Test fun reconnaissanceRoutesFlagshipAndFleetAroundTheStar() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
+        val observers=players()
+        observers["pilot"]=observers.getValue("pilot").copy(motion=motion(0f,-21f))
+        val initial=stocks(4)
+        val own=initial.outfits.getValue(1)
+        val ship=own.activeShips!!.values.single().let {u->
+            u.copy(tactical=u.tactical!!.copy(motion=motion(1f,-21f)))
+        }
+        val stock=initial.copy(outfits=initial.outfits+(1 to own.copy(activeShips=ActiveShipUnits(listOf(ship)))))
+        val after=TacticalOfflineAi.advance(offline,world,observers,stock,1,mutableListOf())
+        val flagship=observers.getValue("pilot").motion!!
+        val escort=after.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion
+        for(route in listOf(flagship,escort)) {
+            assertTrue(route.velocity>0f)
+            assertTrue(route.waypoints.size>1)
+            assertFalse(TacticalTerrain.pathBlocked(world,route.grid,route.origin.position,route.waypoints))
+            assertTrue(route.waypoints.last().y>29f)
+        }
+    }
+
     @Test fun reconnaissanceApproachesWithinMeritRangeAndWithdrawalStartsWarpPreparation() {
         val scouts=players();TacticalOfflineAi.advance(offline,galaxy,scouts,stocks(4),1,mutableListOf())
         assertNull(scouts.getValue("pilot").attack)

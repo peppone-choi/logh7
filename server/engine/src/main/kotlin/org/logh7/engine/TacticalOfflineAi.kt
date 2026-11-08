@@ -71,7 +71,7 @@ internal object TacticalOfflineAi {
             val stop=if(kind==4)(TacticalMissionRules.RECONNAISSANCE_RANGE_TACTICAL/2).toFloat() else if(kind in 1..2)3f else if(kind==5)0f else 2f
             // 占領 (mission 2): carriers with troops close in to anchor at the target base and land them (U-01).
             val occupied=if(kind==2)g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid} else null
-            val motion=path(p.grid,now,nextPose,goal,stop,energy.values[0]/100f)
+            val motion=path(g,p.grid,now,nextPose,goal,stop,energy.values[0]/100f)
             val retreat=if(kind==5 && RetreatRules.outside(pose))RetreatRules.destination(g,p,players.values,stocks,pose)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
             val attack=if(kind in setOf(4,5) || enemies.isEmpty() || kind==3 && enemy==null)null
@@ -109,7 +109,7 @@ internal object TacticalOfflineAi {
                     val lateral=((unit.id%5)-2)*1.5f
                     val destination=goal?.let {TacticalPoint(it.x+lateral,it.y)}
                     val carrying=occupied!=null && original.activeGround?.values.orEmpty().any {it.carrier==unit.id && it.order==null}
-                    val moving=path(p.grid,now,at,if(carrying)TacticalCommandOperations.basePoint(occupied!!,now,stocks) else destination,
+                    val moving=path(g,p.grid,now,at,if(carrying)TacticalCommandOperations.basePoint(occupied!!,now,stocks) else destination,
                         if(carrying)0.2f else stop,velocity)
                     val old=unit.tactical
                     val withdraw=if(kind==5 && retreat!=null)retreat.copy(membershipChecked=false) else null
@@ -165,12 +165,16 @@ internal object TacticalOfflineAi {
         }
         return if(!changed)outfit else outfit.copy(activeShips=ActiveShipUnits(units),activeGround=ActiveGroundUnits(troops))
     }
-    private fun path(grid:Int,now:Long,pose:TacticalPose,goal:TacticalPoint?,stop:Float,velocity:Float):TacticalMotion {
+    private fun path(g:Galaxy,grid:Int,now:Long,pose:TacticalPose,goal:TacticalPoint?,stop:Float,velocity:Float):TacticalMotion {
         val length=goal?.let {distance(pose.position,it)} ?: 0f
         val end=if(goal==null || length<=stop)pose.position else TacticalPoint(
             goal.x+(pose.position.x-goal.x)*stop/length,goal.y+(pose.position.y-goal.y)*stop/length)
-        val direction=if(end==pose.position)pose.direction else atan2(end.x-pose.position.x,end.y-pose.position.y)
-        return TacticalMotion(grid,now,pose,if(end==pose.position)0f else velocity,direction,listOf(end),waitSeconds=0)
+        val waypoints=TacticalTerrain.route(g,grid,pose.position,end)
+        val moving=waypoints.size>1 || waypoints.single()!=pose.position
+        val approach=waypoints.getOrElse(waypoints.lastIndex-1) {pose.position}
+        val destination=waypoints.last()
+        val direction=if(moving)atan2(destination.x-approach.x,destination.y-approach.y) else pose.direction
+        return TacticalMotion(grid,now,pose,if(moving)velocity else 0f,direction,waypoints,waitSeconds=0)
     }
     private fun allocation(kind:Int,withdraw:Boolean):TacticalEnergy {
         var available=checkNotNull(Flagships.find(kind)).number("出力:出力")

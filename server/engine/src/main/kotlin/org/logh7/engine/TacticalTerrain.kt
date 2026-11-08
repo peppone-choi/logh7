@@ -37,6 +37,23 @@ object TacticalTerrain {
         }
         return false
     }
+    /** Routes autonomous movement around the star using clear corners on either side. */
+    internal fun route(galaxy:Galaxy,grid:Int,start:TacticalPoint,end:TacticalPoint):List<TacticalPoint> {
+        val direct=listOf(end)
+        if(!pathBlocked(galaxy,grid,start,direct))return direct
+        val clearance=(checkNotNull(starRadius(galaxy,grid))*2).toFloat()
+        val corners=listOf(TacticalPoint(clearance,clearance),TacticalPoint(-clearance,clearance),
+            TacticalPoint(-clearance,-clearance),TacticalPoint(clearance,-clearance))
+        val candidates=corners.indices.flatMap {i->
+            listOf(listOf(corners[i],end),listOf(corners[i],corners[(i+1)%4],end),
+                listOf(corners[i],corners[(i+3)%4],end))
+        }
+        return candidates.filterNot {pathBlocked(galaxy,grid,start,it)}
+            .minByOrNull {route->(listOf(start)+route).zipWithNext().sumOf {(a,b)->
+                hypot(a.x.toDouble()-b.x,a.y.toDouble()-b.y)
+            }} ?: listOf(start)
+    }
+
     /** A target inside the sensor obstacle is hidden from observers outside it. */
     fun sensorBlocked(galaxy: Galaxy, grid: Int, observer: TacticalPoint, target: TacticalPoint): Boolean {
         val radius = (starRadius(galaxy, grid) ?: return false) * 2
