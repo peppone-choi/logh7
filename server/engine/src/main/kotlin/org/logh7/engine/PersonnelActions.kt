@@ -18,7 +18,9 @@ internal object PersonnelActions {
         val offices=OrganizationOffices.system(country,countries) ?: return reject(StrategyActionRejection.AUTHORITY)
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(r.identities.size>4096 || r.identities.distinctBy {it.id}.size!=r.identities.size)return reject(StrategyActionRejection.IDENTITY)
-        val identity=r.identities.singleOrNull {it.id==r.target} ?: return reject(StrategyActionRejection.IDENTITY)
+        // Existing estates can still be recovered from a deceased holder.
+        val eligible=r.identities.filter {it.country==country && (r.command==9 || !BattleDeath.deceased(stocks,it.id))}
+        val identity=eligible.singleOrNull {it.id==r.target} ?: return reject(StrategyActionRejection.IDENTITY)
         if(identity.country!=p.country || identity.id==r.characterId)return reject(StrategyActionRejection.IDENTITY)
         if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val policy=OrganizationalOfficePolicy(galaxy,countries)
@@ -48,7 +50,7 @@ internal object PersonnelActions {
                     else -> if(offices==2)19 else 160
                 }
                 if(!holds(authority))return reject(StrategyActionRejection.AUTHORITY)
-                val entries=r.identities.filter {it.country==country && ladder(it)==rank}.map {id->
+                val entries=eligible.filter {ladder(it)==rank}.map {id->
                     val progress=stocks.strategic.people[id.id] ?: StrategicPerson()
                     LadderEntry(id.id.toString(),progress.merit,if(ranks==Power.EMPIRE && family.peerage=="empire")progress.peerage else null,
                         progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong),
@@ -59,7 +61,7 @@ internal object PersonnelActions {
                 val limited=when(changedRank){2->LimitedRank.MARSHAL;3->LimitedRank.SENIOR_ADMIRAL;4->LimitedRank.ADMIRAL;
                     5->LimitedRank.VICE_ADMIRAL;6->LimitedRank.REAR_ADMIRAL;7->LimitedRank.COMMODORE;else->null}
                 if(limited!=null) {
-                    val count=r.identities.count {it.country==country && ladder(it)==changedRank}
+                    val count=eligible.count {ladder(it)==changedRank}
                     val capacity=RankRules.capacity(ranks,limited) ?: return reject(StrategyActionRejection.RANK)
                     if(count>=capacity)return reject(StrategyActionRejection.MAXIMUM)
                 }
