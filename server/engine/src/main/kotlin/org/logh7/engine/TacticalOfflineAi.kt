@@ -140,8 +140,7 @@ internal object TacticalOfflineAi {
         val point=TacticalBasePosition.at(base,now,stocks)
         val reach=maxOf(1.0,base.diameter.toDouble(),if(base.kind==0)5.5 else 0.5)
         var units=ships.values;var troops=ground.values;var changed=false
-        var box=stocks.outfits.values.filter {it.country==outfit.country}.sumOf {o->o.activeGround?.values.orEmpty()
-            .count {it.base==base.id || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==base.id}==true}}
+        var box=TacticalGroundOperations.landingSlotsUsed(base,outfit.country,players,stocks,g)
         for(unit in ships.values) {
             val aboard=troops.filter {it.carrier==unit.id && it.order==null && GroundBattleRules.admitsCrewType(base,
                 UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}

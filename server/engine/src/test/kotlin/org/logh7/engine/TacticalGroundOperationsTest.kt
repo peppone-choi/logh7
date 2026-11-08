@@ -125,6 +125,23 @@ class TacticalGroundOperationsTest {
         galaxy=galaxy(80)
         val h=state(kind=2);assertNotNull(accept(h,Navigation(galaxy,h.nav,NavigationPolicy()),production(h)).player)
     }
+    @Test fun anInvalidSavedReservationDoesNotBlockANewLanding() {
+        val s=state(defenders=29)
+        val outfit=s.stocks.outfits.getValue(1)
+        val stale=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,1,1000,now,now+600)
+        val roster=ActiveGroundUnits(outfit.activeGround!!.values.map {u->if(u.carrier==1)u.copy(order=stale) else u})
+        s.stocks=s.stocks.copy(outfits=mapOf(1 to outfit.copy(activeGround=roster)),
+            tacticalCommands=s.stocks.tacticalCommands.copy(morale=mapOf(1 to 15)))
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        val p=production(s)
+        assertNotNull(accept(s,nav,p,request(ids=listOf(4))).player)
+        val events=mutableListOf<TacticalGroundResult>()
+        settle(s,nav,p,now+600,events)
+        assertTrue(events.single {it.order.carrier==1}.cancelled)
+        assertFalse(events.single {it.order.carrier==4}.cancelled)
+        assertEquals(30,s.stocks.outfits.getValue(1).activeGround!!.values.count {it.base==1000})
+    }
+
     @Test fun anOverbookedSaveLandsTheFirstValidReservationThatFits() {
         for(invalidLater in listOf(false,true)) {
             val s=state(defenders=29)
