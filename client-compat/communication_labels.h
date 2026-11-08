@@ -87,8 +87,13 @@ static void __fastcall selectedMailRecipient(void* context,void*,const char* tex
        logh::officeFriendCacheName(world+0x448808,id,wide))
         reinterpret_cast<void(__cdecl*)(void*,const wchar_t*,int)>(0x4ea8b0)(widget+0xb04,wide.c_str(),-1);
 }
+static logh::HudNameRefresh hudNameRefresh;
+// A null original re-renders the existing label; the native call only runs for its by-value CString.
 static void __fastcall hudPersonalNameLabel(void* root,void*,void* widget,const char* original) {
-    reinterpret_cast<void(__thiscall*)(void*,void*,const char*)>(0x5034d0)(root,widget,original);
+    if(original) {
+        reinterpret_cast<void(__thiscall*)(void*,void*,const char*)>(0x5034d0)(root,widget,original);
+        hudNameRefresh.bind(root,widget);
+    }
     const auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
     const auto own=world?at<void*>(world,8):nullptr;
     if(!own || !widget || !at<BYTE>(widget,8))return;

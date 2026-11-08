@@ -17,6 +17,15 @@ inline bool hudPersonalName(const wchar_t* name,unsigned rank,const std::wstring
     result=rank>1 ? wide+rankText+L"\n" : rankText+wide+L"\n";
     return true;
 }
+// A rank changed by 0356 waits here until a drawn frame re-renders the label on the HUD that created it.
+struct HudNameRefresh {
+    void* root=nullptr;
+    void* widget=nullptr;
+    bool pending=false;
+    void bind(void* hudRoot,void* label) {root=hudRoot;widget=label;pending=false;}
+    void rankChanged(unsigned before,unsigned after) {if(before!=after && widget)pending=true;}
+    bool due(void* liveRoot,bool active)const {return pending && active && liveRoot && liveRoot==root;}
+};
 struct MailPeerRows {
     struct Row {bool present=false;unsigned mail=0,peer=0;std::string narrow;std::wstring wide;};
     struct Box {uintptr_t owner=0,root=0,table=0;Row rows[100];};

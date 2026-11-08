@@ -435,6 +435,7 @@ static void __fastcall drawHud(void* map, void*) {
     reinterpret_cast<void(__thiscall*)(void*)>(0x4d5610)(map);
     drawHudStrips();
     drawDockingStatus();
+    refreshHudPersonalName();
     drawSystemAffiliationIcons(map);
     void* world = *reinterpret_cast<void**>(0x7ccffc);
     pollNativeFacilityNames(world);
