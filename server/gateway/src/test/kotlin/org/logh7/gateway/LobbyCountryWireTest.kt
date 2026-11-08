@@ -39,7 +39,7 @@ class LobbyCountryWireTest {
     private fun catalogue(client:SyntheticClient,session:Int,nonce:Int,offset:Int):List<Pair<Int,List<String>>> {
         client.send(query(session,nonce,offset))
         val header=fields(client.expect(0x032f),session,nonce*512+offset)
-        val rows=header.second[3].toInt()
+        val rows=if(header.second[0]=="NC1")header.second[3].toInt() else 0
         return listOf(header)+(0 until rows).map {fields(client.expect(0x032f),session,nonce*512+offset)}
     }
 
@@ -118,5 +118,42 @@ class LobbyCountryWireTest {
                 assertEmblem(game,2,3,0)
             }
         }
+    }
+
+    @Test fun lobbyPortraitIsScopedToBothSessionAndAccount() {
+        val sessions=GameSessionDirectory()
+        val accounts=mapOf("load-000" to "fixture","load-001" to "fixture")
+        val definitions=CharacterCreation.originalDefinitions()
+        val character=OriginalCharacterMessages.localCandidates.first().character.copy(generated=false)
+        val colors=listOf(ByteArray(4096){24},ByteArray(4096){76})
+        fun world(index:Int):LoadFixture {
+            val path=java.nio.file.Files.createDirectories(directory.resolve("world-$index"))
+            java.nio.file.Files.newOutputStream(path.resolve("characters.properties")).use {out->
+                java.util.Properties().apply {setProperty("load-000",CharacterProfile.legacy(character).encoded())}.store(out,null)
+            }
+            val portraits=PublishedOriginalCandidates(definitions)
+            portraits.publish(listOf(OriginalCandidateEdit(character.id,1,definitions.first().profile.copy(portraitKey="face"))))
+            portraits.publishPortraits(mapOf("face" to CandidatePortrait(1,colors[index-1])))
+            return LoadFixture(path,3,LoadMetrics(),galaxy,ticking=false,sessionDirectory=sessions,sessionId=index,
+                sessionName="World $index",accountSource=accounts,originalCandidates=portraits)
+        }
+        world(1).use {first->world(2).use {
+            fun expect(account:Int,session:Int,id:Int,pixels:ByteArray?) {
+                val mode=CountryImageMessages.LOBBY_PORTRAIT_MODE
+                val token=(5 shl 16) or session
+                val query=OutfitPartyMessages.Query(id,token,mode)
+                lobby(first,account).use {client->
+                    client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(id).putInt(token).put(mode.toByte()).array())
+                    for(frame in CountryImageMessages.portraitReply(query,if(pixels==null)0 else 1,pixels))
+                        assertContentEquals(frame,client.expect(0x032f))
+                }
+            }
+            lobby(first,0).use {client->assertEquals(listOf("NC2","0","350","1"),catalogue(client,2,127,350).single().second.take(4))}
+            expect(0,1,1001,colors[0])
+            expect(0,2,1001,colors[1])
+            expect(1,2,1001,null)
+            expect(0,2,1002,null)
+            expect(0,3,1001,null)
+        }}
     }
 }

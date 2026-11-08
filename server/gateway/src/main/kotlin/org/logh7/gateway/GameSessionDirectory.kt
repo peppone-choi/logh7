@@ -4,6 +4,7 @@ import org.logh7.protocol.LobbyMessages
 import org.logh7.protocol.LobbyMessages.SelectionFailure
 import org.logh7.protocol.CountryImageMessages
 import org.logh7.protocol.SessionEndingMessages
+import org.logh7.engine.CandidatePortrait
 
 /** One process may host several worlds; only their lobby descriptions and tickets are shared. */
 class GameSessionDirectory {
@@ -16,7 +17,8 @@ class GameSessionDirectory {
         /** Lobby country catalogue (mode 7) of this world; display-only, no positions or personal data. */
         val countries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>?)?=null,
         val endings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>?)?=null,
-        val countryEmblem: ((CountryImageMessages.LobbyRequest) -> List<ByteArray>?)? = null) {
+        val countryEmblem: ((CountryImageMessages.LobbyRequest) -> List<ByteArray>?)? = null,
+        val portrait: ((String,Int)->CandidatePortrait?)?=null) {
         init {
             require(id in 1..65535 && port in 1..65535 && name.length in 1..12 &&
                 name.none {it.isISOControl() || it.isSurrogate()} && bindHosts.isNotEmpty())
@@ -55,6 +57,8 @@ class GameSessionDirectory {
     }
     fun countryEmblem(request: CountryImageMessages.LobbyRequest): List<ByteArray>? =
         snapshot().firstOrNull { it.id == request.sessionId && it.unavailableReason()==null }?.countryEmblem?.invoke(request)
+    fun portrait(request:CountryImageMessages.LobbyPortraitRequest,account:String):CandidatePortrait? =
+        snapshot().firstOrNull {it.id==request.sessionId && it.unavailableReason()==null}?.portrait?.invoke(account,request.query.outfit)
     fun select(id:Int,bindHost:String?):Selection {
         val entry=snapshot().firstOrNull {it.id==id} ?: return Refused(SelectionFailure.UNAVAILABLE)
         val address=if(bindHost==null || bindHost=="127.0.0.1")entry.address

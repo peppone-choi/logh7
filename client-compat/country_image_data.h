@@ -31,7 +31,7 @@ struct CountryImageDraft {
             std::uint64_t emblem=0;
             if(mode==18 ? (!lobbyCountryNumber(fields[8],3,emblem) || emblem==1 || n[0]>4098) : fields[8][0]!=0)return 0;
             bytes=static_cast<unsigned>(n[0]);hash=static_cast<unsigned>(n[1]);length=static_cast<unsigned>(n[2]);chunks=static_cast<unsigned>(n[3]);
-            if((bytes!=2 && bytes!=4098 && bytes!=8194) || (mode==20 && (bytes>4098 || (revision>0)!=(bytes==4098))) ||
+            if((bytes!=2 && bytes!=4098 && bytes!=8194) || ((mode==20 || mode==21) && (bytes>4098 || (revision>0)!=(bytes==4098))) ||
                 length!=((bytes+2)/3)*4 || chunks!=(length+11)/12)return 0;
             value.revision=revision;value.nativeEmblem=static_cast<unsigned>(emblem);header=true;return 1;
         }
@@ -63,7 +63,7 @@ struct CountryImageDraft {
             if(padding>2 || (padding==1 && (decoded&255)) || (padding==2 && (decoded&65535)))return 0;
             for(unsigned j=0;j<3-padding;++j) {if(out>=bytes)return 0;raw[out++]=static_cast<unsigned char>(decoded>>(16-j*8));}
         }
-        if(out!=bytes || countryImageHash(raw,bytes)!=hash || raw[0]!=1 || raw[1]>((mode==18 || mode==20) ? 1 : 3) ||
+        if(out!=bytes || countryImageHash(raw,bytes)!=hash || raw[0]!=1 || raw[1]>((mode>=18) ? 1 : 3) ||
             bytes!=2u+4096u*static_cast<unsigned>((raw[1]&1)+((raw[1]>>1)&1)))return 0;
         value.flags=raw[1];memcpy(value.rgba,raw+2,bytes-2);complete=true;return 2;
     }

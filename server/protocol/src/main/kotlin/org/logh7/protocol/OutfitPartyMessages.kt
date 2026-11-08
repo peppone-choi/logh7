@@ -11,7 +11,7 @@ object OutfitPartyMessages {
     private fun maximumBase(mode:Int)=when {
         mode==2 -> 999999
         CountrySelectionMessages.matches(mode) || mode==OutfitAffiliationMessages.MODE || mode==TacticalCampMessages.MODE ||
-            mode==CountryImageMessages.LOBBY_MODE -> Int.MAX_VALUE
+            mode==CountryImageMessages.LOBBY_MODE || mode==CountryImageMessages.LOBBY_PORTRAIT_MODE -> Int.MAX_VALUE
         else -> 65535
     }
     data class Member(val id: Int, val kind: Int, val rank: Int, val name: String)
