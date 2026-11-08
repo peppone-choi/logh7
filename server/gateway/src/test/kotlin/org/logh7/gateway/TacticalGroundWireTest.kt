@@ -13,7 +13,7 @@ import kotlin.test.*
 
 class TacticalGroundWireTest {
     @TempDir lateinit var directory:Path
-    @Test fun encryptedDeployWaitsSurvivesPeerReconnectAndWithdrawReturnsTheSameIds()=runBlocking {
+    @Test fun encryptedDeployResumesPrivatelyAndWithdrawReturnsTheSameIds()=runBlocking {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,0f,86400,0,0f,2f),
                 GalaxyBase(1001,2487,80,0,"Enemy",0,0f,86400,0,0f,2f)),Power.entries.associateWith {2487})
@@ -33,6 +33,17 @@ class TacticalGroundWireTest {
         val commit=WorldStateCommitter {p,s->savedPlayers=p.toMap();savedStocks=checkNotNull(s)}
         fun through(c:SyntheticClient,op:Int):ByteArray {repeat(500){val p=c.receive();if(ByteBuffer.wrap(p).getShort(4).toInt()==op)return p};error("Missing $op")}
         fun notice(c:SyntheticClient)=ChatMessages.spot(through(c,0x0f1d).drop(4).toByteArray())
+        fun noticesBeforeClock(c: SyntheticClient): List<ChatMessages.Spot> = buildList {
+            c.send(SyntheticClient.opcode(0x0300))
+            repeat(500) {
+                val message = c.receive()
+                when (ByteBuffer.wrap(message).getShort(4).toInt()) {
+                    0x0301 -> return@buildList
+                    0x0f1d -> add(ChatMessages.spot(message.drop(4).toByteArray()))
+                }
+            }
+            error("Missing clock reply")
+        }
         fun command(op:Int,char:Int)=ByteBuffer.allocate(if(op==0x040f)20 else 19).putShort(op.toShort()).putLong(-1)
             .putInt(char).put(1).putInt(1).apply {if(op==0x040f)put(0)}.array()
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=nav,stockStore=stock,
@@ -46,8 +57,17 @@ class TacticalGroundWireTest {
             assertEquals(0,ack.int);assertEquals(600,ack.getInt(10))
             assertEquals(ChatMessages.Spot(10000,"[육전] 접수 · 약 25초 · CP 0"),notice(clients[0]))
             assertTrue(fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).activeGround!!.values.all {it.carrier==1 && it.order!=null})
+            fixture.engine.submit(WorldCommand.AdvanceTo(10001))
+            withTimeout(5000) { while (fixture.engine.snapshot().session!!.gameSeconds < now + 240) delay(1) }
             clients[1].close();fixture.awaitState(online=1,connections=1,participants=2)
-            clients[1]=join(1,false);assertEquals(600,ByteBuffer.wrap(through(clients[1],0x040f)).getInt(10))
+            clients[1]=join(1,false);assertEquals(360,ByteBuffer.wrap(through(clients[1],0x040f)).getInt(10))
+            assertTrue(noticesBeforeClock(clients[1]).isEmpty())
+            assertTrue(noticesBeforeClock(clients[1]).isEmpty())
+            clients[0].close();fixture.awaitState(online=1,connections=1,participants=2)
+            clients[0]=join(0,false);assertEquals(360,ByteBuffer.wrap(through(clients[0],0x040f)).getInt(10))
+            assertTrue(noticesBeforeClock(clients[0]).isEmpty())
+            assertEquals(listOf(ChatMessages.Spot(10000,"[육전] 진행 중 · 약 15초 남음")),noticesBeforeClock(clients[0]))
+            assertTrue(noticesBeforeClock(clients[0]).isEmpty())
             fixture.engine.submit(WorldCommand.AdvanceTo(25000))
             withTimeout(5000){while(fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).activeGround!!.values.any {it.order!=null})delay(1)}
             for(c in clients) {
