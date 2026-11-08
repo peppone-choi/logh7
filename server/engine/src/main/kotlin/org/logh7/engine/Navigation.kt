@@ -26,7 +26,9 @@ data class Navigator(val generation: Long, val characterId: Int, val country: Co
     /** Strategic CP spent but not yet converted into ability experience (CpExperience). */
     val pcpUsed: Int = 0, val mcpUsed: Int = 0,
     val shipStyle:ShipStyleId=ShipStyleId.fromLegacy(country.legacyPower()),
-    val offlineWarpCancellation: NavigationRejection? = null) {
+    val offlineWarpCancellation: NavigationRejection? = null,
+    /** The first assigned home in this world. Zero means a legacy or unassigned home. */
+    val originBase: Int = 0) {
     constructor(generation:Long,characterId:Int,power:Power,grid:Int,pcp:Int,mcp:Int,cruise:Int,moves:Long=0,
         baseId:Int=0,mode:Int=5,spotId:Int=0,spotOwner:Int=0,cpRecoveryAt:Long?=null,cpPaused:Boolean=false,
         fuelReadyAt:Long?=null,strategy:StrategyCheckpoint?=null,dockTarget:Int?=null,returnBase:Int=0,
@@ -44,7 +46,7 @@ data class Navigator(val generation: Long, val characterId: Int, val country: Co
     val navigationPending: Boolean get() = fuelReadyAt != null || dockTarget != null || warpTarget != null
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && pcpUsed in 0..CpExperience.USED_LIMIT && mcpUsed in 0..CpExperience.USED_LIMIT && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
-        spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && supplies in 0..10_000 &&
+        spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && originBase in 0..65535 && supplies in 0..10_000 &&
         (offlineWarpCancellation == null || offlineWarpCancellation == NavigationRejection.GRID ||
             offlineWarpCancellation == NavigationRejection.CRUISE || offlineWarpCancellation == NavigationRejection.STAR_SYSTEM_NOT_ADJACENT) &&
         (hull == null || Flagships.find(hull.kind)?.power == shipStyle.nativePower) &&
@@ -226,8 +228,21 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             countries.shipStyle(it)
         } ?: return reject(NavigationRejection.IDENTITY)
         if(style.value !in setOf("empire","alliance"))return reject(NavigationRejection.UNIT)
-        var initial = existing ?: Navigator(request.generation, request.characterId, request.country,
-            start, policy.initialCp, policy.initialCp, policy.initialCruise,shipStyle=style)
+        var initial = existing ?: run {
+            val country = request.country
+            val home = country?.let { owner ->
+                val candidates = galaxy.bases.filter { it.grid == start }.filter { base ->
+                    val condition = galaxy.conditions.getValue(base.id)
+                    val stock = stocks?.bases?.get(base.id)
+                    condition.habitability == 1 &&
+                        (galaxy.initialOwners.getValue(base.id) == Allegiance.Country(owner) && condition.camp == 0 ||
+                            stock?.let { it.belongsTo(owner) && it.camp == 0 } == true)
+                }
+                candidates.firstOrNull { Capital.of(it)?.power == owner.value } ?: candidates.minByOrNull { it.id }
+            }
+            Navigator(request.generation, request.characterId, country, start, policy.initialCp,
+                policy.initialCp, policy.initialCruise, shipStyle = style, originBase = home?.id ?: 0)
+        }
         if (stocks != null && initial.returnBase != 0 && returnBaseRejection(initial, initial.returnBase, stocks) != null)
             initial = initial.copy(returnBase = 0)
         if (initial.offlineWarpCancellation != null && initial.offlineWarpCancellation == request.acknowledgedOfflineWarpCancellation)

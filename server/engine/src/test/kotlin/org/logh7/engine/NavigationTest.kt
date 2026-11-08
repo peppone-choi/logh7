@@ -135,7 +135,10 @@ class NavigationTest {
     }
     @Test fun movesPersistAndReconnectCannotResetLocationOrCp() = runBlocking {
         val store = Store()
-        val engine = WorldEngine(this, ticking = false, galaxy = galaxy(), navigationStore = store)
+        val home = GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
+        val world = Galaxy(galaxy().systems, listOf(home), galaxy().starts,
+            initialOwners = mapOf(home.id to Allegiance.Country(Power.EMPIRE.country)))
+        val engine = WorldEngine(this, ticking = false, galaxy = world, navigationStore = store)
         val join = CompletableDeferred<Admission>()
         engine.submit(WorldCommand.Join("pilot", Power.EMPIRE, false, join, "connection", 1))
         assertEquals(Admission.ACCEPTED, join.await())
@@ -146,6 +149,7 @@ class NavigationTest {
         assertEquals(2487, navigate(request).player!!.grid)
         val moved = navigate(request.copy(destination = 2488, unitId = 1010000, captainCard = 59)).player!!
         assertEquals(2488, moved.grid); assertEquals(960, moved.mcp); assertEquals(900, moved.cruise)
+        assertEquals(home.id, moved.originBase)
         assertEquals(moved, store.saved["pilot"])
         assertEquals(moved, engine.snapshot().navigators["pilot"])
         assertEquals(moved, navigate(request).player)
