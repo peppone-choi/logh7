@@ -10,12 +10,13 @@ static SRWLOCK groundPanelLock=SRWLOCK_INIT;
 struct GroundPanelRow {unsigned id,kind,strength,target,morale,commander,relation;bool reserve;};
 struct GroundPanelCommander {unsigned id;wchar_t name[13];};
 static struct GroundPanel {
-    BYTE* world; unsigned grid,base,count,cursor,activeBase;bool partial;
+    BYTE* world; unsigned grid,count,cursor,activeBase,searchSlots;bool partial,searching,searchFailed;
     GroundPanelRow rows[70];
     GroundPanelCommander commanders[10];unsigned commanderCount;
-    ULONGLONG pollAt,activeUntil;
+    ULONGLONG pollAt,refreshAt,activeUntil;
 } groundPanel={};
 static struct GroundPanelInbox {
+    BYTE* world; unsigned grid;
     bool pending,marked,recordPending; unsigned base,ready,count,flags; GroundPanelRow rows[70]; ULONGLONG sentAt;
     GroundPanelCommander commanders[10];unsigned commanderCount;
 } groundPanelInbox={};
@@ -81,6 +82,10 @@ static void groundCommanderName(unsigned id,wchar_t (&name)[32]) {
     }
     _snwprintf_s(name,_countof(name),_TRUNCATE,L"지휘관 #%u",id);
 }
+static void searchNextGroundBattle() {
+    auto& s=groundPanel;
+    s.searching=true;s.searchFailed=false;s.searchSlots=350;s.pollAt=0;
+}
 static void updateGroundPanel() {
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);auto own=world ? at<BYTE*>(world,8) : nullptr;
     auto& s=groundPanel;
@@ -90,7 +95,7 @@ static void updateGroundPanel() {
     ULONGLONG now=GetTickCount64();unsigned query[3]={0,0,3};bool send=false;
     AcquireSRWLockExclusive(&groundPanelLock);
     auto& q=groundPanelInbox;
-    if (q.ready) {
+    if (q.ready && q.world==world && q.grid==grid) {
         bool fight=(q.flags&2) && q.count;
         if(!(q.flags&1)) {
             bool empire=false,alliance=false;
@@ -98,24 +103,37 @@ static void updateGroundPanel() {
             fight=empire && alliance;
         }
         if (fight || q.ready==s.activeBase) {
+            if (fight && q.ready!=s.activeBase) {
+                s.searching=false;s.searchFailed=false;s.refreshAt=now+3000;
+            }
             s.activeBase=fight ? q.ready : 0;s.count=q.count;memcpy(s.rows,q.rows,sizeof(s.rows));
             s.partial=(q.flags&1) && (q.flags&4);
             s.commanderCount=q.commanderCount;memcpy(s.commanders,q.commanders,sizeof(s.commanders));
             s.activeUntil=fight ? now+8000 : 0;
         }
-        q.ready=0;
     }
+    q.ready=0;
     if (q.pending && now-q.sentAt>=6000) q.pending=q.marked=false;
     if (!q.pending && !q.recordPending && now>=s.pollAt) {
-        // Follow the running battle; otherwise visit this battlefield's bases one per poll.
-        unsigned base=s.activeBase;
-        for (unsigned step=0;!base && step<350;++step) {
+        // Keep the displayed roster fresh while checking other bases on demand.
+        unsigned base=s.activeBase && (!s.searching || now>=s.refreshAt) ? s.activeBase : 0;
+        const bool scanning=!base;
+        unsigned slots=s.searching ? s.searchSlots : 350;
+        if (!base) while (slots && !base) {
+            --slots;
             s.cursor=(s.cursor+1)%350;unsigned id=at<unsigned>(world,0x2eb288+s.cursor*4);
-            if (id && id<=65535 && reinterpret_cast<void*(__cdecl*)(void*,unsigned,BYTE,BYTE,BYTE,BYTE)>(0x4c7cd0)
+            if (id && id!=s.activeBase && id<=65535 && reinterpret_cast<void*(__cdecl*)(void*,unsigned,BYTE,BYTE,BYTE,BYTE)>(0x4c7cd0)
                 (world+0x126718,id,0,255,255,255)) base=id;
         }
-        if (base) {q.pending=true;q.marked=false;q.base=base;q.sentAt=now;query[1]=base;send=true;}
-        s.pollAt=now+(s.activeBase ? 3000 : 1500);
+        if (s.searching && scanning) {
+            s.searchSlots=slots;
+            if (!base) {s.searching=false;s.searchFailed=true;}
+        }
+        if (base) {
+            if (base==s.activeBase) s.refreshAt=now+3000;
+            q.world=world;q.grid=grid;q.pending=true;q.marked=false;q.base=base;q.sentAt=now;query[1]=base;send=true;
+        }
+        s.pollAt=now+(s.searching ? 250 : s.activeBase ? 3000 : 1500);
     }
     ReleaseSRWLockExclusive(&groundPanelLock);
     if (send) reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(world,0,0x10,query);
