@@ -124,6 +124,20 @@ class TacticalManeuverWireTest {
             val own=savedPlayers.getValue(fixture.account(0)).motion!!
             assertEquals(if(reverse)0f else 0.5f,own.origin.position.x,0.00001f)
             assertEquals(completedDirection,own.direction,0.00001f)
+
+            clients[0].send(command(10000))
+            for(c in clients)through(c,opcode)
+            val stop=org.logh7.protocol.TacticalStopMessages.reply(
+                org.logh7.protocol.TacticalStopMessages.Stop(10000,listOf(1010000)),0)
+            clients[0].send(stop.copyOfRange(4,stop.size))
+            assertEquals(0,ByteBuffer.wrap(through(clients[0],0x040a)).int)
+            val peerStop=through(clients[1],0x040a)
+            assertEquals(listOf(1010000),
+                org.logh7.protocol.TacticalStopMessages.stop(peerStop.copyOfRange(4,peerStop.size)).units)
+            val peerPose=through(clients[1],0x0400) { ByteBuffer.wrap(it).getInt(19)==1010000 }
+            assertEquals(0,ByteBuffer.wrap(peerPose).getInt(10))
+            assertNull(savedPlayers.getValue(fixture.account(0)).motion!!.rotation)
+            assertTrue(savedStocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.motion.rotation!=null)
         }
     }
 }
