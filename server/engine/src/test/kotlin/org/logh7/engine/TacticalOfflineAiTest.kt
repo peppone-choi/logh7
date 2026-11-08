@@ -89,6 +89,23 @@ class TacticalOfflineAiTest {
         }
     }
 
+    @Test fun onlyTheActualFortressCommanderDefaultsToDefendingTheMobileFortress() {
+        val base=galaxy.bases.single().copy(mobile=true)
+        val world=Galaxy(galaxy.systems,listOf(base),galaxy.starts)
+        val plain=stocks()
+        val point=TacticalPoint(15f,0f)
+        for (appointed in listOf(true,false)) {
+            val players=players()
+            val stock=plain.copy(bases=mapOf(base.id to plain.bases.getValue(base.id).copy(garrisonCommanderId=10000)),
+                tacticalCommands=plain.tacticalCommands.copy(missions=emptyMap(),
+                    fortresses=mapOf(base.id to TacticalFortressMotion(base.grid,motion(point.x,point.y)))),
+                strategic=StrategicState(offices=if(appointed)listOf(OfficeHolding(51,base.id,10000)) else emptyList()))
+            TacticalOfflineAi.advance(offline,world,players,stock,1,mutableListOf())
+            val end=players.getValue("pilot").motion!!.waypoints.single()
+            assertEquals(if(appointed)TacticalPoint(12f,0f) else TacticalPoint(0f,28f),end)
+        }
+    }
+
     @Test fun missionsFromAnotherGridDoNotOverrideLocalOfflinePatrol() {
         for (kind in 3..5) {
             val players=players()
