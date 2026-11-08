@@ -4,6 +4,30 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NpcTacticsTest {
+    @Test fun advisorCanChooseOnlyAnEnemyInTheCurrentWeaponArc() {
+        for (choice in listOf(null, 1010001, 1010002)) {
+            val state = state()
+            val pilot = state.players.getValue("pilot")
+            fun enemy(id: Int, point: TacticalPoint) = pilot.copy(characterId = id,
+                motion = TacticalMotion(2488, now, TacticalPose(point, 0f), 0f, 0f, listOf(point)))
+            val players = (state.players + ("second" to enemy(10001, TacticalPoint(-181f, -94.5f))) +
+                ("out-of-range" to enemy(10002, TacticalPoint(-190f, -95f)))).toMutableMap()
+            val outfit = state.stocks.outfits.getValue(1)
+            val point = TacticalPoint(-178f, -95f)
+            val facing = (-Math.PI / 2).toFloat()
+            val motion = TacticalMotion(2488, now, TacticalPose(point, facing), 0f, facing, listOf(point))
+            val unit = outfit.activeShips!!.values.single().copy(tactical = NpcTacticalState(motion, now + 1, now))
+            val stocks = state.stocks.copy(outfits = mapOf(1 to outfit.copy(activeShips = ActiveShipUnits(listOf(unit)))))
+            val impacts = mutableListOf<TacticalImpact>()
+            val observed = mutableListOf<NpcFireDecision>()
+            val policy = NpcTacticalPolicy(chooseFireTarget = { observed += it; choice })
+            NpcTactics.advance(session, galaxy, players, stocks, policy, 24, impacts, mutableListOf())
+            val beam = observed.single { it.weapon == TacticalWeapon.BEAM }
+            assertEquals(listOf(1010000, 1010001), beam.targets.map { it.id })
+            assertEquals(if (choice == 1010001) choice else 1010000, impacts.first().hit.target)
+        }
+    }
+
     @Test fun twoNpcUnitsSpendTheirOwnPersistedCargoInsteadOfDrainingAnotherUnit() {
         val state=state()
         val original=state.stocks.outfits.getValue(1)
