@@ -60,6 +60,37 @@ class TacticalOfflineAiTest {
         }
     }
 
+    @Test fun interceptionWaitsForItsTargetInsteadOfAttackingAnUnrelatedVisibleEnemy() {
+        val players=players()
+        val plain=stocks(3)
+        val command=plain.tacticalCommands
+        val missing=command.missions.getValue(10000).copy(target=98)
+        val stock=plain.copy(tacticalCommands=command.copy(missions=mapOf(10000 to missing)))
+        val next=TacticalOfflineAi.advance(offline,galaxy,players,stock,1,mutableListOf())
+        assertNull(players.getValue("pilot").attack)
+        assertEquals(0f,players.getValue("pilot").motion!!.velocity)
+        assertNull(next.outfits.getValue(1).activeShips!!.values.single().attack)
+    }
+
+    @Test fun anExistingFleetAttackDoesNotSwitchTargetsDuringOfflineInterception() {
+        val plain=stocks(3)
+        val own=plain.outfits.getValue(1)
+        val enemy=plain.outfits.getValue(2)
+        val shooting=own.activeShips!!.values.single().copy(
+            attack=TacticalUnitAttack(10000,TacticalAttackOrder(2,now,now,now)))
+        val nearby=enemy.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,3f),now,now))
+        val command=plain.tacticalCommands
+        val missing=command.missions.getValue(10000).copy(target=98)
+        val stock=plain.copy(outfits=mapOf(1 to own.copy(activeShips=ActiveShipUnits(listOf(shooting))),
+            2 to enemy.copy(activeShips=ActiveShipUnits(listOf(nearby)))),
+            tacticalCommands=command.copy(missions=mapOf(10000 to missing)))
+        val impacts=mutableListOf<TacticalImpact>()
+        TacticalFleetAttack.advance(offline,galaxy,players(),stock,1,impacts)
+        assertTrue(impacts.isEmpty())
+        TacticalFleetAttack.advance(baseSession,galaxy,players(),stock,1,impacts)
+        assertTrue(impacts.any {it.hit.target==99},"the unrelated enemy is otherwise a valid target")
+    }
+
     @Test fun occupationAnchorsTroopCarriersAtTheEnemyBaseAndThenLandsTheirTroops() {
         // The fortress belongs to the alliance; the pilot's mission 2 (占領) targets it with a light infantry unit aboard ship 1.
         val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(5,UnitStack(0),carrier=1),ActiveGroundUnit(6,UnitStack(2),carrier=1)))

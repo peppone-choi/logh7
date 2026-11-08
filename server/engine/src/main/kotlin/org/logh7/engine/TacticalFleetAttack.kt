@@ -73,8 +73,9 @@ internal object TacticalFleetAttack {
             var unit=outfit.activeShips!!.values.single {it.id==id}
             val command=unit.attack ?: continue
             val position=outfit.positionIn(galaxy)
-            val commander=players.values.singleOrNull {it.characterId==command.commander &&
-                it.country==outfit.country}
+            val commanderEntry=players.entries.singleOrNull {it.value.characterId==command.commander &&
+                it.value.country==outfit.country}
+            val commander=commanderEntry?.value
             if(TacticalAuthority.commander(outfit,unit,stocks)!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null ||
                 commander==null || commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid) {
@@ -96,7 +97,9 @@ internal object TacticalFleetAttack {
                 if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                 val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
                 val preferred=stocks.tacticalCommands.missions[command.commander]?.takeIf {it.mission==3 && !it.completed}?.target
-                val victim=ids.sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)
+                val candidates=if(preferred!=null && TacticalOfflineAi.eligible(session,checkNotNull(commanderEntry).key,commander,stocks))
+                    listOf(preferred) else ids.sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it})
+                val victim=candidates.asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
                         val targetPosition=pose(t,now,players,stocks,galaxy).position
                         !TacticalTerrain.sensorBlocked(galaxy,position.grid,origin.position,targetPosition) &&
