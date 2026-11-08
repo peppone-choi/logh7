@@ -328,6 +328,25 @@ class TacticalCommandOperationsTest {
         assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
     }
 
+    @Test fun changingFlagshipEnginePowerKeepsTheSlowdownAndCapsTheRestoredSpeed() {
+        val s=state()
+        val pilot=s.players.getValue("pilot")
+        val motion=motion().copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)),waitSeconds=0)
+        val energy=TacticalEnergy(listOf(100)+List(10){0})
+        s.players=s.players+("pilot" to pilot.copy(energy=energy,motion=motion))
+        val wing=TacticalAirWing(10002,2488,99,pilot.unitId,1,now+100,1f)
+        s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(air=mapOf(99 to wing)))
+        val r=run(s)
+        val request=NavigationRequest("pilot",10000,Power.EMPIRE,"one",1,captainCard=59,shipKind=0,
+            unitId=pilot.unitId,energy=TacticalEnergy(listOf(40)+List(10){0}))
+        val reduced=r.navigation.apply(request,session,r.production.snapshot(1)!!)
+        assertEquals(.2f,reduced.player?.motion?.velocity)
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(run(s),now+1,events)
+        assertEquals(.4f,s.players.getValue("pilot").motion?.velocity)
+        assertEquals(.4f,events.single {it.stateOnly}.motions.getValue(pilot.unitId).velocity)
+    }
+
     @Test fun carrierLaunchSpendsExactlyTenAndLandingRestoresTargetSpeed() {
         val s=state();val foe=s.stocks.outfits.getValue(2)
         val moving=foe.activeShips!!.values.single().let {it.copy(tactical=it.tactical!!.copy(motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))}

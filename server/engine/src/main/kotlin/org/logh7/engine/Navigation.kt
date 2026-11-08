@@ -415,7 +415,10 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (energy.allocated > ship.number("出力:出力") || energy.values.zip(TacticalEnergy.MAXIMUM).any {it.first>it.second})
                 return reject(NavigationRejection.ENERGY)
             val motion = before.motion?.let { motion ->
-                val maximum = energy.values[0] / 100f*(if(motion.parallel)0.5f else 1f)
+                val slowed = stocks?.tacticalCommands?.air?.values?.any {
+                    it.grid == before.grid && it.target == before.unitId && it.mode == 1 && it.slowVelocity != null
+                } == true
+                val maximum = energy.values[0] / 100f * (if (motion.parallel) 0.5f else 1f) * (if (slowed) 0.5f else 1f)
                 if (motion.grid != before.grid || motion.velocity <= maximum) motion else motion.copy(
                     acceptedAt = maxOf(now, motion.startsAt) - motion.waitSeconds,
                     origin = motion.pose(now,before.posture,galaxy), velocity = maximum, waypoints = motion.remaining(now),reportedWaypoints=0)

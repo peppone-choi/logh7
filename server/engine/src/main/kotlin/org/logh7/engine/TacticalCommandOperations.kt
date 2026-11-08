@@ -456,7 +456,9 @@ internal object TacticalCommandOperations {
                 val m=p?.motion ?: ship(wing.target,stocks)?.unit?.tactical?.motion
                 if(m!=null && m.grid==wing.grid && m.velocity>0f) {
                     val at=pose(wing.target,wing.grid,now,players,stocks,g) ?: return
-                    updateWingTargetMotion(wing,m.copy(acceptedAt=now,origin=at,velocity=wing.slowVelocity,
+                    val maximum=p?.let {(it.energy ?: TacticalEnergy.ZERO).values[0]/100f*(if(m.parallel)0.5f else 1f)}
+                    val restored=minOf(wing.slowVelocity,maximum ?: wing.slowVelocity)
+                    updateWingTargetMotion(wing,m.copy(acceptedAt=now,origin=at,velocity=restored,
                         waypoints=m.remaining(now),reportedWaypoints=0,waitSeconds=0))
                 }
             }
