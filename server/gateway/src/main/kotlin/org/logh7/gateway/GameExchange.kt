@@ -239,7 +239,8 @@ class GameExchange(
         if (penalty == 0 && (previous?.first ?: 0) == 0 || !force && current == previous) return null
         val politics = org.logh7.engine.OfficeCpRecovery.effective(values[0], penalty)
         val administration = org.logh7.engine.OfficeCpRecovery.effective(values[1], penalty)
-        val text = "[CP 회복] 겸직 −${penalty}% · 정치 ${values[0]}→$politics · 운영 ${values[1]}→$administration"
+        val text = if (penalty == 0) "CP 복원 정치/운영 $politics/$administration"
+            else "CP -${penalty}% 정치/운영 ${values[0]}→$politics/${values[1]}→$administration"
         return ChatMessages.spot(ChatMessages.Spot(player.characterId, text), gameSeconds())
     }
     private fun currencyLabel(country: org.logh7.engine.CountryId?): org.logh7.protocol.StrategyCurrencyLabel? =
