@@ -457,7 +457,8 @@ internal object TacticalCommandOperations {
                 if(m!=null && m.grid==wing.grid && m.velocity>0f) {
                     val at=pose(wing.target,wing.grid,now,players,stocks,g) ?: return
                     val maximum=p?.let {(it.energy ?: TacticalEnergy.ZERO).values[0]/100f*(if(m.parallel)0.5f else 1f)}
-                    val restored=minOf(wing.slowVelocity,maximum ?: wing.slowVelocity)
+                    val restored=if(m.completedWaypoints(now)==m.waypoints.size)0f
+                    else minOf(wing.slowVelocity,maximum ?: wing.slowVelocity)
                     updateWingTargetMotion(wing,m.copy(acceptedAt=now,origin=at,velocity=restored,
                         waypoints=m.remaining(now),reportedWaypoints=0,waitSeconds=(m.startsAt-now).coerceAtLeast(0)))
                 }
@@ -504,7 +505,8 @@ internal object TacticalCommandOperations {
                             TacticalWeaponMount(TacticalArmaments.GUN_PROFILE,63,1,0),100,at,victim)
                         stocks=result.first;impacts+=result.second.copy(airBattle=true)
                         val moving=players.values.singleOrNull {it.unitId==wing.target}?.motion ?: ship(wing.target,stocks)?.unit?.tactical?.motion
-                        if(moving!=null && moving.velocity>0 && wing.slowVelocity==null) {
+                        if(moving!=null && moving.velocity>0 && wing.slowVelocity==null &&
+                            moving.completedWaypoints(now)<moving.waypoints.size) {
                             val existing=stocks.tacticalCommands.air.values.firstOrNull {it.source!=id && it.target==wing.target && it.slowVelocity!=null}?.slowVelocity
                             wing=wing.copy(slowVelocity=existing ?: moving.velocity)
                             if(existing==null)updateWingTargetMotion(wing,moving.copy(acceptedAt=now,origin=target,

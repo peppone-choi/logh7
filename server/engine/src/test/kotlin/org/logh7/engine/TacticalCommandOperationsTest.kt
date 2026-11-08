@@ -328,6 +328,24 @@ class TacticalCommandOperationsTest {
         assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
     }
 
+    @Test fun removingAWingDoesNotRestartACompletedRouteAfterTheTargetLosesItsCommander() {
+        val s=state()
+        val fleet=s.stocks.outfits.getValue(2)
+        val target=fleet.activeShips!!.values.single()
+        val ended=motion(0f,1.5f).copy(velocity=.25f,waypoints=listOf(TacticalPoint(0f,2f)),waitSeconds=0)
+        val moving=target.copy(tactical=target.tactical!!.copy(motion=ended),motionCommander=10002)
+        val wing=TacticalAirWing(10000,2488,1,99,1,now+100,.5f)
+        val coup=CoupState(mapOf(10000 to Plot(10000,Power.EMPIRE.country,0,revolt=5)))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to fleet.copy(activeShips=ActiveShipUnits(listOf(moving)))),
+            social=s.stocks.social.copy(coup=coup),tacticalCommands=s.stocks.tacticalCommands.copy(air=mapOf(1 to wing)))
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(run(s),now+5,events)
+        val stopped=s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion
+        assertEquals(0f,stopped.velocity)
+        assertEquals(TacticalPoint(0f,2f),stopped.origin.position)
+        assertEquals(stopped,events.single {it.stateOnly}.motions.getValue(99))
+    }
+
     @Test fun changingFlagshipEnginePowerKeepsTheSlowdownAndCapsTheRestoredSpeed() {
         val s=state()
         val pilot=s.players.getValue("pilot")
