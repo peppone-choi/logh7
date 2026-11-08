@@ -18,14 +18,18 @@ class MultiplayerPresenceTest {
         val viewer=GamePresence.Member("viewer",person,player,received::add)
         hub.update(viewer);received.clear()
         val end=TacticalEnd(1,10000,2488,"viewer")
+        fun deliver(event:TacticalEnd,current:Navigator=player.copy(cpPaused=false))=
+            hub.tacticalEnd(event,WorldSnapshot(1,0,navigators=mapOf("pilot" to current)))
+        deliver(end,player)
+        deliver(end,player.copy(grid=2489,cpPaused=false))
         for(stale in listOf(end.copy(generation=2),end.copy(character=10001),end.copy(grid=2487),end.copy(connection="old")))
-            hub.tacticalEnd(stale)
+            deliver(stale)
         assertTrue(received.isEmpty())
-        hub.tacticalEnd(end)
+        deliver(end)
         val packet=received.single().single()
         assertEquals(0x0f1f,opcode(packet));assertEquals(0,packet[6].toInt())
         hub.update(viewer.copy(player=player.copy(cpPaused=false)));received.clear()
-        hub.tacticalEnd(end);assertTrue(received.isEmpty())
+        deliver(end);assertTrue(received.isEmpty())
     }
     @Test fun waypointAccountingDoesNotRestartPeerPathButReplacementAndStopStillArrive() {
         val hub=GamePresence()
