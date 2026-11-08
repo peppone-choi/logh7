@@ -597,7 +597,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         send(current,listOf(ChatMessages.grid(ChatMessages.Grid(current.player.characterId,1,"[NPC 교신] $line"),hail.seconds)))
     }
     private fun send(viewer: Member, messages: List<ByteArray>) {
-        try { viewer.send(messages) } catch (_: Exception) { /* A closed peer cannot fail another player's command. */ }
+        try {
+            viewer.send(messages)
+            observeMotions(viewer.connection,messages)
+        } catch (_: Exception) { /* A closed peer cannot fail another player's command. */ }
     }
     private fun visible(viewer: Member, other: Member) = viewer.connection != other.connection &&
         viewer.player.generation == other.player.generation && viewer.player.grid == other.player.grid &&

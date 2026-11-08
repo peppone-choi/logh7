@@ -48,6 +48,23 @@ class GamePresenceBattlefieldTest {
         verifyBattlefield(listOf(0x0425)) { it.movement(movement.copy(motion = null, destination = 2486)) }
     }
 
+    @Test fun autonomousMovementReplacesTheReconnectWaypointCount() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("viewer", character, player, received::add))
+        val motion = TacticalMotion(2487, 100, TacticalPose(TacticalPoint(0f, 0f), 0f), 1f, 0f,
+            listOf(TacticalPoint(0f, 10f), TacticalPoint(10f, 10f), TacticalPoint(10f, 20f)), waitSeconds = 0)
+        hub.observeMotions("viewer", listOf(TacticalMotionMessages.npc(1, motion, 115)))
+        val replacement = motion.copy(acceptedAt = 120)
+        val event = TacticalMovement(1, 1, 2487, 120, replacement, recipients)
+        received.clear()
+        hub.movement(event)
+        hub.movement(event.copy(seconds = 130, waypoint = 1))
+        val packets = received.flatten()
+        assertEquals(listOf(0x0400, 0x0423), packets.map(::opcode))
+        assertEquals(1, packets.last().last().toInt())
+    }
+
     @Test fun delayedImpactDoesNotReachAViewerInAnotherGrid() {
         val impact = TacticalImpact(1, 1010001, TacticalWeapon.BEAM,
             TacticalHit(1, 2487, 100, 1, 2), recipients)
