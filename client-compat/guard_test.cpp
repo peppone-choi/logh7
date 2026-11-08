@@ -52,6 +52,7 @@
 #include "tactical_charge_data.h"
 #include "tactical_base_data.h"
 #include "tactical_notice_data.h"
+#include "flagship_weapon_data.h"
 #include "session_ending_data.h"
 #include "game_admission_data.h"
 #include "system_affiliation_data.h"
@@ -490,6 +491,17 @@ static bool displayNameTest() {
         logh::koreanFormatStringArguments(0x1234,"%s%s") ||
         logh::koreanFormatStringArguments(0x76ccf4,nullptr)) return false;
     return true;
+}
+static bool flagshipWeaponLabelTest() {
+    const unsigned group=logh::flagshipWeaponGroup,none=logh::flagshipWeaponNone;
+    if (!logh::flagshipWeaponAbsent(group,none,"NO DATA")) return false;
+    // A genuine unknown kind, a missing table, a named kind 255, another group and a null stay native.
+    if (logh::flagshipWeaponAbsent(group,254,"NO DATA") || logh::flagshipWeaponAbsent(group,0,"NO DATA") ||
+        logh::flagshipWeaponAbsent(group,none,"NO TABLE") || logh::flagshipWeaponAbsent(group,none,"weapon") ||
+        logh::flagshipWeaponAbsent(group+1,none,"NO DATA") || logh::flagshipWeaponAbsent(group,none,nullptr)) return false;
+    std::string encoded;std::wstring decoded;
+    return logh::encodeKoreanResource(L"미장착",encoded) && encoded.size()==6 &&
+        logh::japaneseFragment(encoded.c_str(),decoded) && decoded==L"미장착";
 }
 static bool tacticalNoticesTest() {
     const char* missing = "NO DATA";
@@ -1343,6 +1355,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if (!tacticalMotionOriginsTest()) return 81;
     if (!tacticalClockScaleTest()) return 81;
     if (!tacticalNoticesTest()) return 82;
+    if (!flagshipWeaponLabelTest()) return 813;
     if (!tacticalWeaponSelectionTest()) return 87;
     if (!tacticalBaseDataTest()) return 88;
     if (!tacticalChargeDataTest()) return 89;
