@@ -51,6 +51,7 @@ fun main() {
         failure?.let {throw it}
     }
     try {
+        val jev=JevNpcTargeting.from(environment)?.also { runtimes.addFirst(it) }
         val fame=if(directory==null)null else org.logh7.gateway.FameLedger.openShared(
             Path.of(checkNotNull(sessions.first().environment["LOGH7_ACCOUNT_FAME_FILE"])),
             forceDirectory=environment["LOGH7_SESSION_DIRECTORY_SYNC"]!="files-only",
@@ -59,7 +60,7 @@ fun main() {
         val worldIdentities=mutableSetOf<String>()
         sessions.forEach {
             it.stateDirectory?.let(java.nio.file.Files::createDirectories)
-            runtimes.addFirst(startGameRuntime(it.environment,directory,it.id,it.name,accounts,fame,worldIdentities))
+            runtimes.addFirst(startGameRuntime(it.environment,directory,it.id,it.name,accounts,fame,worldIdentities,jev))
         }
         if (registrationPort != null) {
             runtimes.addFirst(startPlayerRegistration(registrationPort, checkNotNull(accounts)))
@@ -73,7 +74,7 @@ fun main() {
 internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gateway.GameSessionDirectory?=null,
     sessionId:Int=1,sessionName:String=org.logh7.protocol.LobbyMessages.LOCAL_SESSION_NAME,
     sharedAccounts:org.logh7.gateway.FileAccounts?=null,accountFame:org.logh7.gateway.FameLedger?=null,
-    worldIdentities:MutableSet<String> = mutableSetOf()):AutoCloseable {
+    worldIdentities:MutableSet<String> = mutableSetOf(),jev:JevNpcTargeting?=null):AutoCloseable {
     fun port(name:String,default:Int):Int {
         val value=environment[name]?.let {it.toIntOrNull() ?: error("$name must be an integer port")} ?: default
         require(value in 1..65535) {"$name must be in 1..65535"}
@@ -199,7 +200,9 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         val actorTimings = org.logh7.ops.ActorTimingHistograms()
         val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store, timings = actorTimings,
             galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState,
-            npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true), awaitIdentities = world != null) }
+            npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true,
+                chooseFireTarget = jev?.let { advisor -> { decision -> advisor.choose(sessionId,decision) } }),
+            awaitIdentities = world != null) }
         catch (failure: Throwable) {
             try { stockStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
