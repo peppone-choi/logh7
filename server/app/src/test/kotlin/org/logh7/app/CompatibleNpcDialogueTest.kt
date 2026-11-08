@@ -5,6 +5,7 @@ import kotlinx.serialization.json.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.TacticalWeapon
+import org.logh7.engine.NpcFleetDialogue
 import java.net.InetSocketAddress
 import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
@@ -36,14 +37,14 @@ class CompatibleNpcDialogueTest {
         try {
             service(server).use { dialogue ->
                 val result=CompletableFuture<String?>()
-                dialogue.request(TacticalWeapon.BEAM,result::complete)
+                dialogue.request(TacticalWeapon.BEAM,NpcFleetDialogue(style="차분함",prompt="짧게 말한다."),result::complete)
                 assertEquals("우리 진로를 비켜라.",result.get(3,TimeUnit.SECONDS))
                 val (auth,body)=call.get(3,TimeUnit.SECONDS)
                 assertEquals("Bearer fixture",auth)
                 assertEquals("fixture-model",Json.parseToJsonElement(body).jsonObject.getValue("model").jsonPrimitive.content)
-                assertTrue("beam" in body)
+                assertTrue("beam" in body && "차분함" in body && "짧게 말한다." in body)
                 val limited=CompletableFuture<String?>()
-                dialogue.request(TacticalWeapon.BEAM,limited::complete)
+                dialogue.request(TacticalWeapon.BEAM,NpcFleetDialogue(),limited::complete)
                 assertNull(limited.get(1,TimeUnit.SECONDS))
                 assertEquals(1,requests.get())
             }
@@ -63,7 +64,7 @@ class CompatibleNpcDialogueTest {
         try {
             service(server,timeout=800).use { dialogue ->
                 val result=CompletableFuture<String?>()
-                dialogue.request(TacticalWeapon.GUN,result::complete)
+                dialogue.request(TacticalWeapon.GUN,NpcFleetDialogue(),result::complete)
                 assertTrue(started.await(3,TimeUnit.SECONDS))
                 assertNull(result.get(3,TimeUnit.SECONDS))
             }

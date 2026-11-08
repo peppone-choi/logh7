@@ -212,11 +212,21 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             throw failure
         }
         resources.addFirst(AutoCloseable { runBlocking { engine.drainAndClose() } })
-        val fame=accountFame?.let {shared->
-            val identity=org.logh7.persistence.FileWorldIdentity.loadOrCreate(checkNotNull(sessionDirectory),directorySync)
+        val worldIdentity=if(sessionDirectory!=null && (accountFame!=null || definitionsConnect!=null)) {
+            val identity=org.logh7.persistence.FileWorldIdentity.loadOrCreate(sessionDirectory,directorySync)
             synchronized(worldIdentities) {check(worldIdentities.add(identity)) {"Two sessions have the same persistent world identity"}}
             resources.addFirst(AutoCloseable {synchronized(worldIdentities){worldIdentities.remove(identity)}})
-            shared.forWorld(identity).also {it.importLegacy(characterFile?.resolveSibling("${characterFile.fileName}.fame"))}
+            identity
+        } else null
+        val fame=accountFame?.forWorld(checkNotNull(worldIdentity))
+            ?.also {it.importLegacy(characterFile?.resolveSibling("${characterFile.fileName}.fame"))}
+        val npcProfiles=org.logh7.engine.PublishedNpcFleetDialogue()
+        val npcProfileStore=if(worldIdentity!=null && definitionsConnect!=null)org.logh7.persistence.PostgresNpcFleetDialogue(
+            definitionsConnect,java.util.UUID.fromString(worldIdentity)) else null
+        if(npcProfileStore!=null)engine.snapshot().session?.generation?.let { generation ->
+            try {npcProfiles.publish(generation,npcProfileStore.load(generation))} catch(_:Exception) {
+                System.err.println("NPC fleet dialogue unavailable; using built-in lines")
+            }
         }
         val captureDirectory = captureDirectoryFrom(environment["LOGH7_CAPTURE_DIR"])
         // A live view of the account file: the operator page edits it and new logins read the change.
@@ -228,7 +238,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope),
             stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope),
             administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope, world.galaxy),
-            sessionDirectory=lobby,sessionId=sessionId,sessionName=sessionName,accountFame=fame,npcDialogue=npcDialogue)
+            sessionDirectory=lobby,sessionId=sessionId,sessionName=sessionName,accountFame=fame,npcDialogue=npcDialogue,npcProfiles=npcProfiles)
         resources.addFirst(gateway)
         val audit = environment["LOGH7_OPS_AUDIT_FILE"]?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)
@@ -314,6 +324,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             countryColors=countryColors,
             countryDefinitions=countryDefinitions,countryImages=imageStore,
             facilityDefinitions=facilityStore,publishedFacilities=facilities,
+            npcDialogueStore=npcProfileStore,publishedNpcDialogue=npcProfiles,
             facilityCommands=world?.facilityCommands ?: org.logh7.engine.FacilityCommandCatalog.UNCONNECTED,
             stateDisk=(environment["LOGH7_WORLD_STATE_DIR"] ?: environment["LOGH7_SESSION_STORE_DIR"])?.let {Path.of(it)},
             gatewayCounters=gateway.counters::snapshot,
