@@ -133,6 +133,28 @@ class NavigationTest {
             saved = players.toMap()
         }
     }
+    @Test fun firstAssignedReturnPlanetUsesSavedOwnershipAndCamp() {
+        val original = GalaxyBase(1000, 2487, 60, 0, "Original", 0, 20f, 86400, 0, 0f, 2f)
+        val alternate = original.copy(id = 1001, name = "Alternate")
+        val world = Galaxy(galaxy().systems, listOf(original, alternate), galaxy().starts,
+            initialOwners = mapOf(original.id to Allegiance.Country(Power.EMPIRE.country),
+                alternate.id to Allegiance.Country(Power.ALLIANCE.country)))
+        val session = SessionSimulation(SessionRules.load()).also {
+            it.join("pilot", Power.EMPIRE, false, "connection")
+        }.exportState()
+        for ((owner, camp) in listOf(3 to 0, 2 to 1)) {
+            val stocks = PlanetStocks(1, 0, mapOf(
+                original.id to PlanetStock(original.id, owner, camp, 100, 100, 100),
+                alternate.id to PlanetStock(alternate.id, 2, 0, 100, 100, 100)))
+            val store = Store()
+            Navigation(world, store, NavigationPolicy()).apply(request, session, stocks)
+            val restored = Navigation(world, store, NavigationPolicy()).snapshot(1).getValue("pilot")
+            assertEquals(alternate.id, restored.originBase)
+            assertEquals(0, restored.returnBase)
+            assertEquals(alternate.id, FlagshipRecovery.defeated(restored, session.gameMillis / 1000, world, stocks).baseId)
+        }
+    }
+
     @Test fun movesPersistAndReconnectCannotResetLocationOrCp() = runBlocking {
         val store = Store()
         val home = GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)

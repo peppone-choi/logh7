@@ -235,9 +235,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val candidates = galaxy.bases.filter { it.grid == start }.filter { base ->
                     val condition = galaxy.conditions.getValue(base.id)
                     val stock = stocks?.bases?.get(base.id)
-                    condition.habitability == 1 &&
-                        (galaxy.initialOwners.getValue(base.id) == Allegiance.Country(owner) && condition.camp == 0 ||
-                            stock?.let { it.belongsTo(owner) && it.camp == 0 } == true)
+                    val allegiance = stock?.owner ?: galaxy.initialOwners.getValue(base.id)
+                    condition.habitability == 1 && allegiance == Allegiance.Country(owner) &&
+                        (stock?.camp ?: condition.camp) == 0
                 }
                 candidates.firstOrNull { Capital.of(it)?.power == owner.value } ?: candidates.minByOrNull { it.id }
             }
