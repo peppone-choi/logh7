@@ -495,13 +495,16 @@ internal object TacticalCommandOperations {
                         reward=checks else completed=true
                     2 -> if(stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true){reward=10;completed=true}
                     3 -> if(impacts.any {impact->impact.hit.target==m.target &&
-                            (impact.departed!=null || ship(m.target,stocks)?.unit?.boats==0) &&
+                            (impact.departed!=null || ship(m.target,stocks)?.unit?.boats==0 ||
+                                impact.pirateSunk) &&
                             (impact.source==p.unitId || ship(impact.source,stocks)?.let {
                                 TacticalAuthority.commander(it.outfit,it.unit,stocks)==id}==true)}) {
                         reward=TacticalMissionRules.interceptionMerit(10,true);completed=true
                     }
                     4 -> {
-                        val from=pose(p.unitId,p.grid,now,players,stocks,g);val to=pose(m.target,p.grid,now,players,stocks,g)
+                        val from=pose(p.unitId,p.grid,now,players,stocks,g)
+                        val to=TacticalCombat.target(m.target,p.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)
+                            ?.let {TacticalFleetAttack.pose(it,now,players,stocks,g)}
                         if(active && from!=null && to!=null && hypot((from.position.x-to.position.x).toDouble(),(from.position.y-to.position.y).toDouble())<=12.0)reward=checks
                     }
                     5 -> when {

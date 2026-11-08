@@ -28,7 +28,7 @@ internal fun validCombatTarget(id:Int) = id in 1..999999 || id in 1_000_001..Int
 /** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: Peppone Choi. */
 data class TacticalImpact(val generation: Long, val source: Int, val weapon: TacticalWeapon, val hit: TacticalHit,
     val recipients: Map<Int,String>, val departed: Navigator? = null,val airBattle:Boolean=false,val boarding:Boolean=false,val fortress:Boolean=false,
-    val npcOutfit:Int?=null) {
+    val npcOutfit:Int?=null,val pirateSunk:Boolean=false) {
     init { require(generation > 0 && source > 0 && (npcOutfit==null || npcOutfit>0) &&
         recipients.keys.all { it > 0 } && recipients.values.all { it.isNotBlank() }) }
 }
@@ -178,11 +178,13 @@ internal object TacticalCombat {
         }.toMap()
         var departed:Navigator?=null
         var earned=0L
+        var pirateSunk=false
         val hit = if(victim.pirate!=null) {
             val before=checkNotNull(inventory.social.pirates.unit(targetId)).second.boats
             val (next,lost)=PirateActions.damage(inventory,targetId,damage);inventory=next
             earned=EvaluationPoints.sunk(lost)
-            if(before>0 && before==lost)inventory=PirateActions.reward(inventory,EvaluationPoints.shooter(source,players,stocks))
+            pirateSunk=before>0 && before==lost
+            if(pirateSunk)inventory=PirateActions.reward(inventory,EvaluationPoints.shooter(source,players,stocks))
             TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-(before-lost),damaged=0)
         } else if(victim.regular!=null) {
             val (outfit,unit)=victim.regular
@@ -217,7 +219,7 @@ internal object TacticalCombat {
             if(outfit==null)OutfitDiscipline.BASELINE else OutfitDiscipline.value(inventory,outfit,seconds))
         inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(morale=inventory.tacticalCommands.morale+(targetId to morale.coerceAtLeast(0))))
         inventory=EvaluationPoints.award(inventory,EvaluationPoints.shooter(source,players,stocks),earned)
-        return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed)
+        return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed,pirateSunk=pirateSunk)
     }
 
     private fun clearFinishedOrders(players:MutableMap<String,Navigator>,galaxy:Galaxy,stocks:PlanetStocks,now:Long) {

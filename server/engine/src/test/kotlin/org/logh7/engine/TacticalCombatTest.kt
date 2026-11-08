@@ -436,6 +436,25 @@ class TacticalCombatTest {
         assertEquals(1010000,hit.source)
         assertTrue(state.stocks.social.pirates.unit(900004)!!.second.boats<300)
     }
+    @Test fun interceptingTheLastPiratePaysMeritAfterTheFleetIsRemoved() {
+        val state=state()
+        val target=900003
+        val point=TacticalPoint(0f,-10.2f)
+        state.players=state.players.mapValues {(_,p)->p.copy(motion=TacticalMotion(
+            2488,now,TacticalPose(point,0f),0f,0f,listOf(point)))}
+        state.stocks=state.stocks.copy(
+            social=state.stocks.social.copy(pirates=PirateState(mapOf(1 to PirateFleet(1,2488,now,
+                listOf(PirateUnit(target,1)))),2,now+86400)),
+            tacticalCommands=TacticalCommandState(missions=mapOf(10000 to TacticalMissionState(10000,3,1,target,now,grid=2488))))
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+        val shot=request.copy(tacticalShoot=request.tacticalShoot!!.copy(target=target))
+        assertNotNull(TacticalCombat.accept(shot,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24).player)
+        val impacts=TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,stock,state.commit)
+        assertTrue(impacts.single {it.hit.target==target}.pirateSunk)
+        assertNull(state.stocks.social.pirates.unit(target))
+        assertEquals(30L,state.stocks.tacticalCommands.merits[10000])
+    }
+
     @Test fun piratesCounterattackANearbyFlagshipEveryTwentySeconds() {
         val state=state()
         val point=TacticalPoint(0f,-8f)
