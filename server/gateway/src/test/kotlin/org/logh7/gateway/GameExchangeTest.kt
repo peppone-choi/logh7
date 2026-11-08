@@ -326,6 +326,67 @@ class GameExchangeTest {
             } finally {game.close()}
         }
     }
+    @Test fun clockRefreshPublishesOnlyStarDetectionChangesForTheCurrentViewer() {
+        var lotteryTime=java.time.Instant.EPOCH
+        val clock=object:java.time.Clock() {
+            override fun getZone()=java.time.ZoneOffset.UTC
+            override fun withZone(zone:java.time.ZoneId):java.time.Clock=this
+            override fun instant()=lotteryTime
+        }
+        val characters=CharacterCreation(clock=clock,lotteryWindowMillis=1)
+        characters.apply("user",listOf(1001));lotteryTime=lotteryTime.plusMillis(1)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,0,"Battle",2)),emptyList(),Power.entries.associateWith {2487})
+        var seconds=100L
+        fun at(y:Float):Navigator {
+            val point=TacticalPoint(0f,y)
+            return Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true,
+                motion=TacticalMotion(2487,seconds,TacticalPose(point,0f),0f,0f,listOf(point)))
+        }
+        var player=at(21f)
+        val target=900001
+        val stock=PlanetStocks(1,0,emptyMap(),social=SocialState(pirates=PirateState(
+            mapOf(1 to PirateFleet(1,2487,seconds,listOf(PirateUnit(target,300)))),2)))
+        val navigation=object:GameNavigation {
+            override fun snapshot()=WorldSnapshot(0,0,SessionSnapshot(1,seconds,0,0,emptyMap(),1,1,null),
+                navigators=mapOf("user" to player),planetStocks=stock)
+            override fun apply(request:NavigationRequest)=CompletableFuture.completedFuture(NavigationResult(player))
+        }
+        val tickets=SessionTickets()
+        val game=GameExchange(GameExchange.Role.SESSION,emptyMap(),tickets,"127.0.0.1",47903,
+            Handshake(b,2),characters,gameSeconds={seconds},expectedGeneration=1,connection="owned",
+            navigation=navigation,world=WorldBootstrap(galaxy))
+        fun status(messages:List<ByteArray>):Map<Int,Int> = buildMap {
+            for(packet in messages) {
+                val data=ByteBuffer.wrap(packet)
+                if(data.getShort(4).toInt()!=0x033b)continue
+                repeat(data.getShort(6).toInt()) {i->put(data.getInt(8+i*47),packet[8+i*47+46].toInt())}
+            }
+        }
+        try {
+            game.accept(0x34,initial);game.accept(0x36,confirm)
+            val token=tickets.issue("user",SessionTickets.Purpose.GAME)
+            game.accept(0x30,encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+            game.accept(0x30,encrypted(hex("0200"),2));game.accept(0x30,encrypted(hex("0205"),3))
+            for((sequence,opcode) in listOf(4L to "0f00",5L to "0f02")) {
+                game.accept(0x30,encrypted(hex(opcode),sequence))
+                val packet=assertNotNull(game.takePendingWorld()).join()
+                assertEquals(0,status(packet)[target])
+                assertNotNull(game.finishWorld(packet))
+            }
+            fun refresh(y:Float):Map<Int,Int> {
+                seconds+=24
+                player=at(y)
+                val packets=assertNotNull(game.refreshWorld()).join()
+                game.finishWorld(packets)
+                return status(packets)
+            }
+            assertTrue(refresh(21f).isEmpty())
+            assertEquals(mapOf(target to 1),refresh(18f))
+            assertTrue(refresh(18f).isEmpty())
+            assertEquals(mapOf(target to 0),refresh(21f))
+        } finally {game.close()}
+    }
+
     @Test fun tacticalPositionsWaitForCurrentTimeAndRecheckRetreatBeforeReplaying() {
         for(outcome in listOf("moving","failure","retreat","malformed")) {
             var now=java.time.Instant.EPOCH
