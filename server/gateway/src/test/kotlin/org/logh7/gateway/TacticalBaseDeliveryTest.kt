@@ -186,4 +186,26 @@ class TacticalBaseDeliveryTest {
             assertFalse(TacticalBootstrap(current,galaxy,player,::character).initialize().any {opcode(it)==0x438})
         }
     }
+    @Test fun airWingMotionRefreshSendsSpeedAndRouteWithoutACommandReply() {
+        val hub=GamePresence()
+        val received=mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("one",person,player,received::add))
+        received.clear()
+        val order=TacticalQueuedCommand(10000,2487,120,120,TacticalCommand(0x40e,listOf(1),kind=1,target=player.unitId))
+        for(speed in listOf(.25f,.5f)) {
+            val pose=TacticalPose(TacticalPoint(3f,4f),0f)
+            val motion=TacticalMotion(2487,120,pose,speed,0f,listOf(TacticalPoint(30f,40f)),waitSeconds=0)
+            val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one"),motions=mapOf(player.unitId to motion),stateOnly=true)
+            hub.tacticalCommand(event,snapshot(TacticalCommandState()),galaxy,::character)
+            val packets=received.flatten()
+            val packet=packets.single {opcode(it)==0x0400}
+            val move=TacticalMoveMessages.move(packet.copyOfRange(4,packet.size))
+            assertEquals(speed,move.velocity)
+            assertEquals(player.unitId,move.units.single().id)
+            assertEquals(listOf(TacticalMoveMessages.Point(30f,40f,0f)),move.waypoints)
+            assertFalse(packets.any {opcode(it)==0x40e})
+            received.clear()
+        }
+    }
+
 }
