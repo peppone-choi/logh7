@@ -55,10 +55,10 @@ class GroundPresenceTest {
         hub.groundBattle(GroundBattleResult(1,2487,1049,250,listOf(3),emptyList(),audience),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
         assertTrue(packets.all {batches->batches.flatten().none {ByteBuffer.wrap(it).getShort(4).toInt()==0x0f1d}})
         checkDefinitions()
-        val conclusion=GroundBattleResult(1,2487,1049,250,listOf(3),listOf(3),audience,GroundBattleConclusion(CountryId(42)))
-        hub.update(GamePresence.Member("connection1",people[1],viewers[1].copy(country=CountryId(42)),packets[1]::add))
+        val conclusion=GroundBattleResult(1,2487,1049,250,listOf(3),listOf(3),audience,GroundBattleConclusion(Power.ALLIANCE.country))
+        val changedCountry=snapshot.copy(navigators=snapshot.navigators+("pilot1" to viewers[1].copy(country=Power.ALLIANCE.country)))
         packets.forEach {it.clear()}
-        hub.groundBattle(conclusion,snapshot,galaxy,{if(it==CountryId(42))"시험국" else null}){id->people.singleOrNull {it.id==id.toLong()}}
+        hub.groundBattle(conclusion,changedCountry,galaxy,{if(it==Power.ALLIANCE.country)"시험국" else null}){id->people.singleOrNull {it.id==id.toLong()}}
         for(i in 0..1) {
             val packet=packets[i].flatten().single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0f1d}
             val text=if(i==0)"[지상전] 하이네센 · 시험국 승리" else "[지상전] 하이네센 · 아군 승리"
@@ -68,15 +68,21 @@ class GroundPresenceTest {
         val returned=viewers[0].copy(cpPaused=false)
         val returnedSnapshot=snapshot.copy(navigators=snapshot.navigators+("pilot0" to returned))
         hub.groundBattle(conclusion.copy(recipients=mapOf(10000 to "connection0")),returnedSnapshot,galaxy,{"시험국"}) {null}
-        assertTrue(packets[0].flatten().none {ByteBuffer.wrap(it).getShort(4).toInt()==0x0f1d})
+        assertTrue(packets[0].isEmpty())
         assertNull(hub.takeGroundResult("connection0",returned))
         hub.groundResultGridReady("connection0",returned)
         val notice=checkNotNull(hub.takeGroundResult("connection0",returned))
         assertEquals(ChatMessages.Spot(10000,"[지상전] 하이네센 · 시험국 승리"),ChatMessages.spot(notice.copyOfRange(4,notice.size)))
         assertNull(hub.takeGroundResult("connection0",returned))
         packets.forEach {it.clear()}
+        val departed=viewers[0].copy(grid=2991,cpPaused=false)
+        val departedSnapshot=snapshot.copy(navigators=snapshot.navigators+("pilot0" to departed))
+        hub.groundBattle(conclusion.copy(recipients=mapOf(10000 to "connection0")),departedSnapshot,galaxy){null}
+        assertTrue(packets[0].isEmpty())
+        hub.groundResultGridReady("connection0",departed)
+        assertNull(hub.takeGroundResult("connection0",departed))
         hub.groundBattle(conclusion.copy(damaged=emptyList(),destroyed=emptyList(),
-            conclusion=GroundBattleConclusion(CountryId(42),withdrawal=true)),snapshot,galaxy){null}
+            conclusion=GroundBattleConclusion(Power.ALLIANCE.country,withdrawal=true)),snapshot,galaxy){null}
         for(i in 0..1) {
             val packet=packets[i].flatten().single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0f1d}
             assertEquals(ChatMessages.Spot(10000+i,"[지상전] 하이네센 · 철수로 종료"),ChatMessages.spot(packet.copyOfRange(4,packet.size)))
