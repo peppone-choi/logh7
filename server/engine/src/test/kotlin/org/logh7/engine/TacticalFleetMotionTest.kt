@@ -60,6 +60,27 @@ class TacticalFleetMotionTest {
             assertEquals(3,events.size)
         }
     }
+    @Test fun deceasedCommandersSavedRotationStopsAtTheOriginalPose() {
+        for(kind in TacticalManeuver.entries) {
+            val s=state()
+            val request=request().copy(tacticalMove=TacticalMove(listOf(1,2,1010000),0f,1f,
+                listOf(TacticalPoint(0f,0f)),maneuver=kind))
+            val accepted=move(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),request)
+            assertEquals(3,accepted.tacticalMotions.size)
+            s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now) {_,_->true}
+            val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+            val events=mutableListOf<TacticalMovement>()
+            TacticalCombat.settle(session.copy(gameMillis=(now+20)*1000),galaxy,nav,p,s.commit,onMovement=events::add)
+            assertEquals(3,events.size)
+            for(event in events) {
+                val stopped=assertNotNull(event.motion)
+                assertNull(stopped.rotation);assertFalse(event.turned)
+                assertEquals(accepted.tacticalMotions.getValue(event.unit).origin,stopped.pose(now+20))
+            }
+            assertNull(s.players.getValue("pilot").motion!!.rotation)
+            assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.tactical!!.motion.rotation==null})
+        }
+    }
     @Test fun pendingRotationsCanBeStoppedAndOutOfRangeCommandsDoNotCommit() {
         for(kind in TacticalManeuver.entries) {
             val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
