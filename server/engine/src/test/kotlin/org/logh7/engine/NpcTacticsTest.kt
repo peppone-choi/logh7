@@ -60,6 +60,31 @@ class NpcTacticsTest {
         }
     }
 
+    @Test fun autonomousNpcApproachesAnEnemyAroundTheStar() {
+        val world=Galaxy(galaxy.systems.map {if(it.grid==2488)it.copy(star=0) else it},galaxy.bases,galaxy.starts)
+        fun motion(x:Float):TacticalMotion {
+            val point=TacticalPoint(x,0f)
+            return TacticalMotion(2488,now,TacticalPose(point,0f),0f,0f,listOf(point))
+        }
+        val state=state()
+        val players=state.players.mapValues {(_,player)->player.copy(motion=motion(21f))}.toMutableMap()
+        val outfit=state.stocks.outfits.getValue(1)
+        val ship=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(-21f),now,now))
+        val stocks=state.stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(ship)))))
+        val movements=mutableListOf<TacticalMovement>()
+        val hits=mutableListOf<TacticalImpact>()
+        val after=NpcTactics.advance(session,world,players,stocks,NpcTacticalPolicy(),24,hits,movements)
+        val current=after.outfits.getValue(1).activeShips!!.values.single().tactical!!
+        val route=current.motion
+        assertEquals(1010000,current.target)
+        assertEquals(route,movements.single().motion)
+        assertTrue(route.velocity>0f)
+        assertTrue(route.waypoints.size>1)
+        assertTrue(TacticalTerrain.pathBlocked(world,2488,route.origin.position,listOf(route.waypoints.last())))
+        assertFalse(TacticalTerrain.pathBlocked(world,2488,route.origin.position,route.waypoints))
+        assertTrue(hits.isEmpty())
+    }
+
     @Test fun cautiousFleetsStartLegalWithdrawalAtHalfStrength() {
         for((boats,behavior,withdraws) in listOf(
             Triple(150,NpcCombatBehavior.STANDARD,false),
