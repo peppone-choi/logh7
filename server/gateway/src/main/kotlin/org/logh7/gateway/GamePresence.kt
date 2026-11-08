@@ -263,12 +263,13 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         val deploy=order.action==org.logh7.engine.TacticalGroundAction.DEPLOY
         members.values.filter {it.player.generation==event.generation && it.player.grid==order.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer ->
+            val current=tacticalViewer(snapshot,viewer,order.grid) ?: return@forEach
             val packet=if(event.cancelled)listOf(org.logh7.protocol.TacticalGroundMessages.reply(
                 org.logh7.protocol.TacticalGroundMessages.Command(
                     if(deploy)org.logh7.protocol.TacticalGroundMessages.Action.DEPLOY
                     else org.logh7.protocol.TacticalGroundMessages.Action.WITHDRAW,order.character,listOf(order.carrier)),event.seconds,0,false))
             else {
-                val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
+                val tactical=TacticalBootstrap(snapshot,galaxy,current,characterById)
                 listOf(org.logh7.protocol.TacticsMessages.definitions(order.grid,tactical.units,tactical.groundDefinitions),
                     org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
                     org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,order.base,
