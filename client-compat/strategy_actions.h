@@ -2,6 +2,7 @@
 // Author: Peppone Choi. No original server opcode is assigned to the reconstructed commands.
 #pragma once
 #include "character_cards.h"
+#include "tactical_fortress_menu_data.h"
 static struct StrategyDirectory {
     struct Person {unsigned id,rank;wchar_t name[13];} people[200];
     unsigned count;
@@ -300,10 +301,72 @@ static bool updateFlagshipMarket() {
     }
     return true;
 }
+static unsigned orbitalStrikeGrid=5000;
+static void sendOrbitalStrike(bool preview) {
+    auto& state=taxWindow;
+    if(preview)state.strategyBase=state.strategyArgument=state.strategyValue=0;
+    strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
+    BYTE record[36];logh::orbitalStrikeRecord(record,state.character,static_cast<unsigned short>(state.strategyToken),preview,
+        state.strategyBase,state.strategyArgument,static_cast<unsigned short>(state.strategyValue));
+    state.pending=true;state.sentAt=GetTickCount64();
+    state.message=preview ? L"공격 대상과 비용을 조회합니다." : L"서버에 공격을 요청했습니다.";
+    reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
+}
+static void openOrbitalStrike(void* world,void* own) {
+    auto& state=taxWindow;
+    if(state.visible || !createTaxWindow())return;
+    closePlanetInformation();
+    state.world=world;state.character=at<unsigned>(own,0x24);state.strategyCommand=logh::orbitalStrikeCommand;
+    orbitalStrikeGrid=planetInformationGrid(world);
+    state.strategyActive=true;state.visible=true;state.acceptAfter=GetTickCount64()+250;
+    state.pending=false;state.strategyBase=state.strategyArgument=state.strategyValue=0;state.strategyToken=0;
+    state.message=L"서버의 공격 전 확인 지원을 확인합니다.";
+    for(int id=10;id<=12;++id)taxButtonVisible(id,false);
+    reinterpret_cast<void(__thiscall*)(void*,int)>(0x506280)(state.root,12);
+    reinterpret_cast<void(__thiscall*)(void*,void*)>(0x50beb0)(state.manager,state.root);
+}
+static bool updateOrbitalStrike() {
+    auto& state=taxWindow;const auto now=GetTickCount64();
+    const int support=orbitalStrikeQuoteCapability(state.world,state.character);
+    if(support==1 && !state.strategyToken)sendOrbitalStrike(true);
+    if(state.pending && now-state.sentAt>10000) {
+        state.pending=false;state.strategyBase=0;
+        state.message=L"응답을 확인하지 못했습니다. 물자와 전장 상태를 확인하세요.";
+    }
+    const bool quoted=state.strategyBase!=0;
+    wchar_t name[32]={},label[120];
+    taxText(0,L"궤도 대지 공격");
+    taxText(1,L"기함과 주변 지휘 함정이 적 거점의 수비대를 공격합니다.");
+    taxText(2,L"지상전이 시작되기 전에만 공격할 수 있습니다.");
+    if(quoted) {
+        pickerName(state.strategyBase,name);
+        swprintf_s(label,L"대상 %ls (#%u)",name,state.strategyBase);taxText(3,label);
+        swprintf_s(label,L"참가 함정 %u유닛",state.strategyArgument);taxText(4,label);
+        swprintf_s(label,L"기함 물자 %u · MCP 0 · PCP 0",state.strategyValue);taxText(5,label);
+    } else {taxText(3,L"");taxText(4,L"");taxText(5,L"");}
+    taxText(6,support==0 ? L"서버를 업데이트한 뒤 대지 공격을 사용할 수 있습니다." : state.message);
+    taxText(13,L"다시 조회");taxEnabled(13,support==1 && !state.pending);
+    taxText(14,L"공격 확정");taxEnabled(14,support==1 && !state.pending && quoted);
+    taxText(15,L"닫기");taxEnabled(15,true);
+    if(now<state.acceptAfter)return true;
+    BYTE event[52]={};
+    for(int id=13;id<=15;++id)if(reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(state.root,2,taxWidget(1,id),event,0)) {
+        state.acceptAfter=now+250;
+        if(id==15)closeTaxWindow();
+        else if(support==1 && !state.pending && (id==13 || quoted))sendOrbitalStrike(id==13);
+        break;
+    }
+    return true;
+}
 static bool updateStrategyAction(void*) {
     auto& state=taxWindow;auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
     if(world!=state.world || !own || !at<BYTE>(own,0) || at<unsigned>(own,0x24)!=state.character ||
-        !at<BYTE>(world,0x2b6a6c) || at<BYTE>(world,0x3579cc)) {closeTaxWindow();return false;}
+        at<BYTE>(world,0x3579cc)) {closeTaxWindow();return false;}
+    if(state.strategyCommand==logh::orbitalStrikeCommand) {
+        if(!at<BYTE>(world,0x126718) || orbitalStrikeGrid!=planetInformationGrid(world)) {closeTaxWindow();return false;}
+        return updateOrbitalStrike();
+    }
+    if(!at<BYTE>(world,0x2b6a6c)) {closeTaxWindow();return false;}
     if(operationStrategy(state.strategyCommand))return updateStrategyOperation();
     if(formationStrategy(state.strategyCommand))return updateOutfitFormation();
     if(civicCommand(state.strategyCommand))return updateCivicAction();
@@ -421,6 +484,29 @@ static unsigned __fastcall readStrategyAction(void* codec,void*,void* record,voi
         if(state.visible && state.strategyActive && state.pending && at<unsigned>(record,0)==state.character &&
             at<unsigned short>(record,6)==state.strategyCommand && at<unsigned short>(record,32)==state.strategyToken) {
             const unsigned flag=at<BYTE>(record,16),responseStatus=at<unsigned short>(record,10);
+            if(state.strategyCommand==logh::orbitalStrikeCommand) {
+                const bool quote=state.strategyBase==0;
+                if((quote && flag==21) || (!quote && (flag==2 || flag==3))) {
+                    state.pending=false;state.strategyBase=0;
+                    if(quote && !responseStatus) {
+                        const unsigned base=at<unsigned>(record,28),attackers=at<unsigned short>(record,24),cost=at<unsigned>(record,20);
+                        if(base>0 && base<=65535 && attackers>0 && attackers<=10 && cost>0 && cost<=65535) {
+                            state.strategyBase=base;state.strategyArgument=attackers;state.strategyValue=cost;
+                        }
+                    }
+                    state.message=responseStatus==6 ? L"전술 화면에서만 공격할 수 있습니다." :
+                        responseStatus==7 ? L"부상 또는 구금 중에는 공격할 수 없습니다." :
+                        responseStatus==9 ? L"지상전이 진행 중인 거점입니다." :
+                        responseStatus==11 ? L"기함 물자가 부족합니다." :
+                        responseStatus==12 ? L"공격을 저장하지 못했습니다." :
+                        responseStatus==13 ? L"사정거리 안에 공격할 적 거점이 없습니다." :
+                        responseStatus==14 ? L"공격 조건이 바뀌었습니다. 다시 조회하세요." :
+                        responseStatus ? L"지금은 공격할 수 없습니다." :
+                        quote ? (state.strategyBase ? L"대상과 물자를 확인하고 공격을 확정하세요." : L"공격 조건을 확인할 수 없습니다.") :
+                        flag==2 ? L"공격이 완료되었습니다. 전술 채팅에서 결과를 확인하세요." : L"공격이 실행되지 않았습니다.";
+                }
+                memset(static_cast<BYTE*>(record)+4,0,32);return result;
+            }
             if(state.strategyCommand==61 && flag==20) {
                 state.pending=false;
                 const auto payment=at<unsigned>(record,28);

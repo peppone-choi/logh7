@@ -15,6 +15,7 @@ package org.logh7.engine
  */
 object OrbitalStrikeActions {
     const val STRIKE=230
+    const val QUOTE_PHASE=1
     val commands=setOf(STRIKE)
     const val RANGE=20f
     const val SUPPLIES=100
@@ -48,7 +49,10 @@ object OrbitalStrikeActions {
             o.activeShips?.values.orEmpty().count {u->u.boats>0 && TacticalAuthority.commander(o,u,s)==p.characterId &&
                 (u.tactical?.motion?.pose(now,u.posture,g,s)?.position ?: TacticalDeployment.initial(u.id,p.grid,players,s,g).position)
                     .let {inRange(it.x,it.y)}}}
-        val attackers=minOf(MAX_ATTACKERS,1+escorts);val damage=DAMAGE*attackers
+        val attackers=minOf(MAX_ATTACKERS,1+escorts)
+        if(r.phase==QUOTE_PHASE)return SocialResult(p,s,outcome=attackers,found=base.id)
+        if(i.base!=0 && (i.base!=base.id || i.argument!=attackers || i.value!=SUPPLIES))return reject(SocialRejection.QUOTE_CHANGED)
+        val damage=DAMAGE*attackers
         var destroyed=0
         // A legacy garrison (quantities only) first gets identities at full strength, as ground battle would need.
         var cursor=s.nextShipId

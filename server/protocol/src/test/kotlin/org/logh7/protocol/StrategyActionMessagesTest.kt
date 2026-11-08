@@ -5,6 +5,23 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class StrategyActionMessagesTest {
+    @Test fun orbitalStrikeQuoteAndCommitBindTheTargetCostAndEscortCount() {
+        fun query(preview:Boolean,base:Int=0,attackers:Int=0,cost:Int=0)=StrategyActionMessages.query(ByteBuffer.allocate(31)
+            .putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(230).putShort(0).putShort(cost.toShort())
+            .putInt(0).put(if(preview)1 else 0).putInt(attackers).putShort(0).putInt(base).putShort(37).array())
+        val packets=StrategyActionMessages.orbitalStrikeQuote(query(true),0,1176,3,100).map(ByteBuffer::wrap)
+        val quote=packets.first()
+        assertEquals(21,quote.get(22).toInt())
+        assertEquals(100,quote.getInt(23));assertEquals(3,quote.getShort(27).toInt())
+        assertEquals(1176,quote.getInt(29));assertEquals(37,quote.getShort(33).toInt())
+        assertEquals(0x1201,packets.last().getShort(4).toInt())
+        val commit=query(false,1176,3,100)
+        assertEquals(1176,commit.base);assertEquals(3,commit.argument);assertEquals(100,commit.value)
+        assertEquals(0,query(false).base)
+        assertFailsWith<IllegalArgumentException> {query(true,1176,3,100)}
+        assertFailsWith<IllegalArgumentException> {query(false,1176,0,100)}
+    }
+
     @Test fun productionQuoteAndBoundCommitReuseTheNativeEnvelope() {
         fun query(preview:Boolean,argument:Int,base:Int)=StrategyActionMessages.query(ByteBuffer.allocate(31)
             .putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(31).putShort(66).putShort(0)

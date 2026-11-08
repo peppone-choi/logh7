@@ -327,14 +327,12 @@ static unsigned __cdecl movingBaseTick(BYTE* object,unsigned elapsed) {
     return result;
 }
 // U-31: commander-tab widget 0x1b (jump-table case 21 at 005122f0) has no commander branch in the CD.
-// On tab 4 it sends the orbital ground attack request; the result returns as a tactical chat line.
+// On tab 4 it opens a server-backed preview; the attack result also returns as a tactical chat line.
 static void __cdecl orbitalStrikeClicked() {
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
     auto own=world ? at<BYTE*>(world,8) : nullptr;
     if(!world || !own || !at<BYTE>(world,0x126718))return;
-    strategyRequestToken=strategyRequestToken%65535+1;
-    BYTE record[36];logh::orbitalStrikeRecord(record,at<unsigned>(own,0x24),static_cast<unsigned short>(strategyRequestToken));
-    reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(world,0,0x46,record);
+    openOrbitalStrike(world,own);
 }
 static unsigned orbitalStrikeOriginal=0x510efb,orbitalStrikeContinue=0x510ee4;
 static void __declspec(naked) orbitalStrikeCase() {

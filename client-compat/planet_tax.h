@@ -2,6 +2,7 @@
 // UI layout is reconstructed; authority and payment remain on the server. Author: Peppone Choi.
 #pragma once
 #include "planet_tax_data.h"
+#include "tactical_fortress_menu_data.h"
 
 static struct PlanetTaxWindow {
     void* manager;
@@ -27,6 +28,11 @@ static void taxText(int index, const wchar_t* text) {
 static void taxEnabled(int index, bool enabled) {
     auto widget = taxWidget(1,index);
     if (widget) reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x5024e0)(taxWindow.root,widget,enabled ? 1 : 0);
+}
+static void taxButtonVisible(int index,bool visible) {
+    auto show=reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0);
+    if(auto widget=taxWidget(1,index))show(taxWindow.root,widget,visible);
+    for(int id=index*6;id<index*6+6;++id)if(auto piece=taxWidget(2,id))show(taxWindow.root,piece,visible);
 }
 static void taxControl(int index, int x, int y, int width, int height, const wchar_t* label, bool button) {
     // Keep the planet atlas's four bevels. Four states use the same dark plate.
@@ -100,7 +106,11 @@ static unsigned heldGovernorBase(void* own, unsigned card) {
     return logh::heldLocalTaxBase(static_cast<const BYTE*>(own),card);
 }
 static void closeTaxWindow() {
-    if (taxWindow.root) reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(taxWindow.root,0);
+    if (taxWindow.root) {
+        if(taxWindow.visible && taxWindow.strategyActive && taxWindow.strategyCommand==logh::orbitalStrikeCommand)
+            for(int id=10;id<=12;++id)taxButtonVisible(id,true);
+        reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(taxWindow.root,0);
+    }
     taxWindow.visible=false;
 }
 static BYTE __fastcall dispatchTaxCard(void* manager,void*,int command,unsigned card) {
