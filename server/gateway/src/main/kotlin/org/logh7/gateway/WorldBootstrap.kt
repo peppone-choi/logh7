@@ -275,8 +275,18 @@ class WorldBootstrap(val galaxy: Galaxy,
                     mode=if(u.origin>0)9 else 4)}
         }
         val allRows=entries.map {it.second}
-        // Keep fighting units ahead of reserves when the original packet's 70 slots fill up.
-        val rows=allRows.sortedWith(compareBy<OutfitPartyMessages.UnitInformation>{it.destroyed}.thenBy {it.id}).take(70).sortedBy {it.id}
+        val rows=if(allRows.size<=70) allRows.sortedBy {it.id} else {
+            val (fighters,reserves)=entries.sortedBy {it.second.id}.partition {it.second.destroyed==0}
+            val (friendly,foreign)=fighters.partition {it.first==country}
+            // Keep the viewer's commands usable even if three or more countries fill the native packet.
+            val targetIds=friendly.map {it.second.supplies}.toSet()
+            val (targets,others)=foreign.partition {it.second.id in targetIds}
+            val opponents=others.groupBy {it.first}.values
+            val balanced=(0 until org.logh7.engine.GroundBattleRules.BOX_CAPACITY_PER_FACTION).flatMap {index->
+                opponents.mapNotNull {it.getOrNull(index)}
+            }
+            (friendly+targets+balanced+reserves).take(70).map {it.second}.sortedBy {it.id}
+        }
         val contested=entries.filter {it.second.destroyed==0}.map {it.first}.toSet().size>1
         // The mode-3 header's unused number carries a version bit, battle state, and roster truncation.
         val battleFlags=1 or (if(contested)2 else 0) or (if(allRows.size>rows.size)4 else 0)
