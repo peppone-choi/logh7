@@ -290,6 +290,26 @@ class NpcStrategyTest {
         assertEquals(97000,result.bases.getValue(1000).supplies)
         assertEquals(listOf(1),events.map {it.outfit})
     }
+    @Test fun dockedFleetNeedsBothOutboundAndReturnFuelAtReservationAndDeparture() {
+        val players=players();val events=mutableListOf<NpcStrategicMovement>()
+        val initial=stocks()
+        val depot=initial.bases.getValue(1000)
+        val oneJump=initial.copy(bases=mapOf(1000 to depot.copy(supplies=300)))
+        assertNull(advance(0,oneJump,players,events).outfits.getValue(1).strategy?.destination)
+        val twoJumps=oneJump.copy(bases=mapOf(1000 to depot.copy(supplies=600)))
+        val reserved=advance(0,twoJumps,players,events)
+        assertEquals(2488,reserved.outfits.getValue(1).strategy?.destination)
+        assertEquals(twoJumps.bases,reserved.bases)
+        val cancelled=advance(3600,reserved.copy(bases=oneJump.bases),players,events)
+        assertEquals(OutfitPosition(2487,1000),cancelled.outfits.getValue(1).position)
+        assertEquals(oneJump.bases,cancelled.bases)
+        assertTrue(events.isEmpty())
+        val departed=advance(3600,reserved,players,events)
+        assertEquals(300,departed.outfits.getValue(1).supplies)
+        assertEquals(0,departed.bases.getValue(1000).supplies)
+        assertEquals(2488,events.single().destination)
+    }
+
     @Test fun noFuelNoTargetOrNoncombatOutfitDoesNotCreateTravelOrResources() {
         val players=players();val events=mutableListOf<NpcStrategicMovement>()
         var reserved=advance(0,stocks(),players,events)
