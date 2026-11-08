@@ -76,7 +76,8 @@ internal object NpcStrategy {
         while(queue.isNotEmpty()) {
             val current=queue.remove()
             if(best[current.grid]!=current.jumps)continue
-            if(fallback!=null && current.estimatedTotal>affordable)return fallback
+            // A prospective advance cannot use a return path beyond its remaining fuel.
+            if(current.estimatedTotal>affordable && (fallback!=null || spentJumps>0))return fallback
             depots[current.grid]?.let {
                 val route=DepotRoute(it,current.first,current.jumps)
                 if(stocked(it) && current.jumps<=affordable)return route
