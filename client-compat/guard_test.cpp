@@ -1750,6 +1750,48 @@ static int runGuard(int argc, wchar_t** argv) {
         if (!holder.accept(governorReply,card,id) || holder.id) return 65;
         if (holder.accept(governorReply,card==55?52:55,id)) return 66;
     }
+    using OfficeLookup=logh::PlanetOfficeLookup;
+    if (logh::planetOfficeQuery(54,0)!=0x8036 || logh::planetOfficeQuery(54,1)!=0x8136 ||
+        logh::planetOfficeQuery(190,127)!=0xffbe) return 920;
+    memset(governorReply,0,sizeof(governorReply));governorReply[0]=54;governorReply[2]=64;
+    for (unsigned i=0;i<64;++i) {unsigned person=20000+i;memcpy(governorReply+4+i*0x2d4,&person,4);}
+    OfficeLookup office;office.start(54);office.state=OfficeLookup::waiting;
+    office.receive(governorReply,id); // A full page without the holder proves nothing yet.
+    if (office.state!=OfficeLookup::sending || office.page!=1 || office.holder.id) return 921;
+    office.receive(governorReply,id); // Not waiting: a repeated reply cannot advance the page.
+    if (office.state!=OfficeLookup::sending || office.page!=1) return 922;
+    auto holderRow=governorReply+4+63*0x2d4;
+    holderRow[0x7d]=1;holderRow[0x82]='A';holderRow[0x24c]=1;holderRow[0x250]=54;memcpy(holderRow+0x254,&id,4);
+    office.state=OfficeLookup::waiting;office.receive(governorReply,id);
+    if (office.state!=OfficeLookup::ready || office.holder.id!=20063 || office.holder.surname[0]!='A') return 923;
+    office.start(54);office.state=OfficeLookup::waiting;office.receive(governorReply,other);
+    if (office.state!=OfficeLookup::sending) return 924; // Another base's holder: keep looking.
+    governorReply[2]=0;office.state=OfficeLookup::waiting;office.receive(governorReply,other);
+    if (office.state!=OfficeLookup::ready || office.holder.id) return 925; // Exact multiple of 64: empty last page.
+    office.start(54);office.state=OfficeLookup::waiting;governorReply[2]=65;office.receive(governorReply,id);
+    if (office.state!=OfficeLookup::unconfirmed) return 926;
+    governorReply[0]=55;governorReply[2]=1;office.start(54);office.state=OfficeLookup::waiting;office.receive(governorReply,id);
+    if (office.state!=OfficeLookup::unconfirmed) return 927;
+    governorReply[0]=54;governorReply[2]=64;
+    office.start(54);office.page=OfficeLookup::lastPage;office.state=OfficeLookup::waiting;office.receive(governorReply,other);
+    if (office.state!=OfficeLookup::unconfirmed) return 928; // No next page to ask: not unappointed.
+    office.start(0);
+    if (office.state!=OfficeLookup::ready || office.holder.id) return 929;
+    logh::PlanetOfficeWire officeWire;
+    if (officeWire.settle(54) || !officeWire.available(0)) return 930; // Nothing sent: not ours.
+    officeWire.sent(54,1000);
+    if (officeWire.available(1000) || officeWire.settle(190) || !officeWire.busy) return 931; // Another card keeps the slot.
+    if (!officeWire.settle(54) || officeWire.busy || officeWire.settle(54)) return 932;
+    officeWire.sent(54,1000);officeWire.abandon(); // Planet switch or close with a page on the wire.
+    if (officeWire.available(1000) || officeWire.overdue(9000)) return 933;
+    if (officeWire.settle(54) || officeWire.busy) return 934; // Released but not read.
+    officeWire.abandon();
+    officeWire.sent(54,2000);
+    if (officeWire.abandoned) return 935; // An earlier abandon does not poison the next query.
+    if (officeWire.overdue(6999) || !officeWire.overdue(7000) || officeWire.overdue(7001)) return 936;
+    if (officeWire.available(7000) || officeWire.settle(54)) return 937; // A reply after the timeout is not read.
+    officeWire.sent(54,2000);officeWire.abandon();
+    if (officeWire.available(31999) || !officeWire.available(32000)) return 938;
     logh::PlanetDirectory directory;
     if (!directory.add(id,grid,67) || !directory.add(other,grid,3) ||
         !directory.add(8000,2015,349) || !directory.add(8001,4000,1) || !directory.add(8002,1000,2) ||

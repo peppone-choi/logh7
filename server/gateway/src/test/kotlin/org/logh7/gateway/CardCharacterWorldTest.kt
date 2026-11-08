@@ -1,5 +1,10 @@
 package org.logh7.gateway
 
+import java.nio.file.Path
+import org.junit.jupiter.api.io.TempDir
+import org.logh7.gateway.load.LoadFixture
+import org.logh7.gateway.load.LoadMetrics
+import org.logh7.gateway.load.SyntheticClient
 import java.nio.ByteBuffer
 import org.junit.jupiter.api.Test
 import org.logh7.engine.*
@@ -7,6 +12,46 @@ import org.logh7.protocol.CharacterMessages
 import kotlin.test.*
 
 class CardCharacterWorldTest {
+    @TempDir lateinit var directory:Path
+
+    @Test fun encryptedPagesReturnTheLastHolderWithoutOverflowingTheNativeResponse() {
+        val seats=(1..65).map {galaxy.bases.first().copy(id=it,grid=if(it==1)2487 else 2400+it)}
+        val systems=seats.map {GalaxySystem(it.id+2,it.grid,4,"System "+it.id,2)}
+        val world=Galaxy(systems,seats,galaxy.starts)
+        val roster=stocks.copy(bases=seats.associate {it.id to PlanetStock(it.id,2,0,0,0,0,governorId=19000+it.id)},
+            deploymentInitialized=true)
+        val characters=CharacterCreation(directory.resolve("characters.properties"))
+        for(id in 19001..19065)assertTrue(characters.carry("holder$id",CharacterProfile(character.copy(id=id.toLong()),CountryId(2),ShipStyleId("empire"))))
+        val store=object:PlanetStockStore {
+            override fun load()=roster
+            override fun save(stocks:PlanetStocks) {}
+        }
+        LoadFixture(directory,1,LoadMetrics(),world,ticking=false,stockStore=store).use {fixture ->
+            val client=fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            fun next(opcode:Int):ByteBuffer {
+                repeat(100) {
+                    val message=ByteBuffer.wrap(client.receive())
+                    if(message.getShort(4).toInt()==opcode)return message
+                }
+                error("Expected opcode $opcode")
+            }
+            next(0x0f01)
+            fun page(value:Int):ByteBuffer {
+                client.send(ByteBuffer.allocate(4).putShort(0x034e).putShort(value.toShort()).array())
+                return next(0x034f)
+            }
+            val legacy=page(54)
+            assertEquals(1,legacy.getInt(0));assertEquals(0,legacy.get(8).toInt())
+            val first=page(0x8036)
+            assertEquals(64,first.get(8).toInt());assertEquals(19001,first.getInt(9))
+            val second=page(0x8136)
+            assertEquals(54,second.getShort(6).toInt());assertEquals(1,second.get(8).toInt())
+            assertEquals(19065,second.getInt(9))
+            assertEquals(0,page(0x8236).get(8).toInt())
+        }
+    }
+
     @Test fun capitalsExposeOnlyTheirOwnOriginalOfficesAndRegisteredFactionHolders() {
         val capitalWorld=WorldBootstrap(Galaxy(galaxy.systems+GalaxySystem(4,2015,4,"Alliance",3),listOf(
             galaxy.bases[0].copy(name="オーディン"),
@@ -56,6 +101,11 @@ class CardCharacterWorldTest {
         assertEquals(1,ByteBuffer.wrap(rejected).int)
         assertEquals(0,rejected[8].toInt())
         assertContentEquals(org.logh7.protocol.CardCharacterMessages.response(54,emptyList(),failed=true),rejected)
+        val countryOf:(Int)->CountryId?={CountryId(2)}
+        val profile:(Int)->org.logh7.protocol.CharacterMessages.Generate?={character.copy(id=it.toLong())}
+        val pages=(0..2).map {capacityWorld.cardCharacters(54,manyPeople,countryOf,profile,it)}
+        assertEquals(listOf(64,1,0),pages.map {it[8].toInt()})
+        assertEquals(listOf(10001,10065),pages.take(2).map {ByteBuffer.wrap(it).getInt(9)})
         val manyBases=stocks.copy(bases=(1..15).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10000) })
         assertFails { capacityWorld.cardCharacters(54,manyBases) { character } }
     }

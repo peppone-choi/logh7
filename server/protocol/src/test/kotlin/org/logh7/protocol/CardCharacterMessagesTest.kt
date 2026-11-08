@@ -6,10 +6,14 @@ import kotlin.test.*
 
 class CardCharacterMessagesTest {
     @Test fun nativeQueryHasOnlyOneUnsignedCardAndNoTargetOrPadding() {
-        assertEquals(190,CardCharacterMessages.query(byteArrayOf(3,0x4e,0,190.toByte())))
+        assertEquals(CardCharacterMessages.Query(190),CardCharacterMessages.query(byteArrayOf(3,0x4e,0,190.toByte())))
         assertFails { CardCharacterMessages.query(byteArrayOf(3,0x4e,0,54,0)) }
         assertFails { CardCharacterMessages.query(byteArrayOf(3,0x4f,0,54)) }
         assertFails { CardCharacterMessages.query(byteArrayOf(3,0x4e,1,0)) }
+    }
+    @Test fun compatibilityQueryKeepsTheLowCardAndReadsThePage() {
+        assertEquals(CardCharacterMessages.Query(54,0),CardCharacterMessages.query(byteArrayOf(3,0x4e,0x80.toByte(),54)))
+        assertEquals(CardCharacterMessages.Query(190,127),CardCharacterMessages.query(byteArrayOf(3,0x4e,0xff.toByte(),190.toByte())))
     }
     @Test fun emptyRosterHasCardAndCountAndNativeLimitIsEnforced() {
         val empty=CardCharacterMessages.response(54,emptyList())

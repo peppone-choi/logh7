@@ -1672,11 +1672,11 @@ class GameExchange(
                     }
                     0x034e -> {
                         check(gameStarted && world != null && stock != null)
-                        val card = org.logh7.protocol.CardCharacterMessages.query(body)
+                        val query = org.logh7.protocol.CardCharacterMessages.query(body)
                         pendingWorld = stocks().thenApply { stored ->
                             // Each holder's actual country (current profile), not the display code.
                             val countryOf=WorldCharacters.identities(characters.profiles(),navigation?.snapshot()).associate {it.id to it.country}
-                            listOf(world.cardCharacters(card,checkNotNull(stored),{countryOf[it]},::currentCharacterById)) }
+                            listOf(world.cardCharacters(query.card,checkNotNull(stored),{countryOf[it]},::currentCharacterById,query.page)) }
                         return null
                     }
                     0x0326 -> {

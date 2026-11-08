@@ -308,13 +308,15 @@ static void renderPlanetPlaces() {
     }
     planetCell(84,L"시설 이름을 선택해 용도·이용 조건·지원 명령 확인");
 }
-static void planetOffice(unsigned row,const wchar_t* label,const logh::PlanetOfficeHolder& holder,bool ready) {
+static void planetOffice(unsigned row,const wchar_t* label,const logh::PlanetOfficeLookup& office) {
     auto& info=planetInformation;
     unsigned power=info.condition[4];
+    const auto& holder=office.holder;
     planetCell(40+row*4,label);
     const wchar_t* value=nullptr;
     if (info.condition[5] || (power!=2 && power!=3)) value=L"해당 없음";
-    else if (!ready) value=GetTickCount64()-info.requestedAt>=5000 ? L"응답 미확인" : L"조회 중";
+    else if (office.state==logh::PlanetOfficeLookup::unconfirmed) value=L"응답 미확인";
+    else if (office.state!=logh::PlanetOfficeLookup::ready) value=L"조회 중";
     else if (!holder.id) value=L"미임명";
     wchar_t name[48];
     if (!value) {
@@ -489,9 +491,9 @@ static void renderPlanetWindow() {
             const wchar_t* first=offices.first==56 ? L"제도방위사령관" : offices.first==192 ? L"수도시정관" : L"통치자";
             const wchar_t* second=offices.second==57 ? L"근위병총감" : offices.second==193 ? L"수도방위지휘관" : L"수비대장";
             if (!offices.first) { planetCell(60,first);planetCell(61,L"해당 없음"); }
-            else planetOffice(5,first,info.governor,info.governorReady);
+            else planetOffice(5,first,info.governor);
             if (!offices.second) { planetCell(64,second);planetCell(65,L"해당 없음"); }
-            else planetOffice(6,second,info.garrison,info.garrisonReady);
+            else planetOffice(6,second,info.garrison);
             planetCell(68,L"거점 구분");planetCell(69,kind==1 ? L"요새" : logh::planetCapitalPower(base) ? L"수도 행성" : kind==0 ? L"행성" : L"미확인");
             planetCell(84,L"민심·치안·세율은 환경·내정에서 확인");
         } else {
