@@ -20,6 +20,27 @@ class TacticalLineOfFireTest {
         assertFalse(TacticalLineOfFire.blocked(1,2487,Camp(Power.EMPIRE,false),TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),state(3),galaxy))
         assertFalse(TacticalLineOfFire.blocked(2,2487,Camp(Power.EMPIRE,false),TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),state(2),galaxy))
     }
+    @Test fun aShipUsesItsCurrentGridForLineOfFireAndTargetPosition() {
+        val before=state(2)
+        val outfit=before.outfits.getValue(1)
+        val ship=outfit.activeShips!!.values.single()
+        val tactical=ship.tactical!!
+        fun stocksWith(unit:ActiveShipUnit)=before.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(unit)))))
+        fun blocked(stocks:PlanetStocks)=TacticalLineOfFire.blocked(1,2487,Camp(Power.EMPIRE,false),
+            TacticalPoint(0f,0f),TacticalPoint(0f,4f),100,emptyList(),stocks,galaxy)
+
+        val staleMotion=ship.copy(tactical=tactical.copy(motion=tactical.motion.copy(grid=2488)))
+        val current=stocksWith(staleMotion)
+        assertFalse(blocked(current))
+        val target=assertNotNull(TacticalCombat.unit(ship.id,2487,current,galaxy,emptyMap()))
+        assertEquals(TacticalDeployment.initial(ship.id,2487,emptyList(),current,galaxy),
+            TacticalFleetAttack.pose(target,100,emptyMap(),current,galaxy))
+
+        val staleBerth=TacticalPosture(2488,TacticalShipMode.STATIONED,1000)
+        assertTrue(blocked(stocksWith(ship.copy(posture=staleBerth))))
+        assertFalse(blocked(stocksWith(ship.copy(posture=staleBerth.copy(grid=2487)))))
+    }
+
     @Test fun mobileFortressUsesItsSavedPositionForBlocking() {
         val before=state(3);val point=TacticalPoint(0f,3f)
         val motion=TacticalMotion(2487,100,TacticalPose(point,0f),0f,0f,listOf(point))

@@ -945,6 +945,10 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val turn=org.logh7.protocol.TacticalTurnMessages.command(body)
                         require(turn.character==character.id.toInt())
+                        if(turn.reverseByte !in 0..1) {
+                            val rejection=org.logh7.protocol.TacticalTurnMessages.reply(turn,gameSeconds(),0,false)
+                            return handshake.stageAll(listOf(rejection),clearHeader=0)
+                        }
                         // The CD's right button sends 1.0 for every selected unit and a zero trailing byte.
                         val reverseSide=if(turn.reverse && turn.reverseByte==0 && turn.units.all {it.direction==1f}) 1
                             else turn.reverseByte
