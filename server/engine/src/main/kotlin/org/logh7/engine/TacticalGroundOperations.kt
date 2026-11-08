@@ -45,6 +45,7 @@ internal object TacticalGroundOperations {
         val p=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(BattleDeath.deceased(stocks,p.characterId))return reject(NavigationRejection.IDENTITY)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
         val now=session.gameMillis/1000;val command=checkNotNull(request.tacticalGround)
         if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)
@@ -77,6 +78,7 @@ internal object TacticalGroundOperations {
         val p=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(BattleDeath.deceased(stocks,p.characterId))return reject(NavigationRejection.IDENTITY)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
         val now=session.gameMillis/1000;val command=checkNotNull(request.tacticalGround)
         if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)
@@ -129,7 +131,8 @@ internal object TacticalGroundOperations {
             val state=berth(o,order.carrier,order.grid)
             val reserved=next.outfits.values.filter {it.country==o.country}.sumOf {other->other.activeGround?.values.orEmpty().count {
                 it.base==order.base || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==order.base}==true}}
-            val valid=(order.action!=TacticalGroundAction.DEPLOY || reserved<=GroundBattleRules.BOX_CAPACITY_PER_FACTION) && session.ended==null && p!=null && p.cpPaused && p.baseId==0 && p.grid==order.grid &&
+            val valid=(order.action!=TacticalGroundAction.DEPLOY || reserved<=GroundBattleRules.BOX_CAPACITY_PER_FACTION) && session.ended==null && p!=null &&
+                !BattleDeath.deceased(next,p.characterId) && p.cpPaused && p.baseId==0 && p.grid==order.grid &&
                 owned(o,order.carrier,p,galaxy,next) && state?.base==order.base && galaxy.bases.any {it.id==order.base && it.grid==order.grid}
             if(valid && now<order.readyAt)continue
             val units=o.activeGround!!.values.filter {it.order==order};val ids=units.map {it.id}.toSet()
