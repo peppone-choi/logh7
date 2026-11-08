@@ -9,6 +9,7 @@ services:
         logh7-manual-data: ../docs/manual/data
         logh7-country-data: ../config/countries
         logh7-l10n-editor: ../tools/l10n
+        logh7-display-names: ../l10n
     profiles: [game]
     restart: unless-stopped
     environment:

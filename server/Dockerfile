@@ -5,6 +5,7 @@ COPY . .
 COPY --from=logh7-manual-data *.csv /docs/manual/data/
 COPY --from=logh7-country-data *.csv /config/countries/
 COPY --from=logh7-l10n-editor editor* /tools/l10n/
+COPY --from=logh7-display-names ui-terms.ko.tsv world-names.ko.tsv command-labels.ko.tsv /l10n/
 RUN bash ./gradlew :app:installDist --no-daemon
 
 FROM eclipse-temurin:25-jre

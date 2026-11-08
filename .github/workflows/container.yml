@@ -1,9 +1,9 @@
 name: container
 on:
   push:
-    paths: ['server/**', 'deploy/**', 'docs/manual/data/**', 'config/countries/**', 'tools/l10n/editor*', '.github/workflows/container.yml']
+    paths: ['server/**', 'deploy/**', 'docs/manual/data/**', 'config/countries/**', 'tools/l10n/editor*', 'l10n/*.ko.tsv', '.github/workflows/container.yml']
   pull_request:
-    paths: ['server/**', 'deploy/**', 'docs/manual/data/**', 'config/countries/**', 'tools/l10n/editor*', '.github/workflows/container.yml']
+    paths: ['server/**', 'deploy/**', 'docs/manual/data/**', 'config/countries/**', 'tools/l10n/editor*', 'l10n/*.ko.tsv', '.github/workflows/container.yml']
 permissions:
   contents: read
 jobs:
@@ -18,8 +18,8 @@ jobs:
       - name: Test stack smoke failure and cleanup paths
         run: python3 -m unittest discover -s deploy/ci -p 'test_*.py' -v
       - name: Build Java 25 image
-        run: docker build --build-context logh7-manual-data=docs/manual/data --build-context logh7-country-data=config/countries --build-context logh7-l10n-editor=tools/l10n -t "$GAME_SERVER_IMAGE" server
-      - name: Verify packaged manual CSV resources
+        run: docker build --build-context logh7-manual-data=docs/manual/data --build-context logh7-country-data=config/countries --build-context logh7-l10n-editor=tools/l10n --build-context logh7-display-names=l10n -t "$GAME_SERVER_IMAGE" server
+      - name: Verify packaged manual and localization resources
         run: |
           cid=$(docker create "$GAME_SERVER_IMAGE")
           trap 'docker rm -f "$cid" >/dev/null' EXIT
@@ -56,6 +56,11 @@ jobs:
           with zipfile.ZipFile(ops_jars[0]) as jar:
               for name in ('editor.html','editor.js','editor-ui.js'):
                   assert jar.read('admin/text/' + name) == (Path('tools/l10n') / name).read_bytes()
+          gateway_jars = list((Path(os.environ['RUNNER_TEMP']) / 'image-lib').glob('gateway-*.jar'))
+          assert len(gateway_jars) == 1
+          with zipfile.ZipFile(gateway_jars[0]) as jar:
+              for name in ('ui-terms.ko.tsv','world-names.ko.tsv','command-labels.ko.tsv'):
+                  assert jar.read('l10n/' + name) == (Path('l10n') / name).read_bytes()
           PYCODE
       - name: Validate Compose contract
         run: |
@@ -66,6 +71,7 @@ jobs:
           assert game['build']['additional_contexts']['logh7-manual-data'].endswith('/docs/manual/data')
           assert game['build']['additional_contexts']['logh7-country-data'].endswith('/config/countries')
           assert game['build']['additional_contexts']['logh7-l10n-editor'].endswith('/tools/l10n')
+          assert game['build']['additional_contexts']['logh7-display-names'].endswith('/l10n')
           assert all(key.startswith('LOGH7_') for key in game['environment'])
           assert not game.get('ports')  # Loopback listeners are container-internal only.
           assert not game.get('depends_on') and not game.get('secrets')

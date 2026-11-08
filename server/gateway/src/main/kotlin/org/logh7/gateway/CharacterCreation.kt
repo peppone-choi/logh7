@@ -5,6 +5,10 @@ import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.engine.Flagships
 import org.logh7.engine.CountryCatalogLoader
 import org.logh7.engine.CountryId
+import org.logh7.engine.OriginalCandidateDefinition
+import org.logh7.engine.OriginalCandidateEdit
+import org.logh7.engine.OriginalCandidateProfile
+import org.logh7.engine.PublishedOriginalCandidates
 import org.logh7.engine.ShipStyleId
 import java.text.Normalizer
 import java.nio.file.Files
@@ -20,7 +24,15 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val originals: List<OriginalCharacterMessages.Candidate> = OriginalCharacterMessages.localCandidates,
     private val accountFame: Map<String, Int> = emptyMap(),
     starterKinds: Map<Int, List<Int>>? = null,
-    shipStyles:Map<Int,ShipStyleId>? = null) {
+    shipStyles:Map<Int,ShipStyleId>? = null,
+    private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates()) {
+    companion object {
+        fun originalDefinitions()=OriginalCharacterMessages.localCandidates.map { candidate ->
+            val data=KoreanDisplayNames.original(candidate.character)
+            OriginalCandidateDefinition(data.id,data.power,
+                OriginalCandidateProfile(data.surname,data.givenName,data.face,data.rank,data.abilities))
+        }
+    }
     private val configuredStyles=shipStyles?.toMap()
     private val styles get()=configuredStyles ?: CountryCatalogLoader.current().let {catalog->
         setOf(2,3).associateWith {catalog.shipStyle(CountryId(it))}}
@@ -83,6 +95,10 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         }
     }
     private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
+    private fun effectiveOriginal(data:CharacterMessages.Generate,edits:Map<Long,OriginalCandidateEdit>):CharacterMessages.Generate {
+        val edit=edits[data.id]?.profile ?: return data
+        return data.copy(surname=edit.surname,givenName=edit.givenName,face=edit.face,rank=edit.rank,abilities=edit.abilities)
+    }
     // Preserve the model already chosen if the administrator changes definitions during the wizard.
     private fun profile(data:CharacterMessages.Generate)=CharacterProfile(data,CountryId(data.power),
         ShipStyleId.fromLegacy(checkNotNull(Flagships.find(data.shipKind)).power))
@@ -149,9 +165,10 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         // Local accounts have fame 0. Original numeric conditions are unknown.
         val currentFame=fame(account)
         val selected=selection ?: applicationSelections[account]
+        val edits=publishedOriginals.current()
         return originals.filter { it.minimumFame <= currentFame && registered.values.none { owned -> owned.character.id == it.character.id } &&
             (selected == null || it.character.power == selected.creationPower) }
-            .map {it.copy(character=KoreanDisplayNames.original(it.character))}
+            .map {it.copy(character=effectiveOriginal(KoreanDisplayNames.original(it.character),edits))}
     }
     fun fame(account: String): Int = accountFame[account] ?: 0
     @Synchronized fun entryState(account: String, id: Long, selection: CountrySelection? = null): ByteArray {
@@ -178,12 +195,13 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private fun resolveLottery() {
         if (applications.isEmpty() || clock.millis() < deadline) return
         val winners = registered.toMutableMap()
+        val edits=publishedOriginals.current()
         val accounts = applications.keys.toMutableList().also { java.util.Collections.shuffle(it, random) }
         for (account in accounts) {
             if (account in winners) continue
             val id = applications.getValue(account).firstOrNull { candidate -> winners.values.none { it.character.id == candidate } } ?: continue
             val candidate = originals.single { it.character.id == id }
-            val character=candidate.character
+            val character=effectiveOriginal(candidate.character,edits)
             val selection=applicationSelections[account]
             val style=selection?.shipStyle ?: styles.getValue(character.power)
             // The hero keeps its own model unless the chosen style differs; then the same-type model of that style.
@@ -233,8 +251,10 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         // A started creation stays on its country and connection; another connection must cancel it first.
         if (previous != null) require(bindings[account] == Binding(selection, owner)) { "Creation country or connection changed" }
         val response = if (message.category == 0) {
-            require(originals.none { normalized(it.character.surname) == normalized(message.surname) ||
-                normalized(KoreanDisplayNames.original(it.character).surname) == normalized(message.surname) }) { "Surname already reserved" }
+            val requested=normalized(message.surname)
+            require(originals.none { normalized(it.character.surname) == requested ||
+                normalized(KoreanDisplayNames.original(it.character).surname) == requested } &&
+                publishedOriginals.current().values.none {normalized(it.profile.surname)==requested}) { "Surname already reserved" }
             require((pending + registered.mapValues {it.value.character}).none { (owner, data) -> owner != account && normalized(data.surname) == normalized(message.surname) }) { "Surname already reserved" }
             check(pending.size < 4096 || previous != null)
             message.copy(id = previous?.id ?: nextId++, check = 1)
