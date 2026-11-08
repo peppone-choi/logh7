@@ -425,7 +425,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                         org.logh7.protocol.TacticalCommandMessages.Point(b.x,b.y,b.z))}
             }
             packets+=org.logh7.protocol.TacticsMessages.positions(tactical.units)
-            packets+=event.motions.map {(id,motion)->TacticalMotionMessages.npc(id,motion,event.seconds,event.order.character)}
+            val motions=if(event.stateOnly && event.order.command.opcode==0x40e)
+                event.motions.filter {(id,motion)->tactical.committedMotion(id)==motion}
+            else event.motions
+            packets+=motions.map {(id,motion)->TacticalMotionMessages.npc(id,motion,event.seconds,event.order.character)}
             send(viewer,packets)
         }
     }
