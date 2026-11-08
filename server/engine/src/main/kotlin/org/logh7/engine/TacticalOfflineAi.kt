@@ -83,10 +83,14 @@ internal object TacticalOfflineAi {
             players[account]=next
             val motions=linkedMapOf(p.unitId to motion)
             var commanded=false
+            val alliedFlagships=if(kind in 0..1) players.values.asSequence()
+                .filter {it.unitId!=p.unitId && it.grid==p.grid && TacticalAuthority.camp(it,stocks)==camp}
+                .map {it.unitId}.sorted().toList() else emptyList()
             val alliedShips=if(kind in 0..1) stocks.outfits.values.asSequence()
                 .filter {TacticalAuthority.camp(it,stocks)==camp && it.positionIn(g)==OutfitPosition(p.grid)}
                 .flatMap {it.activeShips?.values.orEmpty().asSequence()}
                 .map {it.id}.sorted().toList() else emptyList()
+            val alliedTargets=alliedFlagships+alliedShips
             // Every regular ship remains subject to ownership, CRC, confusion and pending-job guards.
             for((outfitId,original) in stocks.outfits.toSortedMap()) {
                 if(TacticalAuthority.camp(original,stocks)!=camp || original.positionIn(g)!=OutfitPosition(p.grid))continue
@@ -108,7 +112,8 @@ internal object TacticalOfflineAi {
                 val updated=original.activeShips?.values?.map {unit ->
                     if(unit.id !in commandable || unit.posture?.mode?.requiresBase==true)return@map unit
                     if(kind in 0..1) {
-                        val support=TacticalSupportOperations.offlineOrder(original,unit,p,now,scale,players,stocks,g,alliedShips)
+                        val support=TacticalSupportOperations.offlineOrder(original,unit,p,now,scale,players,stocks,g,
+                            alliedTargets)
                         if(support!=null) {
                             commanded=true
                             return@map unit.copy(support=support,attack=null,shot=null)
