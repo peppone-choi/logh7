@@ -30,8 +30,12 @@ object TacticalTerrain {
         var from = start
         for (point in waypoints) {
             val startDistance = hypot(from.x.toDouble(), from.y.toDouble())
-            val blocked = if (startDistance < radius) hypot(point.x.toDouble(), point.y.toDouble()) < startDistance
-                else closest(from, point).first < radius
+            val blocked = if (startDistance < radius) {
+                // A segment that initially approaches the center is inward even if it ends outside.
+                val dx = point.x.toDouble() - from.x
+                val dy = point.y.toDouble() - from.y
+                from.x * dx + from.y * dy < 0.0
+            } else closest(from, point).first < radius
             if (blocked) return true
             from = point
         }
