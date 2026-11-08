@@ -125,6 +125,22 @@ class TacticalGroundOperationsTest {
         galaxy=galaxy(80)
         val h=state(kind=2);assertNotNull(accept(h,Navigation(galaxy,h.nav,NavigationPolicy()),production(h)).player)
     }
+    @Test fun carrierMustStillShareTheCommandersBattleCamp() {
+        val s=state()
+        val before=s.stocks
+        val revolt=CoupState(plots=mapOf(10000 to Plot(10000,CountryId(2),0,revolt=1)))
+        fun withCoup(stocks:PlanetStocks,coup:CoupState)=stocks.copy(social=stocks.social.copy(coup=coup))
+        s.stocks=withCoup(before,revolt)
+        assertEquals(NavigationRejection.CARD,accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).rejection)
+        s.stocks=withCoup(before,revolt.copy(loyalty=mapOf(1 to CoupActions.LOYAL)))
+        assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).player)
+        s.stocks=withCoup(s.stocks,revolt)
+        val events=mutableListOf<TacticalGroundResult>()
+        settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+600,events)
+        assertTrue(events.single().cancelled)
+        assertEquals(before.outfits.getValue(1).activeGround,s.stocks.outfits.getValue(1).activeGround)
+    }
+
     @Test fun disabledOrConfusedCarrierCannotStartOrFinishALanding() {
         for(confused in listOf(false,true)) {
             val s=state()

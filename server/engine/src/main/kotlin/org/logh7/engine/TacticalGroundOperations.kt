@@ -21,7 +21,7 @@ data class TacticalGroundResult(val generation:Long,val order:TacticalGroundOrde
 
 internal object TacticalGroundOperations {
     private fun owned(o:OutfitStock,id:Int,p:Navigator,galaxy:Galaxy,stocks:PlanetStocks)=o.activeShips?.values?.singleOrNull {it.id==id}?.let {TacticalAuthority.commander(o,it,stocks)==p.characterId}==true &&
-        o.country==p.country && o.positionIn(galaxy)==OutfitPosition(p.grid)
+        TacticalAuthority.camp(o,stocks)==TacticalAuthority.camp(p,stocks) && o.positionIn(galaxy)==OutfitPosition(p.grid)
     private fun berth(o:OutfitStock,carrier:Int,grid:Int)=o.activeShips?.values?.singleOrNull {it.id==carrier && it.boats>0}
         ?.posture?.takeIf {it.grid==grid && it.mode.requiresBase && it.order==null}
     private fun ground(o:OutfitStock,carrier:Int,base:Int,action:TacticalGroundAction)=o.activeGround?.values.orEmpty().filter {
