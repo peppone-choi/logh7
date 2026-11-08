@@ -86,6 +86,7 @@ internal object TacticalCommandOperations {
     }
     private fun validate(c:TacticalCommand,p:Navigator,now:Long,players:Map<String,Navigator>,s:PlanetStocks,g:Galaxy,
         checkRange:Boolean,sessionOnline:Map<String,Boolean> = emptyMap()):NavigationRejection? {
+        if(BattleDeath.deceased(s,p.characterId))return NavigationRejection.IDENTITY
         if(p.hull?.woundedUntil?.let {it>now}==true)return NavigationRejection.WOUNDED
         val baseOnly=c.opcode in setOf(0x419,0x41d,0x41e,0x41f,0x422)
         val baseSupport=c.opcode in setOf(0x41b,0x41c)

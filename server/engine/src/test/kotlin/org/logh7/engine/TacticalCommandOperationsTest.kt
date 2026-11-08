@@ -45,6 +45,25 @@ class TacticalCommandOperationsTest {
     private fun settle(r:Run,at:Long,events:MutableList<TacticalCommandResult> = mutableListOf(),impacts:MutableList<TacticalImpact> = mutableListOf())=
         TacticalCombat.settle(session.copy(gameMillis=at*1000),galaxy,r.navigation,r.production,r.state.commit,scale=1,onCommand=events::add).also {impacts+=it}
 
+    @Test fun deceasedCommanderCannotIssueSpecialCommandsAndSavedEncouragementIsCancelled() {
+        val s=state()
+        s.stocks=s.stocks.copy(tacticalCommands=TacticalCommandState(morale=mapOf(1 to 15)))
+        val command=TacticalCommand(0x409,listOf(1010000))
+        assertNotNull(accept(run(s),command).player)
+        s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now) {_,_->true}
+        val restored=run(s)
+        val before=s.players.getValue("pilot")
+        val orders=s.stocks.tacticalCommands.orders
+        assertEquals(NavigationRejection.IDENTITY,accept(restored,command).rejection)
+        assertEquals(before,s.players.getValue("pilot"))
+        assertEquals(orders,s.stocks.tacticalCommands.orders)
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(restored,now+5,events)
+        assertTrue(events.single().cancelled)
+        assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+        assertEquals(15,s.stocks.tacticalCommands.morale[1])
+    }
+
     @Test fun explicitAntiAirWaitsAcrossReloadDispersesTheWingAndRestoresSpeedWithoutHittingItsCarrier() {
         val s=state();val enemy=s.stocks.outfits.getValue(2)
         val carrier=ProductionUnits.definitions.first {it.ship && it.power==3 && it.name.startsWith("戦闘艇母艦")}.kind
