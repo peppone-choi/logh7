@@ -108,6 +108,37 @@ class TacticalCommandOperationsTest {
             assertTrue(s.stocks.outfits.values.flatMap {it.activeShips!!.values}.all {it.shot==null})
         }
     }
+    @Test fun antiAirCannotDisperseTheWingOfACarrierInStarCover() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
+        val s=state()
+        s.players=s.players.mapValues {(_,p)->if(p.characterId==10000)
+            p.copy(hull=FlagshipHull(4,now),motion=motion(0f,-21f)) else p}+
+            ("enemy" to Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,
+                hull=FlagshipHull(89,now),motion=motion(10f)))
+        val wing=TacticalAirWing(10002,2488,99,0,0,now+100)
+        s.stocks=s.stocks.copy(tacticalCommands=TacticalCommandState(air=mapOf(99 to wing)))
+        val navigation=Navigation(world,s.nav,NavigationPolicy(),clockScale=1)
+        val production=PlanetProduction(world,s.stock,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+        fun targetAt(y:Float) {
+            val old=production.snapshot(1)!!
+            val outfit=old.outfits.getValue(2)
+            val unit=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,y),now,now))
+            production.replace(old,old.copy(outfits=old.outfits+(2 to outfit.copy(activeShips=ActiveShipUnits(listOf(unit))))))
+        }
+        val command=request(TacticalCommand(0x406,listOf(1010000),kind=3,targetKind=0x81,target=99)).copy(shipKind=4)
+        fun accept()=TacticalCommandOperations.accept(command,session,world,navigation,production,production.snapshot(1)!!,s.commit,1)
+        targetAt(-19f)
+        assertEquals(NavigationRejection.RANGE,accept().rejection)
+        assertTrue(production.snapshot(1)!!.tacticalCommands.orders.isEmpty())
+        targetAt(-20f)
+        assertNotNull(accept().player)
+        targetAt(-19f)
+        val impacts=TacticalCombat.settle(session.copy(gameMillis=(now+5)*1000),world,navigation,production,s.commit,scale=1)
+        assertTrue(impacts.isEmpty())
+        assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+        assertEquals(wing,s.stocks.tacticalCommands.air[99])
+    }
+
     @Test fun antiAirUsesAnExclusiveEightUnitRadiusEvenForAnAaOnlyFlagship() {
         fun fixture(distance:Float):Run {
             val s=state();s.players=s.players+("pilot" to s.players.getValue("pilot").copy(hull=FlagshipHull(4,now)))

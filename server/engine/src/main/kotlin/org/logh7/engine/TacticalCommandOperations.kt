@@ -136,7 +136,8 @@ internal object TacticalCommandOperations {
                         return NavigationRejection.WEAPON
                     if(if(id==p.unitId)p.fire?.pending!=null else u?.shot!=null)return NavigationRejection.BUSY
                     val at=pose(id,p.grid,now,players,s,g)!!.position
-                    if(hypot((at.x-target.x).toDouble(),(at.y-target.y).toDouble())>=8.0)return NavigationRejection.RANGE
+                    if(TacticalTerrain.sensorBlocked(g,p.grid,at,target) ||
+                        hypot((at.x-target.x).toDouble(),(at.y-target.y).toDouble())>=8.0)return NavigationRejection.RANGE
                 }
             }
             0x407 -> {
