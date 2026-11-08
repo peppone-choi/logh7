@@ -26,7 +26,8 @@ internal object OfficeResignation {
         if(session.ended!=null || session.generation!=r.generation || stocks.generation!=r.generation ||
             !participant.online || participant.connection!=r.connection) return reject(ResignationRejection.SESSION)
         if(player==null || r.country==null || player.generation!=r.generation || player.characterId!=r.characterId ||
-            player.country!=r.country || participant.country!=r.country) return reject(ResignationRejection.IDENTITY)
+            player.country!=r.country || participant.country!=r.country || BattleDeath.deceased(stocks,r.characterId))
+            return reject(ResignationRejection.IDENTITY)
         val policy=OrganizationalOfficePolicy(galaxy,countries)
         if(OrganizationOffices.of(r.card)==null)return reject(ResignationRejection.CARD)
         val role=policy.role(r.card,r.country) ?: return reject(ResignationRejection.AUTHORITY)

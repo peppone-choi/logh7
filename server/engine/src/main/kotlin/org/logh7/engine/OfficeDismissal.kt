@@ -32,6 +32,7 @@ class OfficeDismissalPolicy(private val galaxy:Galaxy,private val countries:Coun
         }
     }
     fun authorized(stocks:PlanetStocks,seat:Seat,actor:Int,power:Int,rank:Int):Boolean {
+        if(BattleDeath.deceased(stocks,actor) || BattleDeath.deceased(stocks,seat.target))return false
         val role=offices.role(seat.card,seat.country) ?: return false
         return seat.country.value==power && offices.authorized(stocks,role,
             if(role.scope==OfficeScope.OUTFIT)seat.outfit else seat.base,actor,rank)
@@ -52,9 +53,11 @@ internal object OfficeDismissal {
         if(session.ended!=null || session.generation!=r.generation || stocks.generation!=r.generation ||
             !participant.online || participant.connection!=r.connection) return reject(DismissalRejection.SESSION)
         if(player==null || r.country==null || player.generation!=r.generation || player.characterId!=r.characterId ||
-            player.country!=r.country || participant.country!=r.country) return reject(DismissalRejection.IDENTITY)
+            player.country!=r.country || participant.country!=r.country || BattleDeath.deceased(stocks,r.characterId))
+            return reject(DismissalRejection.IDENTITY)
         val power=r.country.value
-        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country) return reject(DismissalRejection.TARGET)
+        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country || BattleDeath.deceased(stocks,r.target))
+            return reject(DismissalRejection.TARGET)
         if(OrganizationOffices.of(r.card)?.authority==null)
             return reject(DismissalRejection.CARD)
         val policy=OfficeDismissalPolicy(galaxy,countries)

@@ -50,6 +50,15 @@ class OfficeResignationTest {
         assertEquals(ResignationRejection.BUSY,result.rejection)
         assertEquals(stocks,result.stocks);assertEquals(pending,result.player);assertFalse(result.changed)
     }
+    @Test fun aDeceasedHolderCannotResignAStaleCapitalOffice() {
+        val stock=stock(57)
+        val saved=stock.copy(strategic=stock.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+        val pilot=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000)
+        val result=act(request(57),saved,pilot)
+        assertEquals(ResignationRejection.IDENTITY,result.rejection)
+        assertEquals(pilot,result.player)
+        assertEquals(saved,result.stocks)
+    }
     @Test fun aNationalSeatKeptInTheGeneralSeatListIsAlsoCleared() {
         val base=stock(161,0)
         val listed=base.copy(strategic=base.strategic.copy(offices=listOf(OfficeHolding(161,1177,10000))))
