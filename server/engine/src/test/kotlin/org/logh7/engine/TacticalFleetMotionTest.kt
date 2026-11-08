@@ -53,7 +53,7 @@ class TacticalFleetMotionTest {
             TacticalCombat.settle(session.copy(gameMillis=(now+wait)*1000),galaxy,nav,p,s.commit,onMovement=events::add)
             assertEquals(setOf(1,2,1010000),events.map {it.unit}.toSet())
             assertTrue(events.all {it.waypoint==-1 && it.motion!!.rotation==null})
-            assertTrue(events.all {it.turned==(kind==TacticalManeuver.REVERSE)})
+            assertTrue(events.all {(it.reverseTarget!=null)==(kind==TacticalManeuver.REVERSE)})
             assertEquals(accepted.player.commandRange,s.players.getValue("pilot").commandRange)
             assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
             TacticalCombat.settle(session.copy(gameMillis=(now+wait+1)*1000),galaxy,nav,p,s.commit,onMovement=events::add)
@@ -74,7 +74,7 @@ class TacticalFleetMotionTest {
             assertEquals(3,events.size)
             for(event in events) {
                 val stopped=assertNotNull(event.motion)
-                assertNull(stopped.rotation);assertFalse(event.turned)
+                assertNull(stopped.rotation);assertNull(event.reverseTarget)
                 assertEquals(accepted.tacticalMotions.getValue(event.unit).origin,stopped.pose(now+20))
             }
             assertNull(s.players.getValue("pilot").motion!!.rotation)
@@ -95,7 +95,7 @@ class TacticalFleetMotionTest {
             val deadline=accepted.tacticalMotions.getValue(1).startsAt
             TacticalCombat.settle(session.copy(gameMillis=deadline*1000),galaxy,nav,p,s.commit,onMovement=events::add)
             val cancelled=events.single {it.unit==1}
-            assertFalse(cancelled.turned)
+            assertNull(cancelled.reverseTarget)
             assertEquals(accepted.tacticalMotions.getValue(1).origin,cancelled.motion!!.pose(deadline))
             val completed=events.single {it.unit==2}
             assertEquals(accepted.tacticalMotions.getValue(2).pose(deadline),completed.motion!!.pose(deadline))
