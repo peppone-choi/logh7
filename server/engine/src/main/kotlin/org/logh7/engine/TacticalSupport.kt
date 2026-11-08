@@ -109,8 +109,8 @@ internal object TacticalSupportOperations {
             motions[current.unit.id]=motion
             next=replace(next,current,current.unit.copy(support=null,tactical=state,motionCommander=0,attack=null,shot=null,posture=current.unit.posture?.copy(order=null)))
         }
-        next=TacticalGroundOperations.cancel(next,command.units)
-        next=TacticalCommandOperations.cancel(next,command.units)
+        val (afterGround,groundStopped)=TacticalGroundOperations.cancel(next,command.units)
+        next=TacticalCommandOperations.cancel(afterGround,command.units)
         if(player.unitId in command.units)motions[player.unitId]=checkNotNull(player.motion)
         if(sources.isNotEmpty())player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
         val prepared=production.prepareReplacement(stocks,next)
@@ -122,7 +122,8 @@ internal object TacticalSupportOperations {
         }}
         val commandNotifications=bases.second+stocks.tacticalCommands.orders.filter {it.command.units.any {id->id in command.units}}.map {
             TacticalCommandResult(session.generation,it,now,audience(session,player.grid,players),true)}
-        return NavigationResult(player,preview.previous,supportNotifications=notifications,tacticalMotions=motions,commandNotifications=commandNotifications)
+        return NavigationResult(player,preview.previous,supportNotifications=notifications,tacticalMotions=motions,
+            commandNotifications=commandNotifications,groundStopped=groundStopped)
     }
 
     fun accept(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,

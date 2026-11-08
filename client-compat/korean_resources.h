@@ -185,6 +185,13 @@ static const char* __fastcall lookupKoreanResource(void* table, void*, unsigned 
         static const bool encoded=logh::encodeKoreanResource(L"로 시작하며 다음 함선을 기함으로 받습니다.",starter);
         if(encoded)return starter.c_str();
     }
+    // Ship-tab ground orders take five seconds of waiting and twenty seconds of preparation on the revival server.
+    if(group==0 && (index==17 || index==18) && *reinterpret_cast<unsigned*>(0x77a8f8)==3 && world && at<BYTE>(world,0x126718)) {
+        static std::string landing,withdrawal;
+        static const bool encoded=logh::encodeKoreanResource(L"[ 육전 ]\n탑재 육전대를 현재 거점에 상륙시킵니다.\n약 25초 · MCP 0 / PCP 0",landing) &&
+            logh::encodeKoreanResource(L"[ 육전 철수 ]\n육전대를 출발한 함정에 다시 태웁니다.\n약 25초 · MCP 0 / PCP 0",withdrawal);
+        if(encoded)return index==17 ? landing.c_str() : withdrawal.c_str();
+    }
     // U-31: commander tab slot 21 is the orbital ground attack button (help index = slot + 4).
     if (group==0 && index==25 && *reinterpret_cast<unsigned*>(0x77a8f8)==4 && world && at<BYTE>(world,0x126718)) {
         static std::string strike;

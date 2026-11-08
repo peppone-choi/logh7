@@ -260,11 +260,12 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
     @Synchronized fun ground(event:org.logh7.engine.TacticalGroundResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         val order=event.order
+        val deploy=order.action==org.logh7.engine.TacticalGroundAction.DEPLOY
         members.values.filter {it.player.generation==event.generation && it.player.grid==order.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer ->
             val packet=if(event.cancelled)listOf(org.logh7.protocol.TacticalGroundMessages.reply(
                 org.logh7.protocol.TacticalGroundMessages.Command(
-                    if(order.action==org.logh7.engine.TacticalGroundAction.DEPLOY)org.logh7.protocol.TacticalGroundMessages.Action.DEPLOY
+                    if(deploy)org.logh7.protocol.TacticalGroundMessages.Action.DEPLOY
                     else org.logh7.protocol.TacticalGroundMessages.Action.WITHDRAW,order.character,listOf(order.carrier)),event.seconds,0,false))
             else {
                 val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
@@ -275,7 +276,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     event.troops.map {troop->org.logh7.protocol.TacticalGroundMessages.movedTroop(event.seconds,
                         order.action==org.logh7.engine.TacticalGroundAction.WITHDRAW,order.carrier,troop,order.base)}
             }
-            send(viewer,packet)
+            val notice=if(viewer.character.id.toInt()==order.character)listOf(org.logh7.protocol.ChatMessages.spot(
+                org.logh7.protocol.ChatMessages.Spot(order.character,TacticalGroundNotices.finished(deploy,event.cancelled,event.troops.size)),
+                event.seconds)) else emptyList()
+            send(viewer,packet+notice)
         }
     }
     @Synchronized fun posture(event:org.logh7.engine.TacticalPostureResult) {

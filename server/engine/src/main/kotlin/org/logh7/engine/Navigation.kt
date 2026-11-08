@@ -177,7 +177,8 @@ data class NavigationResult(val player: Navigator?, val previous: Navigator? = n
     val completedWarp: Boolean = false, val warpCancellation: NavigationRejection? = null,
     val supportNotifications: List<TacticalSupportResult> = emptyList(),
     val tacticalMotions: Map<Int,TacticalMotion> = emptyMap(),val postureReadyAt:Long?=null,val groundReadyAt:Long?=null,
-    val commandReadyAt:Long?=null,val commandNotifications:List<TacticalCommandResult> = emptyList())
+    val commandReadyAt:Long?=null,val commandNotifications:List<TacticalCommandResult> = emptyList(),
+    val groundStopped:Set<TacticalGroundAction> = emptySet())
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,

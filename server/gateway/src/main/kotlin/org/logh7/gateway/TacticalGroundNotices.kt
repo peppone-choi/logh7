@@ -1,11 +1,20 @@
 package org.logh7.gateway
 
 import org.logh7.engine.NavigationRejection
+import org.logh7.engine.TacticalGroundAction
+import org.logh7.engine.TacticalGroundOrder
 
-/** Why a 육전/철수 order was refused; the CD client displays no result for 040f/0410. Author: Peppone Choi. */
+/** The CD does not explain a ground order's acknowledgement or final state. Author: Peppone Choi. */
 object TacticalGroundNotices {
+    private fun label(deploy:Boolean)=if(deploy)"육전" else "철수"
+    fun accepted(deploy:Boolean)="[${label(deploy)}] 접수 · 약 ${TacticalGroundOrder.PREPARATION_SECONDS}초 · CP 0"
+    fun finished(deploy:Boolean,cancelled:Boolean,count:Int)=if(cancelled)"[${label(deploy)}] 조건 변경으로 취소"
+        else "[${label(deploy)}] ${count}유닛 ${if(deploy)"상륙" else "재탑승"} 완료"
+    fun stopped(actions:Set<TacticalGroundAction>):String? = actions.takeIf {it.isNotEmpty()}?.joinToString(
+        separator="·",prefix="[정지] ",postfix=" 취소") {label(it==TacticalGroundAction.DEPLOY)}
+
     fun text(deploy:Boolean,reason:NavigationRejection?):String? {
-        val action=if(deploy)"육전" else "철수"
+        val action=label(deploy)
         val why=when(reason) {
             NavigationRejection.BASE->"정박·주둔 거점이 없습니다."
             NavigationRejection.CREW->"장갑병은 특수 행성·요새에 강하할 수 없습니다."
@@ -16,6 +25,8 @@ object TacticalGroundNotices {
             NavigationRejection.CARD->"이 함정의 지휘 권한이 없습니다."
             NavigationRejection.WOUNDED->"부상 중에는 명령할 수 없습니다."
             NavigationRejection.TACTICAL->"전술 화면에서만 명령할 수 있습니다."
+            NavigationRejection.ACCESS->"이 육전 특기는 사용할 수 없습니다."
+            NavigationRejection.CLOCK,NavigationRejection.DISABLED->"지금은 명령을 접수할 수 없습니다."
             else->return null
         }
         return "[$action] $why"
