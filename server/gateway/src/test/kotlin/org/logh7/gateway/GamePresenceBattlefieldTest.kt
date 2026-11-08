@@ -166,6 +166,25 @@ class GamePresenceBattlefieldTest {
         assertEquals(listOf(0x0400, 0x042e, 0x0325), received.flatten().map(::opcode))
     }
 
+    @Test fun npcWarpFromTheBattlefieldSkipsTheReturnedPilotButReachesAViewerStillFighting() {
+        val hub = GamePresence()
+        val returnedPackets = mutableListOf<ByteArray>()
+        val witnessPackets = mutableListOf<ByteArray>()
+        val witness = player.copy(characterId = 10001)
+        hub.update(GamePresence.Member("viewer", character, player, returnedPackets::addAll))
+        hub.update(GamePresence.Member("witness", character.copy(id = 10001), witness, witnessPackets::addAll))
+        returnedPackets.clear()
+        witnessPackets.clear()
+        val returned = player.copy(baseId = 1049, mode = 4, cpPaused = false,
+            hull = FlagshipHull(3, 100, woundedUntil = 86500))
+        val current = snapshot.copy(navigators = mapOf("pilot" to returned, "witness" to witness))
+        val move = NpcStrategicMovement(1, 1, player.grid, 2488, 100, listOf(1), recipients + (10001 to "witness"))
+        hub.strategicMovement(move, current, WorldBootstrap(galaxy)) { null }
+        assertTrue(returnedPackets.none { opcode(it) == 0x0425 })
+        assertEquals(1, witnessPackets.count { opcode(it) == 0x0425 })
+        assertEquals(returned, hub.detail("viewer", 10000)?.player)
+    }
+
     @Test fun defeatExitSurvivesTheStrategicMovementPublicationOfItsCommittedReturn() {
         val hub = GamePresence()
         val received = mutableListOf<List<ByteArray>>()
