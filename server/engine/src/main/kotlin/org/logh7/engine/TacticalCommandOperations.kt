@@ -169,7 +169,12 @@ internal object TacticalCommandOperations {
                             (other.commandRange?.radius(now) ?: 0f)}==true})return NavigationRejection.RANGE
                 }
             }
-            0x40d -> if(c.kind !in 0..7)return NavigationRejection.TARGET
+            0x40d -> {
+                if(c.kind !in 0..7)return NavigationRejection.TARGET
+                if(TacticalTerrain.starRadius(g,p.grid)!=null && formationMotions(c,p.grid,now,players,s,g).values.any {m->
+                    TacticalTerrain.pathBlocked(g,p.grid,m.origin.position,m.waypoints)
+                })return NavigationRejection.RANGE
+            }
             0x40e -> {
                 if(c.kind !in 0..2)return NavigationRejection.TARGET
                 for(id in c.units) {
@@ -369,17 +374,8 @@ internal object TacticalCommandOperations {
                     authority=stocks.tacticalCommands.authority+c.units.associateWith {p.characterId},
                     formationLeaders=stocks.tacticalCommands.formationLeaders.filter {(id,leader)->id !in c.units && leader !in c.units}))
                 0x40d -> {
-                    val anchor=pose(c.units.first(),p.grid,now,players,stocks,g)!!
-                    for((index,id) in c.units.withIndex()) {
-                        if(c.kind==7)continue
-                        val at=pose(id,p.grid,now,players,stocks,g)!!
-                        val offset=formationOffset(c.kind,index,c.units.size,ship(id,stocks)?.unit?.stack?.kind ?: 0)
-                        val x=anchor.position.x+offset.x*cos(anchor.direction)+offset.y*sin(anchor.direction)
-                        val y=anchor.position.y-offset.x*sin(anchor.direction)+offset.y*cos(anchor.direction)
-                        val target=if(c.kind==7)at.position else TacticalPoint(x,y)
-                        val m=TacticalMotion(p.grid,now,at,if(target==at.position)0f else .5f,anchor.direction,listOf(target),waitSeconds=0)
-                        motion(id,m,p.characterId);motions[id]=m
-                    }
+                    motions.putAll(formationMotions(c,p.grid,now,players,stocks,g))
+                    motions.forEach {(id,m)->motion(id,m,p.characterId)}
                     stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(formations=stocks.tacticalCommands.formations+(p.characterId to c.kind),
                         formationLeaders=if(c.kind==7)stocks.tacticalCommands.formationLeaders.filterKeys {it !in c.units} else
                             stocks.tacticalCommands.formationLeaders+c.units.associateWith {c.units.first()}))
@@ -583,6 +579,20 @@ internal object TacticalCommandOperations {
         battle.advanceMissions(defeated)
         return battle.stocks
     }
+    private fun formationMotions(c:TacticalCommand,grid:Int,now:Long,players:Map<String,Navigator>,
+        stocks:PlanetStocks,g:Galaxy):Map<Int,TacticalMotion> {
+        if(c.kind==7)return emptyMap()
+        val anchor=checkNotNull(pose(c.units.first(),grid,now,players,stocks,g))
+        return c.units.withIndex().associate {(index,id)->
+            val at=checkNotNull(pose(id,grid,now,players,stocks,g))
+            val offset=formationOffset(c.kind,index,c.units.size,ship(id,stocks)?.unit?.stack?.kind ?: 0)
+            val x=anchor.position.x+offset.x*cos(anchor.direction)+offset.y*sin(anchor.direction)
+            val y=anchor.position.y-offset.x*sin(anchor.direction)+offset.y*cos(anchor.direction)
+            val target=TacticalPoint(x,y)
+            id to TacticalMotion(grid,now,at,if(target==at.position)0f else .5f,anchor.direction,listOf(target),waitSeconds=0)
+        }
+    }
+
     internal fun formationOffset(kind:Int,index:Int,count:Int,shipKind:Int):TacticalPoint {
         require(kind in 0..7 && index in 0 until count)
         if(index==0)return TacticalPoint(0f,0f)
