@@ -34,6 +34,16 @@ class GroundPresenceTest {
             }
             packets.forEach {it.clear()}
         }
+        val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,1,1049,200,250)
+        val landed=TacticalGroundResult(1,order,listOf(3),250,audience)
+        val returnedPilot=viewers[0].copy(baseId=1049,mode=4,cpPaused=false)
+        val afterReturn=snapshot.copy(navigators=snapshot.navigators+("pilot0" to returnedPilot))
+        for(result in listOf(landed,landed.copy(cancelled=true))) {
+            hub.ground(result,afterReturn,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
+            assertTrue(packets[0].isEmpty())
+            assertTrue(packets[1].isNotEmpty())
+            packets[1].clear()
+        }
         for(action in TacticalSupportAction.entries) {
             hub.support(TacticalSupportResult(1,2487,action,1,1010000,100,200,0,audience),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
             checkDefinitions()
