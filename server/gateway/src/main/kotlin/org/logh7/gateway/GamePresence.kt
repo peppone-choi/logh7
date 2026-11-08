@@ -418,8 +418,9 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
+                val current=tacticalViewer(snapshot,viewer,event.grid) ?: return@forEach
                 // 0325 replaces the complete native definition cache, including unrelated combatants.
-                val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
+                val tactical=TacticalBootstrap(snapshot,galaxy,current,characterById)
                 send(viewer,if(event.cancelled)listOf(packet) else listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)))
             }
     }
@@ -446,11 +447,20 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         }
     }
 
-    @Synchronized fun movement(event:org.logh7.engine.TacticalMovement) {
+    private fun tacticalViewer(snapshot:org.logh7.engine.WorldSnapshot,viewer:Member,grid:Int):Navigator? =
+        snapshot.navigators.values.singleOrNull {
+            it.characterId==viewer.character.id.toInt() && it.generation==viewer.player.generation &&
+                it.grid==grid && it.baseId==0 && it.cpPaused
+        }
+
+    @Synchronized fun movement(event:org.logh7.engine.TacticalMovement,
+        snapshot:org.logh7.engine.WorldSnapshot?=null) {
         // A committed audience binding can still be live after its viewer changes battlefield.
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
+                // Warp delivery uses the origin audience, which can include the moving commander.
+                if(event.destination==null && snapshot!=null && tacticalViewer(snapshot,viewer,event.grid)==null)return@forEach
                 if(event.formation.isNotEmpty()) {
                     send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character))
                     return@forEach

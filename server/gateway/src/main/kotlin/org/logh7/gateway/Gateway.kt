@@ -149,7 +149,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             org.logh7.engine.EspionageActions.aliases[it.alias] to org.logh7.engine.CountryCatalogLoader.current()
                 .nativePower(org.logh7.engine.Allegiance.Country(it.country)) } }
         tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
-        movementSubscription = presence?.let { navigation!!.observeMovements(it::movement) }
+        movementSubscription = presence?.let { p -> navigation!!.observeMovements { event ->
+            p.movement(event,navigation.snapshot())
+        } }
         civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile,accountFame,originalCandidates)

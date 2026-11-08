@@ -138,8 +138,32 @@ class GamePresenceBattlefieldTest {
     @Test fun delayedSupportCompletionAndCancellationDoNotReachAViewerInAnotherGrid() {
         val result = TacticalSupportResult(1, 2487, TacticalSupportAction.SUPPLY,
             1, 2, 100, 200, 0, recipients, character = 10000)
-        verifyBattlefield(listOf(0x042e, 0x0325)) { it.support(result, snapshot, galaxy) { null } }
-        verifyBattlefield(listOf(0x040a)) { it.support(result.copy(cancelled = true), snapshot, galaxy) { null } }
+        val committed = snapshot.copy(navigators = mapOf("pilot" to player))
+        verifyBattlefield(listOf(0x042e, 0x0325)) { it.support(result, committed, galaxy) { null } }
+        verifyBattlefield(listOf(0x040a)) { it.support(result.copy(cancelled = true), committed, galaxy) { null } }
+    }
+
+    @Test fun committedReturnSuppressesMovementAndSupportBeforePresenceCatchesUp() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("viewer", character, player, received::add))
+        val motion = TacticalMotion(2487, 100, TacticalPose(TacticalPoint(0f, 0f), 0f),
+            1f, 0f, listOf(TacticalPoint(0f, 10f)))
+        val movement = TacticalMovement(1, 1, 2487, 100, motion, recipients)
+        val support = TacticalSupportResult(1, 2487, TacticalSupportAction.SUPPLY,
+            1, 2, 100, 200, 0, recipients, character = 10000)
+        for (current in listOf(player.copy(grid = 2488),
+            player.copy(baseId = 1049, mode = 4, cpPaused = false))) {
+            val committed = snapshot.copy(navigators = mapOf("pilot" to current))
+            hub.movement(movement, committed)
+            hub.support(support, committed, galaxy) { null }
+            hub.support(support.copy(cancelled = true), committed, galaxy) { null }
+            assertTrue(received.isEmpty())
+        }
+        val committed = snapshot.copy(navigators = mapOf("pilot" to player))
+        hub.movement(movement, committed)
+        hub.support(support, committed, galaxy) { null }
+        assertEquals(listOf(0x0400, 0x042e, 0x0325), received.flatten().map(::opcode))
     }
 
     @Test fun defeatExitSurvivesTheStrategicMovementPublicationOfItsCommittedReturn() {
