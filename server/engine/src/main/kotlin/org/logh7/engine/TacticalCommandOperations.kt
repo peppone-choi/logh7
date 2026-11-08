@@ -441,7 +441,7 @@ internal object TacticalCommandOperations {
         fun removeWing(id:Int) {
             val wing=stocks.tacticalCommands.air[id] ?: return
             stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=stocks.tacticalCommands.air-id))
-            if(wing.slowVelocity!=null && stocks.tacticalCommands.air.values.none {it.target==wing.target && it.mode==1}) {
+            if(wing.slowVelocity!=null && stocks.tacticalCommands.air.values.none {it.target==wing.target && it.slowVelocity!=null}) {
                 val p=players.values.singleOrNull {it.unitId==wing.target}
                 val m=p?.motion ?: ship(wing.target,stocks)?.unit?.tactical?.motion
                 if(m!=null && m.grid==wing.grid && m.velocity>0f) {

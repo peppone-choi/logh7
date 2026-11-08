@@ -282,7 +282,14 @@ class TacticalCommandOperationsTest {
             if(death)s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now+5) {_,_->true}
             else {
                 val coup=CoupState(mapOf(10000 to Plot(10000,Power.EMPIRE.country,0,revolt=5)))
-                s.stocks=s.stocks.copy(social=s.stocks.social.copy(coup=coup))
+                val outfit=s.stocks.outfits.getValue(1)
+                val roster=outfit.activeShips!!.values
+                val carriers=ActiveShipUnits(roster.map {if(it.id==2)it.copy(stack=roster.first().stack) else it})
+                val approaching=wing.copy(source=2,nextAt=wing.nextAt+5,slowVelocity=null)
+                val air=s.stocks.tacticalCommands.air+(2 to approaching)
+                s.stocks=s.stocks.copy(social=s.stocks.social.copy(coup=coup),
+                    outfits=s.stocks.outfits+(1 to outfit.copy(activeShips=carriers,units=UnitInventory(carriers.quantities()))),
+                    tacticalCommands=s.stocks.tacticalCommands.copy(air=air))
             }
             val hits=mutableListOf<TacticalImpact>()
             settle(run(s),wing.nextAt,impacts=hits)
