@@ -5,7 +5,8 @@ import kotlin.math.hypot
 
 /** Autonomous uncommanded ship units, not offline delegation or named original characters. Author: Peppone Choi. */
 data class NpcTacticalPolicy(val enabled:Boolean=true,val sight:Float=500f,val engagementDistance:Float=2f,val strategic:Boolean=false,
-    val chooseFireTarget:((NpcFireDecision)->Int?)?=null) {
+    val chooseFireTarget:((NpcFireDecision)->Int?)?=null,
+    val behavior:(generation:Long,outfit:Int)->NpcCombatBehavior={_,_->NpcCombatBehavior.STANDARD}) {
     init { require(sight in 8f..1000f && engagementDistance in 1f..3f) }
 }
 /** An optional advisor can only choose from targets the actor can hit right now. */
@@ -102,11 +103,13 @@ internal object NpcTactics {
             }
             val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
             if(live.isEmpty())continue
+            val behavior=policy.behavior(session.generation,outfitId)
             val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy)
             val returnJumps=if(policy.strategic && enemies.isNotEmpty())NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
             val cargo=OutfitSupplies.distribution(outfit)
             val retreat=live.mapNotNull {it.tactical?.takeIf {s->s.motion.grid==position.grid}?.retreat}.minByOrNull {it.acceptedAt}
-            val critical=live.sumOf {it.boats.toLong()}*4 <= outfit.activeShips!!.values.sumOf {
+            val lossThreshold=if(behavior==NpcCombatBehavior.CAUTIOUS)2 else 4
+            val critical=live.sumOf {it.boats.toLong()}*lossThreshold <= outfit.activeShips!!.values.sumOf {
                 UnitSpecifications.ships.single {s->s.kind==it.stack.kind}.number.toLong()} ||
                 live.all {stocks.tacticalCommands.confused(it.id)} ||
                 (returnJumps!=null && returnJumps>0 && live.any {cargo.getValue(it.id)<it.boats}) ||
@@ -159,17 +162,22 @@ internal object NpcTactics {
                     if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
                     if(cost>0 && returnJumps!=null &&
                         OutfitSupplies.distribution(outfit).getValue(id)-cost<returnJumps*unit.boats)continue
-                    val candidates=contacts(outfit,position.grid,now,players,stocks,galaxy).sortedBy {it.id}.asSequence()
-                        .mapNotNull { contact ->
-                            val effect=TacticalArmaments.effectiveness(mount,pose,contact.pose.position)
-                            if(effect==0 || TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),
-                                pose.position,contact.pose.position,now,players.values,stocks,galaxy))null
-                            else NpcFireDecision.Target(contact.id,effect)
-                        }.take(if(policy.chooseFireTarget==null)1 else 4).toList()
-                    if(candidates.isEmpty())continue
-                    val advised=policy.chooseFireTarget?.takeIf {candidates.size>1}?.invoke(
-                        NpcFireDecision(session.generation,id,position.grid,weapon,candidates))
-                    val victim=candidates.firstOrNull {it.id==advised} ?: candidates.first()
+                    val precision=behavior==NpcCombatBehavior.PRECISION
+                    val nearby=contacts(outfit,position.grid,now,players,stocks,galaxy)
+                    val inArc=(if(precision)nearby else nearby.sortedBy {it.id}).asSequence().mapNotNull { contact ->
+                        val effect=TacticalArmaments.effectiveness(mount,pose,contact.pose.position)
+                        if(effect==0)null else contact to effect
+                    }
+                    val ranked=if(precision)inArc.sortedWith(compareByDescending<Pair<Contact,Int>> {it.second}.thenBy {it.first.id}) else inArc
+                    val candidates=ranked.filterNot { (contact,_) -> TacticalLineOfFire.blocked(id,position.grid,
+                        TacticalAuthority.camp(outfit,stocks),pose.position,contact.pose.position,now,players.values,stocks,galaxy) }
+                        .map { (contact,effect) -> NpcFireDecision.Target(contact.id,effect) }
+                        .take(if(policy.chooseFireTarget==null)1 else 4).toList()
+                    val first=candidates.firstOrNull() ?: continue
+                    val eligible=if(precision)candidates.takeWhile {it.effectiveness==first.effectiveness} else candidates
+                    val advised=policy.chooseFireTarget?.takeIf {eligible.size>1}?.invoke(
+                        NpcFireDecision(session.generation,id,position.grid,weapon,eligible))
+                    val victim=eligible.firstOrNull {it.id==advised} ?: first
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
                         weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),victim.effectiveness,pose,
                         checkNotNull(TacticalCombat.target(victim.id,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)))

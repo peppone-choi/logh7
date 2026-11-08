@@ -4,6 +4,45 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NpcTacticsTest {
+    @Test fun precisionPrioritizesTheBestLegalShotWithoutAnAdvisor() {
+        for(behavior in listOf(NpcCombatBehavior.STANDARD,NpcCombatBehavior.PRECISION)) {
+            val state=state()
+            val pilot=state.players.getValue("pilot")
+            fun pose(x:Float,y:Float,heading:Float=0f):TacticalMotion {
+                val point=TacticalPoint(x,y)
+                return TacticalMotion(2488,now,TacticalPose(point,heading),0f,heading,listOf(point))
+            }
+            val players=mapOf("far" to pilot.copy(motion=pose(-182.5f,-95f)),
+                "near" to pilot.copy(characterId=10001,motion=pose(-180f,-94.6f))).toMutableMap()
+            val outfit=state.stocks.outfits.getValue(1)
+            val shooter=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(pose(-178f,-95f,(-Math.PI/2).toFloat()),now+1,now))
+            val stocks=state.stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(shooter)))))
+            val hits=mutableListOf<TacticalImpact>()
+            NpcTactics.advance(session,galaxy,players,stocks,NpcTacticalPolicy(behavior={ generation,id ->
+                assertEquals(1L,generation);assertEquals(1,id);behavior
+            }),24,hits,mutableListOf())
+            assertEquals(if(behavior==NpcCombatBehavior.PRECISION)1010001 else 1010000,hits.first().hit.target)
+        }
+    }
+
+    @Test fun cautiousFleetsStartLegalWithdrawalAtHalfStrength() {
+        for((boats,behavior,withdraws) in listOf(
+            Triple(150,NpcCombatBehavior.STANDARD,false),
+            Triple(151,NpcCombatBehavior.CAUTIOUS,false),
+            Triple(150,NpcCombatBehavior.CAUTIOUS,true),
+        )) {
+            val state=state(boats)
+            val players=state.players.toMutableMap()
+            val hits=mutableListOf<TacticalImpact>()
+            val moves=mutableListOf<TacticalMovement>()
+            val after=NpcTactics.advance(session,galaxy,players,state.stocks,NpcTacticalPolicy(behavior={_,_->behavior}),24,hits,moves)
+            val retreat=after.outfits.getValue(1).activeShips!!.values.single().tactical!!.retreat
+            assertEquals(if(withdraws)2487 else null,retreat?.destination)
+            assertTrue(moves.isNotEmpty())
+            assertTrue(hits.isEmpty())
+        }
+    }
+
     @Test fun advisorCanChooseOnlyAnEnemyInTheCurrentWeaponArc() {
         for (choice in listOf(null, 1010001, 1010002)) {
             val state = state()
