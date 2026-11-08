@@ -8,7 +8,7 @@ internal object TacticalOfflineAi {
     fun eligible(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks)=session.ended==null &&
         session.participants[account]?.online==false && p.generation==session.generation && p.cpPaused &&
         p.baseId==0 && p.mode==5 && p.hull!=null && p.hull.woundedUntil<=session.gameMillis/1000 &&
-        stocks.tacticalCommands.tacticalAi(p.characterId)
+        !BattleDeath.deceased(stocks,p.characterId) && stocks.tacticalCommands.tacticalAi(p.characterId)
 
     private fun currentMission(p:Navigator,stocks:PlanetStocks)=stocks.tacticalCommands.missions[p.characterId]
         ?.takeIf {!it.completed && (it.grid==null || it.grid==p.grid)}
