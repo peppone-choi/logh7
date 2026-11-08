@@ -221,28 +221,32 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         characterById:(Int)->CharacterMessages.Generate?) {
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid && it.player.cpPaused && it.player.baseId==0 &&
             event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer->
-            val tactical=TacticalBootstrap(snapshot,galaxy,viewer.player,characterById)
-            val base=tactical.baseInformation.single {it.position.id==event.base}
-            val packets=mutableListOf(org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions),
-                org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
-                org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,event.base,base.stamina))
+            val current=snapshot.navigators.values.singleOrNull {
+                it.characterId==viewer.player.characterId && it.generation==event.generation && it.grid==event.grid
+            } ?: return@forEach
+            val packets=mutableListOf<ByteArray>()
+            if(current.cpPaused && current.baseId==0) {
+                val tactical=TacticalBootstrap(snapshot,galaxy,current,characterById)
+                val base=tactical.baseInformation.single {it.position.id==event.base}
+                packets+=listOf(org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions),
+                    org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
+                    org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,event.base,base.stamina))
+            }
             event.conclusion?.let {result->
                 val name=groundNoticeBase(galaxy,event.base)
                 val winner=result.survivingCountry
                 val outcome=when {
                     result.withdrawal->"철수로 종료"
                     winner==null->"생존 병력 없음"
-                    winner==viewer.player.country->"아군 승리"
+                    winner==current.country->"아군 승리"
                     else->groundNoticeCountry(countryName(winner),winner)+" 승리"
                 }
                 val line="[지상전] $name · $outcome"
                 val notice=ChatMessages.spot(ChatMessages.Spot(viewer.character.id.toInt(),line),event.seconds.coerceIn(0,0xffffffffL))
-                val current=snapshot.navigators.values.singleOrNull {it.characterId==viewer.player.characterId && it.generation==event.generation}
-                if(current?.cpPaused==false && current.grid==event.grid) {
-                    queueGroundResult(viewer.copy(player=current),event.base,notice)
-                } else packets+=notice
+                if(!current.cpPaused)queueGroundResult(viewer.copy(player=current),event.base,notice)
+                else if(current.baseId==0)packets+=notice
             }
-            send(viewer,packets)
+            if(packets.isNotEmpty())send(viewer,packets)
         }
     }
     /** U-31: an orbital strike changes a garrison outside any ground battle; refresh every tactical viewer of the grid. */
