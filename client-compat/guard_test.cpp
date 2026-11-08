@@ -857,6 +857,12 @@ static int lobbyCountryDataTest() {
         logh::readCountryIdentity(record,sizeof(record),10000,44,identity) ||
         !logh::readCountryIdentity(record,sizeof(record),10000,43,identity) || identity.country.id!=42 ||
         identity.power!=3 || !identity.registered || identity.country.yearOffset!=-798)return 1022;
+    // Persistent wounded bit 0x20 is read from the same authenticated record; older servers leave it clear.
+    record[10]=logh::ownWoundedFlag;
+    if(!logh::readCountryIdentity(record,sizeof(record),10000,43,identity) || !identity.wounded)return 1025;
+    record[10]=0x1f;
+    if(!logh::readCountryIdentity(record,sizeof(record),10000,43,identity) || identity.wounded)return 1026;
+    record[10]=0;
     auto identityWorld=reinterpret_cast<void*>(0x1234);
     publishCountryMetadata(identity.country);publishOwnCountryIdentity(identityWorld,identity);
     wchar_t identityCp[32],identityDate[96];

@@ -163,6 +163,22 @@ static void drawMailNotice(BYTE* world, BYTE* own) {
     reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0)(
         at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), text, x, y(80), 0xffffdf70, 6);
 }
+// Persistent "부상 중" line at client x 350, y height-72 (about 1008 at 1080 high) in the left HUD strip,
+// below the stats beside the range line. It sits in free black space, clear of the right-panel 함내 label
+// and the right-column navigation notices. No command or button is added.
+static void drawPersistentWound(BYTE* world, BYTE* own) {
+    if (!own || !at<BYTE>(own, 0) || at<BYTE>(world, 0x3579cc)) return;
+    if (!persistentWoundedStatus(world, at<unsigned>(own, 0x24))) return;
+    auto display = *reinterpret_cast<BYTE**>(0x7c1b4c);
+    if (!display || !at<unsigned>(display, 0x2a418)) return;
+    HudFrame frame;
+    if (!hudFrame(frame)) return;
+    const int x = hudRenderX(frame, 350);
+    const int y = hudRenderY(frame, frame.height - 72);
+    reinterpret_cast<void(__thiscall*)(void*, float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48), 1.0f);
+    reinterpret_cast<void(__cdecl*)(void*, void*, const wchar_t*, int, int, unsigned, int)>(0x4e8af0)(
+        at<void*>(display, 0x2a418), reinterpret_cast<void*>(0xbffa48), L"부상 중", x, y, 0xffff6060, 6);
+}
 static void drawDockingStatus() {
     auto world = *reinterpret_cast<BYTE**>(0x7ccffc);
     auto own = world ? at<BYTE*>(world, 8) : nullptr;
@@ -171,6 +187,7 @@ static void drawDockingStatus() {
     drawMailNotice(world, own);
     drawWarpStatus(world, own);
     drawFuelProgress(world, own); // Only one navigation reservation can be pending.
+    drawPersistentWound(world, own);
     if (dockingStatus.world != world) {
         dockingStatus = {};
         return;

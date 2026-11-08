@@ -31,6 +31,7 @@ static struct CountryPaintInbox {
     ULONGLONG sentAt,pollAt,identityAt,basesAt;
     bool identityReceived,fuelSupported,productionQuotesSupported,repairQuotesSupported,supplyQuotesSupported,portraitSupported,spotPortraitSupported;
     bool orbitalStrikeQuotesSupported;
+    bool woundedPersistent; // Server-owned 0x20 flag from the same authenticated mode 11 record.
     ULONGLONG fuelAt,portraitAt;
     FuelProgress fuel;
     unsigned imageCountry;std::uint64_t imageRevision;
@@ -76,6 +77,7 @@ static bool receiveCountryPaint(const BYTE* record) {
         inbox.orbitalStrikeQuotesSupported=(record[10]&16)!=0;
         inbox.portraitSupported=(record[10]&4)!=0;
         inbox.spotPortraitSupported=(record[10]&8)!=0;
+        inbox.woundedPersistent=identity.wounded; // Older servers leave the bit clear.
         if(!inbox.portraitSupported)clearOwnPortrait();
     }
     if(inbox.pending && inbox.mode==fuelStatusMode && readFuelProgress(record,inbox.character,inbox.nonce,inbox.fuel)) {
@@ -193,6 +195,13 @@ static bool supplyQuoteCapability(void* world,unsigned character) {
     const auto& inbox=countryPaintInbox;
     const bool supported=inbox.world==world && inbox.character==character && inbox.supplyQuotesSupported;
     ReleaseSRWLockShared(&countryPaintLock);return supported;
+}
+// Persistent wounded label source. Shares the identity world/character/nonce/power guard and reset.
+static bool persistentWoundedStatus(void* world,unsigned character) {
+    AcquireSRWLockShared(&countryPaintLock);
+    const auto& inbox=countryPaintInbox;
+    const bool wounded=inbox.world==world && inbox.character==character && inbox.identityReceived && inbox.woundedPersistent;
+    ReleaseSRWLockShared(&countryPaintLock);return wounded;
 }
 static int orbitalStrikeQuoteCapability(void* world,unsigned character) {
     AcquireSRWLockShared(&countryPaintLock);
