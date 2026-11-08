@@ -13,6 +13,12 @@ data class OfficeResignationResult(val player:Navigator?,val stocks:PlanetStocks
 
 /** A native resignation identifies the card kind, not its seat. Never guess between duplicate seats. */
 internal object OfficeResignation {
+    fun clear(policy:OrganizationalOfficePolicy,stocks:PlanetStocks,holding:OfficeHolding):PlanetStocks {
+        val next=if(holding.card==PoliticianLadder.EMPEROR_CARD)
+            SuccessionActions.vacated(stocks,holding.character,holding.country) else stocks
+        return policy.set(next,holding,remove=true)
+    }
+
     fun evaluate(galaxy:Galaxy,r:OfficeResignationRequest,session:SessionState,player:Navigator?,stocks:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):OfficeResignationResult {
         fun reject(reason:ResignationRejection)=OfficeResignationResult(player,stocks,reason)
@@ -30,8 +36,6 @@ internal object OfficeResignation {
         if(player.cpPaused || player.navigationPending) return reject(ResignationRejection.BUSY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),80,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(ResignationRejection.CP)
-        // An abdicating emperor leaves the throne to the line of succession at the next settlement.
-        val replacement=policy.set(SuccessionActions.vacated(stocks,r.characterId,r.country).takeIf {r.card==1} ?: stocks,holdings.single(),remove=true)
-        return OfficeResignationResult(player.paidWith(paid.balance),replacement,changed=true)
+        return OfficeResignationResult(player.paidWith(paid.balance),clear(policy,stocks,holdings.single()),changed=true)
     }
 }

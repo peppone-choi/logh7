@@ -53,7 +53,8 @@ object ProposalActions {
         val policy=OrganizationalOfficePolicy(g,countries)
         if(policy.holders(s,mail.card,country).none {it.character==mail.recipient})return null
         return when(mail.command) {
-            RESIGNATION -> policy.holders(s,mail.card,country).filter {it.character==mail.recipient}.singleOrNull()?.let {policy.set(s,it,remove=true)}
+            RESIGNATION -> policy.holders(s,mail.card,country).filter {it.character==mail.recipient}.singleOrNull()
+                ?.let {OfficeResignation.clear(policy,s,it)}
             DISMISSAL -> {
                 val dismissal=OfficeDismissalPolicy(g,countries)
                 dismissal.available(s,mail.recipient,country.value,rank).singleOrNull {it.target==mail.target && it.card==mail.targetCard}
