@@ -148,7 +148,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         }?.let {
             org.logh7.engine.EspionageActions.aliases[it.alias] to org.logh7.engine.CountryCatalogLoader.current()
                 .nativePower(org.logh7.engine.Allegiance.Country(it.country)) } }
-        tacticalEndSubscription = presence?.let { navigation!!.observeTacticalEnds(it::tacticalEnd) }
+        tacticalEndSubscription = presence?.let { p -> navigation!!.observeTacticalEnds { event ->
+            navigation.snapshot()?.let { snapshot -> p.tacticalEnd(event,snapshot) }
+        } }
         movementSubscription = presence?.let { p -> navigation!!.observeMovements { event ->
             p.movement(event,navigation.snapshot())
         } }
