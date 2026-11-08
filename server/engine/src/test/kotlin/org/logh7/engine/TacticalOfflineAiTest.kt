@@ -217,6 +217,46 @@ class TacticalOfflineAiTest {
             assertEquals(range,players.getValue("pilot").commandRange,"a blocked unit must not consume command range")
         }
     }
+    @Test fun offlineRebelRetreatCommandsOnlyTheMatchingCamp() {
+        val plain=stocks(5)
+        val fleet=plain.outfits.getValue(1)
+        val ship=fleet.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(260f),now,now))
+        val ready=fleet.copy(activeShips=ActiveShipUnits(listOf(ship)))
+        val plot=Plot(10000,Power.EMPIRE.country,0,revolt=5)
+        for(loyalty in listOf(emptyMap(),mapOf(1 to 100))) {
+            val coup=CoupState(mapOf(10000 to plot),loyalty=loyalty)
+            val stock=plain.copy(outfits=plain.outfits+(1 to ready),social=plain.social.copy(coup=coup))
+            val pilots=players()
+            pilots["pilot"]=pilots.getValue("pilot").copy(motion=motion(260f))
+            val after=TacticalOfflineAi.advance(offline,galaxy,pilots,stock,1,mutableListOf())
+            val flagship=assertNotNull(pilots.getValue("pilot").retreat)
+            val escort=after.outfits.getValue(1).activeShips!!.values.single()
+            if(loyalty.isEmpty())assertEquals(ship,escort)
+            else assertEquals(flagship.destination,escort.tactical?.retreat?.destination)
+        }
+    }
+
+    @Test fun rebelOfflineOrdersCannotCommandRegularOutfitsOrLandOnTheCapturedFriendlyBase() {
+        val plain=stocks(2)
+        val fleet=plain.outfits.getValue(1)
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(5,UnitStack(0),carrier=1)))
+        val ready=fleet.copy(activeGround=troops,units=UnitInventory(fleet.units.ships,troops.quantities()),
+            activeShips=ActiveShipUnits(fleet.activeShips!!.values.map {it.copy(posture=TacticalPosture(2488,TacticalShipMode.ANCHORED,1000))}))
+        val plot=Plot(10000,Power.EMPIRE.country,0,revolt=5,bases=setOf(1000))
+        val coup=CoupState(mapOf(10000 to plot))
+        val ordered=plain.copy(outfits=plain.outfits+(1 to ready),
+            social=plain.social.copy(coup=coup),
+            tacticalCommands=plain.tacticalCommands.copy(missions=mapOf(10000 to TacticalMissionState(10000,2,1,1000,now,grid=2488))))
+        val opposed=TacticalOfflineAi.advance(offline,galaxy,players(),ordered,1,mutableListOf())
+        assertEquals(ready,opposed.outfits.getValue(1))
+        val loyal=ordered.copy(social=ordered.social.copy(coup=coup.copy(loyalty=mapOf(1 to 100))))
+        val landed=TacticalOfflineAi.advance(offline,galaxy,players(),loyal,1,mutableListOf())
+        assertNotNull(landed.outfits.getValue(1).activeGround!!.values.single().order)
+        val captured=loyal.copy(bases=loyal.bases.mapValues {(_,base)->base.copy(camp=1)})
+        val after=TacticalOfflineAi.advance(offline,galaxy,players(),captured,1,mutableListOf())
+        assertEquals(ready,after.outfits.getValue(1))
+    }
+
     @Test fun onlineOrDisabledCharactersAreNotDrivenAndPendingPersonalShotsArePreserved() {
         for((session,stock) in listOf(baseSession to stocks(),offline to stocks().copy(tacticalCommands=TacticalCommandState()))) {
             val p=players();val before=p.toMap()
