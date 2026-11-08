@@ -90,11 +90,22 @@ class OrbitalStrikeActionsTest {
             val at=TacticalPoint(centre.x+base.diameter+dx,centre.y)
             return ActiveShipUnit(id,UnitStack(0),tactical=NpcTacticalState(TacticalMotion(2487,now,TacticalPose(at,0f),0f,0f,listOf(at)),now,now))
         }
-        val ships=ActiveShipUnits(listOf(ship(11,5f),ship(12,OrbitalStrikeActions.RANGE+30f)))
+        val disabled=ship(13,5f).let {it.copy(damaged=it.boats)}
+        val ships=ActiveShipUnits(listOf(ship(11,5f),ship(12,OrbitalStrikeActions.RANGE+30f),disabled,ship(14,5f)))
         val fleet=OutfitStock(2,2,OutfitKind.FLEET,1000,102,commanderId=10000,units=UnitInventory(ships.quantities()),activeShips=ships,
             position=OutfitPosition(2487))
-        val s=stocks().let {it.copy(outfits=it.outfits+(2 to fleet),warehouses=it.warehouses+(102 to OutfitWarehouse(102,2,OutfitKind.FLEET,1000,2)),nextShipId=13)}
-        val r=act(player(10f),s)
+        val s=stocks().let {it.copy(outfits=it.outfits+(2 to fleet),warehouses=it.warehouses+(102 to OutfitWarehouse(102,2,OutfitKind.FLEET,1000,2)),nextShipId=15,
+            tacticalCommands=TacticalCommandState(morale=mapOf(14 to 20)))}
+        val p=player(10f)
+        val quote=act(p,s,phase=OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(quote.rejection)
+        assertEquals(2,quote.outcome,"only the operational, in-range escort joins the flagship")
+        val changed=s.copy(tacticalCommands=s.tacticalCommands.copy(morale=mapOf(11 to 20,14 to 20)))
+        val stale=act(p,changed,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES)
+        assertEquals(SocialRejection.QUOTE_CHANGED,stale.rejection)
+        assertSame(p,stale.player)
+        assertSame(changed,stale.stocks)
+        val r=act(p,s,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES)
         assertNull(r.rejection,"${r.rejection}");assertEquals(2,r.outcome,"the flagship and the one unit in range")
         assertTrue(assertNotNull(r.stocks).outfits.getValue(1).activeGround!!.values.all {it.strength==1000-2*OrbitalStrikeActions.DAMAGE})
     }
