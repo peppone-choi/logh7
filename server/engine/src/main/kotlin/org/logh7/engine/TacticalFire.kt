@@ -328,6 +328,10 @@ internal object TacticalCombat {
         inventory=StrategicOperations.settle(galaxy,inventory,now,players.values)
         if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {inventory=EspionageActions.settle(galaxy,session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts)
+        // A replacement flagship reuses the unit ID, so the lost hull's morale must not carry over.
+        val sunkUnits=impacts.mapNotNull {if(it.hit.destroyed>0)it.departed?.unitId else null}+fortressSunk.map {it.unitId}
+        if(sunkUnits.isNotEmpty())inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(
+            morale=inventory.tacticalCommands.morale-sunkUnits.toSet()))
         val departedIds=impacts.mapNotNull {it.departed?.characterId}+fortressSunk.map {it.characterId}
         inventory=BattleDeath.apply(inventory,departedIds,now)
         inventory=SinkingExperience.apply(inventory,departedIds.distinct(),

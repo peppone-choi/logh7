@@ -336,6 +336,8 @@ class TacticalCombatTest {
             hull=p.hull!!.copy(hp=1,shields=List(6){0L}),
             fire=TacticalFire(1,TacticalPendingFire(1,2488,0,1010000,now+120,now+1000))) else
             p.copy(charge=TacticalCharge(now+120,24000)) }
+        state.stocks=state.stocks.copy(tacticalCommands=state.stocks.tacticalCommands.copy(
+            morale=mapOf(victim.unitId to 15, 1010000 to 70)))
         nav=Navigation(galaxy,state.nav,NavigationPolicy());stock=production(state)
         val nextSession=duel.copy(gameMillis=(now+120)*1000)
         assertNotNull(TacticalCombat.accept(shot,nextSession,galaxy,nav,stock.snapshot(1)!!,state.commit,24).player)
@@ -349,6 +351,7 @@ class TacticalCombatTest {
         assertEquals(returned,fatal.departed);assertEquals(2487,returned.grid);assertEquals(1000,returned.baseId)
         assertEquals(4,returned.mode);assertFalse(returned.cpPaused);assertNull(returned.fire);assertNull(returned.motion)
         assertEquals(3,returned.hull!!.kind);assertEquals(now+240+86400,returned.hull!!.woundedUntil)
+        assertEquals(mapOf(1010000 to 70),state.stocks.tacticalCommands.morale)
         assertEquals(0,returned.supplies);assertEquals(setOf(10000,10001),fatal.recipients.keys)
         assertTrue(TacticalCombat.settle(duel.copy(gameMillis=(now+1200)*1000),galaxy,nav,stock,state.commit).isEmpty())
         val exit=NavigationRequest("victim",10001,Power.EMPIRE,"v",1,place=PlaceMove.SwitchMode(5),shipKind=3,unitId=1010001,captainCard=59)
