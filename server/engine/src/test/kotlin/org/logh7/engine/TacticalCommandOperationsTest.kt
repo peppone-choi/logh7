@@ -207,6 +207,35 @@ class TacticalCommandOperationsTest {
         val hits=mutableListOf<TacticalImpact>();settle(r,now+5,impacts=hits)
         assertEquals(90,s.stocks.outfits.getValue(1).supplies);assertTrue(hits.single().airBattle)
     }
+    @Test fun antiShipLaunchRequiresContactThroughTheEndOfTheLaunchDelay() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases.map {it.copy(radius=25f)},galaxy.starts)
+        for(keepContact in listOf(false,true)) {
+            val s=state()
+            s.players=s.players.mapValues {(_,p)->p.copy(motion=motion(0f,-21f))}
+            fun place(outfit:OutfitStock,id:Int,y:Float)=outfit.copy(activeShips=ActiveShipUnits(
+                outfit.activeShips!!.values.map {u->if(u.id==id)u.copy(tactical=u.tactical!!.copy(motion=motion(0f,y))) else u}))
+            val friendly=place(place(s.stocks.outfits.getValue(1),1,-21f),2,-21f)
+            val hostile=place(s.stocks.outfits.getValue(2),99,-19f)
+            s.stocks=s.stocks.copy(outfits=mapOf(1 to friendly,2 to hostile))
+            val nav=Navigation(world,s.nav,NavigationPolicy(),clockScale=1)
+            val production=PlanetProduction(world,s.stock,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+            val command=request(TacticalCommand(0x40e,listOf(1),kind=0,target=99))
+            fun accept()=TacticalCommandOperations.accept(command,session,world,nav,production,production.snapshot(1)!!,s.commit,1)
+            fun scoutAt(y:Float) {
+                val old=production.snapshot(1)!!
+                production.replace(old,old.copy(outfits=old.outfits+(1 to place(old.outfits.getValue(1),2,y))))
+            }
+            assertEquals(NavigationRejection.RANGE,accept().rejection)
+            scoutAt(-18f)
+            assertNotNull(accept().player)
+            if(!keepContact)scoutAt(-21f)
+            val hits=TacticalCombat.settle(session.copy(gameMillis=(now+5)*1000),world,nav,production,s.commit,scale=1)
+            assertEquals(keepContact,1 in s.stocks.tacticalCommands.air)
+            assertEquals(if(keepContact)90 else 100,s.stocks.outfits.getValue(1).supplies)
+            assertEquals(keepContact,hits.any {it.airBattle})
+        }
+    }
+
     @Test fun deployedWingStopsAfterCommanderDeathAndRestoresTargetSpeedOnReload() {
         val s=state();val foe=s.stocks.outfits.getValue(2)
         val target=foe.activeShips!!.values.single()
