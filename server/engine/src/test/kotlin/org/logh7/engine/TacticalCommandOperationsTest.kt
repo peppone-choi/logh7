@@ -398,9 +398,31 @@ class TacticalCommandOperationsTest {
         assertEquals(mapOf(10000 to (3 to 30L)),events.single().finishedMissions)
         assertEquals(next,TacticalCommandOperations.finishMissions(session,galaxy,players,next,1,mutableListOf(),impacts,emptySet()))
         val another=impacts.map {it.copy(source=1010001)}.toMutableList()
+        val earlierHit=impacts.single().let {it.copy(hit=it.hit.copy(destroyed=1))}
+        another.add(0,earlierHit)
         assertTrue(TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,mutableListOf(),another,emptySet())
             .tacticalCommands.merits.isEmpty())
     }
+    @Test fun boardingReturnDoesNotCountAsDestroyingTheInterceptionTarget() {
+        val s=state()
+        val target=s.players.getValue("ally")
+        val mission=TacticalMissionState(10000,3,1,target.unitId,now,grid=2488)
+        val stock=s.stocks.copy(tacticalCommands=TacticalCommandState(missions=mapOf(10000 to mission)))
+        val returned=target.copy(grid=2487,cpPaused=false,motion=null,commandRange=null)
+        val players=(s.players+("ally" to returned)).toMutableMap()
+        val boarding=TacticalImpact(1,1010000,TacticalWeapon.GUN,
+            TacticalHit(1,2488,now,target.unitId,0,1),emptyMap(),departed=returned,boarding=true)
+        val afterBoarding=TacticalCommandOperations.finishMissions(
+            session,galaxy,players,stock,1,mutableListOf(),mutableListOf(boarding),setOf(target.characterId))
+        assertTrue(afterBoarding.tacticalCommands.merits.isEmpty())
+        assertFalse(afterBoarding.tacticalCommands.missions.getValue(10000).completed)
+        val sinking=boarding.copy(hit=boarding.hit.copy(destroyed=1),boarding=false)
+        val afterSinking=TacticalCommandOperations.finishMissions(
+            session,galaxy,players,stock,1,mutableListOf(),mutableListOf(sinking),setOf(target.characterId))
+        assertEquals(30L,afterSinking.tacticalCommands.merits[10000])
+        assertTrue(afterSinking.tacticalCommands.missions.getValue(10000).completed)
+    }
+
     @Test fun pirateTargetsEarnReconnaissanceAndInterceptionMeritOnTheSameTerms() {
         val s=state()
         val target=900001
