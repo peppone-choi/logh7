@@ -125,6 +125,38 @@ class TacticalGroundOperationsTest {
         galaxy=galaxy(80)
         val h=state(kind=2);assertNotNull(accept(h,Navigation(galaxy,h.nav,NavigationPolicy()),production(h)).player)
     }
+    @Test fun restoredWithdrawalRechecksTheCurrentCarrierCapacity() {
+        val s=state()
+        val own=s.stocks.outfits.getValue(1)
+        fun ships(kind:Int)=ActiveShipUnits(own.activeShips!!.values.map {it.copy(stack=UnitStack(kind))})
+        val troops=ActiveGroundUnits(List(3){ActiveGroundUnit(100+it,UnitStack(0),base=1000,origin=1)})
+        val larger=ships(80)
+        s.stocks=s.stocks.copy(outfits=mapOf(1 to own.copy(activeShips=larger,activeGround=troops,
+            units=UnitInventory(larger.quantities(),troops.quantities()))))
+        assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),
+            request(TacticalGroundAction.WITHDRAW)).player)
+        val saved=s.stocks.outfits.getValue(1)
+        val smaller=ships(32)
+        s.stocks=s.stocks.copy(outfits=mapOf(1 to saved.copy(activeShips=smaller,
+            units=UnitInventory(smaller.quantities(),troops.quantities()))))
+        val events=mutableListOf<TacticalGroundResult>()
+        settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+600,events)
+        assertTrue(events.single().cancelled)
+        assertEquals(troops,s.stocks.outfits.getValue(1).activeGround)
+    }
+
+    @Test fun restoredLandingRechecksTheCurrentPlanetType() {
+        galaxy=galaxy(80)
+        val s=state(kind=2)
+        val troops=s.stocks.outfits.getValue(1).activeGround
+        assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).player)
+        galaxy=galaxy(30)
+        val events=mutableListOf<TacticalGroundResult>()
+        settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+600,events)
+        assertTrue(events.single().cancelled)
+        assertEquals(troops,s.stocks.outfits.getValue(1).activeGround)
+    }
+
     @Test fun aCommanderOrdersItsLandedTroopsAtAnEnemyTroopOnTheSameBaseAndClearsIt() {
         val s=state();val own=s.stocks.outfits.getValue(1)
         val landed=ActiveGroundUnits(own.activeGround!!.values.map {if(it.id==2)it.copy(carrier=0,base=1000,origin=1) else it})

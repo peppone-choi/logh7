@@ -27,6 +27,11 @@ internal object TacticalGroundOperations {
     private fun ground(o:OutfitStock,carrier:Int,base:Int,action:TacticalGroundAction)=o.activeGround?.values.orEmpty().filter {
         if(action==TacticalGroundAction.DEPLOY)it.carrier==carrier else it.origin==carrier && it.base==base
     }
+    private fun admits(base:GalaxyBase,troops:List<ActiveGroundUnit>)=troops.all {u->
+        GroundBattleRules.admitsCrewType(base,UnitSpecifications.crews.single {it.kind==u.stack.kind}.type)
+    }
+    private fun hasRoom(o:OutfitStock,ship:ActiveShipUnit,returning:Int)=
+        o.activeGround?.values.orEmpty().count {it.carrier==ship.id}+returning<=GroundTransfer.capacity(ship.stack.kind)
     fun guard(request:NavigationRequest,session:SessionState,navigation:Navigation,stocks:PlanetStocks):NavigationResult? {
         if(request.tacticalStop!=null || request.tacticalGround!=null)return null
         val ids=request.tacticalPosture?.units ?: request.tacticalMove?.units ?: request.tacticalRetreat ?:
@@ -105,11 +110,11 @@ internal object TacticalGroundOperations {
             if(troops.any {it.order!=null})return reject(NavigationRejection.BUSY)
             if(command.action==TacticalGroundAction.DEPLOY) {
                 // p.51: fortresses and special (gas etc.) planets refuse 装甲兵 (U-09).
-                if(troops.any {u->!GroundBattleRules.admitsCrewType(base,UnitSpecifications.crews.single {it.kind==u.stack.kind}.type)})return reject(NavigationRejection.CREW)
+                if(!admits(base,troops))return reject(NavigationRejection.CREW)
                 val occupied=next.outfits.values.filter {it.country==o.country}.sumOf {other->
                     other.activeGround?.values.orEmpty().count {it.base==base.id || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==base.id}==true}}
                 if(occupied+troops.size>GroundBattleRules.BOX_CAPACITY_PER_FACTION)return reject(NavigationRejection.GRID)
-            } else if(o.activeGround!!.values.count {it.carrier==id}+troops.size>GroundTransfer.capacity(ship.stack.kind))return reject(NavigationRejection.UNIT)
+            } else if(!hasRoom(o,ship,troops.size))return reject(NavigationRejection.UNIT)
             val order=TacticalGroundOrder(command.action,p.characterId,p.grid,id,state.base,now,readyAt)
             val selected=troops.map {it.id}.toSet()
             val changed=o.copy(activeGround=ActiveGroundUnits(o.activeGround!!.values.map {if(it.id in selected)it.copy(order=order) else it}))
@@ -131,11 +136,19 @@ internal object TacticalGroundOperations {
             val state=berth(o,order.carrier,order.grid)
             val reserved=next.outfits.values.filter {it.country==o.country}.sumOf {other->other.activeGround?.values.orEmpty().count {
                 it.base==order.base || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==order.base}==true}}
-            val valid=(order.action!=TacticalGroundAction.DEPLOY || reserved<=GroundBattleRules.BOX_CAPACITY_PER_FACTION) && session.ended==null && p!=null &&
+            val units=o.activeGround!!.values.filter {it.order==order}
+            val base=galaxy.bases.singleOrNull {it.id==order.base && it.grid==order.grid}
+            val valid=session.ended==null && p!=null && base!=null &&
                 !BattleDeath.deceased(next,p.characterId) && p.cpPaused && p.baseId==0 && p.grid==order.grid &&
-                owned(o,order.carrier,p,galaxy,next) && state?.base==order.base && galaxy.bases.any {it.id==order.base && it.grid==order.grid}
+                owned(o,order.carrier,p,galaxy,next) && state?.base==order.base &&
+                when(order.action) {
+                    TacticalGroundAction.DEPLOY -> reserved<=GroundBattleRules.BOX_CAPACITY_PER_FACTION && admits(base,units)
+                    TacticalGroundAction.WITHDRAW -> o.activeShips?.values?.singleOrNull {it.id==order.carrier}
+                        ?.let {hasRoom(o,it,units.size)}==true
+                    else -> false
+                }
             if(valid && now<order.readyAt)continue
-            val units=o.activeGround!!.values.filter {it.order==order};val ids=units.map {it.id}.toSet()
+            val ids=units.map {it.id}.toSet()
             val roster=ActiveGroundUnits(o.activeGround.values.map {unit ->
                 if(unit.id !in ids)unit else if(!valid)unit.copy(order=null)
                 else if(order.action==TacticalGroundAction.DEPLOY)unit.copy(carrier=0,base=order.base,origin=order.carrier,order=null)
