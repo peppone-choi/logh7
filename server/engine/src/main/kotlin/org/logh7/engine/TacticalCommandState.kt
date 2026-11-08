@@ -98,6 +98,12 @@ object TacticalAuthority {
             else -> false
         }
 
+    fun canAccessOutfitWarehouse(stocks:PlanetStocks,outfit:OutfitStock,character:Int,country:CountryId):Boolean {
+        val base=stocks.bases[outfit.baseId] ?: return false
+        val camp=CoupActions.camp(stocks,character,country)
+        return outfit.country==country && base.country==country && base.camp==camp && CoupActions.outfitCamp(stocks,outfit)==camp
+    }
+
     /** Native captain-card variant; this display code never determines who owns a unit. */
     fun captainCard(player:Navigator,countries:CountryCatalog=CountryCatalogLoader.current()):Int? {
         val display=player.country?.let {countries.countries[it.value]?.nativePower ?: return null} ?: player.shipStyle.nativePower

@@ -91,6 +91,21 @@ class CountryLogisticsRoutingTest {
         assertEquals(baseline,production.snapshot(1))
     }
 
+    @Test fun rebelReorganizationRechecksTheBaseCampBeforeCommitting() {
+        val initial=stock()
+        val coup=CoupState(mapOf(10000 to Plot(10000,country,0,revolt=5,bases=setOf(1049))),loyalty=mapOf(1 to 100))
+        val friendly=initial.copy(bases=initial.bases.mapValues {(_,base)->base.copy(camp=1)},social=initial.social.copy(coup=coup))
+        val allied=production(friendly)
+        val retaken=production(friendly.copy(bases=initial.bases))
+        val logistics=OutfitLogistics({0},galaxy)
+        val state=session()
+        val prepared=logistics.apply(request(),state,player(),allied)
+        val commit=request().copy(phase=LogisticsPhase.COMMIT,reservation=assertNotNull(prepared.reservation))
+        assertEquals(LogisticsRejection.ACCESS,logistics.apply(commit,state,player(),retaken).rejection)
+        assertEquals(initial.warehouses,retaken.snapshot(1)!!.warehouses)
+        assertNull(logistics.apply(commit,state,player(),allied).rejection)
+    }
+
     @Test fun pendingReservationsExpireOnCountryChangeAndCannotBeReusedByAnotherCharacter() {
         val production=production(stock());val logistics=OutfitLogistics({0},galaxy);val prepared=logistics.apply(request(),session(),player(),production)
         val reservation=assertNotNull(prepared.reservation)

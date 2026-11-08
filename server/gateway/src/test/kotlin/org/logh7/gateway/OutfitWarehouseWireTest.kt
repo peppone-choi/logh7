@@ -21,12 +21,20 @@ class OutfitWarehouseWireTest {
         mapOf(101 to OutfitWarehouse(101,2,OutfitKind.FLEET,1049,1,UnitInventory(mapOf(UnitStack(32,1) to 7),mapOf(UnitStack(3) to 35)),500,600,700),
             102 to OutfitWarehouse(102,2,OutfitKind.PATROL,1049)),
         mapOf(40000 to LogisticsOffice.EMPIRE_FIRST))
-    @Test fun realEncryptedQueryReturnsOwnedOutfitWarehouseIdentityAndNeverPlanetBalances() = runBlocking<Unit> {
+    @Test fun realEncryptedQueryReturnsOwnedOutfitWarehouseIdentityAndNeverPlanetBalances() = warehouseQuery(false)
+    @Test fun rebelCommanderCanReadTheWarehouseOfAnOutfitInTheirCamp() = warehouseQuery(true)
+
+    private fun warehouseQuery(rebel:Boolean) = runBlocking<Unit> {
         val store = object : PlanetStockStore {
             var stocks = snapshot().let { before ->
                 val ground = OutfitStock(4,2,OutfitKind.GROUND,1049,102,number=4,supplies=1000,
                     activeShips=ActiveShipUnits(emptyList()),activeGround=ActiveGroundUnits(emptyList()))
-                before.copy(outfits=before.outfits+(4 to ground))
+                val expanded=before.copy(outfits=before.outfits+(4 to ground))
+                if(!rebel)expanded else {
+                    val coup=CoupState(mapOf(10000 to Plot(10000,Power.EMPIRE.country,0,revolt=5,bases=setOf(1049))),
+                        loyalty=mapOf(1 to 100))
+                    expanded.copy(bases=expanded.bases.mapValues {(_,base)->base.copy(camp=1)},social=expanded.social.copy(coup=coup))
+                }
             }
             override fun load() = stocks
             override fun save(stocks: PlanetStocks) { this.stocks = stocks }
@@ -71,6 +79,19 @@ class OutfitWarehouseWireTest {
         assertFails { world.outfitWarehouse(1049,2,40000,2,stocks) }
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,1,40000,2,stocks.copy(strategic=StrategicState(capitals=mapOf(CountryId(2) to 1049))))).getShort(4).toInt())
         assertEquals(0x0327,ByteBuffer.wrap(world.outfitWarehouse(1049,3,20000,2,stocks)).getShort(4).toInt())
+    }
+    @Test fun regularLogisticsOfficerCannotReadRebelWarehouse() {
+        val world=WorldBootstrap(galaxy)
+        val stocks=snapshot()
+        val coup=CoupState(mapOf(10000 to Plot(10000,Power.EMPIRE.country,0,revolt=5,bases=setOf(1049))),
+            loyalty=mapOf(1 to 100))
+        val rebel=stocks.copy(bases=stocks.bases.mapValues {(_,base)->base.copy(camp=1)},social=stocks.social.copy(coup=coup),
+            strategic=StrategicState(capitals=mapOf(Power.EMPIRE.country to 1049)))
+        assertFailsWith<IllegalArgumentException> {world.outfitWarehouse(1049,1,40000,2,rebel)}
+        assertFailsWith<IllegalArgumentException> {world.outfitWarehouse(1049,2,10000,2,rebel)}
+        val retaken=rebel.copy(bases=stocks.bases)
+        assertFailsWith<IllegalArgumentException> {world.outfitWarehouse(1049,1,10000,2,retaken)}
+        assertFailsWith<IllegalArgumentException> {world.outfitWarehouse(1049,1,40000,2,retaken)}
     }
     @Test fun capturedBaseShowsNewFacilitiesAndDeniesTheFormerOwnersWarehouseQuery() = runBlocking<Unit> {
         val original = snapshot()

@@ -63,7 +63,7 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
         val stocks = production.settle(session.generation, session.gameMillis / 1000)
         val outfit = stocks.outfits[request.outfitId] ?: return reject(LogisticsRejection.OUTFIT)
         val base = stocks.bases.getValue(outfit.baseId)
-        if (outfit.country != country || base.country != country || base.camp != 0) return reject(LogisticsRejection.ACCESS)
+        if (!TacticalAuthority.canAccessOutfitWarehouse(stocks,outfit,request.characterId,country)) return reject(LogisticsRejection.ACCESS)
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         if (request.mode == LogisticsMode.ALLOCATION) {
             val allowed=offices?.permits(stocks,request.characterId,country,outfit.kind)==true
