@@ -44,6 +44,38 @@ object TacticalTerrain {
             hypot(target.x.toDouble(), target.y.toDouble()) < radius
     }
 
+    /** Nearest friendly defense headquarters under the current star-only contact model. */
+    fun defenseObserver(galaxy:Galaxy,grid:Int,camp:Camp,now:Long,stocks:PlanetStocks):TacticalPoint? =
+        galaxy.bases.asSequence().filter {base->
+            base.grid==grid && stocks.bases[base.id]?.let(TacticalAuthority::camp)==camp
+        }.map {TacticalBasePosition.at(it,now,stocks)}
+            .minByOrNull {it.x.toDouble()*it.x+it.y.toDouble()*it.y}
+
+    /** Manual p.49: any active ally can share a contact. Physical fire clearance is separate. */
+    internal fun sharedSensorBlocked(galaxy:Galaxy,grid:Int,camp:Camp,observer:TacticalPoint,target:TacticalPoint,
+        now:Long,players:Collection<Navigator>,stocks:PlanetStocks):Boolean {
+        if(!sensorBlocked(galaxy,grid,observer,target))return false
+        val headquarters=defenseObserver(galaxy,grid,camp,now,stocks)
+        if(headquarters!=null && !sensorBlocked(galaxy,grid,headquarters,target))return false
+        fun sees(unit:Int,motion:TacticalMotion?,posture:TacticalPosture?):Boolean {
+            val position=motion?.takeIf {it.grid==grid}?.pose(now,posture,galaxy,stocks)?.position
+                ?: posture?.takeIf {it.grid==grid && it.mode.requiresBase}
+                    ?.let {state->galaxy.bases.singleOrNull {it.id==state.base && it.grid==grid}}
+                    ?.let {TacticalBasePosition.at(it,now,stocks)}
+                ?: TacticalDeployment.initial(unit,grid,players,stocks,galaxy).position
+            return !sensorBlocked(galaxy,grid,position,target)
+        }
+        if(players.any {it.grid==grid && it.baseId==0 && it.cpPaused &&
+                !BattleDeath.deceased(stocks,it.characterId) && TacticalAuthority.camp(it,stocks)==camp &&
+                sees(it.unitId,it.motion,it.posture)})return false
+        return stocks.outfits.values.none {outfit->
+            outfit.positionIn(galaxy)==OutfitPosition(grid) && TacticalAuthority.camp(outfit,stocks)==camp &&
+                outfit.activeShips?.values.orEmpty().any {ship->ship.boats>0 &&
+                    ship.posture?.takeIf {it.grid==grid}?.mode!=TacticalShipMode.STATIONED &&
+                    sees(ship.id,ship.tactical?.motion,ship.posture)}
+        }
+    }
+
     /** Weapons cannot fire through the star (W p.50 line-of-fire terrain); the segment interior is tested. */
     fun fireBlocked(galaxy: Galaxy, grid: Int, from: TacticalPoint, to: TacticalPoint): Boolean {
         val radius = starRadius(galaxy, grid) ?: return false

@@ -51,18 +51,21 @@ class TacticalOfflineAiTest {
         assertTrue(events.isEmpty())
     }
 
-    @Test fun offlinePatrolAndAttackMissionsCannotTrackAnEnemyUnderStarCover() {
-        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
-        for(mission in listOf(0,3))for(observer in listOf(21f,16f)) {
+    @Test fun offlinePatrolAndAttackMissionsRequireDirectOrSharedContact() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases.map {it.copy(radius=25f)},galaxy.starts)
+        for(mission in listOf(0,3))for((observer,scout) in listOf(21f to 22f,16f to 22f,22f to 16f)) {
             val players=players()
             players["pilot"]=players.getValue("pilot").copy(motion=motion(0f,observer))
             val plain=stocks(mission)
             val enemy=plain.outfits.getValue(2)
             val ship=enemy.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,19f),now,now))
-            val stock=plain.copy(outfits=plain.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(ship)))))
+            val own=plain.outfits.getValue(1)
+            val scoutShip=own.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,scout),now,now))
+            val stock=plain.copy(outfits=mapOf(1 to own.copy(activeShips=ActiveShipUnits(listOf(scoutShip))),
+                2 to enemy.copy(activeShips=ActiveShipUnits(listOf(ship)))))
             TacticalOfflineAi.advance(offline,world,players,stock,1,mutableListOf())
             val pilot=players.getValue("pilot")
-            if(observer>20f) {
+            if(observer>20f && scout>20f) {
                 assertNull(pilot.attack)
                 assertEquals(0f,pilot.motion!!.velocity)
             } else {

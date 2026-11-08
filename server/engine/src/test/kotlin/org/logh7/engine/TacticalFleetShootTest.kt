@@ -107,7 +107,7 @@ class TacticalFleetShootTest {
         val own=s.stocks.outfits.getValue(1)
         val shooter=own.activeShips!!.values.last().copy(tactical=ai(-21f),supplies=5000)
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(supplies=15000,
-            activeShips=ActiveShipUnits(listOf(own.activeShips.values.first(),shooter)))))
+            activeShips=ActiveShipUnits(listOf(own.activeShips.values.first().copy(tactical=ai(-22f)),shooter)))))
         fun targetAt(y:Float) {
             val enemy=s.stocks.outfits.getValue(2)
             val unit=enemy.activeShips!!.values.single().copy(tactical=ai(y))
@@ -132,6 +132,42 @@ class TacticalFleetShootTest {
         assertNull(saved.shot)
         assertNull(saved.reload)
         assertEquals(5000,saved.supplies)
+    }
+
+    @Test fun alliedContactAllowsFireOnlyWhileTheScoutAndLineOfFireRemainValid() {
+        val world=Galaxy(galaxy.systems.map {if(it.grid==2488)it.copy(star=0) else it},galaxy.bases,galaxy.starts)
+        for(scoutWithdraws in listOf(false,true)) {
+            val s=state()
+            s.players=s.players.mapValues {(_,p)->p.copy(motion=ai(-21f).motion)}
+            val own=s.stocks.outfits.getValue(1)
+            val enemy=s.stocks.outfits.getValue(2)
+            val scout=own.activeShips!!.values.first().copy(tactical=ai(-18f))
+            val shooter=own.activeShips.values.last().copy(tactical=ai(-21f),supplies=5000)
+            fun targetAt(y:Float)=enemy.copy(activeShips=ActiveShipUnits(listOf(
+                enemy.activeShips!!.values.single().copy(tactical=ai(y)))))
+            s.stocks=s.stocks.copy(outfits=mapOf(1 to own.copy(supplies=15000,
+                activeShips=ActiveShipUnits(listOf(scout,shooter))),2 to targetAt(19f)))
+            val ids=listOf(2)
+            val command=request(ids).copy(tacticalMove=null,tacticalShoot=TacticalShoot(ids,TacticalWeapon.MISSILE.wire,1,99))
+            fun accept():NavigationResult {
+                val nav=Navigation(world,s.nav,NavigationPolicy())
+                val stock=production(s)
+                return TacticalFleetShoot.accept(command,session,world,nav,stock,stock.snapshot(1)!!,s.commit,24)
+            }
+            assertTrue(TacticalTerrain.fireBlocked(world,2488,TacticalPoint(0f,-21f),TacticalPoint(0f,19f)))
+            assertEquals(NavigationRejection.RANGE,accept().rejection)
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to targetAt(-19f)))
+            assertNotNull(accept().player)
+
+            if(scoutWithdraws) {
+                val fleet=s.stocks.outfits.getValue(1)
+                s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ActiveShipUnits(
+                    fleet.activeShips!!.values.map {if(it.id==scout.id)it.copy(tactical=ai(-22f)) else it}))))
+            }
+            val nav=Navigation(world,s.nav,NavigationPolicy())
+            val impacts=TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),world,nav,production(s),s.commit)
+            assertEquals(if(scoutWithdraws)emptyList() else listOf(99),impacts.map {it.hit.target})
+        }
     }
 
     @Test fun everyWeaponDebitsOnlyFiringUnitsHealthyBoatsAndRejectsInsufficientSupply() {

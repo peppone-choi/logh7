@@ -102,7 +102,8 @@ internal object TacticalFleetAttack {
                 val victim=candidates.asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
                         val targetPosition=pose(t,now,players,stocks,galaxy).position
-                        !TacticalTerrain.sensorBlocked(galaxy,position.grid,origin.position,targetPosition) &&
+                        !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,TacticalAuthority.camp(outfit,stocks),
+                            origin.position,targetPosition,now,players.values,stocks) &&
                             TacticalArmaments.effectiveness(mount,origin,targetPosition)>0 &&
                             !TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),origin.position,targetPosition,
                                 now,players.values,stocks,galaxy)} ?: continue

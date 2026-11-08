@@ -22,6 +22,23 @@ class TacticalTerrainTest {
         assertTrue(TacticalTerrain.pathBlocked(galaxy,2487,p(5f,0f),listOf(p(1f,0f))))
         assertFalse(TacticalTerrain.pathBlocked(galaxy,2489,p(-20f,0f),listOf(p(20f,0f))))
     }
+    @Test fun onlyTheCurrentOwnerOfADefenseHeadquartersReceivesItsContact() {
+        val base=galaxy.bases.single().copy(radius=15f)
+        val world=Galaxy(galaxy.systems,listOf(base),galaxy.starts)
+        val owner=PlanetStock(base.id,2,0,100,200,300)
+        val stocks=PlanetStocks(1,0,mapOf(base.id to owner))
+        fun blocked(camp:Camp,current:PlanetStocks)=TacticalTerrain.sharedSensorBlocked(
+            world,base.grid,camp,p(21f,0f),p(19f,0f),0,emptyList(),current)
+        val loyal=Camp(Power.EMPIRE,false)
+        val rebels=Camp(Power.EMPIRE,true)
+        assertFalse(blocked(loyal,stocks))
+        assertTrue(blocked(rebels,stocks))
+        val rebelStocks=stocks.copy(bases=mapOf(base.id to owner.copy(camp=1)))
+        assertTrue(blocked(loyal,rebelStocks))
+        assertFalse(blocked(rebels,rebelStocks))
+        assertNull(TacticalTerrain.defenseObserver(world,2488,loyal,0,stocks))
+    }
+
     @Test fun weaponsCannotFireAcrossTheStar() {
         assertTrue(TacticalTerrain.fireBlocked(galaxy,2487,p(-20f,0f),p(20f,0f)))
         assertFalse(TacticalTerrain.fireBlocked(galaxy,2487,p(-20f,15f),p(20f,15f)))

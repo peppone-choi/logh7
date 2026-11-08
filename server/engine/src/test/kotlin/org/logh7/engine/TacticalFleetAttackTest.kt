@@ -59,23 +59,24 @@ class TacticalFleetAttackTest {
         assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.last().attack)
         assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+500)*1000),galaxy,nav,p,s.commit).isEmpty())
     }
-    @Test fun anAutomaticFleetAttackDoesNotSpendAmmoOnAnEnemyUnderStarCover() {
+    @Test fun automaticFleetAttacksRequireDirectOrSharedContactThroughStarCover() {
         val world=Galaxy(galaxy.systems.map {if(it.grid==2488)it.copy(star=0) else it},galaxy.bases,galaxy.starts)
-        for(observer in listOf(-21f,-18f)) {
+        for((observer,scout) in listOf(-21f to -22f,-18f to -22f,-21f to -18f)) {
             val s=state()
+            s.players=s.players.mapValues {(_,p)->p.copy(motion=ai(-21f).motion)}
             val own=s.stocks.outfits.getValue(1)
             val enemy=s.stocks.outfits.getValue(2)
             val shooter=own.activeShips!!.values.last().copy(tactical=ai(observer),supplies=5000,
                 attack=TacticalUnitAttack(10000,TacticalAttackOrder(2,now,now,now)))
             val target=enemy.activeShips!!.values.single().copy(tactical=ai(observer+2f))
             s.stocks=s.stocks.copy(outfits=mapOf(1 to own.copy(supplies=15000,
-                activeShips=ActiveShipUnits(listOf(own.activeShips.values.first(),shooter))),
+                activeShips=ActiveShipUnits(listOf(own.activeShips.values.first().copy(tactical=ai(scout)),shooter))),
                 2 to enemy.copy(activeShips=ActiveShipUnits(listOf(target)))))
             val nav=Navigation(world,s.nav,NavigationPolicy())
             val hits=TacticalCombat.settle(session,world,nav,production(s),s.commit)
-            assertEquals(observer==-21f,hits.isEmpty())
+            assertEquals(observer==-21f && scout==-22f,hits.isEmpty())
             val supplies=s.stocks.outfits.getValue(1).activeShips!!.values.last().supplies!!
-            assertEquals(observer==-21f,supplies==5000)
+            assertEquals(observer==-21f && scout==-22f,supplies==5000)
         }
     }
 
