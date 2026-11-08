@@ -80,6 +80,28 @@ class TacticalSupportTest {
         settle(s,nav,p,now+240,out);assertEquals(1,out.size)
     }
 
+    @Test fun deceasedCommanderCannotStartOrFinishSavedSupport() {
+        for(action in TacticalSupportAction.entries) {
+            val s=state(repair=action==TacticalSupportAction.REPAIR)
+            val command=request(action,2)
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+            s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+            val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+            val stock=production(s)
+            val before=s.stocks.outfits.getValue(1)
+            val units=before.activeShips!!.values
+            assertNotNull(units.first().support)
+            assertEquals(NavigationRejection.IDENTITY,accept(s,nav,stock,command).rejection)
+            val out=mutableListOf<TacticalSupportResult>()
+            settle(s,nav,stock,now+120,out)
+            assertTrue(out.single().cancelled)
+            assertEquals(before.copy(activeShips=ActiveShipUnits(listOf(units.first().copy(support=null),units.last()))),
+                s.stocks.outfits.getValue(1))
+            settle(s,nav,stock,now+240,out)
+            assertEquals(1,out.size)
+        }
+    }
+
     @Test fun supplyBetweenUnitsOfTheSameFleetDoesNotChangeItsTotal() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
