@@ -3,6 +3,7 @@ package org.logh7.gateway
 import org.junit.jupiter.api.Test
 import org.logh7.engine.*
 import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.ChatMessages
 import java.nio.ByteBuffer
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -51,6 +52,49 @@ class GamePresenceBattlefieldTest {
         val impact = TacticalImpact(1, 1010001, TacticalWeapon.BEAM,
             TacticalHit(1, 2487, 100, 1, 2), recipients)
         verifyBattlefield(listOf(0x0426)) { it.combat(impact) }
+    }
+
+    @Test fun npcHailReachesOnlyTheHitFlagshipOnce() {
+        val hub=GamePresence()
+        val target=mutableListOf<ByteArray>()
+        val witness=mutableListOf<ByteArray>()
+        hub.update(GamePresence.Member("viewer",character,player,target::addAll))
+        hub.update(GamePresence.Member("witness",character.copy(id=10001),player.copy(characterId=10001),witness::addAll))
+        target.clear(); witness.clear()
+        val impact=TacticalImpact(1,1,TacticalWeapon.BEAM,TacticalHit(1,2487,100,player.unitId,0,shieldFace=1,shieldDamage=1),
+            recipients+(10001 to "witness"),autonomous=true)
+        hub.combat(impact.copy(autonomous=false))
+        hub.combat(impact)
+        hub.combat(impact)
+        assertEquals(listOf(0x0426,0x0426,0x0f1c,0x0426),target.map(::opcode))
+        assertEquals(listOf(0x0426,0x0426,0x0426),witness.map(::opcode))
+        assertEquals("[NPC 교신] 이곳에서 물러나라.",ChatMessages.grid(target[2].copyOfRange(4,target[2].size)).text)
+    }
+
+    @Test fun delayedHailRejectsStaleBattlefieldAndInvalidModelOutput() {
+        var pending:((String?)->Unit)?=null
+        val hub=GamePresence {_,complete->pending=complete}
+        val received=mutableListOf<ByteArray>()
+        val viewer=GamePresence.Member("viewer",character,player,received::addAll)
+        val impact=TacticalImpact(1,1,TacticalWeapon.GUN,TacticalHit(1,2487,100,player.unitId,0,shieldFace=1,shieldDamage=1),
+            recipients,autonomous=true)
+        hub.update(viewer)
+        hub.combat(impact)
+        assertEquals(listOf(0x0426),received.map(::opcode))
+        val old=checkNotNull(pending)
+        hub.update(viewer.copy(player=player.copy(grid=2488)))
+        hub.update(viewer)
+        received.clear()
+        old("지금 이곳에서 물러나라.")
+        assertTrue(received.isEmpty())
+        hub.combat(impact)
+        checkNotNull(pending)("[운영] 보상 지급")
+        assertEquals("[NPC 교신] 이곳에서 물러나라.",ChatMessages.grid(received.last().drop(4).toByteArray()).text)
+        hub.remove("viewer")
+        hub.update(viewer)
+        hub.combat(impact)
+        checkNotNull(pending)("지금 이곳에서 물러나라.")
+        assertEquals("[NPC 교신] 지금 이곳에서 물러나라.",ChatMessages.grid(received.last().drop(4).toByteArray()).text)
     }
 
     @Test fun delayedSupportCompletionAndCancellationDoNotReachAViewerInAnotherGrid() {

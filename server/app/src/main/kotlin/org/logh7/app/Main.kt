@@ -52,6 +52,7 @@ fun main() {
     }
     try {
         val jev=JevNpcTargeting.from(environment)?.also { runtimes.addFirst(it) }
+        val dialogue=CompatibleNpcDialogue.from(environment)?.also {runtimes.addFirst(it)}
         val fame=if(directory==null)null else org.logh7.gateway.FameLedger.openShared(
             Path.of(checkNotNull(sessions.first().environment["LOGH7_ACCOUNT_FAME_FILE"])),
             forceDirectory=environment["LOGH7_SESSION_DIRECTORY_SYNC"]!="files-only",
@@ -60,7 +61,7 @@ fun main() {
         val worldIdentities=mutableSetOf<String>()
         sessions.forEach {
             it.stateDirectory?.let(java.nio.file.Files::createDirectories)
-            runtimes.addFirst(startGameRuntime(it.environment,directory,it.id,it.name,accounts,fame,worldIdentities,jev))
+            runtimes.addFirst(startGameRuntime(it.environment,directory,it.id,it.name,accounts,fame,worldIdentities,jev,dialogue))
         }
         if (registrationPort != null) {
             runtimes.addFirst(startPlayerRegistration(registrationPort, checkNotNull(accounts)))
@@ -74,7 +75,8 @@ fun main() {
 internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gateway.GameSessionDirectory?=null,
     sessionId:Int=1,sessionName:String=org.logh7.protocol.LobbyMessages.LOCAL_SESSION_NAME,
     sharedAccounts:org.logh7.gateway.FileAccounts?=null,accountFame:org.logh7.gateway.FameLedger?=null,
-    worldIdentities:MutableSet<String> = mutableSetOf(),jev:JevNpcTargeting?=null):AutoCloseable {
+    worldIdentities:MutableSet<String> = mutableSetOf(),jev:JevNpcTargeting?=null,
+    npcDialogue:org.logh7.gateway.NpcCombatDialogue?=null):AutoCloseable {
     fun port(name:String,default:Int):Int {
         val value=environment[name]?.let {it.toIntOrNull() ?: error("$name must be an integer port")} ?: default
         require(value in 1..65535) {"$name must be in 1..65535"}
@@ -226,7 +228,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             navigation = if (world == null) null else org.logh7.gateway.EngineGameNavigation(engine, scope),
             stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope),
             administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope, world.galaxy),
-            sessionDirectory=lobby,sessionId=sessionId,sessionName=sessionName,accountFame=fame)
+            sessionDirectory=lobby,sessionId=sessionId,sessionName=sessionName,accountFame=fame,npcDialogue=npcDialogue)
         resources.addFirst(gateway)
         val audit = environment["LOGH7_OPS_AUDIT_FILE"]?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)

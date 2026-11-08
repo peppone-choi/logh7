@@ -173,7 +173,7 @@ internal object NpcTactics {
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
                         weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),victim.effectiveness,pose,
                         checkNotNull(TacticalCombat.target(victim.id,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)))
-                    stocks=resolved.first;impacts+=resolved.second;forceCache=null
+                    stocks=resolved.first;impacts+=resolved.second.copy(autonomous=true);forceCache=null
                     outfit=stocks.outfits.getValue(outfitId)
                     firing=firing.copy(nextFireAt=now+5*scale,sequence=firing.sequence+1)
                     // Debit this firing unit, not whichever unit bulk ID-order storage fills last.
