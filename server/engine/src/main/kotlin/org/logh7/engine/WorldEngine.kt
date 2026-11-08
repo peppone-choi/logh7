@@ -359,7 +359,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val production=production ?: return navigation.apply(request,session)
         val result=FleetNavigation.apply(request,session,galaxy,navigation,production,
             production.settle(session),worldStateCommitter) {
-            logistics.blocksMovement(session,it)
+            logistics.blocksMovement(session,it,production.snapshot(session.generation))
         }
         // A deferred fleet arrival leaves the authenticated actor's pending work in place.
         // Let the strategic command's own policy return BUSY without charging it.
@@ -1195,7 +1195,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else FleetNavigation.apply(command.request, session, galaxy, navigation, production,
                             checkNotNull(production.snapshot(session.generation)), worldStateCommitter,profiles[command.request.account]) { outfit ->
-                            logistics.blocksMovement(session, outfit)
+                            logistics.blocksMovement(session,outfit,production.snapshot(session.generation))
                         } else NavigationResult(null, rejection = NavigationRejection.DISABLED)
                     // Revalidate local duties immediately after committed movement, including spot
                     // departures. A failed invalidation blocks later commands; restart sees the saved departure.

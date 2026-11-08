@@ -20,32 +20,41 @@ data class LogisticsResult(val stocks: PlanetStocks? = null, val rejection: Logi
 internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null,
     private val leaseMillis:Long=120_000,countries:CountryCatalog?=null) {
     private val offices=galaxy?.let {LogisticsOfficePolicy(it,countries)}
-    private data class Reservation(val id: Long, val request: LogisticsRequest, val warehouse: Int, val base: Int, val expires: Long)
+    private data class Reservation(val id: Long, val request: LogisticsRequest, val warehouse: Int, val base: Int, val camp: Int, val expires: Long)
     private val reservations = mutableListOf<Reservation>()
     private var sequence = 0L
     init { require(leaseMillis in 1..3_600_000) }
 
-    fun blocksMovement(session: SessionState, outfit: Int): Boolean {
-        val now = clock()
-        reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
-            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection || it.country != lock.request.country } != false }
-        return reservations.any { it.request.mode == LogisticsMode.REORGANIZATION && it.request.outfitId == outfit }
+    private fun expireReservations(session:SessionState,now:Long,stocks:PlanetStocks?) {
+        reservations.removeAll { lock ->
+            val request=lock.request
+            lock.expires<=now || request.generation!=session.generation ||
+                session.participants[request.account]?.let {
+                    !it.online || it.connection!=request.connection || it.country!=request.country
+                }!=false || stocks?.let {inventory->
+                    inventory.bases[lock.base]?.camp!=lock.camp ||
+                        CoupActions.camp(inventory,request.characterId,request.country)!=lock.camp ||
+                        inventory.outfits[request.outfitId]?.let {CoupActions.outfitCamp(inventory,it)}!=lock.camp
+                }==true
+        }
     }
 
-    fun blocksSupply(session: SessionState, stocks: PlanetStocks, outfits: Set<Int>): Boolean {
-        val now = clock()
-        reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
-            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection || it.country != lock.request.country } != false }
-        val warehouses = outfits.mapNotNull { stocks.outfits[it]?.warehouseId }.toSet()
-        return reservations.any { it.request.mode == LogisticsMode.ALLOCATION || it.warehouse in warehouses }
+    fun blocksMovement(session:SessionState,outfit:Int,stocks:PlanetStocks?=null):Boolean {
+        expireReservations(session,clock(),stocks)
+        return reservations.any {it.request.mode==LogisticsMode.REORGANIZATION && it.request.outfitId==outfit}
+    }
+
+    fun blocksSupply(session:SessionState,stocks:PlanetStocks,outfits:Set<Int>):Boolean {
+        expireReservations(session,clock(),stocks)
+        val warehouses=outfits.mapNotNull {stocks.outfits[it]?.warehouseId}.toSet()
+        return reservations.any {it.request.mode==LogisticsMode.ALLOCATION || it.warehouse in warehouses}
     }
 
     fun apply(request: LogisticsRequest, session: SessionState, player: Navigator?, production: PlanetProduction,
         persist: Boolean = true): LogisticsResult {
         fun reject(reason: LogisticsRejection) = LogisticsResult(rejection = reason)
         val now = clock()
-        reservations.removeAll { lock -> lock.expires <= now || lock.request.generation != session.generation ||
-            session.participants[lock.request.account]?.let { !it.online || it.connection != lock.request.connection || it.country != lock.request.country } != false }
+        expireReservations(session,now,production.snapshot(session.generation))
         val member = session.participants[request.account]
         if (session.ended != null || request.generation != session.generation || member == null || !member.online ||
             member.connection != request.connection) return reject(LogisticsRejection.SESSION)
@@ -82,7 +91,7 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
             if (reservations.any { it.request.mode == LogisticsMode.ALLOCATION || request.mode == LogisticsMode.ALLOCATION ||
                     it.warehouse == outfit.warehouseId }) return reject(LogisticsRejection.BUSY)
             sequence = Math.addExact(sequence, 1)
-            reservations.add(Reservation(sequence, request, outfit.warehouseId, outfit.baseId, Math.addExact(now, leaseMillis)))
+            reservations.add(Reservation(sequence, request, outfit.warehouseId, outfit.baseId, base.camp, Math.addExact(now, leaseMillis)))
             return LogisticsResult(stocks, reservation = sequence)
         }
         if (existing == null || existing.id != request.reservation || existing.request.mode != request.mode || existing.request.outfitId != request.outfitId ||
