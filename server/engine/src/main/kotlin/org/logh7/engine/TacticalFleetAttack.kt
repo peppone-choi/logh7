@@ -98,8 +98,10 @@ internal object TacticalFleetAttack {
                 val preferred=stocks.tacticalCommands.missions[command.commander]?.takeIf {it.mission==3 && !it.completed}?.target
                 val victim=ids.sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
-                        TacticalArmaments.effectiveness(mount,origin,pose(t,now,players,stocks,galaxy).position)>0 &&
-                            !TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),origin.position,pose(t,now,players,stocks,galaxy).position,
+                        val targetPosition=pose(t,now,players,stocks,galaxy).position
+                        !TacticalTerrain.sensorBlocked(galaxy,position.grid,origin.position,targetPosition) &&
+                            TacticalArmaments.effectiveness(mount,origin,targetPosition)>0 &&
+                            !TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),origin.position,targetPosition,
                                 now,players.values,stocks,galaxy)} ?: continue
                 val effect=TacticalArmaments.effectiveness(mount,origin,pose(victim.second,now,players,stocks,galaxy).position)
                 val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,now,
