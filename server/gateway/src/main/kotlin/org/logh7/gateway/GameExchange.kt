@@ -707,11 +707,13 @@ class GameExchange(
                                 command.units,command.skill))).thenApply {result->
                             if(result.player==null)println("tactical ground rejected account=${identity.account} opcode=0x${opcode.toString(16)} units=${command.units} reason=${result.rejection}")
                             val now=gameSeconds()
-                            // The CD shows nothing for a failed 040f/0410 reply (004be8c0 ignores it); say why in the log.
-                            val notice=if(result.player==null)TacticalGroundNotices.text(opcode==0x040f,result.rejection)?.let {
-                                listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(character.id.toInt(),it),now))} else null
+                            // The CD does not explain 040f/0410 results; keep the acknowledgement and add a private notice.
+                            val deploy=opcode==0x040f
+                            val text=if(result.groundReadyAt!=null)TacticalGroundNotices.accepted(deploy)
+                                else TacticalGroundNotices.text(deploy,result.rejection)
+                            val notice=text?.let {org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(character.id.toInt(),it),now)}
                             listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,now,
-                                result.groundReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null))+notice.orEmpty()+commandCorps(identity.account)
+                                result.groundReadyAt?.let {(it-now).coerceAtLeast(0)} ?: 0,result.player!=null))+listOfNotNull(notice)+commandCorps(identity.account)
                         }
                         return null
                     }
@@ -941,7 +943,9 @@ class GameExchange(
                                         org.logh7.protocol.TacticalStopMessages.supportCancelled(event.character,event.unit,now)
                                     } + (if(result.tacticalMotions.isNotEmpty())result.tacticalMotions.map {(id,motion)->
                                         TacticalMotionMessages.npc(id,motion,now,player.characterId)}
-                                    else TacticalMotionMessages.reply(player,now)?.let(::listOf).orEmpty())
+                                    else TacticalMotionMessages.reply(player,now)?.let(::listOf).orEmpty())+
+                                    listOfNotNull(TacticalGroundNotices.stopped(result.groundStopped)?.let {
+                                        org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(character.id.toInt(),it),now)})
                                 } else emptyList()) +
                                 commandCorps(identity.account)
                         }

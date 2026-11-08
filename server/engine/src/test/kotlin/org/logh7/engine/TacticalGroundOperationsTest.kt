@@ -171,6 +171,7 @@ class TacticalGroundOperationsTest {
         val stopped=TacticalSupportOperations.stop(request().copy(tacticalGround=null,tacticalStop=TacticalStop(listOf(1))),
             session,galaxy,n,p,p.snapshot(1)!!,s.commit)
         assertNotNull(stopped.player)
+        assertEquals(setOf(TacticalGroundAction.DEPLOY),stopped.groundStopped)
         assertTrue(s.stocks.outfits.getValue(1).activeGround!!.values.all {it.order==null})
         val events=mutableListOf<TacticalGroundResult>();settle(s,n,p,now+600,events);assertTrue(events.isEmpty())
         assertEquals(1,s.stocks.outfits.getValue(1).activeGround!!.values.single {it.id==2}.carrier)

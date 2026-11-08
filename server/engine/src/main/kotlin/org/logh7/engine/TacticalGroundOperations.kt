@@ -12,6 +12,7 @@ data class TacticalGroundCommand(val action:TacticalGroundAction,val units:List<
 /** Manual waiting five seconds plus twenty seconds operation, separate from automatic ground exchanges. Author: Peppone Choi. */
 data class TacticalGroundOrder(val action:TacticalGroundAction,val character:Int,val grid:Int,val carrier:Int,val base:Int,
     val acceptedAt:Long,val readyAt:Long) {
+    companion object {const val PREPARATION_SECONDS=25}
     init {require(character>0 && grid in 0..4999 && carrier in 1..999999 && base in 1..65535 &&
         acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL)}
 }
@@ -80,7 +81,8 @@ internal object TacticalGroundOperations {
         val now=session.gameMillis/1000;val command=checkNotNull(request.tacticalGround)
         if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)
         if(command.skill!=0)return reject(NavigationRejection.ACCESS) // Skill semantics are not reconstructed.
-        if(now>0xffffffffL-25*scale)return reject(NavigationRejection.CLOCK)
+        val readyAt=now+TacticalGroundOrder.PREPARATION_SECONDS*scale
+        if(readyAt>0xffffffffL)return reject(NavigationRejection.CLOCK)
         val players=navigation.snapshot(session.generation)
         val centre=(p.motion?.pose(now,p.posture,galaxy,stocks) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,stocks,galaxy)).position
         val radius=checkNotNull(p.commandRange).radius(now)
@@ -106,7 +108,7 @@ internal object TacticalGroundOperations {
                     other.activeGround?.values.orEmpty().count {it.base==base.id || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==base.id}==true}}
                 if(occupied+troops.size>GroundBattleRules.BOX_CAPACITY_PER_FACTION)return reject(NavigationRejection.GRID)
             } else if(o.activeGround!!.values.count {it.carrier==id}+troops.size>GroundTransfer.capacity(ship.stack.kind))return reject(NavigationRejection.UNIT)
-            val order=TacticalGroundOrder(command.action,p.characterId,p.grid,id,state.base,now,now+25*scale)
+            val order=TacticalGroundOrder(command.action,p.characterId,p.grid,id,state.base,now,readyAt)
             val selected=troops.map {it.id}.toSet()
             val changed=o.copy(activeGround=ActiveGroundUnits(o.activeGround!!.values.map {if(it.id in selected)it.copy(order=order) else it}))
             next=next.copy(outfits=next.outfits+(o.id to changed))
@@ -115,7 +117,7 @@ internal object TacticalGroundOperations {
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players+(request.account to player),prepared)
         navigation.publishCommitted(players,players+(request.account to player),session.generation);production.publishCommitted(stocks,prepared)
-        return NavigationResult(player,preview.previous,groundReadyAt=now+25*scale)
+        return NavigationResult(player,preview.previous,groundReadyAt=readyAt)
     }
     fun advance(session:SessionState,galaxy:Galaxy,players:Map<String,Navigator>,stocks:PlanetStocks,
         events:MutableList<TacticalGroundResult>):PlanetStocks {
@@ -144,10 +146,14 @@ internal object TacticalGroundOperations {
         }
         return next
     }
-    fun cancel(stocks:PlanetStocks,carriers:List<Int>):PlanetStocks {
+    fun cancel(stocks:PlanetStocks,carriers:List<Int>):Pair<PlanetStocks,Set<TacticalGroundAction>> {
+        val stopped=linkedSetOf<TacticalGroundAction>()
         val outfits=stocks.outfits.mapValues {(_,o)->
             if(o.activeGround?.values?.any {it.order?.carrier in carriers}!=true)o
-            else o.copy(activeGround=ActiveGroundUnits(o.activeGround.values.map {if(it.order?.carrier in carriers)it.copy(order=null) else it}))}
-        return if(outfits==stocks.outfits)stocks else stocks.copy(outfits=outfits)
+            else o.copy(activeGround=ActiveGroundUnits(o.activeGround.values.map {unit->
+                val order=unit.order
+                if(order!=null && order.carrier in carriers) {stopped+=order.action;unit.copy(order=null)} else unit
+            }))}
+        return (if(stopped.isEmpty())stocks else stocks.copy(outfits=outfits)) to stopped
     }
 }
