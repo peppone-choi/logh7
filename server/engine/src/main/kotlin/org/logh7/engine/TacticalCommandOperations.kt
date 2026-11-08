@@ -216,7 +216,13 @@ internal object TacticalCommandOperations {
                     val own=TacticalAuthority.camp(s.bases.getValue(b.id))==TacticalAuthority.camp(p,s)
                     if(own!=(c.kind==1))return NavigationRejection.TARGET
                 }
-                if(c.kind in 3..4 && TacticalCombat.target(c.target,p.grid,TacticalAuthority.camp(p,s),s,g,players)==null)return NavigationRejection.TARGET
+                if(c.kind in 3..4) {
+                    val camp=TacticalAuthority.camp(p,s)
+                    val target=TacticalCombat.target(c.target,p.grid,camp,s,g,players) ?: return NavigationRejection.TARGET
+                    val to=TacticalFleetAttack.pose(target,now,players,s,g).position
+                    if(TacticalTerrain.sharedSensorBlocked(g,p.grid,camp,centre,to,now,players.values,s))
+                        return NavigationRejection.RANGE
+                }
             }
             0x422 -> {
                 if(!supreme(p,players,s))return NavigationRejection.CARD

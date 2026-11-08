@@ -526,6 +526,36 @@ class TacticalCommandOperationsTest {
         assertEquals(30L,settle(3,2488,0,true))
     }
 
+    @Test fun interceptionAndReconnaissanceRequireAnAlliedContactWhenAssigningTheMission() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases.map {it.copy(radius=25f)},galaxy.starts)
+        for(kind in 3..4) {
+            val s=state()
+            s.players=s.players.mapValues {(_,p)->p.copy(motion=motion(0f,-21f))}
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits.mapValues {(_,outfit)->
+                val y=if(outfit.id==1)-21f else -19f
+                outfit.copy(activeShips=ActiveShipUnits(outfit.activeShips!!.values.map {u->
+                    u.copy(tactical=u.tactical!!.copy(motion=motion(0f,y)))
+                }))
+            })
+            val nav=Navigation(world,s.nav,NavigationPolicy(),clockScale=1)
+            val production=PlanetProduction(world,s.stock,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+            val command=request(TacticalCommand(0x421,listOf(1010001),kind=kind,targetKind=1,target=99))
+            fun accept()=TacticalCommandOperations.accept(command,session,world,nav,production,production.snapshot(1)!!,s.commit,1)
+            assertEquals(NavigationRejection.RANGE,accept().rejection)
+            val old=production.snapshot(1)!!
+            val fleet=old.outfits.getValue(1)
+            val ships=fleet.activeShips!!.values.map {u->
+                if(u.id==1)u.copy(tactical=u.tactical!!.copy(motion=motion(1f,-18f))) else u
+            }
+            production.replace(old,old.copy(outfits=old.outfits+(1 to fleet.copy(activeShips=ActiveShipUnits(ships)))))
+            assertNotNull(accept().player)
+            TacticalCombat.settle(session.copy(gameMillis=(now+5)*1000),world,nav,production,s.commit,scale=1)
+            val assigned=assertNotNull(s.stocks.tacticalCommands.missions[10001])
+            assertEquals(kind,assigned.mission)
+            assertEquals(99,assigned.target)
+        }
+    }
+
     @Test fun offlineMissionRequiresAiOnAndStrategicPersonnelDecidesTheSupremeCommander() {
         val s=state();val disconnected=session.copy(participants=session.participants.mapValues {(a,p)->
             if(a=="ally")p.copy(online=false,connection=null) else p})
