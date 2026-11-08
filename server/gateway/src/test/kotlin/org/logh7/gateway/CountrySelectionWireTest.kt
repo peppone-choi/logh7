@@ -5,6 +5,7 @@ import java.nio.file.Path
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.gateway.load.*
+import org.logh7.engine.Allegiance
 import org.logh7.engine.CountryId
 import org.logh7.engine.Galaxy
 import org.logh7.engine.GalaxyBase
@@ -14,7 +15,9 @@ import org.logh7.engine.Power
 import org.logh7.engine.PublishedOriginalCandidates
 import org.logh7.engine.ShipStyleId
 import org.logh7.engine.UnaffiliatedStart
+import org.logh7.engine.WorldStateCommitter
 import org.logh7.persistence.FileNavigationStore
+import org.logh7.persistence.FileWorldStateStore
 import org.logh7.protocol.*
 import kotlin.test.*
 
@@ -43,6 +46,13 @@ class CountrySelectionWireTest {
         for(stage in 0..4)data=step(client,data.copy(category=stage,shipName=if(stage>=3)"S$surname" else ""))
         return data
     }
+    private fun through(client:SyntheticClient,opcode:Int):ByteBuffer {
+        repeat(100) {
+            val message=ByteBuffer.wrap(client.receive())
+            if(message.getShort(4).toInt() and 65535==opcode)return message
+        }
+        error("Missing opcode ${opcode.toString(16)}")
+    }
     @Test fun acknowledgementIsBoundToSessionCountryPurposeAndFullNonce() {
         LoadFixture(directory,2,LoadMetrics(),ticking=false).use {f->
             f.game(f.account(0),false).use {client->
@@ -64,13 +74,6 @@ class CountrySelectionWireTest {
             unaffiliatedStart=UnaffiliatedStart(2489,ShipStyleId("alliance")))
         val saved=directory.resolve("navigation")
         fun fixture()=LoadFixture(directory,2,LoadMetrics(),world,ticking=false,navigationStore=FileNavigationStore(saved))
-        fun through(client:SyntheticClient,opcode:Int):ByteBuffer {
-            repeat(100) {
-                val message=ByteBuffer.wrap(client.receive())
-                if(message.getShort(4).toInt() and 65535==opcode)return message
-            }
-            error("Missing opcode ${opcode.toString(16)}")
-        }
         val account="load-000"
         fixture().use { f ->
             f.game(account,false).use {client->
@@ -107,6 +110,91 @@ class CountrySelectionWireTest {
                 val restored=f.engine.snapshot().navigators.getValue(account)
                 assertNull(restored.country);assertEquals(ShipStyleId("alliance"),restored.shipStyle)
                 assertEquals(2490,restored.grid);assertEquals(960,restored.mcp);assertEquals(900,restored.cruise)
+            }
+        }
+    }
+
+    @Test fun independentSettlementCommitsOwnerAndLandingTogetherAndSurvivesRestart() = checkIndependentSettlement(false)
+
+    @Test fun independentSettlementStorageFailureKeepsThePlanetAndShipUnchanged() = checkIndependentSettlement(true)
+
+    private fun checkIndependentSettlement(fail:Boolean) {
+        val neutralBase=2000
+        val fezzan=2001
+        val world=Galaxy(listOf(GalaxySystem(3,2487,4,"Empire",2),GalaxySystem(4,2488,4,"Alliance",3),
+            GalaxySystem(5,2489,4,"Neutral",1)),listOf(
+            GalaxyBase(neutralBase,2489,80,0,"Free Port",0,20f,86400,0,0f,2f),
+            GalaxyBase(fezzan,2489,80,0,"フェザーン",0,20f,86400,0,0f,2f)),
+            mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2488),
+            unaffiliatedStart=UnaffiliatedStart(2489,ShipStyleId("alliance")))
+        val state=directory.resolve("world")
+        val account="load-000"
+        fun fixture(store:FileWorldStateStore)=LoadFixture(directory,2,LoadMetrics(),world,ticking=false,
+            stockStore=store.stockStore,navigationStore=store.navigationStore,worldStateCommitter=WorldStateCommitter {nav,stocks->
+                if(fail && stocks?.bases?.get(neutralBase)?.owner is Allegiance.Independent)
+                    throw java.io.IOException("settlement save failure")
+                store.saveWorld(nav,stocks)
+            })
+        var id=0
+        FileWorldStateStore(state).use {store->fixture(store).use { f->
+            f.game(account,false).use { client->
+                assertEquals("1",choice(client,0)[1])
+                id=create(client,3,"FreeSettler").id.toInt()
+            }
+            f.join(account,false,false).client.use {client->
+                client.send(SyntheticClient.opcode(0x0f00));through(client,0x0f01)
+                fun send(text:String) {
+                    val packet=ChatMessages.grid(ChatMessages.Grid(id,0,text),0)
+                    client.send(packet.copyOfRange(4,packet.size))
+                }
+                fun reply():String {
+                    repeat(10) {
+                        val packet=through(client,0x0f1d).array()
+                        val message=ChatMessages.spot(packet.copyOfRange(4,packet.size)).text
+                        if(message.startsWith("[거점 확보]"))return message
+                    }
+                    error("Missing settlement reply")
+                }
+                send("/claim $fezzan")
+                assertTrue(reply().contains("없습니다"))
+                val before=f.engine.snapshot()
+                send("/claim")
+                if(fail) {
+                    assertTrue(reply().contains("저장할 수 없어"))
+                    assertEquals(before.navigators.getValue(account),f.engine.snapshot().navigators.getValue(account))
+                    assertEquals(Allegiance.Neutral,f.engine.snapshot().planetStocks?.bases?.get(neutralBase)?.owner)
+                } else {
+                    through(client,0x0b0b)
+                    assertTrue(reply().contains("Free Port 확보"))
+                    val after=f.engine.snapshot()
+                    assertEquals(Allegiance.Independent(id),after.planetStocks?.bases?.get(neutralBase)?.owner)
+                    assertEquals(neutralBase,after.navigators.getValue(account).baseId)
+                    assertEquals(before.navigators.getValue(account).mcp,after.navigators.getValue(account).mcp)
+                    val facility=neutralBase*100+1
+                    client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(facility).putInt(16).put(6).array())
+                    val guide=through(client,0x032f)
+                    assertEquals(facility,guide.getInt(6))
+                    assertEquals(6,guide.get(14).toInt())
+                    assertEquals(3,guide.get(15).toInt())
+                    client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(1).putInt(0).put(2).array())
+                    through(client,0x032f)
+                    assertEquals(0,through(client,0x0331).get(6).toInt())
+                    send("/거점확보 $neutralBase")
+                    assertTrue(reply().contains("전략 화면"))
+                    assertEquals(after.planetStocks?.bases?.get(neutralBase),f.engine.snapshot().planetStocks?.bases?.get(neutralBase))
+                }
+            }
+        }}
+        FileWorldStateStore(state).use {store->
+            assertEquals(if(fail)Allegiance.Neutral else Allegiance.Independent(id),store.stockStore.load()?.bases?.get(neutralBase)?.owner)
+            val saved=store.navigationStore.load().getValue(account)
+            assertNull(saved.country)
+            assertEquals(if(fail)0 else neutralBase,saved.baseId)
+            if(!fail)fixture(store).use { f->
+                f.join(account,false,false).client.use {client->
+                    client.send(SyntheticClient.opcode(0x0f00));through(client,0x0f01)
+                    assertEquals(neutralBase,f.engine.snapshot().navigators.getValue(account).baseId)
+                }
             }
         }
     }

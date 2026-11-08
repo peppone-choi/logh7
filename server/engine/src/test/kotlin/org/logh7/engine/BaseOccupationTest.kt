@@ -87,6 +87,27 @@ class BaseOccupationTest {
         assertEquals(CountryId(42),events.single().country)
     }
 
+    @Test fun independentBaseCountsAsItsOwnCampAndOccupationExpelsOnlyItsController() {
+        val owner=Allegiance.Independent(10001)
+        val before=stocks().let {s->s.copy(bases=s.bases.mapValues {(_,b)->
+            b.copy(owner=owner,governorId=0,garrisonCommanderId=0)})}
+        val controller=Navigator(1,10001,Power.ALLIANCE,2487,777,555,321,baseId=1000,mode=4,
+            returnBase=1000).copy(country=null)
+        val visitor=controller.copy(characterId=10002,baseId=0,mode=5,returnBase=0)
+        val players=mutableMapOf("controller" to controller,"visitor" to visitor)
+        val forces=GridForces.collect(galaxy,1,players.values,before).getValue(2487)
+        assertTrue(forces.single {it.camp==Camp.of(controller)}.base)
+        assertFalse(forces.single {it.camp==Camp.of(visitor)}.base)
+        val events=mutableListOf<BaseOccupation>()
+        val after=advance(before,players,events)
+        assertEquals(CountryId(2),after.bases.getValue(1000).country)
+        assertEquals(owner,events.single().previousOwner)
+        assertEquals(setOf("controller"),events.single().expelled.keys)
+        assertEquals(0,players.getValue("controller").baseId)
+        assertEquals(0,players.getValue("controller").returnBase)
+        assertEquals(visitor,players.getValue("visitor"))
+    }
+
     @Test fun unopposedLandingCapturesOnceDestroysStationedShipsAndClearsAppointments() {
         val original=stocks();val events=mutableListOf<BaseOccupation>();val captured=advance(original,events=events)
         val owner=captured.bases.getValue(1000)

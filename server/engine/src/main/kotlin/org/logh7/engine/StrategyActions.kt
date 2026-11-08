@@ -87,12 +87,15 @@ internal object StrategyActions {
         val member=s.participants[r.account]
         if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection)return reject(StrategyActionRejection.SESSION)
-        if(p==null || r.country==null || p.generation!=r.generation || p.characterId!=r.characterId || p.country!=r.country || member.country!=r.country)
+        if(p==null || p.generation!=r.generation || p.characterId!=r.characterId || p.country!=r.country || member.country!=r.country)
             return reject(StrategyActionRejection.IDENTITY)
+        if(r.country==null && r.command!=IndependentBaseClaim.COMMAND)return reject(StrategyActionRejection.IDENTITY)
         if(r.country in s.eliminated)return reject(StrategyActionRejection.SESSION)
         if(BattleDeath.deceased(stocks,r.characterId))return reject(StrategyActionRejection.IDENTITY)
         // U-25: a detainee cannot run strategy commands until released.
         if(stocks.social.justice.detained(r.characterId))return reject(StrategyActionRejection.BUSY)
+        if(r.command==IndependentBaseClaim.COMMAND)return IndependentBaseClaim.evaluate(galaxy,r,s,p,stocks)
+        val country=checkNotNull(r.country)
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(r.command in CivicActions.supported)return CivicActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in PersonnelActions.supported)return PersonnelActions.evaluate(galaxy,r,s,p,stocks,countries)
@@ -100,7 +103,6 @@ internal object StrategyActions {
         if(r.command in CompleteRepairActions.supported)return CompleteRepairActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in FlagshipMarketActions.supported)return FlagshipMarketActions.evaluate(galaxy,r,s,p,stocks,countries)
         if(r.command in TransportActions.supported)return TransportActions.evaluate(galaxy,r,s,p,stocks,countries)
-        val country=r.country
         val definition=countries.countries[country.value] ?: return reject(StrategyActionRejection.IDENTITY)
         if(r.card!=if(r.command==84)0 else when(definition.nativePower) {2->59;3->195;else->return reject(StrategyActionRejection.CARD)})
             return reject(StrategyActionRejection.CARD)

@@ -7,6 +7,7 @@ import org.logh7.protocol.CountryImageMessages
 import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.OriginalCharacterMessages
+import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.engine.NavigationRejection
 import org.logh7.engine.LogisticsRejection
 import org.logh7.engine.CompletenessSupply
@@ -20,6 +21,8 @@ import java.time.Clock
 import java.util.Properties
 import java.util.concurrent.CompletableFuture
 import org.logh7.engine.Admission
+import org.logh7.engine.IndependentBaseClaim
+import org.logh7.engine.StrategyActionRejection
 import org.logh7.engine.members
 import org.logh7.engine.country
 
@@ -214,6 +217,52 @@ class GameExchange(
     private fun currencyLabel(country: org.logh7.engine.CountryId?): org.logh7.protocol.StrategyCurrencyLabel? =
         country?.let(org.logh7.engine.CountryCatalogLoader::currency)
             ?.takeIf { it.validForEditing() }?.let { org.logh7.protocol.StrategyCurrencyLabel(it.name, it.symbol) }
+    /** The native chat box is also the entry point for independent settlement. Never broadcast commands. */
+    private fun handleBaseClaim(account:String,character:CharacterMessages.Generate,text:String):Boolean {
+        val words=text.trim().split(' ',limit=2)
+        if(words[0] !in setOf("/거점확보","/claim"))return false
+        val id=character.id.toInt()
+        fun notice(message:String)=ChatMessages.spot(ChatMessages.Spot(id,"[거점 확보] $message"),gameSeconds())
+        val base=if(words.size==1)0 else words[1].trim().toIntOrNull()?.takeIf {it in 1..65535}
+        val admin=administration
+        val bootstrap=world
+        pendingWorld=when {
+            base==null -> CompletableFuture.completedFuture(listOf(notice("/거점확보 또는 /거점확보 거점번호")))
+            admin==null || bootstrap?.galaxy?.unaffiliatedStart==null ->
+                CompletableFuture.completedFuture(listOf(notice("이 월드에서는 사용할 수 없습니다.")))
+            else -> admin.strategyAction(org.logh7.engine.StrategyActionRequest(account,connection,id,
+                currentProfile(account,id).country,checkNotNull(generation),IndependentBaseClaim.COMMAND,0,character.rank,
+                politics=character.abilities[1],administration=character.abilities[2],base=base)).thenApply { result ->
+                val player=result.player
+                if(result.changed && player!=null) {
+                    val updated=checkNotNull(currentCharacter(account))
+                    publication=Publication(updated,player,false)
+                    val name=bootstrap.galaxy.bases.single {it.id==player.baseId}.name
+                    listOf(bootstrap.conditions(listOf(player.baseId),result.stocks),characterMessage(updated,player,true),
+                        unitMessage(updated,player),org.logh7.protocol.PlaceMessages.dockNotification(id,player.baseId,player.mode,gameSeconds()),
+                        notice("${name.take(32)} 확보 · 무소속 지배 거점"))
+                } else {
+                    val message=when(result.rejection) {
+                        StrategyActionRejection.LOCATION -> "전략 화면에서 중립 행성이 있는 성계에 정박하세요."
+                        StrategyActionRejection.TARGET -> {
+                            val choices=if(base!=0 || player==null || result.stocks==null)emptyList()
+                                else IndependentBaseClaim.candidates(bootstrap.galaxy,player,checkNotNull(result.stocks))
+                            when {
+                                base!=0 -> "선택한 거점을 확보할 수 없습니다."
+                                choices.isEmpty() -> "현재 성계에 확보할 수 있는 중립 행성이 없습니다."
+                                else -> "거점번호를 지정하세요. " + choices.take(5).joinToString(", ") {it.id.toString()}
+                            }
+                        }
+                        StrategyActionRejection.AUTHORITY -> "무소속만 거점을 확보할 수 있습니다."
+                        StrategyActionRejection.STORAGE -> "저장할 수 없어 거점 확보를 취소했습니다."
+                        else -> "지금은 거점을 확보할 수 없습니다."
+                    }
+                    listOf(notice(message))
+                }
+            }
+        }
+        return true
+    }
     private fun navigate(request:org.logh7.engine.NavigationRequest):CompletableFuture<org.logh7.engine.NavigationResult> {
         val profile=currentProfile(request.account,request.characterId)
         return checkNotNull(navigation).apply(request.copy(country=profile.country,shipStyle=profile.shipStyle))
@@ -397,7 +446,16 @@ class GameExchange(
             // The original strategy HUD clears chat on relocation and keeps only the latest line visible.
             val navigationGuide = guide?.let {
                 lastNavigationGuide = it
-                val text=if(player.country==null && it==NavigationGuide.WARP)"무소속 · ${it.text}" else it.text
+                val text=if(player.country==null && it==NavigationGuide.WARP) {
+                    val claimable=navigation?.snapshot()?.planetStocks?.let {stocks->
+                        world?.galaxy?.let {IndependentBaseClaim.candidates(it,player,stocks).isNotEmpty()}
+                    }==true
+                    if(claimable)"무소속 · 채팅에 /거점확보로 정착" else "무소속 · ${it.text}"
+                } else if(player.country==null && it==NavigationGuide.FACILITY &&
+                    navigation?.snapshot()?.planetStocks?.bases?.get(player.baseId)?.owner==
+                    org.logh7.engine.Allegiance.Independent(player.characterId)) {
+                    "무소속 지배 거점 · 개인→원거리 이동"
+                } else it.text
                 listOf(ChatMessages.spot(ChatMessages.Spot(player.characterId, text), gameSeconds()))
             }.orEmpty()
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
@@ -1337,31 +1395,34 @@ class GameExchange(
                             val startsAt=deadline?.let {player.strategy?.jobs?.singleOrNull()?.startsAtGameMillis?.div(1000)}
                             return handshake.stageAll(listOf(org.logh7.protocol.FuelMessages.status(party,startsAt,deadline)),clearHeader=0)
                         }
-                        // Display queries echo the viewer's actual country as its display code; no membership, no reply.
-                        val viewerCountry by lazy {checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value}
-                        if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,viewerCountry)),clearHeader=0)
+                        val viewerCountry by lazy {currentProfile(identity.account,character.id.toInt()).country?.value}
+                        if(party?.mode==4)return handshake.stageAll(listOf(world.countryColors(party,viewerCountry,character.power)),clearHeader=0)
                         if(party?.mode==5 || party?.mode==org.logh7.protocol.CountryMetadataMessages.EMBLEM_MODE)
-                            return handshake.stageAll(listOf(world.countryMetadata(party,viewerCountry)),clearHeader=0)
+                            return handshake.stageAll(listOf(world.countryMetadata(party,viewerCountry,character.power)),clearHeader=0)
                         if(party?.mode==org.logh7.protocol.CountryImageMessages.MODE) {
                             if(!worldInitialized)return null
                             return handshake.stageAll(world.countryImageFrames(party),clearHeader=0)
                         }
                         if(party?.mode==6) {
-                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it)))}
+                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it),character.power))}
                             return null
                         }
                         pendingWorld = stocks().thenApply { stored ->
                             // Ground, battle and unit views act for the profile's actual country, as outfitParty does.
-                            val country=checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value
-                            if(party?.mode==2)world.outfitGround(party,country,checkNotNull(stored))
-                            else if(party?.mode==3) {
+                            val country=viewerCountry
+                            if(party?.mode==3) {
                                 val snapshot=navigation?.snapshot()
                                 val countries=WorldCharacters.profiles(characters.profiles(),snapshot).values
                                     .associate {it.character.id.toInt() to it.country}
                                 world.outfitBattle(party,country,checkNotNull(stored),
                                     snapshot?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid,
-                                    characterCountryById={countries[it]},characterById=::currentCharacterById)
-                            }
+                                    characterCountryById={countries[it]},characterById=::currentCharacterById,nativePower=character.power)
+                            } else if(country==null) {
+                                val emptyUnits=LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(emptyList()))
+                                if(party==null)listOf(emptyUnits) else listOf(LoginMessages.sessionMessage(0x032f,
+                                    OutfitPartyMessages.party(party,character.power,0,0,emptyList(),emptyList(),0,0)))+
+                                    if(party.mode==2)listOf(emptyUnits) else emptyList()
+                            } else if(party?.mode==2)world.outfitGround(party,country,checkNotNull(stored))
                             else listOf(if(party!=null)world.outfitParty(party,country,checkNotNull(stored),character.id.toInt(),::currentCharacterById)
                                 else world.outfitUnit(checkNotNull(unit).id,country,checkNotNull(stored),unit.base))
                         }
@@ -1622,15 +1683,19 @@ class GameExchange(
                     0x0f1c -> {
                         check(gameStarted && worldInitialized && presence != null)
                         val message = org.logh7.protocol.ChatMessages.grid(body)
-                        require(message.characterId.toLong() == checkNotNull(currentCharacter(identity.account)).id)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        require(message.characterId.toLong() == character.id)
                         if (message.text.isBlank()) return null
+                        if(handleBaseClaim(identity.account,character,message.text))return null
                         presence.gridChat(connection, message, gameSeconds())
                     }
                     0x0f1d -> {
                         check(gameStarted && worldInitialized && presence != null)
                         val message = org.logh7.protocol.ChatMessages.spot(body)
-                        require(message.characterId.toLong() == checkNotNull(currentCharacter(identity.account)).id)
+                        val character=checkNotNull(currentCharacter(identity.account))
+                        require(message.characterId.toLong() == character.id)
                         if (message.text.isBlank()) return null
+                        if(handleBaseClaim(identity.account,character,message.text))return null
                         presence.spotChat(connection, message, gameSeconds())
                     }
                     0x0f13 -> {

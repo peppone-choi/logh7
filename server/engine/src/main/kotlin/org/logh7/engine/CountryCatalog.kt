@@ -44,7 +44,7 @@ class CountryCatalog(calendars:List<CountryCalendar>,families:List<CountryFamily
     /** Display projection only; ownership and authority compare actual country IDs. */
     fun nativePower(owner:Allegiance):Int=when(owner) {
         Allegiance.Unspecified->0
-        Allegiance.Neutral->1
+        Allegiance.Neutral,is Allegiance.Independent->1
         Allegiance.Pirates->4
         is Allegiance.Country->requireNotNull(countries[owner.id.value]) {"Unknown country definition"}.nativePower
     }
