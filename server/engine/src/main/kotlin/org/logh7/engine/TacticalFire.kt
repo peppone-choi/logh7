@@ -333,7 +333,7 @@ internal object TacticalCombat {
         val occupations=mutableListOf<BaseOccupation>()
         val fortressSunk=mutableListOf<Navigator>()
         inventory=FortressArmor.advance(session,galaxy,players,inventory,fortressSunk)
-        inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations)
+        inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations,commands)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players.values)
         if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {inventory=EspionageActions.settle(galaxy,session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
         val departedIds=impacts.mapNotNull {it.departed?.characterId}+fortressSunk.map {it.characterId}

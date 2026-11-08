@@ -25,8 +25,9 @@ class BaseOccupationTest {
             deploymentInitialized=true,nextShipId=6)
     }
     private fun advance(s:PlanetStocks,players:MutableMap<String,Navigator> = mutableMapOf(),
-        events:MutableList<BaseOccupation> = mutableListOf(),state:SessionState=session,world:Galaxy=galaxy,cap:Int=Int.MAX_VALUE)=
-        BaseOccupationOperations.advance(state,world,players,s,cap,1,events)
+        events:MutableList<BaseOccupation> = mutableListOf(),state:SessionState=session,world:Galaxy=galaxy,cap:Int=Int.MAX_VALUE,
+        commands:MutableList<TacticalCommandResult> = mutableListOf())=
+        BaseOccupationOperations.advance(state,world,players,s,cap,1,events,commands)
 
     private fun additionalCountries():PlanetStocks=stocks().let {s -> s.copy(
         bases=s.bases.mapValues {(_,b)->b.copy(owner=Allegiance.Country(CountryId(43)))},
@@ -68,16 +69,22 @@ class BaseOccupationTest {
         val world=Galaxy(galaxy.systems,listOf(base,neighboring),galaxy.starts)
         val otherBase=original.bases.getValue(1000).copy(baseId=1001)
         val openSupply=mapOf(1000 to country.value,1001 to country.value)
+        val queued=TacticalQueuedCommand(10001,2487,now,now+30,TacticalCommand(0x422,base=1000))
+        val neighboringOrder=queued.copy(command=queued.command.copy(base=1001))
         val before=original.copy(outfits=original.outfits+(1 to rebels),
             bases=original.bases+(1001 to otherBase),
-            tacticalCommands=original.tacticalCommands.copy(emergencySupplies=openSupply),
+            tacticalCommands=original.tacticalCommands.copy(emergencySupplies=openSupply,orders=listOf(queued,neighboringOrder)),
             warehouses=original.warehouses+(101 to original.warehouses.getValue(101).copy(country=country)),
             social=original.social.copy(coup=coup))
         val regular=Navigator(1,10001,Power.ALLIANCE,2487,777,555,321,baseId=1000,mode=4,returnBase=1000)
         val rebel=regular.copy(characterId=10000)
         val players=mutableMapOf("regular" to regular,"rebel" to rebel)
         val events=mutableListOf<BaseOccupation>()
-        val captured=advance(before,players,events,world=world)
+        val commands=mutableListOf<TacticalCommandResult>()
+        val captured=advance(before,players,events,world=world,commands=commands)
+        assertEquals(listOf(neighboringOrder),captured.tacticalCommands.orders)
+        assertEquals(queued,commands.single().order)
+        assertTrue(commands.single().cancelled)
         assertEquals(1,captured.bases.getValue(1000).camp)
         assertEquals(openSupply-1000,captured.tacticalCommands.emergencySupplies)
         assertEquals(setOf(1000),captured.social.coup.plots.getValue(10000).bases)
@@ -94,7 +101,9 @@ class BaseOccupationTest {
         val returned=ActiveGroundUnits(defenders.activeGround!!.values.map {it.copy(carrier=0,base=1000)})
         val counterattack=captured.copy(outfits=mapOf(1 to routed,2 to defenders.copy(activeGround=returned)))
         events.clear()
-        val retaken=advance(counterattack,players,events,world=world)
+        val retaken=advance(counterattack,players,events,world=world,commands=commands)
+        assertEquals(listOf(neighboringOrder),retaken.tacticalCommands.orders)
+        assertEquals(1,commands.size)
         assertEquals(0,retaken.bases.getValue(1000).camp)
         assertEquals(openSupply-1000,retaken.tacticalCommands.emergencySupplies)
         assertTrue(retaken.social.coup.plots.getValue(10000).bases.isEmpty())
