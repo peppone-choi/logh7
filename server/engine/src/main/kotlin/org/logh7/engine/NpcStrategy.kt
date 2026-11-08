@@ -202,7 +202,7 @@ internal object NpcStrategy {
                     // Recover older fleets stranded in orbit over an available depot.
                     val replenished=checkNotNull(supplied(stocks,outfit.copy(position=destination),galaxy,departing=false))
                     val docked=replenished.second.copy(strategy=NpcStrategicState(now+21600),
-                        activeShips=ActiveShipUnits(replenished.second.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0)}))
+                        activeShips=ActiveShipUnits(replenished.second.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,posture=null)}))
                     stocks=replenished.first.copy(outfits=replenished.first.outfits+(id to docked))
                     forceCache=null
                 } else {
