@@ -545,7 +545,7 @@ class GameExchange(
             }.orEmpty()
             val tacticalRefresh=if(worldInitialized && player.cpPaused && deliveredTactics==true && previous?.grid==player.grid) {
                 val battle=tactics(account)
-                val corps=org.logh7.protocol.TacticsMessages.corps(battle.corps.filter {it.character==player.characterId})
+                val corps=org.logh7.protocol.TacticsMessages.corps(battle.corps)
                 if(world?.galaxy?.let { org.logh7.engine.TacticalTerrain.starRadius(it,player.grid) }==null) listOf(corps)
                 else {
                     val updates=battle.detectionChanges(hiddenTacticalUnits)
@@ -1002,7 +1002,7 @@ class GameExchange(
                             publication=Publication(character,player,false)
                             listOf(org.logh7.protocol.TacticalRetreatMessages.reply(retreat,gameSeconds(),
                                 if(result.player!=null)maxOf(0,(result.commandReadyAt ?: checkNotNull(player.retreat).startsAt)-gameSeconds()) else 0,
-                                result.player!=null))
+                                result.player!=null))+commandCorps(identity.account)
                         }
                         return null
                     }
