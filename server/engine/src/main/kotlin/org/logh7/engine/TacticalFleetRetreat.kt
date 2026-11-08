@@ -60,8 +60,11 @@ internal object TacticalFleetRetreat {
             var outfit=stocks.outfits[outfitId] ?: continue;val grid=outfit.positionIn(g).grid
             val checked=outfit.activeShips?.values.orEmpty().map {u->
                 val state=u.tactical ?: return@map u;val retreat=state.retreat ?: return@map u
-                if(BattleDeath.deceased(stocks,u.motionCommander))return@map u.copy(tactical=state.copy(retreat=null))
-                if(u.motionCommander==0 || retreat.membershipChecked || now<retreat.startsAt)return@map u
+                if(u.motionCommander==0)return@map u
+                if(BattleDeath.deceased(stocks,u.motionCommander) ||
+                    TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander)
+                    return@map u.copy(tactical=state.copy(retreat=null))
+                if(retreat.membershipChecked || now<retreat.startsAt)return@map u
                 val commander=players.values.singleOrNull {it.characterId==u.motionCommander && it.grid==grid && it.baseId==0 && it.cpPaused}
                 val from=commander?.let {it.motion?.pose(retreat.startsAt,it.posture,g,stocks) ?:
                     TacticalDeployment.initial(it.unitId,grid,players.values,stocks,g)}
