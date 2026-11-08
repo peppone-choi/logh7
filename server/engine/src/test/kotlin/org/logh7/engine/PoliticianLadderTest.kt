@@ -110,7 +110,7 @@ class PoliticianLadderSettlementTest {
         assertEquals(10,production.settle(1,start+30*86400).strategic.people.getValue(9).rank)
         assertEquals(10,production.settle(1,start+31*86400).strategic.people.getValue(9).rank)
     }
-    @Test fun monthlyConversionRefreshesBothChairmenAfterCommitOnlyOnce()=runBlocking {
+    @Test fun monthlySettlementRefreshesChangedRankOfficesAndAbilitiesOnce()=runBlocking {
         val rules=SessionRules.load()
         val policy=OrganizationalOfficePolicy(galaxy)
         val country=CountryId(3)
@@ -122,7 +122,10 @@ class PoliticianLadderSettlementTest {
             override fun save(stocks:PlanetStocks){saved=stocks}
         }
         val engine=WorldEngine(this,rules,ticking=false,galaxy=galaxy,stockStore=store)
-        val identities=engine.provideIdentities {listOf(11,12).map {StrategicIdentity(it,3,1,0,List(8){50})}}
+        val identities=engine.provideIdentities {
+            listOf(11,12).map {StrategicIdentity(it,3,1,0,List(8){50})}+
+                StrategicIdentity(10001,3,10,0,List(8){50},18)
+        }
         val refreshes=mutableListOf<Pair<Set<Int>,PlanetStocks>>()
         val subscription=engine.observeCharacterRefresh {ids->refreshes+=ids.toSet() to saved}
         try {
@@ -133,7 +136,8 @@ class PoliticianLadderSettlementTest {
                 withTimeout(5000){barrier.await()}
             }
             val (ids,committed)=refreshes.single()
-            assertEquals(setOf(11,12),ids)
+            assertEquals(setOf(11,12,10001),ids)
+            assertEquals(listOf(50,50,50,50,50,50,50,51),committed.strategic.people.getValue(10001).abilities)
             assertEquals(10,committed.strategic.people.getValue(11).rank)
             assertEquals(listOf(12),policy.holders(committed,132,country).map {it.character})
         } finally {

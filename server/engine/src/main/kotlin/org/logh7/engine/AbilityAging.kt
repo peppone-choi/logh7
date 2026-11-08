@@ -17,6 +17,7 @@ object AbilityAging {
             val age=identity.age+month/PERIODS_PER_YEAR
             if(age in YOUNG until OLD)continue
             val person=people[identity.id] ?: StrategicPerson()
+            if(person.deceasedAt!=0L)continue
             if(identity.id !in people && people.size>=4096)continue
             val values=(person.abilities ?: identity.abilities).toMutableList()
             val random=java.util.Random(month*1_000_003L+identity.id*31L+7)

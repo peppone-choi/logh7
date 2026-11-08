@@ -8,6 +8,14 @@ class AbilityAgingTest {
     private val empty=PlanetStocks(1,0,emptyMap())
     private fun after(age:Int,abilities:List<Int>,months:LongRange)=months.fold(empty) {s,m->
         AbilityAging.monthly(s,listOf(StrategicIdentity(7,2,9,0,abilities,age)),m)}.strategic.people[7]?.abilities
+    @Test fun deceasedCharactersKeepTheirFinalAbilitiesDuringMonthlySettlement() {
+        val abilities=List(8){50}
+        val young=StrategicIdentity(10001,3,10,0,abilities,18)
+        val deceased=empty.copy(strategic=StrategicState(people=mapOf(young.id to StrategicPerson(
+            abilities=abilities,deceasedAt=1))))
+        assertEquals(51,AbilityAging.monthly(empty,listOf(young),1).strategic.people.getValue(young.id).abilities?.last())
+        assertSame(deceased,AbilityAging.monthly(deceased,listOf(young),1))
+    }
     @Test fun middleAgedAndUnknownAgesNeverChange() {
         assertNull(after(35,List(8){60},1L..72L))
         assertNull(after(0,List(8){60},1L..72L))
