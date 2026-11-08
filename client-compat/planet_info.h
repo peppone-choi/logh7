@@ -253,6 +253,7 @@ static int __cdecl planetInfoMenu(void* gui) {
     pollOutfitAffiliations(*reinterpret_cast<void**>(0x7ccffc));
     pollTacticalCamps(*reinterpret_cast<void**>(0x7ccffc));
     refreshTacticalRelations(*reinterpret_cast<void**>(0x7ccffc));
+    updateTacticalDetectionContext(*reinterpret_cast<void**>(0x7ccffc));
     if(updateSessionEnding(gui))return -1;
     updateCharacterInformation(gui);
     updateOutfitInformation(gui);

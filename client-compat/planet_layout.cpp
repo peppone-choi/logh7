@@ -15,6 +15,7 @@
 #pragma comment(lib, "user32.lib")
 #pragma comment(linker, "/EXPORT:DirectInput8Create=_ForwardDirectInput8Create@20")
 #pragma comment(linker, "/EXPORT:LoghPlanetLayoutStatus=_LoghPlanetLayoutStatus@0")
+#pragma comment(linker, "/EXPORT:LoghTacticalDetectionCoverage=_LoghTacticalDetectionCoverage@0")
 
 static volatile LONG status = 0;
 static int lastGrid = -1;
@@ -161,6 +162,7 @@ static void resetCountryEndings();
 #include "country_ending.h"
 #include "system_affiliation.h"
 #include "facility_guide.h"
+#include "tactical_detection.h"
 #include "planet_info.h"
 #include "ground_battle_panel.h"
 #include "outfit_list_columns.h"
@@ -745,6 +747,7 @@ static void install() {
         if (!patchBytes(address, expectedTacticalTitles[i], call, 5)) { status = -3; return; }
     }
     if (!installTacticalRadar()) { status = -3; return; }
+    installTacticalDetection();
     if (!installKoreanResources()) { status = -3; return; }
     if (!installInputEditor()) { status = -3; return; }
 
@@ -787,6 +790,7 @@ static void install() {
 }
 
 extern "C" LONG WINAPI LoghPlanetLayoutStatus() { return status; }
+extern "C" LONG WINAPI LoghTacticalDetectionCoverage() { return tacticalDetectionCoverage; }
 extern "C" HRESULT WINAPI ForwardDirectInput8Create(HINSTANCE instance, DWORD version, REFIID iid, LPVOID* output, void* outer) {
     static HMODULE real = nullptr;
     if (!real) {

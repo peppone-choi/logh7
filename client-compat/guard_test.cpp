@@ -57,6 +57,7 @@
 #include "system_affiliation_data.h"
 #include "environment_shader_data.h"
 #include "tactical_fortress_menu_data.h"
+#include "tactical_detection_data.h"
 #include "hd_texture_data.h"
 // HD texture pack rules: data-relative path, skipped files, header sizes and the reported size (codes 901+).
 static int checkHdTextureRules() {
@@ -1020,6 +1021,63 @@ static int tacticalCampTest() {
     if(draft.accept(record,sizeof(record))!=2 || draft.page.count)return 1119;
     return 0;
 }
+static int tacticalDetectionTest() {
+    // Same row layout as the 47-byte server record after 00421f80 pads it to 0x34 bytes.
+    static BYTE decoded[4+600*0x34];
+    static logh::TacticalDetectionInbox inbox;
+    static BYTE units[600*0x9ec];
+    static BYTE renderer[0xa45c];
+    memset(decoded,0,sizeof(decoded));memset(units,0,sizeof(units));memset(renderer,0,sizeof(renderer));
+    auto row=[&](unsigned i,unsigned id,BYTE search) {
+        auto p=decoded+4+i*0x34;memcpy(p,&id,4);p[0x30]=search;
+    };
+    auto total=[&](unsigned short count) {memcpy(decoded,&count,2);};
+    total(2);row(0,11,1);row(1,12,0);
+    inbox.clear();
+    if(!inbox.merge(decoded) || inbox.count!=2 || inbox.rows[0].search!=1 || inbox.rows[1].search!=0)return 1130;
+    total(1);row(0,11,0); // A later delta replaces the row without widening the set.
+    if(!inbox.merge(decoded) || inbox.count!=2 || inbox.rows[0].search!=0 || inbox.rows[1].id!=12)return 1131;
+    total(601);if(inbox.merge(decoded) || inbox.count!=2)return 1132;
+    total(1);row(0,0,1);if(!inbox.merge(decoded) || inbox.count!=2)return 1133;
+    auto unit=[&](unsigned i,unsigned id,BYTE kind,BYTE search)->BYTE* {
+        auto p=units+i*0x9ec;p[0]=1;memcpy(p+4,&id,4);p[8]=kind;p[0x9ac]=search;p[0x95c]=99;p[0x95e]=1;return p;
+    };
+    const auto first=unit(0,11,1,1),second=unit(1,12,1,1),own=unit(2,13,1,0),base=unit(3,14,0,0),visible=unit(4,15,1,1);
+    logh::applyTacticalDetection(units,inbox);
+    if(first[0x9ac] || second[0x9ac] || !visible[0x9ac])return 1134;
+    if(!logh::tacticalUnitHidden(first,13) || logh::tacticalUnitHidden(own,13) || logh::tacticalUnitHidden(base,13) ||
+        logh::tacticalUnitHidden(visible,13))return 1135;
+    logh::forceTacticalUndetected(units,13);
+    if(first[0x95c] || first[0x95e]!=4 || own[0x95c]!=99 || own[0x95e]!=1 || base[0x95e]!=1 || visible[0x95e]!=1)return 1136;
+    auto node=[&](unsigned i,unsigned flags,const BYTE* target,BYTE level,BYTE* next)->BYTE* {
+        auto p=renderer+0x48+i*0x3c;memcpy(p+0x24,&flags,4);memcpy(p+0x28,&target,4);p[0x2e]=level;memcpy(p+0x38,&next,4);return p;
+    };
+    const auto head=renderer+8;
+    const auto shipBase=node(3,4,second,3,head),foreign=node(2,1,decoded,2,shipBase),shown=node(1,1,visible,2,foreign),hidden=node(0,1|0x1000,second,1,shown);
+    const unsigned nodes=4;memcpy(renderer+0x44,&nodes,4);memcpy(renderer+0x40,&hidden,4);
+    if(logh::tacticalMarkerHidden(foreign,units,13) || logh::tacticalMarkerHidden(shipBase,units,13) ||
+        !logh::tacticalMarkerHidden(hidden,units,13) || logh::tacticalMarkerHidden(hidden,nullptr,13))return 1137;
+    for(int pool=0;pool<2;++pool) {
+        {
+            logh::TacticalHiddenMarkers mask(renderer,units,13,pool!=0);
+            if(hidden[0x2e]!=4 || shown[0x2e]!=2 || foreign[0x2e]!=2 || shipBase[0x2e]!=3)return 1138;
+        }
+        if(hidden[0x2e]!=1)return 1139;
+    }
+    { logh::TacticalHiddenMarkers mask(nullptr,units,13,true);logh::TacticalHiddenMarkers none(renderer,nullptr,13,false);
+      if(hidden[0x2e]!=1)return 1140; }
+    // A real level-4 write from the native loop must survive the scope as well.
+    hidden[0x2e]=4;{logh::TacticalHiddenMarkers mask(renderer,units,13,false);}if(hidden[0x2e]!=4)return 1141;
+    hidden[0x2e]=1;
+    BYTE code[32];memset(code,0x90,sizeof(code));
+    const auto target=code+24;
+    auto call=[&](unsigned offset) {code[offset]=0xe8;const auto rel=static_cast<unsigned>(target-(code+offset+5));memcpy(code+offset+1,&rel,4);};
+    call(3);BYTE* sites[2]={};
+    if(logh::findTacticalCalls(code,sizeof(code),target,sites,2)!=1 || sites[0]!=code+3)return 1142;
+    if(logh::findTacticalCalls(code,3+4,target,sites,2) || logh::findTacticalCalls(code,sizeof(code),code,sites,2))return 1143;
+    call(10);if(logh::findTacticalCalls(code,sizeof(code),target,sites,1)!=2 || sites[0]!=code+3)return 1144;
+    return 0;
+}
 static int countryEndingTest() {
     BYTE p[384]={};
     auto frame=[&](unsigned kind,unsigned number,const wchar_t* const (&fields)[10]) {
@@ -1053,6 +1111,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(logh::countryAtlasScale(128,128,65536,1024)!=1 || logh::countryAtlasScale(128,128,262144,1024)!=2 ||
         logh::countryAtlasScale(128,128,262144,512)!=0)return 1123;
     if(int result=tacticalCampTest())return result;
+    if(int result=tacticalDetectionTest())return result;
     if(int result=countryEndingTest())return result;
     if(int result=outfitAffiliationTest())return result;
     if(int result=baseAffiliationTest())return result;
@@ -1714,6 +1773,8 @@ static int runGuard(int argc, wchar_t** argv) {
     GUID iid = {}; void* input = nullptr;
     HRESULT result = create(GetModuleHandleW(nullptr), 0, iid, &input, nullptr);
     if (status() != -1 || SUCCEEDED(result) || input) return 4;
+    auto detectionCoverage = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghTacticalDetectionCoverage"));
+    if (!detectionCoverage || detectionCoverage() != 0) return 1145;
     FreeLibrary(module);
     wchar_t navigationCp[32],navigationDate[96];
     if(!logh::navigationHudText(0,1000,675,3,navigationCp,navigationDate) ||

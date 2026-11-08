@@ -40,7 +40,12 @@ static __declspec(noinline) unsigned __cdecl radarCoordinateDigit(void* texture,
 
 static void __fastcall drawSignedRadar(void* manager, void*, int x, int y) {
     radarDigits = {}; radarDigits.active = true;
-    reinterpret_cast<void(__thiscall*)(void*, int, int)>(0x4ec700)(manager, x, y);
+    {
+        unsigned ownId;
+        const auto units = tacticalDetectionUnits(ownId);
+        logh::TacticalHiddenMarkers hidden(static_cast<BYTE*>(manager), units, ownId, true);
+        reinterpret_cast<void(__thiscall*)(void*, int, int)>(0x4ec700)(manager, x, y);
+    }
     radarDigits.active = false;
     for (unsigned i = 0; i < radarDigits.count; ++i) {
         const auto& row = radarDigits.rows[i];
