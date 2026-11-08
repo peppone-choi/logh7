@@ -253,7 +253,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
     @Synchronized fun groundRefresh(generation:Long,grid:Int,base:Int,seconds:Long,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         members.values.filter {it.player.generation==generation && it.player.grid==grid && it.player.cpPaused && it.player.baseId==0}.forEach {viewer->
-            val current=snapshot.navigators.values.singleOrNull {it.characterId==viewer.player.characterId} ?: viewer.player
+            val current=tacticalViewer(snapshot,viewer,grid) ?: return@forEach
             val tactical=TacticalBootstrap(snapshot,galaxy,current,characterById)
             val stamina=tactical.baseInformation.singleOrNull {it.position.id==base}?.stamina ?: return@forEach
             send(viewer,listOf(org.logh7.protocol.TacticsMessages.definitions(grid,tactical.units,tactical.groundDefinitions),

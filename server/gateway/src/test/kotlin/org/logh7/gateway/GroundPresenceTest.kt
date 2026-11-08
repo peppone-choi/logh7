@@ -44,6 +44,18 @@ class GroundPresenceTest {
             assertTrue(packets[1].isNotEmpty())
             packets[1].clear()
         }
+        hub.groundRefresh(1,2487,1049,250,snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
+        checkDefinitions()
+        val movedPilot=viewers[0].copy(grid=2991)
+        for(current in listOf(returnedPilot,movedPilot,null)) {
+            val updated=snapshot.copy(navigators=snapshot.navigators-"pilot0"+listOfNotNull(current?.let {"pilot0" to it}))
+            hub.groundRefresh(1,2487,1049,250,updated,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
+            assertTrue(packets[0].isEmpty())
+            val refresh=packets[1].flatten()
+            assertEquals(listOf(0x0325,0x0345,0x042a),refresh.map {ByteBuffer.wrap(it).getShort(4).toInt()})
+            assertEquals(1000,ByteBuffer.wrap(refresh.last()).getShort(14).toInt())
+            packets[1].clear()
+        }
         for(action in TacticalSupportAction.entries) {
             hub.support(TacticalSupportResult(1,2487,action,1,1010000,100,200,0,audience),snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
             checkDefinitions()
