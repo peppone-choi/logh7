@@ -10,7 +10,9 @@ class OccupationPresenceTest {
     @Test fun ownershipAndLostCardsReachAuthenticatedPeersAndExpelledCharacterEntersTactics()=occupation(2,3)
     @Test fun additionalCountriesWithTheSameDisplayCompleteTheOccupationRefresh()=occupation(42,43)
 
-    private fun occupation(winnerCountry:Int,loserCountry:Int) {
+    @Test fun sameCountryRebelOccupationSendsTheNewCamp()=occupation(2,2,1)
+
+    private fun occupation(winnerCountry:Int,loserCountry:Int,camp:Int=0) {
         val catalog=CountryCatalogLoader.load().let {old -> CountryCatalog(old.calendars.values.toList(),
             old.families.values.toList(),old.countries.values.toList()+listOf(winnerCountry,loserCountry).filter {it !in old.countries}.map {id ->
                 old.countries.getValue(2).copy(id=id,key="country_$id",name="Country $id")})}
@@ -23,7 +25,7 @@ class OccupationPresenceTest {
         val far=Navigator(1,10002,Power.EMPIRE,2488,1000,1000,1000).copy(country=CountryId(winnerCountry))
         val expelled=loser.copy(baseId=0,mode=5,spotId=0,returnBase=0,cpPaused=true,
             posture=TacticalPosture(2487,TacticalShipMode.ANCHORED,1049))
-        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,Allegiance.Country(CountryId(winnerCountry)),0,1000,1000,1000)))
+        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,Allegiance.Country(CountryId(winnerCountry)),camp,1000,1000,1000)))
         val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,250,0,0,emptyMap(),1,1,null),
             navigators=mapOf("winner" to winner,"loser" to expelled,"far" to far),planetStocks=stocks)
         val packets=List(3){mutableListOf<List<ByteArray>>()};val presence=GamePresence()
@@ -31,15 +33,15 @@ class OccupationPresenceTest {
             if(i==1)listOf(BootstrapMessages.OfficeCard(190,1049)) else emptyList()))}
         packets.forEach {it.clear()}
         val event=BaseOccupation(1,2487,1049,Allegiance.Country(CountryId(loserCountry)),CountryId(winnerCountry),250,emptyMap(),mapOf("loser" to expelled),
-            (0..2).associate {10000+it to "c$it"})
+            (0..2).associate {10000+it to "c$it"},camp)
         fun deliver(e:BaseOccupation=event,s:WorldSnapshot=snapshot)=presence.occupation(e,s,WorldBootstrap(galaxy,catalog),
             {id->people.singleOrNull {it.id==id.toLong()}},{_,_,_->emptyList()})
         fun messages(i:Int,opcode:Int)=packets[i].flatten().filter {ByteBuffer.wrap(it).getShort(4).toInt()==opcode}
         fun notice(packet:ByteArray)=ChatMessages.spot(packet.copyOfRange(4,packet.size)).text
         val winnerName=catalog.countries.getValue(winnerCountry).name.take(10)
-        val occupationLine="[점령] Here · $winnerName"
+        val occupationLine="[점령] Here · $winnerName"+(if(camp==1)" 반란군" else "")
         deliver()
-        assertContentEquals(TacticalGroundMessages.occupationFinished(1049,2,0),messages(0,0x0442).single())
+        assertContentEquals(TacticalGroundMessages.occupationFinished(1049,2,camp),messages(0,0x0442).single())
         assertTrue(messages(1,0x0442).isEmpty());assertTrue(messages(2,0x0442).isEmpty())
         assertContentEquals(TacticsMessages.notify(2487,true),messages(1,0x0f1f).single())
         assertContentEquals(PlaceMessages.dockNotification(10001,0,5,250),messages(1,0x0b0b).single())

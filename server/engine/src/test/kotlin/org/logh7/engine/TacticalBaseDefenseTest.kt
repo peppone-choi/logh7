@@ -65,7 +65,7 @@ class TacticalBaseDefenseTest {
         assertEquals(listOf(7),events.single().destroyed)
         assertEquals(GroundBattleConclusion(country,insurgent=true),events.single().conclusion)
         assertTrue(finished.tacticalCommands.groundTargets.isEmpty())
-        assertNull(BaseOccupationOperations.victor(finished,base))
+        assertEquals(Camp(country,insurgent=true),BaseOccupationOperations.victor(finished,base))
 
     }
 

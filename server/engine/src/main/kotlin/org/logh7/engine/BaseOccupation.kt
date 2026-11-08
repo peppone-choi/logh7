@@ -3,16 +3,16 @@ package org.logh7.engine
 /** Manual W pp.51-52. Warehouse caps and sortie offsets are revival policy. Author: Peppone Choi. */
 data class BaseOccupation(val generation:Long,val grid:Int,val base:Int,val previousOwner:Allegiance,val country:CountryId,
     val seconds:Long,val destroyedShips:Map<Int,Int>,val expelled:Map<String,Navigator>,
-    val recipients:Map<Int,String>)
+    val recipients:Map<Int,String>,val camp:Int=0)
 
 internal object BaseOccupationOperations {
-    fun victor(stocks:PlanetStocks,base:GalaxyBase):CountryId? {
+    fun victor(stocks:PlanetStocks,base:GalaxyBase):Camp? {
         val owner=stocks.bases.getValue(base.id)
         // U-07 (CD manual p.39): armed occupation of neutral Fezzan ends its neutrality; it becomes the occupier's planet.
-        if(owner.camp!=0 || owner.country==null && owner.owner !is Allegiance.Independent &&
+        if(owner.country==null && owner.owner !is Allegiance.Independent &&
             !(owner.owner==Allegiance.Neutral && base.name==TradeActions.FEZZAN_NAME))return null
         val winner=GroundBattleOperations.sides(stocks,base).singleOrNull()?.first ?: return null
-        return winner.first.takeIf {winner.second==0 && it!=owner.country}
+        return Camp(winner.first,winner.second==1).takeUnless {it==TacticalAuthority.camp(owner)}
     }
     fun pending(stocks:PlanetStocks,galaxy:Galaxy)=galaxy.bases.any {victor(stocks,it)!=null}
 
@@ -22,18 +22,30 @@ internal object BaseOccupationOperations {
         val now=session.gameMillis/1000
         var stocks=original
         for(base in galaxy.bases.sortedBy {it.id}) {
-            val winner=victor(stocks,base) ?: continue
+            val winningSide=victor(stocks,base) ?: continue
+            val winner=checkNotNull(winningSide.country)
+            val winningCamp=if(winningSide.insurgent)1 else 0
             // Occupation evaluation (design-evaluation-points.md): the victor's ground commanders here and its
             // tactical participants in the grid share it equally, before the occupation rewrites the outfits.
-            val groundIds=GroundBattleOperations.participants(stocks,base,winner,0).map {it.id}.toSet()
-            val earners=stocks.outfits.values.filter {o->o.activeGround?.values.orEmpty().any {it.id in groundIds}}.map {it.commanderId}+
-                players.values.filter {it.country==winner && it.generation==session.generation &&
+            val groundIds=GroundBattleOperations.participants(stocks,base,winner,winningCamp).map {it.id}.toSet()
+            val commanders=stocks.outfits.values.filter {o->o.activeGround?.values.orEmpty().any {it.id in groundIds}}.map {it.commanderId}
+            val earners=commanders+players.values.filter {TacticalAuthority.camp(it,stocks)==winningSide && it.generation==session.generation &&
                     it.grid==base.grid && it.cpPaused}.map {it.characterId}
             val previous=stocks.bases.getValue(base.id)
             val loser=previous.country
+            val losingSide=TacticalAuthority.camp(previous)
+            val coups=stocks.social.coup
+            val winningPlot=if(winningSide.insurgent)coups.plots.values.filter {plot->
+                plot.revolt>0 && plot.country==winner && plot.rebels.any {it in commanders}
+            }.minByOrNull {it.leader} else null
+            val plots=coups.plots.mapValues {(_,plot)->
+                if(plot==winningPlot)plot.copy(bases=plot.bases+base.id)
+                else if(base.id in plot.bases)plot.copy(bases=plot.bases-base.id)
+                else plot
+            }
             val destroyed=linkedMapOf<Int,Int>()
             val outfits=stocks.outfits.mapValues {(_,outfit)->
-                if(outfit.country!=loser)return@mapValues outfit
+                if(TacticalAuthority.camp(outfit,stocks)!=losingSide)return@mapValues outfit
                 var changed=outfit
                 val ships=outfit.activeShips
                 if(ships!=null)for(unit in ships.values) {
@@ -60,15 +72,16 @@ internal object BaseOccupationOperations {
                 }
                 changed
             }
-            val localWarehouses=stocks.warehouses.values.filter {it.baseId==base.id && it.country==loser}
+            // Warehouses are keyed by country, so an internal camp change has no foreign stock to seize.
+            val localWarehouses=stocks.warehouses.values.filter {it.baseId==base.id && it.country==loser && loser!=winner}
             // Same finite capacity as production. Accumulate in Long before applying the cap.
             val supplies=(previous.supplies.toLong()+localWarehouses.sumOf {it.supplies.toLong()})
                 .coerceAtMost(maxOf(previous.supplies,maximumStock).toLong()).toInt()
             val warehouses=stocks.warehouses.mapValues {(_,warehouse)->
-                if(warehouse.baseId!=base.id || warehouse.country!=loser)warehouse else warehouse.copy(
+                if(warehouse.baseId!=base.id || warehouse.country!=loser || loser==winner)warehouse else warehouse.copy(
                     supplies=0,units=UnitInventory(troops=warehouse.units.troops),spareShips=SpareShipBoats())
             }
-            val occupied=previous.copy(owner=Allegiance.Country(winner),camp=0,supplies=supplies,
+            val occupied=previous.copy(owner=Allegiance.Country(winner),camp=winningCamp,supplies=supplies,
                 governorId=0,garrisonCommanderId=0,capitalAdministratorId=0,capitalDefenseCommanderId=0,guardInspectorId=0,
                 // Captured works restart, including recruitment; never revive progress on recapture.
                 units=UnitInventory(troops=previous.units.troops),productionCountry=null,
@@ -81,10 +94,10 @@ internal object BaseOccupationOperations {
                 strategic=stocks.strategic.copy(suppressions=stocks.strategic.suppressions.filter {it.base!=base.id},
                     fiefs=stocks.strategic.fiefs-base.id,offices=stocks.strategic.offices.filter {holding ->
                         if(OrganizationOffices.of(holding.card)?.scope==OfficeScope.OUTFIT)
-                            stocks.outfits[holding.seat]?.baseId!=base.id else holding.seat!=base.id
+                            stocks.outfits[holding.seat]?.let {it.baseId==base.id && TacticalAuthority.camp(it,stocks)==losingSide}!=true else holding.seat!=base.id
                     }),
                 // U-08: like automatic production, a pending manual ship order does not survive the capture.
-                social=stocks.social.copy(production=stocks.social.production.let {it.copy(orders=it.orders-base.id)}))
+                social=stocks.social.copy(coup=coups.copy(plots=plots),production=stocks.social.production.let {it.copy(orders=it.orders-base.id)}))
             // User decision 2026-11-03: the new owner repairs the fortress armor and propulsion (FortressArmor).
             stocks=FortressArmor.restore(stocks,base.id)
             val expelled=linkedMapOf<String,Navigator>()
@@ -92,7 +105,7 @@ internal object BaseOccupationOperations {
             for((account,p) in players.toMap()) {
                 val displaced=when(val owner=previous.owner) {
                     is Allegiance.Independent -> p.country==null && p.characterId==owner.characterId
-                    is Allegiance.Country -> p.country==owner.id
+                    is Allegiance.Country -> TacticalAuthority.camp(p,stocks)==losingSide
                     else -> false
                 }
                 if(p.generation!=session.generation || !displaced)continue
@@ -118,7 +131,7 @@ internal object BaseOccupationOperations {
             for((character,points) in EvaluationPoints.shares(if(base.kind==1)EvaluationPoints.FORTRESS else EvaluationPoints.PLANET,earners))
                 stocks=EvaluationPoints.award(stocks,character,points)
             stocks=GoalActions.achieved(stocks,base.id,winner,earners)
-            events+=BaseOccupation(session.generation,base.grid,base.id,previous.owner,winner,now,destroyed,expelled,recipients)
+            events+=BaseOccupation(session.generation,base.grid,base.id,previous.owner,winner,now,destroyed,expelled,recipients,winningCamp)
         }
         return stocks
     }
