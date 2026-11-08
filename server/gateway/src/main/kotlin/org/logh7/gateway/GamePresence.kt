@@ -282,7 +282,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             send(viewer,packet+notice)
         }
     }
-    @Synchronized fun posture(event:org.logh7.engine.TacticalPostureResult) {
+    @Synchronized fun posture(event:org.logh7.engine.TacticalPostureResult,snapshot:org.logh7.engine.WorldSnapshot) {
         val ids=event.units.keys.toList()
         val packet=if(event.cancelled && event.sortie)org.logh7.protocol.TacticalGroundMessages.reply(
             org.logh7.protocol.TacticalGroundMessages.Command(org.logh7.protocol.TacticalGroundMessages.Action.SORTIE,event.character,ids),event.seconds,0,false)
@@ -295,6 +295,13 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 pose.position.x,pose.position.y,0f)},event.spot,event.spotOwner)
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer->
+                val enteredBase=!event.cancelled && event.mode==org.logh7.engine.TacticalShipMode.STATIONED &&
+                    event.character==viewer.character.id.toInt() && snapshot.navigators.values.any {
+                        it.characterId==event.character && it.generation==event.generation && it.grid==event.grid &&
+                            it.baseId==event.base && it.unitId in event.units &&
+                            it.posture?.let {posture->posture.mode==event.mode && posture.base==event.base}==true
+                    }
+                if(!enteredBase && tacticalViewer(snapshot,viewer,event.grid)==null)return@forEach
                 val frozen=if(event.cancelled)emptyList() else event.units.map {(id,pose)->
                     TacticalMotionMessages.npc(id,org.logh7.engine.TacticalMotion(event.grid,event.seconds,pose,0f,pose.direction,
                         listOf(pose.position)),event.seconds,event.character)}
