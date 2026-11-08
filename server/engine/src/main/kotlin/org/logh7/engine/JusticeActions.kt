@@ -201,7 +201,9 @@ object JusticeActions {
                 if(targetCountry==p.country)return reject(SocialRejection.TARGET)
                 val sameSpot=p.spotId!=0 && t.baseId==p.baseId && t.spotId==p.spotId && t.spotOwner==p.spotOwner && !t.cpPaused
                 if(!sameSpot)return reject(SocialRejection.LOCATION)
-                val threshold=Justice.arrestThreshold(intelligence(s,ids,i.characterId),intelligence(s,ids,i.target))
+                val guard=if(p.spotOwner==0) CivicActions.guardStrength(s,p.baseId,p.spotId,now) else 1
+                val threshold=Justice.arrestThreshold(intelligence(s,ids,i.characterId),intelligence(s,ids,i.target))-
+                    CivicActions.guardPenalty(guard)
                 val dice=roll(i.characterId,i.target,now)
                 val outcome=when {dice<threshold-10 -> Outcome.ARRESTED;dice<threshold+10 -> Outcome.EVADED;else -> Outcome.FAILED}
                 fun wound(n:Navigator)=n.hull?.let {n.copy(hull=it.copy(woundedUntil=maxOf(it.woundedUntil,now+Justice.WOUND_SECONDS)))} ?: n
