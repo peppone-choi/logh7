@@ -296,6 +296,46 @@ class FleetNavigationTest {
         assertEquals(OutfitPosition(retried.player!!.grid),state.stocks.outfits.getValue(1).position)
     }
 
+    @Test fun aWoundedAideBlocksFleetTravelUntilRecoveryWithoutAnotherPayment() {
+        val state=state();addAide(state)
+        val now=session.gameMillis/1000
+        val recovery=now+3601
+        val wound=FlagshipHull(93,now,woundedUntil=recovery)
+        fun injure() {
+            state.players=state.players+("aide" to state.players.getValue("aide").copy(hull=wound))
+        }
+        injure()
+        assertEquals(NavigationRejection.BUSY,apply(state,request.copy(place=PlaceMove.SwitchMode(5))).single().rejection)
+        assertEquals(1000,state.players.getValue("pilot").baseId)
+        val aide=state.players.getValue("aide")
+        state.players=state.players+("aide" to aide.copy(hull=null))
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
+        val departed=state.players
+        injure()
+        val injured=state.players
+        val warp=request.copy(destination=2489)
+        assertEquals(NavigationRejection.BUSY,apply(state,warp).single().rejection)
+        assertEquals(injured,state.players)
+        state.players=departed
+        apply(state,warp)
+        injure()
+        val waiting=state.players
+        val inventory=state.stocks
+        val navigation=Navigation(galaxy,state.nav,NavigationPolicy())
+        val production=PlanetProduction(galaxy,state.inventory,0,PlanetProductionPolicy())
+        fun settle(at:Long)=FleetNavigation.apply(request,session.copy(gameMillis=at*1000),galaxy,navigation,production,
+            production.settle(1,at),state.commit) {false}
+        assertEquals(NavigationRejection.BUSY,settle(recovery-1).rejection)
+        assertEquals(waiting,state.players);assertEquals(inventory,state.stocks)
+        val arrived=settle(recovery)
+        assertTrue(arrived.completedWarp)
+        val captain=assertNotNull(arrived.player)
+        assertEquals(captain.grid,state.players.getValue("aide").grid)
+        assertEquals(920,captain.mcp)
+        assertEquals(waiting.getValue("aide").moves+1,state.players.getValue("aide").moves)
+        assertFalse(settle(recovery).completedWarp)
+    }
+
     @Test fun resigningAfterScheduledTravelCompletesMovesTheFleetAndItsAideBeforeRemovingTheOffice()=runBlocking {
         for(docking in listOf(false,true)) {
             val state=state();addAide(state)
