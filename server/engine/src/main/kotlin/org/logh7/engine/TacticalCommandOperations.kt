@@ -490,7 +490,9 @@ internal object TacticalCommandOperations {
                 if(m.mission!=5 && m.grid!=null && p.grid!=m.grid) {missions[id]=m.copy(completed=true);finished[id]=m.mission to 0L;continue}
                 val active=TacticalContact.contested(forces[p.grid].orEmpty())
                 when(m.mission) {
-                    1 -> if((m.grid==null || p.grid==m.grid) && stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true && active)reward=checks else completed=true
+                    1 -> if(id !in defeated && active &&
+                        stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true)
+                        reward=checks else completed=true
                     2 -> if(stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true){reward=10;completed=true}
                     3 -> if(impacts.any {impact->impact.hit.target==m.target &&
                             (impact.departed!=null || ship(m.target,stocks)?.unit?.boats==0) &&
