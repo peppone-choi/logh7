@@ -77,6 +77,37 @@ class TacticalPostureOperationsTest {
         assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture!!.mode==TacticalShipMode.STATIONED})
         assertNull(TacticalCombat.target(1,2487,Camp(Power.ALLIANCE,false),s.stocks,galaxy,s.players))
     }
+    @Test fun rebelStationingChecksCurrentBaseAndOutfitCamp() {
+        for(change in listOf("none","base","outfit")) {
+            val s=state()
+            val home=s.stocks.bases.getValue(1000).copy(camp=1)
+            val regular=s.stocks.bases.getValue(1001).copy(owner=Allegiance.fromLegacy(2))
+            val plot=Plot(10000,Power.EMPIRE.country,0,revolt=5,bases=setOf(1000))
+            val coup=CoupState(mapOf(10000 to plot),loyalty=mapOf(1 to 100))
+            s.stocks=s.stocks.copy(bases=mapOf(1000 to home,1001 to regular),social=s.stocks.social.copy(coup=coup))
+            val n=Navigation(galaxy,s.nav,NavigationPolicy())
+            val p=production(s)
+            assertEquals(NavigationRejection.BASE,accept(s,n,p,request(TacticalShipMode.STATIONED,1001)).rejection)
+            if(change=="none") {
+                val orbit=state()
+                orbit.stocks=s.stocks
+                assertNotNull(accept(orbit,Navigation(galaxy,orbit.nav,NavigationPolicy()),production(orbit),
+                    request(TacticalShipMode.ANCHORED,1001)).player)
+            }
+            assertNotNull(accept(s,n,p,request(TacticalShipMode.STATIONED,1000)).player)
+            if(change=="base")s.stocks=s.stocks.copy(bases=s.stocks.bases+(1000 to home.copy(camp=0)))
+            if(change=="outfit")s.stocks=s.stocks.copy(social=s.stocks.social.copy(coup=coup.copy(loyalty=emptyMap())))
+            val out=mutableListOf<TacticalPostureResult>()
+            settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+240,out)
+            assertEquals(3,out.size)
+            val expected=when(change) {
+                "base" -> setOf(1010000,1,2)
+                "outfit" -> setOf(1,2)
+                else -> emptySet()
+            }
+            assertEquals(expected,out.filter {it.cancelled}.flatMap {it.units.keys}.toSet())
+        }
+    }
     @Test fun selectionOwnershipBaseCampAndProximityAreCheckedBeforeAnySave() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val before=s.players;val stocks=s.stocks
