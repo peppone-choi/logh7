@@ -157,7 +157,7 @@ static void drawGroundPanel(BYTE* display,void* texture,float depth) {
     auto draw=reinterpret_cast<void(__cdecl*)(void*,void*,const wchar_t*,int,int,unsigned,int)>(0x4e8af0);
     reinterpret_cast<void(__thiscall*)(void*,float)>(0x4b0780)(reinterpret_cast<void*>(0xbffa48),1.0f);
     wchar_t base[32]={},line[128];pickerName(s.activeBase,base);
-    if (!base[0]) _snwprintf_s(base,_countof(base),_TRUNCATE,L"거점 %u",s.activeBase);
+    if (!base[0]) wcscpy_s(base,L"거점 이름 미수신");
     unsigned friends=0,foes=0,friendPower=0,foePower=0,friendReserve=0,foeReserve=0;
     for (unsigned i=0;i<s.count;++i) {
         bool mine=groundPanelFriendly(s.rows[i],ownEmpire);

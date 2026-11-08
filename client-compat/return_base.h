@@ -152,7 +152,7 @@ static void __cdecl updateReturnSettings(void* manager) {
     _snwprintf_s(text, _countof(text), _TRUNCATE, L"현재: %ls", saved ? (name[0] ? name : L"자료가 없는 행성") : L"미설정 (출신 행성)");
     returnText(0, text);
     pickerName(state.selected, name);
-    _snwprintf_s(text, _countof(text), _TRUNCATE, L"선택: %ls (%u)", name, state.selected);
+    _snwprintf_s(text, _countof(text), _TRUNCATE, L"선택: %ls", name[0] ? name : L"-");
     returnText(1, text);
     returnText(2, state.message ? state.message : L"");
 }

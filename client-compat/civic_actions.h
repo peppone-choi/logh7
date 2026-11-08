@@ -35,9 +35,10 @@ static bool updateCivicAction() {
     taxText(0,strategyActionName(state.strategyCommand));
     taxText(1,guard ? L"현재 경계 로비의 경비를 강화합니다." : L"현재 거점에 주류한 지휘 부대의 육전대를 사용합니다.");
     taxText(2,guard ? L"소요 게임 24시간 · 현재 스폿 이탈 시 종료" : L"대기 게임 24시간 · 이탈/자격/병력 상실 시 효과 없음");
-    wchar_t label[160];
-    if(guard)swprintf_s(label,L"경비 강도 %u · 거점 %u",civicWindow.phase==1 ? 2u : 1u,civicWindow.base);
-    else swprintf_s(label,L"대상 부대 ID %u · 거점 %u",state.strategyOutfit,civicWindow.base);taxText(3,label);
+    wchar_t label[160],name[32]={};pickerName(civicWindow.base,name);
+    const wchar_t* place=name[0] ? name : L"현재 거점";
+    if(guard)swprintf_s(label,L"경비 강도 %u · %ls",civicWindow.phase==1 ? 2u : 1u,place);
+    else swprintf_s(label,L"대상 부대 ID %u · %ls",state.strategyOutfit,place);taxText(3,label);
     if(active)swprintf_s(label,L"완료 예정 게임 시각 %u",civicWindow.readyAt);
     else swprintf_s(label,L"마지막 적용값 %u",civicWindow.effect);taxText(4,label);
     taxText(5,guard ? L"MCP 160 · 부족 시 PCP 320 · 경비 시작 시 결제" : L"MCP 160 · 부족 시 PCP 320 · 취소/조건 상실 시 환불 없음");

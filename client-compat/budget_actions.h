@@ -65,7 +65,7 @@ static void drawBudgetAction() {
     auto& state=taxWindow;auto& budget=budgetWindow;bool remit=state.strategyCommand==16;
     wchar_t name[32]={},label[180];pickerName(state.strategyBase,name);
     swprintf_s(label,L"%ls · %ls",remit ? L"납입률 변경" : L"국가 예산 분배",budget.currency[0] ? budget.currency : L"회계 단위");taxText(0,label);
-    swprintf_s(label,L"%ls · ID %u · 현재 납입률 %u%%",name[0] ? name : L"거점",state.strategyBase,budget.currentRate);taxText(1,label);
+    swprintf_s(label,L"%ls · 현재 납입률 %u%%",name[0] ? name : L"거점",budget.currentRate);taxText(1,label);
     const wchar_t* space=budget.symbol[0] ? L" " : L"";
     swprintf_s(label,L"국고 %llu%ls%ls · 지방 금고 %llu%ls%ls",budget.national,space,budget.symbol,budget.local,space,budget.symbol);taxText(2,label);
     const wchar_t* fields[]={L"대상 거점",L"비율 ±1",L"비율 ±10"};

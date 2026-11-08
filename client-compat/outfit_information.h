@@ -199,7 +199,7 @@ static void renderOutfitGroundPage(unsigned start) {
             for(unsigned j=0;j<350;++j)if(at<unsigned>(state.world,0x2eb288+j*4)==base) {
                 memcpy(place,static_cast<BYTE*>(state.world)+0x2eb800+j*0x250+0x48,24);break;
             }
-            if(!place[0])_snwprintf_s(place,_countof(place),_TRUNCATE,L"거점 %u (이름 미수신)",base);
+            if(!place[0])wcscpy_s(place,L"거점 이름 미수신");
         } else wcscpy_s(place,L"부대 소속");
         outfitCell(2,start+1+i,1,place);
         outfitCell(2,start+1+i,2,mode==10 ? L"탑승" : mode==9 ? L"강하" : mode==4 ? L"주둔" : L"배치 미확정");

@@ -78,7 +78,8 @@ static void drawOutfitFormation() {
     taxText(0,create ? L"부대 결성" : L"부대 해산");taxText(1,create ? L"거점 병력으로 결성 · 지휘관은 별도 임명" : L"같은 거점에 주류 중인 부대를 해산");
     static const wchar_t* fields[]={L"병종 선택",L"수량 ±1",L"수량 ±10",L"군수 ±100",L"군수 ±1000"};
     taxText(2,create && form.lease ? fields[form.field] : L"부대 종류 선택 후 목록을 여십시오.");
-    wchar_t label[160];swprintf_s(label,L"%ls · 거점 %u",kinds[form.kind],form.base);taxText(3,label);
+    wchar_t label[160],place[32]={};pickerName(form.base,place);
+    swprintf_s(label,L"%ls · %ls",kinds[form.kind],place[0] ? place : L"현재 거점");taxText(3,label);
     if(form.completed)swprintf_s(label,L"저장된 부대 ID: %u",form.outfit);
     else if(form.count) {auto& item=form.items[form.row];swprintf_s(label,L"%ls · %u/%u · %u개",item.name,form.row+1,form.count,item.available);}
     else swprintf_s(label,L"선택 가능한 항목 없음");taxText(4,label);

@@ -54,10 +54,10 @@ static bool updateEspionageAction() {
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)row=&strategyDirectory.people[i];
     wchar_t label[160];
     if(command==75) {
-        if(row)swprintf_s(label,L"잠입할 스폿: %ls (ID %u)",row->name,row->id);else swprintf_s(label,L"이 거점의 스폿 목록이 없습니다.");
+        if(row)swprintf_s(label,L"잠입할 스폿: %ls",row->name);else swprintf_s(label,L"이 거점의 스폿 목록이 없습니다.");
         taxText(1,label);
     } else if(command>=80) {
-        if(row)swprintf_s(label,L"%ls 거점: %ls (ID %u)",command==80 ? L"침입할" : L"귀환할",row->name,row->id);
+        if(row)swprintf_s(label,L"%ls 거점: %ls",command==80 ? L"침입할" : L"귀환할",row->name);
         else swprintf_s(label,L"10칸 안에 %ls 거점이 없습니다.",command==80 ? L"타 진영" : L"자진영");
         taxText(1,label);
     } else taxText(1,command==76 ? L"잠입한 스폿에서 중앙 광장으로 나갑니다." : command==77 ? L"잠입한 스폿의 정보를 얻습니다." :

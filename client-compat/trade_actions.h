@@ -116,7 +116,7 @@ static bool updateTradeAction() {
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)row=&strategyDirectory.people[i];
     wchar_t label[160];
     if(command==39) {
-        if(row)swprintf_s(label,L"무역 상대 거점: %ls (ID %u)",row->name,row->id);else swprintf_s(label,L"10칸 안에 무역할 자진영 거점이 없습니다.");
+        if(row)swprintf_s(label,L"무역 상대 거점: %ls",row->name);else swprintf_s(label,L"10칸 안에 무역할 자진영 거점이 없습니다.");
     } else if(command==40)swprintf_s(label,L"페잔에 팔 군수물자: %u",tradeAmounts[tradeStep%4]);
     else if(command==17)swprintf_s(label,L"자진영 관세율: %u%% (0~50)",tradeValue>50 ? 50 : tradeValue);
     else swprintf_s(label,L"교섭: %ls",deals[tradeValue%3]);

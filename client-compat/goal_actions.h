@@ -34,7 +34,7 @@ static bool updateGoalAction() {
     const StrategyDirectory::Person* row=nullptr;
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)row=&strategyDirectory.people[i];
     wchar_t label[160];
-    if(row)swprintf_s(label,L"%ls: %ls (ID %u)",command==15 ? L"목표 거점" : L"통치 행성",row->name,row->id);
+    if(row)swprintf_s(label,L"%ls: %ls",command==15 ? L"목표 거점" : L"통치 행성",row->name);
     else swprintf_s(label,command==15 ? L"적 거점 목록이 없습니다." : L"통치하는 행성이 없습니다.");
     taxText(1,label);
     if(command==21) {swprintf_s(label,L"중점: %ls (버튼으로 변경)",focuses[(goalFocus-1)%3]);taxText(2,label);}

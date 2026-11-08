@@ -42,8 +42,9 @@ static bool readSocialAction(void* record) {
                 social.influenceDelta=social.last ? static_cast<int>(value/256)-128 : 0;
                 social.approvalDelta=social.last ? static_cast<int>(value%256)-128 : 0;
                 if(social.last) {
-                    swprintf_s(social.outcome,L"%ls #%u · 영향력 %+d · 지지 %+d · 거점 %u",flag==12 ? L"연설 결과" : L"저장 결과",
-                        social.last,social.influenceDelta,social.approvalDelta,social.lastBase);
+                    wchar_t place[32]={};pickerName(social.lastBase,place);
+                    swprintf_s(social.outcome,L"%ls #%u · 영향력 %+d · 지지 %+d · %ls",flag==12 ? L"연설 결과" : L"저장 결과",
+                        social.last,social.influenceDelta,social.approvalDelta,place[0] ? place : L"거점 이름 미수신");
                     state.message=social.outcome;
                 } else state.message=L"기본 연설 · 정치력 50 이상이면 호응, 미만이면 반감 · 실행 전 조건을 확인하세요.";
             }
@@ -55,7 +56,7 @@ static void drawSocialAction() {
     auto& state=taxWindow;auto& social=socialWindow;
     taxText(0,L"중앙 광장 연설");
     wchar_t name[32]={},label[180];pickerName(social.base,name);
-    swprintf_s(label,L"%ls · 거점 %u · 정치가/개인 카드",name[0] ? name : L"현재 거점",social.base);taxText(1,label);
+    swprintf_s(label,L"%ls · 정치가/개인 카드",name[0] ? name : L"현재 거점");taxText(1,label);
     taxText(2,L"본인·광장 각각 게임 하루 1회 · 실제 중앙 광장에서 실행");
     swprintf_s(label,L"영향력 %u · 지지 %u%%",social.influence,social.approval);taxText(3,label);
     swprintf_s(label,L"재실행까지 게임 내 %u초",social.wait);taxText(4,label);
