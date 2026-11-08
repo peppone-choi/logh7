@@ -22,8 +22,12 @@ data class TacticalGroundResult(val generation:Long,val order:TacticalGroundOrde
 internal object TacticalGroundOperations {
     private fun owned(o:OutfitStock,id:Int,p:Navigator,galaxy:Galaxy,stocks:PlanetStocks)=o.activeShips?.values?.singleOrNull {it.id==id}?.let {TacticalAuthority.commander(o,it,stocks)==p.characterId}==true &&
         TacticalAuthority.camp(o,stocks)==TacticalAuthority.camp(p,stocks) && o.positionIn(galaxy)==OutfitPosition(p.grid)
-    private fun berth(o:OutfitStock,carrier:Int,grid:Int)=o.activeShips?.values?.singleOrNull {it.id==carrier && it.boats>0}
-        ?.posture?.takeIf {it.grid==grid && it.mode.requiresBase && it.order==null}
+    private fun berth(o:OutfitStock,carrier:Int,grid:Int,stocks:PlanetStocks)=o.activeShips?.values?.singleOrNull {it.id==carrier && it.boats>0}
+        ?.posture?.takeIf {
+            it.grid==grid && it.mode.requiresBase && it.order==null &&
+                (it.mode!=TacticalShipMode.STATIONED ||
+                    stocks.bases[it.base]?.let(TacticalAuthority::camp)==TacticalAuthority.camp(o,stocks))
+        }
     private fun ground(o:OutfitStock,carrier:Int,base:Int,action:TacticalGroundAction)=o.activeGround?.values.orEmpty().filter {
         if(action==TacticalGroundAction.DEPLOY)it.carrier==carrier else it.origin==carrier && it.base==base
     }
@@ -40,7 +44,7 @@ internal object TacticalGroundOperations {
         val carrier=o.activeShips?.values?.singleOrNull {it.id==order.carrier} ?: return false
         return operational(carrier,stocks) && !BattleDeath.deceased(stocks,p.characterId) &&
             p.cpPaused && p.baseId==0 && p.grid==order.grid && owned(o,carrier.id,p,galaxy,stocks) &&
-            berth(o,carrier.id,order.grid)?.base==order.base && when(order.action) {
+            berth(o,carrier.id,order.grid,stocks)?.base==order.base && when(order.action) {
                 TacticalGroundAction.DEPLOY -> admits(base,units)
                 TacticalGroundAction.WITHDRAW -> hasRoom(o,carrier,units.size)
                 else -> false
@@ -125,7 +129,7 @@ internal object TacticalGroundOperations {
             val o=next.outfits.values.singleOrNull {it.activeShips?.values?.any {s->s.id==id}==true} ?: return reject(NavigationRejection.UNIT)
             if(!owned(o,id,p,galaxy,next))return reject(NavigationRejection.CARD)
             val ship=o.activeShips!!.values.single {it.id==id}
-            val state=berth(o,id,p.grid) ?: return reject(NavigationRejection.BASE)
+            val state=berth(o,id,p.grid,next) ?: return reject(NavigationRejection.BASE)
             if(!operational(ship,next))return reject(NavigationRejection.ACCESS)
             val base=galaxy.bases.singleOrNull {it.id==state.base && it.grid==p.grid} ?: return reject(NavigationRejection.BASE)
             if(ship.support!=null || ship.tactical?.retreat!=null || o.activeGround?.values?.any {it.order?.carrier==id}==true)
