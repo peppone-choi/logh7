@@ -26,7 +26,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val accountFame: Map<String, Int> = emptyMap(),
     starterKinds: Map<Int, List<Int>>? = null,
     shipStyles:Map<Int,ShipStyleId>? = null,
-    private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates()) {
+    private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates(),
+    private val worldDeaths: () -> Set<Long> = { emptySet() }) {
     companion object {
         fun originalDefinitions()=OriginalCharacterMessages.localCandidates.map { candidate ->
             val data=KoreanDisplayNames.original(candidate.character)
@@ -62,6 +63,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val pending = mutableMapOf<String, CharacterMessages.Generate>()
     private val bindings = mutableMapOf<String, Binding>()
     private val registered = mutableMapOf<String, CharacterProfile>()
+    private var retiredOriginals = emptySet<Long>()
     private val applications = mutableMapOf<String, List<Long>>()
     private val applicationSelections = mutableMapOf<String, CountrySelection>()
     private var deadline = 0L
@@ -78,6 +80,11 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             val properties = Properties().also { Files.newBufferedReader(file).use(it::load) }
             for (account in properties.stringPropertyNames()) {
                 val value = properties.getProperty(account)
+                if (account == "@retired-originals") {
+                    retiredOriginals = value.split(',').map(String::toLong).toSet()
+                    require(retiredOriginals.all { it in 1..9999 })
+                    continue
+                }
                 if (account == "@deadline") { deadline = value.toLong(); continue }
                 if (account.startsWith("@application/")) {
                     applications[account.removePrefix("@application/")] = value.split(',').map(String::toLong); continue
@@ -119,9 +126,12 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     @Synchronized fun profiles():Map<String,CharacterProfile> { resolveLottery();return registered.toMap() }
     /** U-11: a character that died in battle leaves the account, which may then create a new one. */
     @Synchronized fun retire(account: String, id: Long): Boolean {
-        if (registered[account]?.character?.id != id) return false
+        val character = registered[account]?.character?.takeIf { it.id == id } ?: return false
         val next = registered - account
-        save(next); registered.remove(account); pending.remove(account); bindings.remove(account); return true
+        val retired = if (character.generated) retiredOriginals else retiredOriginals + id
+        save(next, retired = retired)
+        retiredOriginals = retired
+        registered.remove(account); pending.remove(account); bindings.remove(account); return true
     }
     /** Drops an unfinished creation; with an [owner], only the one that connection started. Registered characters
      * and accepted lottery applications are kept. */
@@ -181,11 +191,11 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         val selected=selection ?: applicationSelections[account]
         val edits=publishedOriginals.current()
         val accepted=applications[account].orEmpty().takeIf {selected==applicationSelections[account]}.orEmpty()
-        val owned=registered.values.mapTo(mutableSetOf()) {it.character.id}
+        val unavailable = retiredOriginals + worldDeaths() + registered.values.map { it.character.id }
         return originalPool(edits).filter {candidate->
             val id=candidate.character.id
             val country=edits[id]?.country
-            candidate.minimumFame<=currentFame && id !in owned &&
+            candidate.minimumFame<=currentFame && id !in unavailable &&
                 (selected==null || candidate.character.power==selected.creationPower) &&
                 (country==null || country==selected?.country || id in accepted)
         }.map {it.copy(character=KoreanDisplayNames.original(it.character))}
@@ -216,12 +226,14 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private fun resolveLottery() {
         if (applications.isEmpty() || clock.millis() < deadline) return
         val winners = registered.toMutableMap()
+        val dead = retiredOriginals + worldDeaths()
         val roster=originalPool(publishedOriginals.current()).associateBy {it.character.id}
         val countries=CountryCatalogLoader.current()
         val accounts = applications.keys.toMutableList().also { java.util.Collections.shuffle(it, random) }
         for (account in accounts) {
             if (account in winners) continue
-            val id = applications.getValue(account).firstOrNull { candidate -> winners.values.none { it.character.id == candidate } } ?: continue
+            val id = applications.getValue(account).firstOrNull { candidate ->
+                candidate !in dead && winners.values.none { it.character.id == candidate } } ?: continue
             val character=roster.getValue(id).character
             val selection=applicationSelections[account]
             val style=selection?.shipStyle ?: styles.getValue(character.power)
@@ -238,12 +250,13 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     }
     private fun normalized(value: String) = Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT)
     private fun save(values: Map<String, CharacterProfile>, entries: Map<String, List<Long>> = applications, closesAt: Long = deadline,
-        selections: Map<String, CountrySelection> = applicationSelections) {
+        selections: Map<String, CountrySelection> = applicationSelections, retired: Set<Long> = retiredOriginals) {
         if (file == null) return
         val target = file.toAbsolutePath()
         Files.createDirectories(target.parent)
         val properties = Properties()
         values.forEach { (account, profile) -> properties.setProperty(account, profile.encoded()) }
+        if (retired.isNotEmpty()) properties.setProperty("@retired-originals", retired.sorted().joinToString(","))
         if (entries.isNotEmpty()) {
             properties.setProperty("@deadline", closesAt.toString())
             entries.forEach { (account, ids) -> properties.setProperty("@application/$account", ids.joinToString(",")) }

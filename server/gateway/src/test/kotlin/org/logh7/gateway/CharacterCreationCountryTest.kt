@@ -69,6 +69,33 @@ class CharacterCreationCountryTest {
         assertEquals("키르히아이스",settled.character("hero")?.surname)
     }
 
+    @Test fun retiredOriginalIsUnavailableUntilTheNextGeneration() {
+        val file = dir.resolve("characters.properties")
+        val start = Clock.fixed(Instant.ofEpochMilli(1000), ZoneOffset.UTC)
+        val settled = Clock.offset(start, Duration.ofMillis(20))
+        CharacterCreation(file, clock = start, lotteryWindowMillis = 10).apply("hero", listOf(1001L))
+        val store = CharacterCreation(file, clock = settled)
+        assertEquals(1001L, store.character("hero")?.id)
+        assertTrue(store.retire("hero", 1001L))
+        assertNull(store.character("hero"))
+        val reopened = CharacterCreation(file, clock = settled)
+        assertEquals(listOf(1002L), reopened.candidates("other").map { it.character.id })
+        assertFailsWith<IllegalArgumentException> { reopened.apply("other", listOf(1001L)) }
+        assertTrue(CharacterStores(file).get(2).candidates("other").any { it.character.id == 1001L })
+    }
+
+    @Test fun persistedWorldDeathInvalidatesAnAlreadyPendingApplication() {
+        val file = dir.resolve("pending.properties")
+        val start = Clock.fixed(Instant.ofEpochMilli(1000), ZoneOffset.UTC)
+        CharacterCreation(file, clock = start, lotteryWindowMillis = 10).apply("hero", listOf(1001L))
+        val waiting = CharacterCreation(file, clock = start, worldDeaths = { setOf(1001L) })
+        assertFalse(waiting.candidates("other").any { it.character.id == 1001L })
+        val settled = CharacterCreation(file, clock = Clock.offset(start, Duration.ofMillis(20)),
+            worldDeaths = { setOf(1001L) })
+        assertNull(settled.character("hero"))
+        assertTrue(settled.entries("hero").isEmpty())
+    }
+
     @Test fun aWrongPowerOrAMidFlowChangeIsRejectedNeverSubstituted() {
         val store=CharacterCreation()
         assertFailsWith<IllegalArgumentException> {store.accept("x",request(2,"Wrong"),s42)}
