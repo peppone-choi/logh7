@@ -206,6 +206,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (session.ended != null || member.country in session.eliminated || session.generation != request.generation ||
             (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
             return reject(NavigationRejection.SESSION)
+        if (request.tacticalRetreat != null && BattleDeath.deceased(stocks,request.characterId))
+            return reject(NavigationRejection.IDENTITY)
         if (member.country != request.country) return reject(NavigationRejection.IDENTITY)
         if (request.tacticalMove != null && BattleDeath.deceased(stocks,request.characterId))
             return reject(NavigationRejection.IDENTITY)
@@ -536,6 +538,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         var changed = false
         for ((account, player) in next.toSortedMap()) {
             val retreat = player.retreat ?: continue
+            if (BattleDeath.deceased(stocks,player.characterId)) {
+                next[account] = player.copy(retreat=null)
+                changed = true
+                continue
+            }
             if (!TacticalContact.active(galaxy, player, next.values, stocks)) {
                 next[account] = player.copy(cpPaused = false, motion = null, retreat = null, charge = null,commandRange=null,
                     attack=null,fire=player.fire?.copy(pending=null),cpRecoveryAt = now)
