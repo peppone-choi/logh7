@@ -81,7 +81,13 @@ class TransportActionsTest {
     }
     @Test fun shipLossIsCommittedBeforeReinforcementAndWipedCargoCannotReturn() {
         val planned=assertNotNull(act(plan(),stocks()).stocks)
-        val aboard=assertNotNull(act(load(1),planned).stocks)
+        val loaded=assertNotNull(act(load(1),planned).stocks)
+        val other=loaded.outfits.getValue(200).copy(id=201,warehouseId=301,commanderId=0,
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(2,hull,boats=boats))))
+        val otherPack=loaded.strategic.transports.single().copy(id=2,carrier=201)
+        val aboard=loaded.copy(outfits=loaded.outfits+(201 to other),
+            warehouses=loaded.warehouses+(301 to OutfitWarehouse(301,2,OutfitKind.TRANSPORT,1049,201)),
+            nextShipId=3,strategic=loaded.strategic.copy(transports=loaded.strategic.transports+otherPack))
         val store=object:PlanetStockStore {
             var saved=aboard
             override fun load()=saved
@@ -93,15 +99,19 @@ class TransportActionsTest {
         val carrier=initial.outfits.getValue(200)
         val half=TacticalLosses.apply(carrier,1,boats/2)
         val damaged=production.replace(initial,initial.copy(outfits=initial.outfits+(200 to half)))
-        assertEquals(boats-boats/2,store.saved.strategic.transports.single().survivingBoats)
+        assertEquals(boats-boats/2,store.saved.strategic.transports.single {it.id==1}.survivingBoats)
         val restored=production.replace(damaged,damaged.copy(outfits=damaged.outfits+
             (200 to carrier.copy(position=OutfitPosition(2488,1050)))))
         val unloaded=assertNotNull(act(load(1),restored).stocks)
         assertEquals(restored.bases.getValue(1050).supplies+1000*(boats-boats/2)/boats,
             unloaded.bases.getValue(1050).supplies)
-        val wiped=TacticalLosses.apply(carrier,1,boats)
-        val destroyed=production.replace(restored,restored.copy(outfits=restored.outfits+(200 to wiped)))
-        assertTrue(destroyed.strategic.transports.isEmpty())
+        val secondHit=TacticalLosses.apply(restored.outfits.getValue(200),1,boats/4)
+        val damagedAgain=production.replace(restored,restored.copy(outfits=restored.outfits+(200 to secondHit)))
+        val remaining=(boats-boats/2)*(boats-boats/4)/boats
+        assertEquals(remaining,damagedAgain.strategic.transports.single {it.id==1}.survivingBoats)
+        val wiped=TacticalLosses.apply(secondHit,1,boats)
+        val destroyed=production.replace(damagedAgain,damagedAgain.copy(outfits=damagedAgain.outfits+(200 to wiped)))
+        assertEquals(listOf(otherPack),destroyed.strategic.transports)
         val reinforced=production.replace(destroyed,destroyed.copy(outfits=restored.outfits))
         assertEquals(StrategyActionRejection.TARGET,act(load(1),reinforced).rejection)
     }

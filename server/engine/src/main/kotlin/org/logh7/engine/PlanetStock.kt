@@ -195,7 +195,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         if(monthly.social.succession.anyVacant())supplier?.invoke()?.let {monthly=SuccessionActions.accede(galaxy,monthly,it,seconds)}
         val players=civicPlayers(generation)
         val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy,players,eliminated=eliminated),supplier?.invoke().orEmpty(),g=galaxy),seconds,players,eliminated=eliminated)
-        val withCargo = TransportActions.settleCargo(settled)
+        val withCargo = TransportActions.settleCargo(settled,previous)
         if (withCargo == previous) return checkNotNull(previous)
         val next = detached(withCargo)
         if (previous == null || previous.generation != generation || !commitOfficeRecovery(previous, next, seconds))
@@ -218,7 +218,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         require(next.outfits.values.all { outfit -> outfit.position?.let { position ->
             position.baseId == 0 || galaxy.bases.single { it.id == position.baseId }.grid == position.grid
         } != false }) { "Outfit position differs from its current base" }
-        return detached(TransportActions.settleCargo(next))
+        return detached(TransportActions.settleCargo(next,expected))
     }
     fun publishCommitted(expected: PlanetStocks, next: PlanetStocks) {
         check(current === expected)

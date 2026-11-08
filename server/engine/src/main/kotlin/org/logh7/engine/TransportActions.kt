@@ -3,7 +3,7 @@ package org.logh7.engine
 import org.logh7.engine.strategy.*
 
 /** One transport package. [carrier] 0 = in the source transport warehouse; otherwise the transport outfit
- * carrying it, which had [carrierBoats] live boats at loading. */
+ * carrying it, which had [carrierBoats] live boats at loading. [survivingBoats] expresses the remaining cargo share against that original count. */
 data class TransportPackage(val id:Int,val country:CountryId,val source:Int,val destination:Int,val supplies:Int,
     val units:UnitInventory=UnitInventory(),val carrier:Int=0,val carrierBoats:Int=0,val survivingBoats:Int=carrierBoats) {
     init {require(id>0 && source in 1..65535 && destination in 1..65535 && source!=destination &&
@@ -127,14 +127,23 @@ object TransportActions {
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         return StrategyActionResult(p.paidWith(paid.balance),next,changed=true,warehouseBase=warehouseBase)
     }
-    internal fun settleCargo(stocks:PlanetStocks):PlanetStocks {
+    internal fun settleCargo(stocks:PlanetStocks,previous:PlanetStocks?):PlanetStocks {
         val existing=stocks.strategic.transports
+        if(existing.none {it.carrier!=0})return stocks
+        val prior=previous?.takeIf {it.generation==stocks.generation}
+        val priorPackages=prior?.strategic?.transports.orEmpty().associateBy {it.id}
         val settled=existing.mapNotNull {pack->
             if(pack.carrier==0)pack else {
                 val alive=stocks.outfits[pack.carrier]?.let(::boats) ?: 0
+                val before=priorPackages[pack.id]?.takeIf {it.carrier==pack.carrier}
+                    ?.let {prior?.outfits?.get(it.carrier)?.let(::boats)}
+                // A new casualty after reinforcement consumes the same fraction of the remaining cargo.
+                val surviving=if(before!=null && alive<before)
+                    (minOf(before,pack.survivingBoats).toLong()*alive/before).toInt()
+                    else minOf(alive,pack.survivingBoats)
                 when {
-                    alive==0 -> null
-                    alive<pack.survivingBoats -> pack.copy(survivingBoats=alive)
+                    surviving==0 -> null
+                    surviving<pack.survivingBoats -> pack.copy(survivingBoats=surviving)
                     else -> pack
                 }
             }
