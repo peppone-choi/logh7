@@ -156,7 +156,8 @@ class WorldBootstrap(val galaxy: Galaxy,
         cardCharacters(card,stocks,{id->characterById(id)?.power?.takeIf {it in 2..3}?.let {org.logh7.engine.CountryId(it)}},characterById)
     fun cardCharacters(card: Int, stocks: org.logh7.engine.PlanetStocks,
         countryOf: (Int) -> org.logh7.engine.CountryId?,
-        characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?): ByteArray {
+        characterById: (Int) -> org.logh7.protocol.CharacterMessages.Generate?, page:Int?=null): ByteArray {
+        require(page==null || page in 0..127)
         val role=org.logh7.engine.OrganizationOffices.of(card)
         require(role!=null || org.logh7.protocol.OfficeCardKinds.isPeerage(card) || org.logh7.protocol.OfficeCardKinds.isFief(card))
         val countries=countryCatalog
@@ -171,9 +172,11 @@ class WorldBootstrap(val galaxy: Galaxy,
         else if(card==66)stocks.strategic.fiefs.map {(base,owner)->Triple(owner,BootstrapMessages.OfficeCard(66,base),null)} else emptyList()
         val appointed=holdings.groupBy({it.first},{it.second}).toSortedMap()
         val holderCountries=holdings.groupBy({it.first},{it.third}).mapValues {(_,c)->c.distinct()}
-        if(appointed.size>64) return org.logh7.protocol.CardCharacterMessages.response(card,emptyList(),failed=true)
-        require(appointed.values.all { it.size<=14 }) { "Office cards exceed CD capacity" }
-        val records=appointed.map { (id,offices) ->
+        val pageSize=org.logh7.protocol.CardCharacterMessages.PAGE_SIZE
+        if(page==null && appointed.size>pageSize) return org.logh7.protocol.CardCharacterMessages.response(card,emptyList(),failed=true)
+        val selected=appointed.entries.drop((page ?: 0)*pageSize).take(pageSize)
+        require(selected.all { it.value.size<=14 }) { "Office cards exceed CD capacity" }
+        val records=selected.map { (id,offices) ->
             val character=checkNotNull(characterById(id)) { "Appointed character is missing" }
             val country=holderCountries.getValue(id).single()
             if(country==null) require(character.power==2) { "Character faction differs from appointment" } // empire peerage/fief

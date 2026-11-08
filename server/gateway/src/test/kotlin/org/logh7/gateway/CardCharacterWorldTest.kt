@@ -56,6 +56,11 @@ class CardCharacterWorldTest {
         assertEquals(1,ByteBuffer.wrap(rejected).int)
         assertEquals(0,rejected[8].toInt())
         assertContentEquals(org.logh7.protocol.CardCharacterMessages.response(54,emptyList(),failed=true),rejected)
+        val countryOf:(Int)->CountryId?={CountryId(2)}
+        val profile:(Int)->org.logh7.protocol.CharacterMessages.Generate?={character.copy(id=it.toLong())}
+        val pages=(0..2).map {capacityWorld.cardCharacters(54,manyPeople,countryOf,profile,it)}
+        assertEquals(listOf(64,1,0),pages.map {it[8].toInt()})
+        assertEquals(listOf(10001,10065),pages.take(2).map {ByteBuffer.wrap(it).getInt(9)})
         val manyBases=stocks.copy(bases=(1..15).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10000) })
         assertFails { capacityWorld.cardCharacters(54,manyBases) { character } }
     }
