@@ -82,6 +82,28 @@ class NpcStrategyTest {
         assertEquals(97000,arrived.bases.getValue(1000).supplies)
         assertEquals(listOf(2487,2588),events.map {it.destination})
     }
+    @Test fun advanceLeavesEnoughFuelForTheReturnRouteFromTheNextGrid() {
+        val kind=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name=="巡航艦Ⅴ"}.kind
+        val unit=ActiveShipUnit(1,UnitStack(kind))
+        val original=stocks()
+        val source=original.outfits.getValue(1)
+        val fleet=source.copy(position=OutfitPosition(2489),
+            units=UnitInventory(mapOf(unit.stack to 1),source.units.troops),activeShips=ActiveShipUnits(listOf(unit)))
+        fun stock(jumps:Int)=original.copy(outfits=mapOf(1 to OutfitSupplies.withBalances(fleet,mapOf(1 to unit.boats*jumps))))
+        val observers=players().also {it["pilot"]=it.getValue("pilot").copy(grid=2491)}
+        val events=mutableListOf<NpcStrategicMovement>()
+        val affordable=advance(0,stock(4),observers,events)
+        assertEquals(90,affordable.outfits.getValue(1).strategy!!.destination!!%100)
+        val insufficient=advance(0,stock(3),observers,events)
+        assertEquals(88,insufficient.outfits.getValue(1).strategy!!.destination!!%100)
+        val depleted=affordable.copy(outfits=affordable.outfits.mapValues {(_,outfit)->
+            OutfitSupplies.withBalances(outfit,mapOf(1 to unit.boats*3))})
+        val cancelled=advance(3600,depleted,observers,events)
+        assertEquals(fleet.position,cancelled.outfits.getValue(1).position)
+        assertEquals(unit.boats*3,cancelled.outfits.getValue(1).supplies)
+        assertTrue(events.isEmpty())
+    }
+
     @Test fun changedThreatCancelsTheOldAdvanceBeforeItSpendsFuel() {
         val players=players().also {it["pilot"]=it.getValue("pilot").copy(grid=2688)}
         val events=mutableListOf<NpcStrategicMovement>()
