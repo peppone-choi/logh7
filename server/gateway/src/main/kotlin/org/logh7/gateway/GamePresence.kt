@@ -315,7 +315,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.order.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer->
-            val current=snapshot.navigators.values.singleOrNull {it.characterId==viewer.player.characterId} ?: viewer.player
+            val current=snapshot.navigators.values.singleOrNull {
+                it.characterId==viewer.player.characterId && it.generation==event.generation && it.grid==event.order.grid &&
+                    it.baseId==viewer.player.baseId && (it.cpPaused || it.baseId>0)
+            } ?: return@forEach
             val tactical=TacticalBootstrap(snapshot,galaxy,current,characterById)
             val packets=mutableListOf<ByteArray>()
             if(event.cancelled)TacticalCommandWire.command(event.order)?.let {

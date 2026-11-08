@@ -54,6 +54,17 @@ class TacticalCommandDeliveryTest {
         assertFalse(received.flatten().any {opcode(it)==0x420},"A state update is not an extra successful command ACK")
         received.clear();hub.tacticalCommand(result.copy(cancelled=true),s,galaxy){person}
         assertEquals(1,ByteBuffer.wrap(received.flatten().single {opcode(it)==0x420}).int)
+        received.clear()
+        for(current in listOf(player.copy(grid=2488),player.copy(baseId=1000,mode=4,cpPaused=false))) {
+            val moved=s.copy(navigators=mapOf("pilot" to current))
+            hub.tacticalCommand(result,moved,galaxy){person}
+            hub.tacticalCommand(result.copy(cancelled=true),moved,galaxy){person}
+            assertTrue(received.isEmpty())
+        }
+        val docked=player.copy(baseId=1000,mode=4,cpPaused=false)
+        hub.update(viewer.copy(player=docked));received.clear()
+        hub.tacticalCommand(result.copy(cancelled=true),s.copy(navigators=mapOf("pilot" to docked)),galaxy){person}
+        assertEquals(1,ByteBuffer.wrap(received.flatten().single {opcode(it)==0x420}).int)
         hub.update(viewer.copy(player=player.copy(grid=2488)));received.clear()
         hub.tacticalCommand(result,s,galaxy){person};assertTrue(received.isEmpty())
         hub.update(viewer.copy(connection="new"));received.clear()
