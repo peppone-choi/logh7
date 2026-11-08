@@ -73,6 +73,13 @@ class CountryCivicTest {
         val accepted=act(55,s,p,definitions=definitions);assertNull(accepted.rejection)
         val pending=assertNotNull(accepted.stocks)
         assertEquals(country,accepted.civic?.country);assertEquals(2,CivicActions.guardStrength(pending,1001,lobby,now))
+        val holding=pending.bases.getValue(1001)
+        for(changed in listOf(holding.copy(owner=Allegiance.Country(other)),holding.copy(camp=1))) {
+            val unsettled=pending.copy(bases=pending.bases+(1001 to changed))
+            assertEquals(CivicPhase.GUARDING,unsettled.civic.orders.getValue(10000).phase)
+            assertEquals(1,CivicActions.guardStrength(unsettled,1001,lobby,now))
+            assertEquals(CivicPhase.INVALIDATED,settle(unsettled,p).civic.orders.getValue(10000).phase)
+        }
         assertEquals(CivicPhase.COMPLETED,settle(pending,p).civic.orders.getValue(10000).phase)
         val invalid=settle(pending,p.copy(country=other))
         assertEquals(CivicPhase.INVALIDATED,invalid.civic.orders.getValue(10000).phase)
