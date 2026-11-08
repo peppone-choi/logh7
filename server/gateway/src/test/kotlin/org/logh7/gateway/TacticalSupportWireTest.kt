@@ -15,14 +15,15 @@ class TacticalSupportWireTest {
     @Test fun supplyCommanderRequestUpdatesBothEncryptedPeersAndRejectsAnotherCommander()=encounter(false)
     @Test fun repairCommanderRequestConsumesSuppliesAndUpdatesBothEncryptedPeers()=encounter(true)
     @Test fun committedManualStopClearsSupportForRequesterAndPeer()=encounter(false,stopEarly=true)
-    private fun encounter(repair:Boolean,stopEarly:Boolean=false)=runBlocking {
+    @Test fun restoredSupplyWithNoWorkSendsAutomaticCancellationToBothPeers()=encounter(false,noWork=true)
+    private fun encounter(repair:Boolean,stopEarly:Boolean=false,noWork:Boolean=false)=runBlocking {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f),
                 GalaxyBase(1001,2488,80,0,"Battle",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
         val now=SessionRules.load().startSeconds
         fun motion(y:Float)=TacticalMotion(2488,now,TacticalPose(TacticalPoint(0f,y),0f),0f,0f,listOf(TacticalPoint(0f,y)))
         var savedPlayers=(0..1).associate {i->"load-00$i" to Navigator(1,10000+i,Power.EMPIRE,2488,1000,1000,900,
-            cpPaused=true,supplies=if(i==0)400 else 1000,hull=FlagshipHull(0,now,hp=if(i==0)40 else 100),motion=motion(0.5f-i*0.25f))}
+            cpPaused=true,supplies=if(i==0)400 else if(noWork)10000 else 1000,hull=FlagshipHull(0,now,hp=if(i==0)40 else 100),motion=motion(0.5f-i*0.25f))}
         val kind=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith(if(repair)"工作艦" else "輸送艦")}.kind
         val stack=UnitStack(kind);val enemy=UnitStack(119)
         val ground=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),carrier=1),ActiveGroundUnit(3,UnitStack(1),base=1001)))
@@ -30,6 +31,7 @@ class TacticalSupportWireTest {
             outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
                 units=UnitInventory(mapOf(stack to 1),ground.quantities()),supplies=10000,activeGround=ground,
                 activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack,supplies=10000,
+                    support=if(noWork)TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,1010001,2488,now,now+120) else null,
                     tactical=NpcTacticalState(motion(0f),now,now)))),position=OutfitPosition(2488)),
                 2 to OutfitStock(2,3,OutfitKind.FLEET,1000,20,units=UnitInventory(mapOf(enemy to 1)),
                     activeShips=ActiveShipUnits(listOf(ActiveShipUnit(99,enemy))),position=OutfitPosition(2488))),
@@ -52,6 +54,18 @@ class TacticalSupportWireTest {
                 c.send(SyntheticClient.opcode(0x0f00));through(c,0x0f01)
                 c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)
             }}.toMutableList()
+            if(noWork) {
+                assertNotNull(fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).activeShips!!.values.single().support)
+                fixture.engine.submit(WorldCommand.AdvanceTo(5000))
+                val cancelled=TacticalStopMessages.supportCancelled(10000,1,now+120)
+                for(client in clients)assertContentEquals(cancelled,through(client,0x040a))
+                val current=fixture.engine.snapshot()
+                val source=current.planetStocks!!.outfits.getValue(1)
+                assertNull(source.activeShips!!.values.single().support)
+                assertEquals(10000,source.supplies)
+                assertEquals(10000,current.navigators.getValue("load-001").supplies)
+                return@runBlocking
+            }
             clients[1].send(command(10001))
             val refused=ByteBuffer.wrap(through(clients[1],opcode))
             assertEquals(1,refused.getInt(0));assertEquals(-1,refused.getInt(10))
