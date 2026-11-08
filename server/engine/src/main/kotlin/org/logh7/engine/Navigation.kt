@@ -512,7 +512,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (stocks != null && stock == null) return NavigationRejection.BASE
         val owner = stock?.owner ?: galaxy.initialOwners.getValue(target)
         val camp = stock?.camp ?: condition.camp
-        return NavigationRejection.ACCESS.takeUnless { ownBase(player, owner, camp) }
+        val playerCamp = stocks?.let { CoupActions.camp(it, player.characterId, player.country) } ?: 0
+        return NavigationRejection.ACCESS.takeUnless { FlagshipRecovery.ownsReturnBase(player, owner, camp, playerCamp) }
     }
 
     private fun ownBase(player:Navigator,owner:Allegiance,camp:Int)=camp==0 && when(owner) {

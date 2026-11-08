@@ -64,6 +64,29 @@ class ReturnBaseTest {
             PlanetStocks(1, 0, emptyMap())).rejection)
     }
 
+    @Test fun rebelsSelectAndRecoverOnlyAtTheirOwnCamp() {
+        val country=Power.EMPIRE.country
+        val coup=CoupState(mapOf(10000 to Plot(10000,country,0,revolt=5,bases=setOf(1048))))
+        val stocks=PlanetStocks(1,0,mapOf(1048 to PlanetStock(1048,2,1,0,0,0),
+            2015 to PlanetStock(2015,2,0,0,0,0)),social=SocialState(coup=coup))
+        val store=Store()
+        val nav=Navigation(galaxy,store,NavigationPolicy())
+        val selected=assertNotNull(nav.apply(request.copy(returnBase=1048),session,stocks).player)
+        assertEquals(NavigationRejection.ACCESS,nav.apply(request.copy(returnBase=2015),session,stocks).rejection)
+        assertEquals(1048,Navigation(galaxy,store,NavigationPolicy()).apply(request.copy(tactical=false),session,stocks).player?.returnBase)
+        assertEquals(1048,FlagshipRecovery.defeated(selected,100,galaxy,stocks).baseId)
+        val fromBirth=FlagshipRecovery.defeated(selected.copy(returnBase=0,originBase=1048),100,galaxy,stocks)
+        assertEquals(1048,fromBirth.baseId)
+        assertEquals(0,fromBirth.returnBase)
+
+        val regular=stocks.copy(social=stocks.social.copy(coup=CoupState()))
+        assertEquals(0,Navigation(galaxy,store,NavigationPolicy()).apply(request.copy(tactical=false),session,regular).player?.returnBase)
+        val moved=FlagshipRecovery.defeated(selected,100,galaxy,regular)
+        assertEquals(2015,moved.baseId)
+        assertEquals(0,moved.returnBase)
+        assertEquals(NavigationRejection.ACCESS,nav.apply(request.copy(returnBase=1048),session,regular).rejection)
+    }
+
     @Test fun recoveryWithoutLiveOwnershipKeepsAReturnBaseCapturedByThePlayerCountry() {
         val nav = Navigation(galaxy, Store(), NavigationPolicy())
         val captured = PlanetStocks(1, 0, mapOf(2015 to PlanetStock(2015, 2, 0, 0, 0, 0)))
