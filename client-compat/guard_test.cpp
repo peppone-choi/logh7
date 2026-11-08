@@ -492,6 +492,50 @@ static bool displayNameTest() {
         logh::koreanFormatStringArguments(0x76ccf4,nullptr)) return false;
     return true;
 }
+// Call each rate-row thunk with the native registers of its slot (world, kind*9) and return its output register.
+static __declspec(naked) const BYTE* __stdcall flagshipBeamRowAt(BYTE*,unsigned) {
+    __asm { push ebp
+            mov ecx,[esp+8]
+            mov eax,[esp+12]
+            call flagshipBeamRateRow
+            mov eax,ebp
+            pop ebp
+            ret 8 }
+}
+static __declspec(naked) const BYTE* __stdcall flagshipGunRowAt(BYTE*,unsigned) {
+    __asm { mov ecx,[esp+4]
+            mov eax,[esp+8]
+            call flagshipGunRateRow
+            ret 8 }
+}
+static __declspec(naked) const BYTE* __stdcall flagshipMissileRowAt(BYTE*,unsigned) {
+    __asm { mov eax,[esp+4]
+            mov edx,[esp+8]
+            call flagshipMissileRateRow
+            ret 8 }
+}
+static __declspec(naked) const BYTE* __stdcall flagshipAntiAirRowAt(BYTE*,unsigned) {
+    __asm { mov edx,[esp+4]
+            mov ecx,[esp+8]
+            call flagshipAntiAirRateRow
+            ret 8 }
+}
+static bool flagshipRateRowTest() {
+    const SIZE_T size=0x342000; // Past row 255, where the native address calculation lands.
+    auto world=static_cast<BYTE*>(VirtualAlloc(nullptr,size,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
+    if (!world) return false;
+    auto nativeRow=[&](unsigned kind) { return world+0x340828+kind*0x12; };
+    *nativeRow(255)=1;nativeRow(255)[2]=101; // The bogus data seen beyond the table must not be selected.
+    const BYTE* (__stdcall* const slots[])(BYTE*,unsigned)={flagshipBeamRowAt,flagshipGunRowAt,flagshipMissileRowAt,flagshipAntiAirRowAt};
+    bool passed=!flagshipAbsentWeaponRow[0];
+    for (auto slot : slots) {
+        // Installed kinds, the last table row and a genuine unknown kind keep the native row.
+        for (unsigned kind : {0u,1u,16u,26u,199u,200u,254u}) passed=passed && slot(world,kind*9)==nativeRow(kind);
+        passed=passed && slot(world,logh::flagshipWeaponNone*9)==flagshipAbsentWeaponRow;
+    }
+    VirtualFree(world,0,MEM_RELEASE);
+    return passed;
+}
 static bool flagshipWeaponLabelTest() {
     const unsigned group=logh::flagshipWeaponGroup,none=logh::flagshipWeaponNone;
     if (!logh::flagshipWeaponAbsent(group,none,"NO DATA")) return false;
@@ -1356,6 +1400,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if (!tacticalClockScaleTest()) return 81;
     if (!tacticalNoticesTest()) return 82;
     if (!flagshipWeaponLabelTest()) return 813;
+    if (!flagshipRateRowTest()) return 814;
     if (!tacticalWeaponSelectionTest()) return 87;
     if (!tacticalBaseDataTest()) return 88;
     if (!tacticalChargeDataTest()) return 89;
