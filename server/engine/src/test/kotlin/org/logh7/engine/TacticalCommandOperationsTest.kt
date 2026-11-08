@@ -757,6 +757,28 @@ class TacticalCommandOperationsTest {
         assertEquals(NavigationRejection.BASE,TacticalCommandOperations.accept(request(TacticalCommand(0x41f,base=1000,velocity=.5f,
             points=listOf(TacticalPoint(20f,0f)))),session,fixed,r.navigation,r.production,r.production.snapshot(1)!!,r.state.commit,1).rejection)
     }
+    @Test fun fortressMovementCannotCrossTheStarWhenQueuedOrWhenStarting() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases.map {it.copy(radius=20f)},galaxy.starts)
+        val s=state()
+        val nav=Navigation(world,s.nav,NavigationPolicy(),clockScale=1)
+        val production=PlanetProduction(world,s.stock,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+        fun accept(y:Float):NavigationResult {
+            val cmd=request(TacticalCommand(0x41f,base=1000,points=listOf(TacticalPoint(1f,y))))
+            return TacticalCommandOperations.accept(cmd,session,world,nav,production,production.snapshot(1)!!,s.commit,1)
+        }
+        assertEquals(NavigationRejection.RANGE,accept(-20f).rejection)
+        assertTrue(production.snapshot(1)!!.tacticalCommands.orders.isEmpty())
+        assertNotNull(accept(20f).player)
+        val old=production.snapshot(1)!!
+        val shifted=TacticalFortressMotion(2488,motion(0f,-20f))
+        production.replace(old,old.copy(tacticalCommands=old.tacticalCommands.copy(fortresses=mapOf(1000 to shifted))))
+        TacticalCombat.settle(session.copy(gameMillis=(now+5)*1000),world,nav,production,s.commit,scale=1)
+        assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+        val fortress=s.stocks.tacticalCommands.fortresses.getValue(1000).motion
+        assertEquals(TacticalPoint(0f,-20f),fortress.pose(now+100).position)
+        assertEquals(0f,fortress.velocity)
+    }
+
     @Test fun aMobileFortressWithBrokenPropulsionCannotMove() {
         // CD manual p.46: orbital attack can destroy a mobile fortress's propulsion (FortressArmor).
         val s=state();s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(brokenPropulsion=setOf(1000)))
