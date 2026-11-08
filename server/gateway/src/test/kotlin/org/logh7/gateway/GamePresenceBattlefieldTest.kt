@@ -179,6 +179,17 @@ class GamePresenceBattlefieldTest {
             hull = FlagshipHull(3, 100, woundedUntil = 86500))
         val current = snapshot.copy(navigators = mapOf("pilot" to returned, "witness" to witness))
         val move = NpcStrategicMovement(1, 1, player.grid, 2488, 100, listOf(1), recipients + (10001 to "witness"))
+        hub.movement(TacticalMovement(1, 1, player.grid, 100, null, move.recipients, destination = 2488), current)
+        assertTrue(returnedPackets.isEmpty())
+        assertEquals(listOf(0x0425), witnessPackets.map(::opcode))
+        witnessPackets.clear()
+        val undocked=returned.copy(baseId = 0, mode = 5, cpRecoveryAt = 100)
+        val finished=witness.copy(cpPaused = false, cpRecoveryAt = 100)
+        hub.movement(TacticalMovement(1, 1, player.grid, 100, null, move.recipients, destination = 2488),
+            current.copy(navigators = mapOf("pilot" to undocked, "witness" to finished)))
+        assertTrue(returnedPackets.isEmpty())
+        assertEquals(listOf(0x0425), witnessPackets.map(::opcode))
+        witnessPackets.clear()
         hub.strategicMovement(move, current, WorldBootstrap(galaxy)) { null }
         assertTrue(returnedPackets.none { opcode(it) == 0x0425 })
         assertEquals(1, witnessPackets.count { opcode(it) == 0x0425 })
