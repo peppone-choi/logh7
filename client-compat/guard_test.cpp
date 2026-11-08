@@ -1300,6 +1300,19 @@ static int runGuard(int argc, wchar_t** argv) {
        !logh::hudPersonalName(L"이 둘",1,L"계급",hudName) || hudName!=L"계급이 둘\n" ||
        !logh::hudPersonalName(L"김 하나",2,L"계급",hudName) || hudName!=L"김 하나계급\n" ||
        logh::hudPersonalName(L"가나다라마바사아자차카타파",2,L"계급",hudName))return 287;
+    {
+        logh::HudNameRefresh refresh;
+        const auto hudRoot=reinterpret_cast<void*>(0x1000),nextRoot=reinterpret_cast<void*>(0x2000),label=reinterpret_cast<void*>(0x1004);
+        refresh.rankChanged(1,10); // A rank before the HUD exists is read fresh at creation.
+        if(refresh.pending)return 288;
+        refresh.bind(hudRoot,label);refresh.rankChanged(10,10);
+        if(refresh.pending)return 289;
+        refresh.rankChanged(1,10);
+        if(!refresh.due(hudRoot,true) || refresh.due(hudRoot,false) ||
+           refresh.due(nextRoot,true) || refresh.due(nullptr,true))return 290;
+        refresh.bind(nextRoot,label); // Recreating the HUD already rendered the current rank.
+        if(refresh.due(nextRoot,true))return 291;
+    }
     std::string calendarPrefix;
     std::wstring calendarDecoded;
     for(bool imperial:{true,false}) {

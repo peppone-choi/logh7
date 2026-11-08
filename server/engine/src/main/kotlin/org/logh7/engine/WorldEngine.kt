@@ -100,10 +100,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
     private val occupationObservers=java.util.concurrent.CopyOnWriteArrayList<(BaseOccupation)->Unit>()
-    private val experienceObservers=java.util.concurrent.CopyOnWriteArrayList<(List<Int>)->Unit>()
+    private val characterRefreshObservers=java.util.concurrent.CopyOnWriteArrayList<(List<Int>)->Unit>()
     /** Character IDs whose abilities/experience changed by CP-experience settlement. */
-    fun observeExperience(observer:(List<Int>)->Unit):AutoCloseable {
-        experienceObservers+=observer;return AutoCloseable {experienceObservers.remove(observer)}
+    fun observeCharacterRefresh(observer:(List<Int>)->Unit):AutoCloseable {
+        characterRefreshObservers+=observer;return AutoCloseable {characterRefreshObservers.remove(observer)}
     }
     private val fortressSinkingObservers=java.util.concurrent.CopyOnWriteArrayList<(Navigator)->Unit>()
     /** The committed replacement navigator of each flagship sunk inside a breached fortress (FortressArmor). */
@@ -189,8 +189,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // Reconcile durable capital/session endings before observers can start a native
         // forced-undock transition that cannot finish once gameplay requests are frozen.
         afterCommit()
-        if(experienced.isNotEmpty())for(observer in experienceObservers)try {observer(experienced)}
-        catch(failure:Exception){System.err.println("Experience delivery failed: ${failure.javaClass.simpleName}")}
+        if(experienced.isNotEmpty())for(observer in characterRefreshObservers)try {observer(experienced)}
+        catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
         for(event in strategicMovements)for(observer in strategicMovementObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("NPC strategic movement delivery failed: ${failure.javaClass.simpleName}")}
         publishCombat(impacts)
@@ -436,6 +436,18 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         published.set(snapshot.copy(result=result))
         if(result!=null && previousResult==null)published.get().let {s->resultObservers.forEach {it(s)}}
         val inventory=snapshot.planetStocks
+        // Monthly rank and chair changes are committed before the online character view is refreshed.
+        if(inventory!=null && old!=null && old.generation==inventory.generation &&
+            inventory.producedDays/PoliticianLadder.PERIOD_DAYS>old.producedDays/PoliticianLadder.PERIOD_DAYS) {
+            val changedRanks=inventory.strategic.people.keys.filter {id ->
+                old.strategic.people[id]?.rank!=inventory.strategic.people[id]?.rank
+            }
+            val oldChairs=old.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
+            val newChairs=inventory.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
+            val changed=(changedRanks+((oldChairs-newChairs)+(newChairs-oldChairs)).map {it.character}).distinct()
+            if(changed.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changed)}
+            catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
+        }
         if(inventory!=null && old!=null && old.generation==inventory.generation &&
             (old.budget!=inventory.budget || old.nationalTreasuries!=inventory.nationalTreasuries ||
                 old.bases.any {(id,b)->b.treasury!=inventory.bases[id]?.treasury})) {

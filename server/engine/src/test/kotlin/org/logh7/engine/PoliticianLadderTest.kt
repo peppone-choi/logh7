@@ -1,5 +1,8 @@
 package org.logh7.engine
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -52,6 +55,15 @@ class PoliticianLadderTest {
         assertEquals(listOf(11),OrganizationalOfficePolicy(galaxy).holders(ladder,132).map {it.character},"no support: the ladder top")
         assertSame(ladder,PoliticianLadder.election(galaxy,ladder,ids),"a filled seat stays")
     }
+    @Test fun forcedMilitaryConversionVacatesTheChairAndElectsAnEligiblePolitician() {
+        val policy=OrganizationalOfficePolicy(galaxy)
+        val before=stocks.copy(strategic=StrategicState(people=mapOf(11 to StrategicPerson(rank=1),
+            12 to StrategicPerson(rank=1,merit=10))))
+        val seated=policy.set(before,OfficeHolding(132,1177,11))
+        val result=PoliticianLadder.monthly(galaxy,seated,listOf(id(11,3),id(12,3)),1)
+        assertEquals(10,result.strategic.people.getValue(11).rank)
+        assertEquals(listOf(12),policy.holders(result,132).map {it.character})
+    }
     @Test fun aLostConfidenceVoteRemovesTheChairmanAndElectsAnother() {
         val people=mapOf(11 to StrategicPerson(merit=90),12 to StrategicPerson(merit=10))
         val ids=listOf(id(11,3),id(12,3))
@@ -97,6 +109,38 @@ class PoliticianLadderSettlementTest {
         assertNull(production.settle(1,start+29*86400).strategic.people[9])
         assertEquals(10,production.settle(1,start+30*86400).strategic.people.getValue(9).rank)
         assertEquals(10,production.settle(1,start+31*86400).strategic.people.getValue(9).rank)
+    }
+    @Test fun monthlyConversionRefreshesBothChairmenAfterCommitOnlyOnce()=runBlocking {
+        val rules=SessionRules.load()
+        val policy=OrganizationalOfficePolicy(galaxy)
+        val country=CountryId(3)
+        var saved=PlanetStocks(1,0,mapOf(1177 to PlanetStock(1177,3,0,100,200,300)),
+            strategic=StrategicState(people=mapOf(11 to StrategicPerson(rank=1),12 to StrategicPerson(rank=1,merit=10))))
+        saved=policy.set(saved,OfficeHolding(132,1177,11,country))
+        val store=object:PlanetStockStore {
+            override fun load()=saved
+            override fun save(stocks:PlanetStocks){saved=stocks}
+        }
+        val engine=WorldEngine(this,rules,ticking=false,galaxy=galaxy,stockStore=store)
+        val identities=engine.provideIdentities {listOf(11,12).map {StrategicIdentity(it,3,1,0,List(8){50})}}
+        val refreshes=mutableListOf<Pair<Set<Int>,PlanetStocks>>()
+        val subscription=engine.observeCharacterRefresh {ids->refreshes+=ids.toSet() to saved}
+        try {
+            for(day in listOf(29L,30L,31L)) {
+                engine.submit(WorldCommand.AdvanceTo(day*86400*1000/rules.speed))
+                val barrier=CompletableDeferred<PlanetStocks>()
+                engine.submit(WorldCommand.Stock(1,barrier))
+                withTimeout(5000){barrier.await()}
+            }
+            val (ids,committed)=refreshes.single()
+            assertEquals(setOf(11,12),ids)
+            assertEquals(10,committed.strategic.people.getValue(11).rank)
+            assertEquals(listOf(12),policy.holders(committed,132,country).map {it.character})
+        } finally {
+            subscription.close()
+            identities.close()
+            engine.drainAndClose()
+        }
     }
     @Test fun anUnwiredSupplierHoldsTheBoundaryUntilCharactersArrive() {
         // Startup catch-up runs before the gateway wires identities; it must not consume month 1.
