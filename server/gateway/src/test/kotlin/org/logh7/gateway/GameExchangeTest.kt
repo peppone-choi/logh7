@@ -270,6 +270,51 @@ class GameExchangeTest {
             game.close()
         }
     }
+    @Test fun battleDeathNoticeWaitsForTheClockAfterRelocationAndIsSentOnce() {
+        var now = java.time.Instant.EPOCH
+        val clock = object : java.time.Clock() {
+            override fun getZone() = java.time.ZoneOffset.UTC
+            override fun withZone(zone: java.time.ZoneId): java.time.Clock = this
+            override fun instant() = now
+        }
+        val registered = CharacterCreation(clock = clock, lotteryWindowMillis = 1)
+        val tickets = SessionTickets()
+        registered.apply("user", listOf(1001))
+        now = now.plusMillis(1)
+        val character = assertNotNull(registered.character("user"))
+        val player = org.logh7.engine.Navigator(1, character.id.toInt(), org.logh7.engine.Power.EMPIRE, 2487, 1000, 1000, 1000)
+        var current = player
+        var stocks = org.logh7.engine.PlanetStocks(1, 0, emptyMap())
+        val navigation = object : GameNavigation {
+            override fun snapshot() = org.logh7.engine.WorldSnapshot(0, 0, planetStocks = stocks)
+            override fun apply(request: org.logh7.engine.NavigationRequest) =
+                CompletableFuture.completedFuture(org.logh7.engine.NavigationResult(current))
+        }
+        val game = GameExchange(GameExchange.Role.SESSION, emptyMap(), tickets, "127.0.0.1", 47903,
+            Handshake(b, 2), registered, expectedGeneration = 1, connection = "owned", navigation = navigation)
+        game.accept(0x34, initial); game.accept(0x36, confirm)
+        val token = tickets.issue("user", SessionTickets.Purpose.GAME)
+        game.accept(0x30, encrypted(ByteBuffer.allocate(6).putShort(0x20).putInt(token.toInt()).array()))
+        game.accept(0x30, encrypted(hex("0200"), 2)); game.accept(0x30, encrypted(hex("0205"), 3))
+        fun request(op: String, sequence: Long): List<ByteArray> {
+            game.accept(0x30, encrypted(hex(op), sequence))
+            val packets = assertNotNull(game.takePendingWorld()).join()
+            assertNotNull(game.finishWorld(packets))
+            return packets
+        }
+        fun notices(packets: List<ByteArray>) = packets.filter { ByteBuffer.wrap(it).getShort(4).toInt() == 0x0f1d }
+        request("0f02", 4)
+        assertTrue(notices(request("0300", 5)).isEmpty())
+        current = player.copy(grid = 2488, baseId = 1000, mode = 4)
+        stocks = stocks.copy(strategic = org.logh7.engine.StrategicState(people =
+            mapOf(character.id.toInt() to org.logh7.engine.StrategicPerson(deceasedAt = 1))))
+        assertTrue(notices(request("0300", 6)).isEmpty())
+        val packet = notices(request("0300", 7)).single()
+        assertEquals("[전사] 재접속 후 생성", org.logh7.protocol.ChatMessages.spot(packet.drop(4).toByteArray()).text)
+        assertTrue(notices(request("0300", 8)).isEmpty())
+        game.close()
+    }
+
     @Test fun reinforcementAfterTacticalSnapshotCaptureRequestsAnotherInitializationButEarlierArrivalDoesNot() {
         for(late in listOf(false,true))for(peerRefresh in listOf(false,true)) {
             var now=java.time.Instant.EPOCH
