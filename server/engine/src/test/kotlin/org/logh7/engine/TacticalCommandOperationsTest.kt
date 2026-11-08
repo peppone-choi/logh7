@@ -189,6 +189,35 @@ class TacticalCommandOperationsTest {
         assertNotNull(TacticalCommandOperations.accept(command,session,galaxy,inside.navigation,inside.production,
             inside.production.snapshot(1)!!,inside.state.commit,1).player)
     }
+    @Test fun formationChangeCannotMoveAFollowerIntoTheStar() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
+        val s=state()
+        s.players=s.players.mapValues {(_,p)->p.copy(motion=motion(12.5f))}
+        fun place(stocks:PlanetStocks,leaderX:Float):PlanetStocks {
+            val fleet=stocks.outfits.getValue(1)
+            val ships=fleet.activeShips!!.values.map {u->
+                u.copy(tactical=u.tactical!!.copy(motion=motion(if(u.id==1)leaderX else 12.5f)))
+            }
+            return stocks.copy(outfits=stocks.outfits+(1 to fleet.copy(activeShips=ActiveShipUnits(ships))))
+        }
+        s.stocks=place(s.stocks,10.5f)
+        val nav=Navigation(world,s.nav,NavigationPolicy(),clockScale=1)
+        val production=PlanetProduction(world,s.stock,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+        fun accept()=TacticalCommandOperations.accept(request(TacticalCommand(0x40d,listOf(1,2),kind=0)),
+            session,world,nav,production,production.snapshot(1)!!,s.commit,1)
+        assertEquals(NavigationRejection.RANGE,accept().rejection)
+        val rejected=production.snapshot(1)!!
+        production.replace(rejected,place(rejected,12.5f))
+        assertNotNull(accept().player)
+        val queued=production.snapshot(1)!!
+        production.replace(queued,place(queued,10.5f))
+        TacticalCombat.settle(session.copy(gameMillis=(now+5)*1000),world,nav,production,s.commit,scale=1)
+        assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+        assertTrue(s.stocks.tacticalCommands.formationLeaders.isEmpty())
+        assertTrue(s.stocks.tacticalCommands.formations.isEmpty())
+        assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.tactical!!.motion.velocity==0f})
+    }
+
     @Test fun formationWaitsSavesAndMovesRealUnitsAfterReloadWithoutRepeatedOrders() {
         val r=run();assertNotNull(accept(r,TacticalCommand(0x40d,listOf(1,2),kind=6)).player)
         assertEquals(0f,r.state.stocks.outfits.getValue(1).activeShips!!.values[0].tactical!!.motion.origin.position.x)
