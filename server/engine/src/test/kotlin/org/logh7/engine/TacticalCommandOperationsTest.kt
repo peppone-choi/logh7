@@ -585,6 +585,30 @@ class TacticalCommandOperationsTest {
         }
     }
 
+    @Test fun fleetRetreatCancelsOrdersAfterAuthorityChangesBeforeOrAfterAdmission() {
+        for (admitted in listOf(false,true)) {
+            val s=state()
+            val pilot=s.players.getValue("pilot")
+            s.players=s.players+("pilot" to pilot.copy(motion=motion(260f)))
+            val fleet=s.stocks.outfits.getValue(1)
+            val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=admitted)
+            val ships=ActiveShipUnits(fleet.activeShips!!.values.map {
+                it.copy(motionCommander=pilot.characterId,
+                    tactical=NpcTacticalState(motion(260f,it.id*.4f),now,now,retreat=retreat))
+            })
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ships)),
+                tacticalCommands=s.stocks.tacticalCommands.copy(authority=mapOf(1 to 10001)))
+            val r=run(s)
+            settle(r,now+155)
+            val remaining=s.stocks.outfits.getValue(1)
+            assertEquals(fleet.position,remaining.position)
+            assertEquals(listOf(1),remaining.activeShips!!.values.map {it.id})
+            assertNull(remaining.activeShips.values.single().tactical!!.retreat)
+            val moved=s.stocks.outfits.values.single {it.activeShips?.values?.any {unit->unit.id==2}==true}
+            assertEquals(2489,moved.positionIn(galaxy).grid)
+        }
+    }
+
     @Test fun regularRetreatMovesOnlySelectedStableIdsAndLeavesLandedTroopsBehind() {
         val s=state();s.players=s.players.mapValues {(account,p)->if(account=="pilot")p.copy(motion=motion(260f)) else p}
         val o=s.stocks.outfits.getValue(1)
