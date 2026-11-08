@@ -126,6 +126,31 @@ class CountryTacticalCombatTest {
         assertEquals(capital.id,FlagshipRecovery.defeated(independent,now,field,claimed).baseId)
     }
 
+    @Test fun defeatAvoidsTheOnlyOwnedPlanetWhenItsSystemIsInCombat() {
+        val safeGrid = 2489
+        val hostileGrid = 2487
+        val field = Galaxy(galaxy.systems + listOf(GalaxySystem(4, safeGrid, 4, "Empty", 0),
+            GalaxySystem(5, hostileGrid, 4, "Hostile", 0)), galaxy.bases,
+            galaxy.starts, countryStarts = galaxy.countryStarts)
+        val inventory = stocks()
+        val people = players()
+        val hostile = people.getValue("enemy").copy(characterId = 10002, grid = hostileGrid, motion = null)
+        val audience = people.values + hostile
+        val planet = galaxy.bases.single().id
+        val pilot = people.getValue("pilot").copy(originBase = planet, returnBase = planet)
+        for (selection in listOf(planet, 0)) {
+            val returned = FlagshipRecovery.defeated(pilot.copy(returnBase = selection), now, field, inventory, audience)
+            assertEquals(safeGrid, returned.grid)
+            assertEquals(0, returned.baseId)
+            assertEquals(5, returned.mode)
+            assertEquals(planet, returned.originBase)
+            assertEquals(selection, returned.returnBase)
+            assertFalse(TacticalContact.active(field, returned, audience, inventory))
+        }
+        val noAlternative = FlagshipRecovery.defeated(pilot, now, galaxy, inventory, people.values)
+        assertEquals(planet, noAlternative.baseId)
+    }
+
     @Test fun breachedFortressSinksOnlyItsActualHoldersStationedUnits() {
         val fortress=galaxy.bases.single().copy(kind=1)
         val field=Galaxy(galaxy.systems,listOf(fortress),galaxy.starts)
