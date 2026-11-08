@@ -39,6 +39,10 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
         }
     }
 
+    fun occupationCommitted(base:Int) {
+        reservations.removeAll {it.base==base}
+    }
+
     fun blocksMovement(session:SessionState,outfit:Int,stocks:PlanetStocks?=null):Boolean {
         expireReservations(session,clock(),stocks)
         return reservations.any {it.request.mode==LogisticsMode.REORGANIZATION && it.request.outfitId==outfit}

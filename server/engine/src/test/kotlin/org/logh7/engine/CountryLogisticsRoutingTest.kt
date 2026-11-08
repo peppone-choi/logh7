@@ -128,6 +128,24 @@ class CountryLogisticsRoutingTest {
         }
     }
 
+    @Test fun committedOccupationInvalidatesTheReservationEvenAfterRecapture() {
+        val original=stock()
+        val production=production(original)
+        val logistics=OutfitLogistics({0},galaxy)
+        val state=session()
+        val reservation=assertNotNull(logistics.apply(request(),state,player(),production).reservation)
+        logistics.occupationCommitted(1050)
+        assertTrue(logistics.blocksMovement(state,1,original))
+        logistics.occupationCommitted(1049)
+
+        // After recapture the current stock looks like the initial state again.
+        assertFalse(logistics.blocksMovement(state,1,original))
+        assertFalse(logistics.blocksSupply(state,original,setOf(1)))
+        val commit=request().copy(phase=LogisticsPhase.COMMIT,reservation=reservation)
+        assertEquals(LogisticsRejection.PREPARATION,logistics.apply(commit,state,player(),production).rejection)
+        assertEquals(original.warehouses,production.snapshot(1)!!.warehouses)
+    }
+
     @Test fun pendingReservationsExpireOnCountryChangeAndCannotBeReusedByAnotherCharacter() {
         val production=production(stock());val logistics=OutfitLogistics({0},galaxy);val prepared=logistics.apply(request(),session(),player(),production)
         val reservation=assertNotNull(prepared.reservation)
