@@ -26,7 +26,9 @@ class OutfitDirectoryTest {
         assertEquals(100000,input.int);assertEquals(356000,input.int)
         assertEquals(100000,state.outfits.getValue(10).supplies)
         val overloaded=state.copy(outfits=state.outfits+(10 to state.outfits.getValue(10).copy(supplies=456001)))
-        assertFails { WorldBootstrap(galaxy).outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(10,1049,0),2,overloaded) }
+        val overloadedPacket=WorldBootstrap(galaxy).outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(10,1049,0),2,overloaded)
+        val overloadedInput=ByteBuffer.wrap(overloadedPacket);overloadedInput.position(overloadedPacket.size-17)
+        assertEquals(456001,overloadedInput.int);assertEquals(0,overloadedInput.int)
         assertEquals(456001,overloaded.outfits.getValue(10).supplies)
     }
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2563,4,"Other",2)),
