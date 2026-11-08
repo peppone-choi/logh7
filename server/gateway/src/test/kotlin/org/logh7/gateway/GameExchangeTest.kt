@@ -511,6 +511,13 @@ class GameExchangeTest {
                     game.accept(0x30,encrypted(hex("0f00"),6))
                     game.finishWorld(assertNotNull(game.takePendingWorld()).join())
                     assertNotNull(game.notifyWorld(queuedPresence),"Strategic initialization must resume normal presence updates")
+                    if(outcome=="same-grid-return") {
+                        player=player.copy(baseId=0,mode=5,cpPaused=true)
+                        game.accept(0x30,encrypted(hex("0f02"),7))
+                        assertNotNull(game.finishWorld(assertNotNull(game.takePendingWorld()).join()))
+                        assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))),
+                            "A queued exit must not close the reentered battlefield")
+                    }
                 } else {
                     assertEquals(1,position.getShort(6).toInt());assertEquals(player.unitId,position.getInt(8))
                     assertEquals(0f,position.getFloat(12));assertEquals(5f,position.getFloat(16))
