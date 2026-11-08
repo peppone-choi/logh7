@@ -47,6 +47,23 @@ class GroundBattleOperationsTest {
         val finished=advance(advance(ordered,0),2000)
         assertTrue(finished.tacticalCommands.groundTargets.isEmpty(),"the order ends once either troop is gone")
     }
+    @Test fun savedAttackTargetIsClearedWhenItLeavesTheBattlefieldOrChangesToTheSameCountry() {
+        val original=stocks().copy(tacticalCommands=TacticalCommandState(groundTargets=mapOf(1 to 2)))
+        val otherBase=base.copy(id=1001)
+        val battlefield=Galaxy(galaxy.systems,listOf(base,otherBase),galaxy.starts)
+        val enemy=original.outfits.getValue(2)
+        val moved=enemy.copy(activeGround=ActiveGroundUnits(enemy.activeGround!!.values.map {it.copy(base=1001)}))
+        val allied=enemy.copy(country=original.outfits.getValue(1).country)
+        for(changed in listOf(moved,allied)) {
+            val saved=original.copy(bases=original.bases+(1001 to original.bases.getValue(1000).copy(baseId=1001)),
+                outfits=original.outfits+(2 to changed),warehouses=original.warehouses+
+                    (changed.warehouseId to original.warehouses.getValue(changed.warehouseId).copy(country=changed.country)))
+            val result=GroundBattleOperations.advance(session,battlefield,emptyMap(),saved,1,mutableListOf())
+            assertTrue(result.tacticalCommands.groundTargets.isEmpty())
+            assertEquals(saved.outfits,result.outfits)
+        }
+    }
+
     @Test fun lossesLowerMoraleAndAUnitAtZeroSurrendersBeforeItsStrengthRunsOut() {
         val first=advance(advance(stocks(),0),5)
         // 20% of strength lost at discipline 50 costs 20 morale (ship rule on the lost share, evidence:guess).
