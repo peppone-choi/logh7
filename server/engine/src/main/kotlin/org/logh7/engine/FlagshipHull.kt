@@ -21,13 +21,6 @@ data class FlagshipHull(val kind: Int, val at: Long, val hp: Int = 100, val woun
 }
 
 internal object FlagshipRecovery {
-    fun ownsReturnBase(player:Navigator,owner:Allegiance,camp:Int,playerCamp:Int):Boolean =
-        camp==playerCamp && when(owner) {
-            is Allegiance.Country -> player.country==owner.id
-            is Allegiance.Independent -> player.country==null && player.characterId==owner.characterId
-            else -> false
-        }
-
     /** Manual: return planet, injury, destroyer replacement (REVIEW05). Fallback and 24G-hour delay are design. */
     fun defeated(player:Navigator,seconds:Long,galaxy:Galaxy,stocks:PlanetStocks,
         players:Collection<Navigator> = emptyList()):Navigator {
@@ -38,7 +31,7 @@ internal object FlagshipRecovery {
             val stock=stocks.bases[base.id]
             val initial=galaxy.conditions.getValue(base.id)
             val owner=stock?.owner ?: galaxy.initialOwners.getValue(base.id)
-            initial.habitability==1 && ownsReturnBase(player,owner,stock?.camp ?: initial.camp,playerCamp)
+            initial.habitability==1 && TacticalAuthority.ownsBase(player,owner,stock?.camp ?: initial.camp,playerCamp)
         }
         // Manual P04: a return system that is in tactics sends the flagship to another system.
         val forces=GridForces.collect(galaxy,stocks.generation,
