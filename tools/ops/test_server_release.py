@@ -175,22 +175,25 @@ class ServerReleaseTest(unittest.TestCase):
         self.assertIn("LOGH7-STOCK-46", str(refused.exception))
         self.assertEqual("diplomacy", (self.releases / "CURRENT").read_text().strip())
 
-    def test_country_suppression_header_rejects_a_release_with_only_country_diplomacy(self):
+    def test_country_suppression_and_independent_owner_require_matching_readers(self):
         import zipfile
         reader = "org/logh7/persistence/FilePlanetStockStore.class"
-        for name, header in (("diplomacy", "LOGH7-STOCK-46"), ("suppression", "LOGH7-STOCK-47")):
+        releases = (("diplomacy", "LOGH7-STOCK-46"), ("suppression", "LOGH7-STOCK-47"),
+                    ("independent", "LOGH7-STOCK-48"))
+        for name, header in releases:
             data = header.encode()
             with zipfile.ZipFile(self.build / "lib" / "persistence.jar", "w") as jar:
                 jar.writestr(reader, b"\x01" + len(data).to_bytes(2, "big") + data)
             self.tool("install", str(self.build), "--releases", str(self.releases), "--name", name)
         characters = Path(self.temp.name) / "characters.properties"
         stocks = characters.with_name(characters.name + ".planet-stocks")
-        stocks.write_text("LOGH7-STOCK-47\t7\t0\n", encoding="utf-8")
-        self.tool("activate", "suppression", "--releases", str(self.releases), "--characters", str(characters))
-        with self.assertRaises(SystemExit) as refused:
-            self.tool("activate", "diplomacy", "--releases", str(self.releases), "--characters", str(characters))
-        self.assertIn("LOGH7-STOCK-47", str(refused.exception))
-        self.assertEqual("suppression", (self.releases / "CURRENT").read_text().strip())
+        for (previous, _), (current, header) in zip(releases, releases[1:]):
+            stocks.write_text(f"{header}\t7\t0\n", encoding="utf-8")
+            self.tool("activate", current, "--releases", str(self.releases), "--characters", str(characters))
+            with self.assertRaises(SystemExit) as refused:
+                self.tool("activate", previous, "--releases", str(self.releases), "--characters", str(characters))
+            self.assertIn(header, str(refused.exception))
+            self.assertEqual(current, (self.releases / "CURRENT").read_text().strip())
 
     def test_definitions_database_needs_the_postgres_reader(self):
         import os

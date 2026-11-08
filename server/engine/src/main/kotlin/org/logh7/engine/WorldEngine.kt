@@ -543,11 +543,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     check(!storageFailed) {"World storage is unavailable"}
                     val request=command.request
                     val session=durableState?.session ?: simulation.exportState()
-                    val recovered=if(request.repairPreview)null else recoverNavigation(NavigationRequest(request.account,request.characterId,request.country,
+                    val useSnapshot=request.repairPreview || request.command==IndependentBaseClaim.COMMAND
+                    val recovered=if(useSnapshot)null else recoverNavigation(NavigationRequest(request.account,request.characterId,request.country,
                         request.connection,request.generation,politics=request.politics,administration=request.administration),session)
                     val inventory=checkNotNull(production).settle(session)
                     val players=checkNotNull(navigation).snapshot(session.generation)
-                    val player=if(request.repairPreview)players[request.account] else recovered?.player
+                    val player=if(useSnapshot)players[request.account] else recovered?.player
                     var result=StrategyActions.evaluate(checkNotNull(galaxy),request.copy(
                         navigators=players),session,player,inventory)
                     val civicReadOrCancel=request.command in CivicActions.supported && request.value!=0
@@ -557,7 +558,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         logistics.blocksSupply(session,inventory,setOf(request.base)))
                         result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.BUSY)
                     if(result.changed) {
-                        if(worldStateCommitter==null)result=StrategyActionResult(recovered?.player,inventory,StrategyActionRejection.STORAGE)
+                        if(worldStateCommitter==null)result=StrategyActionResult(player,inventory,StrategyActionRejection.STORAGE)
                         else {
                             val after=checkNotNull(result.player)
                             val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
@@ -576,7 +577,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     publish(state);command.result.complete(result.copy(recovery=recovered))
                 } catch(failure:Exception) {
                     if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}
-                    command.result.completeExceptionally(failure)
+                    if(failure is java.io.IOException && command.request.command==IndependentBaseClaim.COMMAND)
+                        command.result.complete(StrategyActionResult(null,null,StrategyActionRejection.STORAGE))
+                    else command.result.completeExceptionally(failure)
                 }
                 continue
             }

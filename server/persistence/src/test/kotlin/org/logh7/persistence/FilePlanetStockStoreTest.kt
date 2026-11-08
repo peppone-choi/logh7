@@ -8,6 +8,21 @@ import kotlin.test.*
 
 class FilePlanetStockStoreTest {
     @TempDir lateinit var directory: Path
+    @Test fun independentOwnershipIsVersionedAndCanonical() {
+        val path=directory.resolve("independent")
+        val stock=PlanetStock(2000,Allegiance.Independent(10000),0,100,100,100)
+        val expected=PlanetStocks(1,0,mapOf(stock.baseId to stock))
+        FilePlanetStockStore(path).use {it.save(expected)}
+        val serialized=Files.readString(path)
+        assertTrue(serialized.startsWith("LOGH7-STOCK-48\t"))
+        assertTrue("\tI:10000\t" in serialized)
+        FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+        for(invalid in listOf(serialized.replace("LOGH7-STOCK-48","LOGH7-STOCK-47"),
+            serialized.replace("I:10000","I:010000"),serialized.replace("I:10000","I:0"))) {
+            Files.writeString(path,invalid)
+            FilePlanetStockStore(path).use {assertFailsWith<IllegalArgumentException> {it.load()}}
+        }
+    }
     @Test fun weaponReloadSurvivesIdleAttackAndPendingShotAndRejectsInvalidDeadlines() {
         val path=directory.resolve("reload")
         val point=TacticalPoint(0f,0f)

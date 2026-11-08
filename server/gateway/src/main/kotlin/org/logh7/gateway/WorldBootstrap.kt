@@ -32,17 +32,19 @@ class WorldBootstrap(val galaxy: Galaxy,
         return (configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog) to (if(configuredCountryCatalog==null)snapshot?.revision ?: 0 else 0)
     }
     internal fun publishedCountryAppearances():List<org.logh7.engine.CountryAppearance> = countryAppearances
-    /** The viewer's actual country; the reply header carries only its display code (no membership, no reply). */
-    private fun viewerDisplay(countryId:Int)=countryCatalog.nativePower(org.logh7.engine.Allegiance.Country(org.logh7.engine.CountryId(countryId)))
-    fun countryColors(query:OutfitPartyMessages.Query,countryId:Int):ByteArray {
-        val viewerPower=viewerDisplay(countryId)
+    /** Public replies use the native presentation byte without granting country membership. */
+    private fun viewerDisplay(countryId:Int?,nativePower:Int)=countryId?.let {
+        countryCatalog.nativePower(org.logh7.engine.Allegiance.Country(org.logh7.engine.CountryId(it)))
+    } ?: nativePower
+    fun countryColors(query:OutfitPartyMessages.Query,countryId:Int?,nativePower:Int=0):ByteArray {
+        val viewerPower=viewerDisplay(countryId,nativePower)
         val appearance=countryAppearances.firstOrNull {it.countryId==query.outfit}
         val colors=appearance?.colors ?: org.logh7.engine.CountryColors()
         val fields=listOf(colors.primary,colors.secondary,colors.map,colors.fleet).map {org.logh7.engine.CountryColors.hex(it).removePrefix("#")}
         return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.CountryColorMessages.reply(query,viewerPower,fields,appearance?.revision ?: 0))
     }
-    fun countryMetadata(query:OutfitPartyMessages.Query,countryId:Int):ByteArray {
-        val viewerPower=viewerDisplay(countryId)
+    fun countryMetadata(query:OutfitPartyMessages.Query,countryId:Int?,nativePower:Int=0):ByteArray {
+        val viewerPower=viewerDisplay(countryId,nativePower)
         val snapshot=org.logh7.engine.CountryCatalogLoader.snapshot()
         val catalog=configuredCountryCatalog ?: snapshot?.catalog ?: countryCatalog
         val country=catalog.countries[query.outfit];val calendar=catalog.calendar(query.outfit)
@@ -129,8 +131,8 @@ class WorldBootstrap(val galaxy: Galaxy,
         if(ids.isEmpty())listOf("직접 연결된 직무 명령 없음. 개인·부대 명령은 해당 직무 카드에서 확인하세요.")
         else ids.map(FacilityCommandNames::name)
     }
-    fun facilityGuide(query:OutfitPartyMessages.Query,countryId:Int,stocks:org.logh7.engine.PlanetStocks):ByteArray {
-        val viewerPower=viewerDisplay(countryId)
+    fun facilityGuide(query:OutfitPartyMessages.Query,countryId:Int?,stocks:org.logh7.engine.PlanetStocks,nativePower:Int=0):ByteArray {
+        val viewerPower=viewerDisplay(countryId,nativePower)
         val base=query.outfit/100
         val snapshot=facilityDefinitions()
         if(base !in stocks.bases || galaxy.facilitiesAt(base,stocks,countryCatalog).none {it.id==query.outfit})
@@ -246,13 +248,13 @@ class WorldBootstrap(val galaxy: Galaxy,
     /** Reconstructed ground battle window (design-ground-battle-window.md), query mode 3: both sides' landed troops on
      * one base as 0331 rows. Kind 1000+k selects the artwork, while the extension's loyalty byte identifies
      * friendly/foreign troops. Only a viewer in tactics on that grid may read it. */
-    fun outfitBattle(query:OutfitPartyMessages.Query,countryId:Int,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?,
+    fun outfitBattle(query:OutfitPartyMessages.Query,countryId:Int?,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?,nativePower:Int=0,
         characterCountryById:(Int)->org.logh7.engine.CountryId? = {null},
         characterById:(Int)->org.logh7.protocol.CharacterMessages.Generate? = {null}):List<ByteArray> {
         require(query.mode==3 && query.outfit==0)
-        val country=org.logh7.engine.CountryId(countryId)
+        val country=countryId?.let {org.logh7.engine.CountryId(it)}
         val countries=countryCatalog
-        val power=countries.nativePower(org.logh7.engine.Allegiance.Country(country))
+        val power=viewerDisplay(countryId,nativePower)
         val registered=countries.countries.keys
         val base=galaxy.bases.singleOrNull {it.id==query.base}
         val fighting=base?.let {org.logh7.engine.GroundBattleView.fighting(stocks,it)}.orEmpty()

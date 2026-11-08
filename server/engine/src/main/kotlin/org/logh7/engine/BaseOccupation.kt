@@ -9,7 +9,8 @@ internal object BaseOccupationOperations {
     fun victor(stocks:PlanetStocks,base:GalaxyBase):CountryId? {
         val owner=stocks.bases.getValue(base.id)
         // U-07 (CD manual p.39): armed occupation of neutral Fezzan ends its neutrality; it becomes the occupier's planet.
-        if(owner.camp!=0 || owner.country==null && !(owner.owner==Allegiance.Neutral && base.name==TradeActions.FEZZAN_NAME))return null
+        if(owner.camp!=0 || owner.country==null && owner.owner !is Allegiance.Independent &&
+            !(owner.owner==Allegiance.Neutral && base.name==TradeActions.FEZZAN_NAME))return null
         if(owner.country?.let {GroundBattleOperations.participants(stocks,base,it).isNotEmpty()}==true)return null
         return GroundBattleOperations.countries(stocks).filter {it!=owner.country &&
             GroundBattleOperations.participants(stocks,base,it).isNotEmpty()}.singleOrNull()
@@ -90,7 +91,12 @@ internal object BaseOccupationOperations {
             val expelled=linkedMapOf<String,Navigator>()
             var offset=0
             for((account,p) in players.toMap()) {
-                if(p.generation!=session.generation || p.country==null || p.country!=loser)continue
+                val displaced=when(val owner=previous.owner) {
+                    is Allegiance.Independent -> p.country==null && p.characterId==owner.characterId
+                    is Allegiance.Country -> p.country==owner.id
+                    else -> false
+                }
+                if(p.generation!=session.generation || !displaced)continue
                 var next=p
                 if(p.returnBase==base.id)next=next.copy(returnBase=0)
                 if(p.baseId==base.id && p.grid==base.grid) {
