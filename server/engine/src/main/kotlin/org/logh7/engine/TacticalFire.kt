@@ -81,6 +81,7 @@ internal object TacticalCombat {
         val player = preview.player ?: return preview
         fun reject(reason: NavigationRejection) = NavigationResult(null, player, reason)
         if (committer == null) return reject(NavigationRejection.DISABLED)
+        if (BattleDeath.deceased(stocks, player.characterId)) return reject(NavigationRejection.IDENTITY)
         if (!player.cpPaused || player.baseId != 0 || player.mode != 5) return reject(NavigationRejection.TACTICAL)
         val shoot = checkNotNull(request.tacticalShoot)
         if (shoot.units != listOf(player.unitId)) return reject(NavigationRejection.UNIT)
@@ -114,6 +115,7 @@ internal object TacticalCombat {
         val player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         val command=checkNotNull(request.tacticalAttack)
         if(command.units!=listOf(player.unitId) || player.hull?.kind!=request.shipKind)return reject(NavigationRejection.UNIT)
@@ -241,6 +243,10 @@ internal object TacticalCombat {
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
         val stocks = checkNotNull(production.snapshot(session.generation))
+        for((account,player) in original) {
+            if((player.attack!=null || player.fire?.pending!=null) && BattleDeath.deceased(stocks,player.characterId))
+                players[account]=player.copy(attack=null,fire=player.fire?.copy(pending=null))
+        }
         clearFinishedOrders(players,galaxy,stocks,now)
         val movements=mutableListOf<TacticalMovement>()
         val strategicMovements=mutableListOf<NpcStrategicMovement>()
@@ -250,7 +256,7 @@ internal object TacticalCombat {
         inventory=TacticalPersonnel.credit(inventory)
         if(session.ended==null)inventory=TacticalOfflineAi.advance(session,galaxy,players,inventory,scale,commands)
         data class Due(val account:String,val shot:TacticalPendingFire,val automatic:Boolean=false)
-        val due=original.mapNotNull { (account,p)->p.fire?.pending?.takeIf {it.firesAt<=now}?.let {Due(account,it)} }.toMutableList()
+        val due=players.mapNotNull { (account,p)->p.fire?.pending?.takeIf {it.firesAt<=now}?.let {Due(account,it)} }.toMutableList()
         if(session.ended==null) for((account,p) in players.toMap()) {
             val order=p.attack ?: continue
             if(order.nextAt>now || p.hull==null || p.fire?.pending!=null ||
