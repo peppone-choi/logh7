@@ -494,11 +494,11 @@ internal object TacticalCommandOperations {
                         stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true)
                         reward=checks else completed=true
                     2 -> if(stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true){reward=10;completed=true}
-                    3 -> if(impacts.any {impact->impact.hit.target==m.target &&
+                    3 -> if(impacts.lastOrNull {it.hit.target==m.target}?.let {impact->impact.hit.destroyed>0 &&
                             (impact.departed!=null || ship(m.target,stocks)?.unit?.boats==0 ||
                                 impact.pirateSunk) &&
                             (impact.source==p.unitId || ship(impact.source,stocks)?.let {
-                                TacticalAuthority.commander(it.outfit,it.unit,stocks)==id}==true)}) {
+                                TacticalAuthority.commander(it.outfit,it.unit,stocks)==id}==true)}==true) {
                         reward=TacticalMissionRules.interceptionMerit(10,true);completed=true
                     }
                     4 -> {
