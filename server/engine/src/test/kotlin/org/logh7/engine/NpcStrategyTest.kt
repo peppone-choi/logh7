@@ -139,16 +139,28 @@ class NpcStrategyTest {
 
     @Test fun strandedFleetCanDockAndReloadWithoutAnotherJumpAndCannotUseAnOccupiedDepot() {
         val events=mutableListOf<NpcStrategicMovement>()
-        val stranded=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2487))})}
+        val original=stocks()
+        val fleet=original.outfits.getValue(1)
+        val point=TacticalPoint(2f,20f)
+        val motion=TacticalMotion(2487,0,TacticalPose(point,0f),0f,0f,listOf(point))
+        val ship=fleet.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion,0,0),
+            posture=TacticalPosture(2487,TacticalShipMode.ANCHORED,1000))
+        val stranded=original.copy(outfits=mapOf(1 to fleet.copy(position=OutfitPosition(2487),
+            activeShips=ActiveShipUnits(listOf(ship)))))
         val docked=advance(0,stranded,mutableMapOf(),events)
         assertEquals(OutfitPosition(2487,1000),docked.outfits.getValue(1).position)
         assertEquals(3000,docked.outfits.getValue(1).supplies)
         assertEquals(97000,docked.bases.getValue(1000).supplies)
+        val dockedShip=docked.outfits.getValue(1).activeShips!!.values.single()
+        assertNull(dockedShip.posture)
+        assertNull(dockedShip.tactical)
+        assertEquals(docked,advance(0,docked.copy(),mutableMapOf(),events))
         assertTrue(events.isEmpty())
         val occupied=advance(0,stranded,players().also {it["pilot"]=it.getValue("pilot").copy(grid=2487)},events)
         assertEquals(OutfitPosition(2487),occupied.outfits.getValue(1).position)
         assertEquals(0,occupied.outfits.getValue(1).supplies)
         assertEquals(stranded.bases,occupied.bases)
+        assertEquals(ship,occupied.outfits.getValue(1).activeShips!!.values.single())
     }
     @Test fun appointedCommanderOrCapturedDepotCancelsWithoutChargingOrMoving() {
         for(appointed in listOf(true,false)) {
