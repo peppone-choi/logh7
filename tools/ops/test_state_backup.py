@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import state_backup  # noqa: E402
@@ -71,12 +72,15 @@ class StateBackupTest(unittest.TestCase):
             self.run_tool("export", str(self.archive), "--dest", str(remote))
         root = self.archive.parent / "daily"
         root.mkdir()
-        for name in ("a", "b", "c"):
-            self.run_tool("backup", "--characters", str(self.characters), "--world", str(self.world),
-                          "--session", str(self.session), "--out", str(root / name))
+        # Cross a second boundary and give the oldest archive the highest name.
+        for name, instant in (("c", 1_700_000_000_999_999_999), ("b", 1_700_000_001_000_000_000),
+                              ("a", 1_700_000_001_000_000_001)):
+            with patch.object(state_backup.time, "time_ns", return_value=instant):
+                self.run_tool("backup", "--characters", str(self.characters), "--world", str(self.world),
+                              "--session", str(self.session), "--out", str(root / name))
         (root / "unrelated").mkdir()
         self.run_tool("prune", str(root), "--keep", "2")
-        self.assertEqual(["b", "c", "unrelated"], sorted(p.name for p in root.iterdir()))
+        self.assertEqual(["a", "b", "unrelated"], sorted(p.name for p in root.iterdir()))
 
     def test_restore_to_a_clean_instance_rebinds_the_owner_and_leaves_the_original_alone(self):
         self.take()
