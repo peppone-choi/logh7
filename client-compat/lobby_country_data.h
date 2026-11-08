@@ -15,6 +15,7 @@ struct LobbyCountry {
 struct LobbyCountryPage {
     unsigned session=0,total=0,offset=0,count=0,seconds=0,totalBases=0;
     std::uint64_t revision=0,generation=0;
+    bool unaffiliatedCreation=false;
     LobbyCountry rows[lobbyCountryRows]={};
 };
 inline bool lobbyCountryNumber(const wchar_t* text,std::uint64_t maximum,std::uint64_t& value) {
@@ -46,7 +47,7 @@ struct LobbyCountrySelection {
     bool pending=false,complete=false,accepted=false;
     bool begin(unsigned target,unsigned id,unsigned purpose,unsigned token) {
         if(!target || target>65535 || purpose<8 || purpose>10 || !token || token>32767 ||
-            (purpose==10 ? id!=0 : !id || id>0x7fffffff))return false;
+            (purpose==10 ? id!=0 : (purpose==9 && !id) || id>0x7fffffff))return false;
         *this={};session=target;country=id;mode=purpose;nonce=token;pending=true;return true;
     }
     unsigned queryBase() const {return nonce*65536+session;}
@@ -86,7 +87,8 @@ struct LobbyCountryDraft {
                 !lobbyCountryNumber(fields[6],0xffffffffULL,seconds) ||
                 !lobbyCountryRevision(fields[7],fields[8],candidate.generation) ||
                 !lobbyCountryNumber(fields[9],65535,bases))return 0;
-            if(!candidate.generation && (total || count || candidate.revision || seconds || bases))return 0;
+            candidate.unaffiliatedCreation=(p[10]&1)!=0;
+            if(!candidate.generation && (total || count || candidate.revision || seconds || bases || candidate.unaffiliatedCreation))return 0;
             candidate.total=static_cast<unsigned>(total);candidate.offset=static_cast<unsigned>(offset);
             candidate.count=static_cast<unsigned>(count);candidate.seconds=static_cast<unsigned>(seconds);
             candidate.totalBases=static_cast<unsigned>(bases);page=candidate;header=true;

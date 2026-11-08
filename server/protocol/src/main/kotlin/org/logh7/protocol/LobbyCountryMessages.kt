@@ -36,10 +36,11 @@ object LobbyCountryMessages {
     fun request(query:OutfitPartyMessages.Query):Request=Request(query)
 
     data class Header(val total:Int,val offset:Int,val rows:Int,val revision:Long,val gameSeconds:Long,
-        val generation:Long,val totalRegularBases:Int) {
+        val generation:Long,val totalRegularBases:Int,val unaffiliatedCreation:Boolean=false) {
         init {
             require(total in 0..MAX_OFFSET && offset in 0..MAX_OFFSET && rows in 0..PAGE && rows<=maxOf(0,total-offset))
-            require(revision>=0 && gameSeconds>=0 && generation>=0 && totalRegularBases in 0..65535)
+            require(revision>=0 && gameSeconds>=0 && generation>=0 && totalRegularBases in 0..65535 &&
+                (!unaffiliatedCreation || generation>0))
         }
     }
     data class Row(val countryId:Int,val name:String,val primary:Int?,val registeredCharacters:Int,val regularBases:Int,
@@ -60,6 +61,7 @@ object LobbyCountryMessages {
         val revision=header.revision.toString();val generation=header.generation.toString()
         return frame(request,0,0,listOf("NC1",header.total.toString(),header.offset.toString(),header.rows.toString(),
             revision.take(12),revision.drop(12),header.gameSeconds.toString(),generation.take(12),generation.drop(12),header.totalRegularBases.toString()))
+            .also { if(header.unaffiliatedCreation)it[10]=1 }
     }
     fun row(request:Request,index:Int,row:Row):ByteArray {
         require(index in 0 until PAGE)

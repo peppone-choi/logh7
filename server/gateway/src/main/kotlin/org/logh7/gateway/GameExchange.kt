@@ -92,8 +92,15 @@ class GameExchange(
     private var countrySelection:CharacterCreation.CountrySelection?=null
     private var countrySelectionMode=0
     private fun selectedCountry():CharacterCreation.CountrySelection?=countrySelection?.also {selection->
-        val catalog=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
-        require(catalog.countries[selection.country.value]?.nativePower==selection.nativePower) {"Selected country changed"}
+        val country=selection.country
+        if(country==null) {
+            require(world?.galaxy?.unaffiliatedStart?.shipStyle==selection.shipStyle && admission?.running!=false) {
+                "Unaffiliated creation is unavailable"
+            }
+        } else {
+            val catalog=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
+            require(catalog.countries[country.value]?.nativePower==selection.nativePower) {"Selected country changed"}
+        }
     }
     private val generation = expectedGeneration
     private var joining = false
@@ -380,9 +387,9 @@ class GameExchange(
                 startupNotice.isEmpty() && offlineNotice.isEmpty() && groundResult.isEmpty() && result.warpCancellation == null) {
                 when {
                     player.mode == 4 && player.baseId != 0 -> NavigationGuide.FACILITY
-                    player.mode == 5 && player.moves == 1L -> NavigationGuide.DOCK
+                    player.mode == 5 && player.moves == 1L && player.country!=null -> NavigationGuide.DOCK
                     player.mode == 5 && player.moves == 0L &&
-                        player.country?.let { world?.galaxy?.countryStarts?.get(it) } == player.grid -> NavigationGuide.WARP
+                        world?.galaxy?.startFor(player.country) == player.grid -> NavigationGuide.WARP
                     else -> null
                 }?.takeIf { it.ordinal > (lastNavigationGuide?.ordinal ?: -1) && world != null &&
                     org.logh7.engine.TacticalAuthority.captainCard(player, world.lobbyCountryDefinitions().first) != null }
@@ -390,7 +397,8 @@ class GameExchange(
             // The original strategy HUD clears chat on relocation and keeps only the latest line visible.
             val navigationGuide = guide?.let {
                 lastNavigationGuide = it
-                listOf(ChatMessages.spot(ChatMessages.Spot(player.characterId, it.text), gameSeconds()))
+                val text=if(player.country==null && it==NavigationGuide.WARP)"무소속 · ${it.text}" else it.text
+                listOf(ChatMessages.spot(ChatMessages.Spot(player.characterId, text), gameSeconds()))
             }.orEmpty()
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
@@ -1224,7 +1232,11 @@ class GameExchange(
                                     countrySelection=null;countrySelectionMode=0;accepted=true
                                 } else if(characters.character(identity.account)==null) {
                                     val catalog=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
-                                    selected=LobbyCountryCatalogue.selection(request.countryId,catalog,
+                                    selected=if(request.countryId==0)
+                                        world?.galaxy?.unaffiliatedStart?.takeIf {admission?.running!=false}?.shipStyle?.let {
+                                            CharacterCreation.CountrySelection(null,it.nativePower,it)
+                                        }
+                                    else LobbyCountryCatalogue.selection(request.countryId,catalog,
                                         (world?.galaxy?.countryStarts?.keys ?: setOf(org.logh7.engine.CountryId(2),org.logh7.engine.CountryId(3)))-
                                             navigation?.snapshot()?.session?.eliminated.orEmpty().keys)
                                     val entries=characters.entries(identity.account)
@@ -2466,7 +2478,11 @@ class GameExchange(
                         refuseGameAdmissionForMaintenance()?.let { return it }
                         val character = checkNotNull(currentCharacter(identity.account))
                         val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)
-                        if(!profile.canEnterNativeCountry(world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current())) {
+                        val canEnter=if(profile.country==null)
+                            world?.galaxy?.unaffiliatedStart!=null && profile.character.generated &&
+                                profile.shipStyle.value in setOf("empire","alliance") && profile.shipStyle.nativePower==character.power
+                        else profile.canEnterNativeCountry(world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current())
+                        if(!canEnter) {
                             state=State.REJECTED
                             return handshake.stageAll(listOf(LoginMessages.sessionRejection()),clearHeader=0)
                         }

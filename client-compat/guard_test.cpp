@@ -828,7 +828,8 @@ static int lobbyCountryDataTest() {
     sessions[1]=65;if(logh::readLobbySessionList(sessions,sizeof(sessions),list))return 1013;
     logh::LobbyCountrySelection choice;
     if(!choice.begin(65535,0x7fffffff,8,32767) || choice.queryBase()!=0x7fffffff ||
-        choice.begin(0,42,8,1) || choice.begin(1,42,8,0) || choice.begin(1,0,8,1) || choice.begin(1,42,10,1))return 1015;
+        choice.begin(0,42,8,1) || choice.begin(1,42,8,0) || choice.begin(1,0,9,1) || choice.begin(1,42,10,1))return 1015;
+    if(!logh::LobbyCountrySelection{}.begin(1,0,8,1))return 1015;
     const wchar_t* ack[]={L"NS1",L"1",L"3",L"empire",L"",L"",L"",L"",L"",L""};
     auto selectionPacket=[&]() {
         packet(0,0,ack);*reinterpret_cast<unsigned*>(record)=0x7fffffff;

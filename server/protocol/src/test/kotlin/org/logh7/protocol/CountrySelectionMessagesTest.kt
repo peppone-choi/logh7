@@ -27,7 +27,9 @@ class CountrySelectionMessagesTest {
         assertTrue(CountrySelectionMessages.reply(choose,false).isNotEmpty())
         assertFails {CountrySelectionMessages.reply(choose,true,42,"alliance")}
         assertFails {CountrySelectionMessages.reply(cancel,true,2,"empire")}
-        for(bytes in listOf(query(0),query(session=0),query(nonce=0),query(mode=7),query(mode=10)))
+        val unaffiliated=CountrySelectionMessages.request(OutfitPartyMessages.query(query(0)))
+        assertTrue(CountrySelectionMessages.reply(unaffiliated,true,2,"empire").isNotEmpty())
+        for(bytes in listOf(query(0,mode=9),query(session=0),query(nonce=0),query(mode=7),query(mode=10)))
             assertFails {CountrySelectionMessages.request(OutfitPartyMessages.query(bytes))}
         assertFails {OutfitPartyMessages.query(query(mode=4))}
     }
