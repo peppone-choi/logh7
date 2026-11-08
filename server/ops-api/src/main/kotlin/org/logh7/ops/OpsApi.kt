@@ -81,7 +81,8 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
     facilityDefinitions:FacilityDefinitionStore?=null,publishedFacilities:PublishedFacilityDefinitions?=null,
     facilityCommands:FacilityCommandCatalog=FacilityCommandCatalog.UNCONNECTED,countryImages:CountryImageStore?=null,
     playerConnections: PlayerConnectionAdmin? = null,
-    npcDialogueStore:NpcFleetDialogueStore?=null,publishedNpcDialogue:PublishedNpcFleetDialogue=PublishedNpcFleetDialogue()): AutoCloseable {
+    npcDialogueStore:NpcFleetDialogueStore?=null,publishedNpcDialogue:PublishedNpcFleetDialogue=PublishedNpcFleetDialogue(),
+    originalCandidateStore:OriginalCandidateStore?=null,originalCandidates:PublishedOriginalCandidates=PublishedOriginalCandidates()): AutoCloseable {
     require(token == null || token.length >= 16) { "ops token must be at least 16 characters" }
     // A collector in another container needs a non-loopback bind; that is only allowed behind the token.
     require(token != null || users != null || java.net.InetAddress.getByName(host).isLoopbackAddress) {
@@ -108,6 +109,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             countryImageRoutes(countryImages,countryDefinitions,port,audit)
             facilityDefinitionRoutes(facilityDefinitions,publishedFacilities,galaxy,facilityCommands,port,audit)
             npcFleetDialogueRoutes(snapshots,npcDialogueStore,publishedNpcDialogue,port,audit,token!=null || users!=null)
+            originalCandidateRoutes(originalCandidateStore,originalCandidates,port,audit,token!=null || users!=null)
             progressRoutes(checklist,"/admin/progress","/admin/progress/data")
             get("/health") {
                 when (snapshots.health()) {
@@ -405,7 +407,7 @@ internal fun opsAdminPage(health: EngineHealth, snapshot: WorldSnapshot, account
     append("<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\">")
     append("<title>LOGH7 운영</title><style>body{font-family:sans-serif;margin:16px}table{border-collapse:collapse;margin-bottom:16px}")
     append("td,th{border:1px solid #999;padding:2px 8px;text-align:left}</style></head><body><h1>LOGH7 운영 상태</h1>")
-    append("<nav><a href=\"/admin/progress\">작업 현황</a> · <a href=\"/admin/world\">세계 편집</a> · <a href=\"/admin/countries/definitions\">국가 정의</a> · <a href=\"/admin/countries\">국가 색상</a> · <a href=\"/admin/images\">이미지 관리</a> · <a href=\"/admin/text/\">문구 편집</a> · <a href=\"/admin/npc-dialogue\">NPC 교신</a></nav><table><tbody>")
+    append("<nav><a href=\"/admin/progress\">작업 현황</a> · <a href=\"/admin/world\">세계 편집</a> · <a href=\"/admin/countries/definitions\">국가 정의</a> · <a href=\"/admin/countries\">국가 색상</a> · <a href=\"/admin/images\">이미지 관리</a> · <a href=\"/admin/text/\">문구 편집</a> · <a href=\"/admin/npc-dialogue\">NPC 교신</a> · <a href=\"/admin/original-candidates\">원작 인물 추첨</a></nav><table><tbody>")
     row("엔진", health.name)
     row("월드 리비전", snapshot.revision)
     row("명령 접수/거부", "${snapshot.acceptedCommands} / ${snapshot.rejectedCommands}")
