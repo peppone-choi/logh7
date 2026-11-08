@@ -65,7 +65,7 @@ class GamePresenceBattlefieldTest {
             hub.combat(impact, snapshot.copy(navigators = mapOf("pilot" to current)))
             assertTrue(received.isEmpty())
         }
-        hub.combat(impact, snapshot.copy(navigators = mapOf("pilot" to player)))
+        hub.combat(impact, snapshot.copy(navigators = mapOf("pilot" to player.copy(cpPaused = false))))
         assertEquals(listOf(0x0426), received.flatten().map(::opcode))
     }
 
