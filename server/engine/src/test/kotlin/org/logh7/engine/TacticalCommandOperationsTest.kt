@@ -175,6 +175,26 @@ class TacticalCommandOperationsTest {
         val hits=mutableListOf<TacticalImpact>();settle(r,now+5,impacts=hits)
         assertEquals(90,s.stocks.outfits.getValue(1).supplies);assertTrue(hits.single().airBattle)
     }
+    @Test fun deployedWingStopsAfterCommanderDeathAndRestoresTargetSpeedOnReload() {
+        val s=state();val foe=s.stocks.outfits.getValue(2)
+        val target=foe.activeShips!!.values.single()
+        val moving=target.copy(tactical=target.tactical!!.copy(
+            motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to foe.copy(activeShips=ActiveShipUnits(listOf(moving)))))
+        val r=run(s)
+        assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=1,target=99)).player)
+        settle(r,now+5)
+        val wing=s.stocks.tacticalCommands.air.getValue(1)
+        assertEquals(.25f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+
+        s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now+5) {_,_->true}
+        val hits=mutableListOf<TacticalImpact>()
+        settle(run(s),wing.nextAt,impacts=hits)
+        assertTrue(hits.none {it.airBattle})
+        assertTrue(s.stocks.tacticalCommands.air.isEmpty())
+        assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+    }
+
     @Test fun carrierLaunchSpendsExactlyTenAndLandingRestoresTargetSpeed() {
         val s=state();val foe=s.stocks.outfits.getValue(2)
         val moving=foe.activeShips!!.values.single().let {it.copy(tactical=it.tactical!!.copy(motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))}
