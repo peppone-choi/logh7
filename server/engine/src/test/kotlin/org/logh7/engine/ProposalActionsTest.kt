@@ -33,6 +33,21 @@ class ProposalActionsTest {
         assertNull(approved.rejection);assertEquals(960,approved.player?.mcp,"the recipient pays the other half")
         assertTrue(policy.held(assertNotNull(approved.stocks),10001).none {it.card==19},"card 19 was resigned")
     }
+    @Test fun ordersFromADeceasedSenderCannotExecuteOnlineOrInAbsentSettlement() {
+        val opened=act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,stocks())
+        val state=BattleDeath.apply(assertNotNull(opened.stocks),listOf(a.characterId),session.gameMillis/1000) {_,_->true}
+        val mail=state.social.proposals.mails.single()
+        val replied=act("b",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,state)
+        assertEquals(SocialRejection.CARD,replied.rejection)
+        assertEquals(b,replied.player)
+        assertEquals(state,replied.stocks)
+        val absent=session.copy(participants=session.participants+("b" to session.participants.getValue("b").copy(online=false)),
+            gameMillis=session.gameMillis+ProposalActions.ABSENT_ORDER_SECONDS*1000)
+        val players=mutableMapOf("a" to assertNotNull(opened.player),"b" to b)
+        assertEquals(state,ProposalActions.settle(galaxy,absent,players,state))
+        assertEquals(b,players.getValue("b"))
+        assertTrue(policy.held(state,b.characterId).any {it.card==19})
+    }
     @Test fun aProposalGoesUpAndARefusalBlocksTheSameRequestForADay() {
         val opened=act("b",ProposalActions.OPEN,19,10000,ProposalActions.RESIGNATION,17,stocks())
         assertNull(opened.rejection);val s=assertNotNull(opened.stocks)

@@ -24,7 +24,7 @@ class PersonnelActionsWireTest {
                 shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(93,now)))
         var stocks=PlanetStocks(1,0,(1049..1051).associate {id->id to PlanetStock(id,if(id==1051)3 else 2,0,100,200,300)},
             deploymentInitialized=true,strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=0),
-                10001 to StrategicPerson(rank=6,merit=100),10002 to StrategicPerson(rank=6,merit=1000000)),
+                10001 to StrategicPerson(rank=6,merit=100),10002 to StrategicPerson(rank=6,merit=1000000),10003 to StrategicPerson(rank=6,merit=1000000,deceasedAt=1)),
                 offices=listOf(OfficeHolding(1,1049,10000),OfficeHolding(17,1049,10000),OfficeHolding(4,1049,10001)),
                 fiefs=mapOf(1051 to 10001)))
         val navigation=object:NavigationStore {override fun load()=players;override fun save(value:Map<String,Navigator>){players=value}}
@@ -34,7 +34,7 @@ class PersonnelActionsWireTest {
     private fun seed(path:Path) {
         Files.createDirectories(path)
         val store=CharacterCreation(path.resolve("characters.properties"))
-        for((account,id,rank) in listOf(Triple("load-000",10000,0),Triple("load-001",10001,6),Triple("foreign",10002,6))) {
+        for((account,id,rank) in listOf(Triple("load-000",10000,0),Triple("load-001",10001,6),Triple("foreign",10002,6),Triple("deceased",10003,6))) {
             val kind=if(id==10001)93 else 3;val ship=checkNotNull(Flagships.find(kind))
             val data=CharacterMessages.Generate(4,id.toLong(),2,0,0,"Pilot$id","Test",30,1,1,1000001,List(8){50},
                 0,0,0,rank,ship.type,kind,"Ship",1)
@@ -55,7 +55,7 @@ class PersonnelActionsWireTest {
         assertEquals(status,ByteBuffer.wrap(next(client,0x1200)).getShort(16).toInt())
         next(client,0x1201);next(client,0x0356)
     }
-    @Test fun encryptedPersonnelTargetsExcludeSameDisplayForeignersAndKeepTitlesFiefsAndStyleAcrossRestart() {
+    @Test fun encryptedPersonnelTargetsExcludeIneligibleCharactersAndKeepTitlesFiefsAndStyleAcrossRestart() {
         val state=State(now)
         fun server(name:String):LoadFixture {
             val path=directory.resolve(name);seed(path)

@@ -30,7 +30,7 @@ object ProposalActions {
         val holdings=policy.held(s,candidate).filter {it.country==country}
         val count=holdings.size+(if(s.strategic.people[candidate]?.peerage!=null)1 else 0)+
             FundActions.governed(g,s,candidate,country,countries,card=66).size
-        if(candidate==actor || count>=14)return emptyList()
+        if(candidate==actor || count>=14 || BattleDeath.deceased(s,actor) || BattleDeath.deceased(s,candidate))return emptyList()
         val held=holdings.map {it.card}.toSet()
         return policy.available(s,actor,power,rank).flatMap {(card,seats)->
             val role=checkNotNull(policy.role(card,country))
@@ -48,7 +48,7 @@ object ProposalActions {
     private fun execute(g:Galaxy,mail:ProposalMail,s:PlanetStocks,rank:Int,players:Map<String,Navigator>,
         countries:CountryCatalog):PlanetStocks? {
         val country=mail.originCountry?.takeIf {it.value in countries.countries} ?: return null
-        fun belongs(id:Int)=players.values.singleOrNull {it.generation==s.generation && it.characterId==id}?.country==country
+        fun belongs(id:Int)=!BattleDeath.deceased(s,id) && players.values.singleOrNull {it.generation==s.generation && it.characterId==id}?.country==country
         if(!belongs(mail.sender) || !belongs(mail.recipient) || mail.target>0 && !belongs(mail.target))return null
         val policy=OrganizationalOfficePolicy(g,countries)
         if(policy.holders(s,mail.card,country).none {it.character==mail.recipient})return null
@@ -90,7 +90,7 @@ object ProposalActions {
         // card passes to the card's single current holder; a vacant or shared post keeps it until it expires.
         val moved=settled.social.proposals.mails.map {mail ->
             val country=mail.originCountry
-            fun currentHolder(id:Int)=keyOf(id)?.let {players.getValue(it).country==country} ?: true
+            fun currentHolder(id:Int)=!BattleDeath.deceased(settled,id) && (keyOf(id)?.let {players.getValue(it).country==country} ?: true)
             if(!mail.pending || country==null || currentHolder(mail.recipient) &&
                 policy.holders(settled,mail.card,country).any {it.character==mail.recipient})mail
             else policy.holders(settled,mail.card,country).map {it.character}.filter(::currentHolder).distinct().singleOrNull()
@@ -135,6 +135,7 @@ object ProposalActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
+        if(BattleDeath.deceased(s,i.characterId))return reject(SocialRejection.IDENTITY)
         if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
         if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY)
         val policy=OrganizationalOfficePolicy(g,countries)
@@ -157,6 +158,7 @@ object ProposalActions {
         if(i.command!=OPEN)return reject(SocialRejection.COMMAND)
         val cost=costs[i.value] ?: return reject(SocialRejection.COMMAND)
         if(i.target<=0 || i.target==i.characterId)return reject(SocialRejection.COMMAND)
+        if(BattleDeath.deceased(s,i.target))return reject(SocialRejection.TARGET)
         if(policy.holders(s,i.card,i.country).none {it.character==i.characterId})return reject(SocialRejection.CARD)
         val recipient=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==i.target}
             ?: return reject(SocialRejection.LOCATION)
