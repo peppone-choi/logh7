@@ -173,6 +173,35 @@ class TacticalCombatTest {
         assertEquals(300,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
     }
 
+    @Test fun deceasedFlagshipRejectsNewFireAndCancelsSavedOrdersAtomically() {
+        val state=state()
+        val live=Navigation(galaxy,state.nav,NavigationPolicy())
+        val accepted=assertNotNull(TacticalCombat.accept(request,session,galaxy,live,state.stocks,state.commit,24).player)
+        val due=assertNotNull(accepted.fire?.pending).firesAt
+        state.players=mapOf("pilot" to accepted.copy(attack=TacticalAttackOrder(2,now,now,due)))
+        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy())
+        val stock=production(state)
+        val before=state.players.getValue("pilot")
+        val target=state.stocks.outfits.getValue(1)
+        assertEquals(NavigationRejection.IDENTITY,
+            TacticalCombat.accept(request,session,galaxy,nav,state.stocks,state.commit,24).rejection)
+        assertEquals(NavigationRejection.IDENTITY, TacticalCombat.attack(request.copy(tacticalShoot=null,
+            tacticalAttack=TacticalAttack(listOf(before.unitId),2)),session,galaxy,nav,state.stocks,state.commit,24).rejection)
+        val tick=session.copy(gameMillis=due*1000)
+        state.fail=true
+        assertFailsWith<java.io.IOException> { TacticalCombat.settle(tick,galaxy,nav,stock,state.commit) }
+        assertEquals(before,nav.snapshot(1).getValue("pilot"))
+        state.fail=false
+        assertTrue(TacticalCombat.settle(tick,galaxy,nav,stock,state.commit).isEmpty())
+        val saved=Navigation(galaxy,state.nav,NavigationPolicy()).snapshot(1).getValue("pilot")
+        assertNull(saved.attack)
+        assertEquals(before.fire!!.copy(pending=null),saved.fire)
+        assertEquals(before.charge,saved.charge)
+        assertEquals(before.supplies,saved.supplies)
+        assertEquals(target,state.stocks.outfits.getValue(1))
+    }
+
     @Test fun pendingBeamSurvivesReloadAndSettlesOnceWithChargeAndActualLossInOneCommit() {
         val state = state()
         var nav = Navigation(galaxy,state.nav,NavigationPolicy())
