@@ -52,13 +52,17 @@ internal object NpcStrategy {
 
     private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):DepotRoute? {
         val origin=outfit.positionIn(galaxy).grid
+        fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
         val depots=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
             !TacticalContact.contested(forces[b.grid].orEmpty())}
-            .sortedByDescending {it.id}.associateBy {it.grid}
+            .sortedWith(compareBy<GalaxyBase> {stocked(it)}.thenByDescending {it.id}).associateBy {it.grid}
         if(depots.isEmpty())return null
-        depots[origin]?.let {return DepotRoute(it,origin,0)}
+        val local=depots[origin]?.let {DepotRoute(it,origin,0)}
+        if(local!=null && stocked(local.base))return local
         val strength=GridForces.mobileUnits(outfit)
-        if(strength !in 1..GridEntryRules.MAX_UNITS_PER_CAMP.toLong())return null
+        if(strength !in 1..GridEntryRules.MAX_UNITS_PER_CAMP.toLong())return local
+        val balances=OutfitSupplies.distribution(outfit)
+        val affordable=outfit.activeShips!!.values.filter {it.boats>0}.minOf {balances.getValue(it.id)/it.boats}
         val camp=Camp(outfit.country,false)
         val entry=GridEntry(camp,strength.toInt(),false)
         fun remaining(grid:Int)=depots.keys.minOf {distance(grid,it)}
@@ -68,10 +72,16 @@ internal object NpcStrategy {
         val best=mutableMapOf(origin to 0)
         val blocked=mutableSetOf<Int>()
         queue.add(RouteVisit(origin,origin,0,remaining(origin)))
+        var fallback=local
         while(queue.isNotEmpty()) {
             val current=queue.remove()
             if(best[current.grid]!=current.jumps)continue
-            depots[current.grid]?.let {return DepotRoute(it,current.first,current.jumps)}
+            if(fallback!=null && current.estimatedTotal>affordable)return fallback
+            depots[current.grid]?.let {
+                val route=DepotRoute(it,current.first,current.jumps)
+                if(stocked(it) && current.jumps<=affordable)return route
+                if(fallback==null)fallback=route
+            }
             val jumps=current.jumps+1
             for(grid in neighbors(current.grid)) {
                 if(jumps>=(best[grid] ?: Int.MAX_VALUE) || grid in blocked)continue
@@ -85,7 +95,7 @@ internal object NpcStrategy {
                 queue.add(RouteVisit(grid,first,jumps,jumps+remaining(grid)))
             }
         }
-        return null
+        return fallback
     }
     /** Reserve real cargo for every remaining jump to a reachable safe depot. */
     fun returnDistance(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):Int? =
