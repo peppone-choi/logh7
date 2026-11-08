@@ -125,6 +125,7 @@ class GameExchange(
     private var officeCpPenalty = 0
     private var startupGroundOrders = emptySet<TacticalGroundOrder>()
     private var startupGridReady = false
+    private var battleDeathNotified = false
     private enum class NavigationGuide(val text: String) {
         WARP("직무카드→함장→워프"), DOCK("아군 성계에서 함장→기항"), FACILITY("직무카드→개인→원거리 이동")
     }
@@ -507,6 +508,13 @@ class GameExchange(
                     if (cancellation != null) pendingOfflineWarpNotice = OfflineWarpNotice(cancellation, messages.single())
                 }
             } else emptyList()
+            // A relocation or tactical exit can clear native chat before the next clock poll.
+            val deathNotice = if (readyForNotice && !relocated && previous?.cpPaused != true &&
+                !player.cpPaused && !battleDeathNotified &&
+                org.logh7.engine.BattleDeath.deceased(navigation?.snapshot()?.planetStocks, player.characterId)) {
+                battleDeathNotified = true
+                ChatMessages.spot(ChatMessages.Spot(player.characterId, "[전사] 다음 로그인 때 새 인물 생성"), gameSeconds())
+            } else null
             val guide = if (readyForNotice && !relocated && character.generated && player.spotId == 0 &&
                 !player.cpPaused && !player.navigationPending && player.hull?.let { it.woundedUntil <= gameSeconds() } == true &&
                 startupNotice.isEmpty() && offlineNotice.isEmpty() && groundResult.isEmpty() && result.warpCancellation == null) {
@@ -564,7 +572,7 @@ class GameExchange(
                 tacticalRefresh +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
                     ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + navigationGuide + listOfNotNull(groundStatus) +
-                groundResult + listOfNotNull(if (readyForNotice) officeCpNotice(character, player) else null)
+                groundResult + listOfNotNull(if (readyForNotice) officeCpNotice(character, player) else null, deathNotice)
         }
     }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
