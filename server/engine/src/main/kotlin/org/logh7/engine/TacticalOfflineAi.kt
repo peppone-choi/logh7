@@ -47,7 +47,8 @@ internal object TacticalOfflineAi {
             val motion=path(p.grid,now,nextPose,goal,stop,energy.values[0]/100f)
             val retreat=if(kind==5 && RetreatRules.outside(pose))RetreatRules.destination(g,p,players.values,stocks,pose)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
-            val attack=if(kind in setOf(4,5) || enemies.isEmpty())null else p.attack ?: TacticalAttackOrder(2,now,now,now+5*scale)
+            val attack=if(kind in setOf(4,5) || enemies.isEmpty() || kind==3 && enemy==null)null
+                else p.attack ?: TacticalAttackOrder(2,now,now,now+5*scale)
             val next=p.copy(energy=energy,motion=motion,retreat=retreat,attack=attack,
                 hull=hull.settle(now,p.energy ?: TacticalEnergy.ZERO),
                 charge=p.charge?.settle(now,p.energy ?: TacticalEnergy.ZERO) ?: TacticalCharge(now,clockScale=scale))

@@ -129,15 +129,17 @@ internal object TacticalCombat {
         return NavigationResult(next,player)
     }
 
-    private fun automaticTarget(player:Navigator,weapon:TacticalWeapon,now:Long,players:Map<String,Navigator>,
-        stocks:PlanetStocks,galaxy:Galaxy):Int? {
+    private fun automaticTarget(account:String,player:Navigator,weapon:TacticalWeapon,now:Long,players:Map<String,Navigator>,
+        stocks:PlanetStocks,galaxy:Galaxy,session:SessionState):Int? {
         val spec=UnitSpecifications.ships.single {it.kind==player.hull!!.kind}
         val mount=TacticalArmaments.mount(spec,weapon)
         if(mount.power==0 || player.supplies<supplyCost(mount,weapon) ||
             !ready(player.charge?.settle(now,player.energy ?: TacticalEnergy.ZERO),weapon))return null
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)
         val preferred=stocks.tacticalCommands.missions[player.characterId]?.takeIf {it.mission==3 && !it.completed}?.target
-        return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it}).firstOrNull {id -> target(id,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players)?.let {
+        val candidates=if(preferred!=null && TacticalOfflineAi.eligible(session,account,player,stocks))
+            listOf(preferred) else ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it})
+        return candidates.firstOrNull {id -> target(id,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players)?.let {
             effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
     }
 
@@ -257,7 +259,7 @@ internal object TacticalCombat {
             val charge=p.charge?.settle(now,p.energy ?: TacticalEnergy.ZERO)
             if(order.mode==1 && TacticalWeapon.entries.filter {it!=TacticalWeapon.MISSILE && TacticalArmaments.mount(spec,it).power>0}
                 .any {!ready(charge,it)})continue
-            for(weapon in TacticalWeapon.entries) automaticTarget(p,weapon,now,players,inventory,galaxy)?.let {id ->
+            for(weapon in TacticalWeapon.entries) automaticTarget(account,p,weapon,now,players,inventory,galaxy,session)?.let {id ->
                 due+=Due(account,TacticalPendingFire((p.fire?.sequence ?: 0)+1,p.grid,p.hull.kind,id,now,now,weapon),true)
             }
         }
@@ -270,7 +272,7 @@ internal object TacticalCombat {
             val player = players.getValue(account)
             if(automatic && (player.attack==null || player.hull==null || player.fire?.sequence==Long.MAX_VALUE))continue
             val shot=if(automatic) {
-                val id=automaticTarget(player,scheduled.weapon,now,players,inventory,galaxy) ?: continue
+                val id=automaticTarget(account,player,scheduled.weapon,now,players,inventory,galaxy,session) ?: continue
                 scheduled.copy(sequence=(player.fire?.sequence ?: 0)+1,target=id)
             } else player.fire?.pending?.takeIf {it==scheduled} ?: continue
             val fire=if(automatic)TacticalFire(shot.sequence,last=player.fire?.last) else checkNotNull(player.fire)
