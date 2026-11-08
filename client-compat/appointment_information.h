@@ -137,12 +137,23 @@ static std::wstring concurrentOfficeRuleText(const BYTE* person) {
     unsigned offices=0;
     if (person && logh::concurrentOfficeMarker(static_cast<unsigned short>(logh::infoShort(person,0x22)),offices)) {
         wchar_t text[120];
-        if (offices<4) swprintf_s(text,L"예상 겸직 %u개 · 4개부터 정치·운영 실효값 5%%씩 감소(최대 20%%), CP 회복에만 적용",offices);
-        else swprintf_s(text,L"예상 겸직 %u개 · 정치·운영 실효값 -%u%% (최대 20%%), CP 회복에만 적용",
+        if (offices<4) swprintf_s(text,L"예상 겸직 %u개 · 4개부터 CP 회복 페널티",offices);
+        else swprintf_s(text,L"예상 겸직 %u개 · CP 회복 정치·운영 -%u%%",
             offices,logh::concurrentOfficePenaltyPercent(offices));
         return text;
     }
-    return L"겸직 4개부터 정치·운영 실효값 5%씩 감소(최대 20%), CP 회복에만 적용";
+    return L"겸직 4개부터 CP 회복에 페널티";
+}
+
+// Joins an adjacent "대기:" / "소요:" pair of the original body into one line to keep the dialog within five lines.
+static std::wstring compactWaitDurationLines(const std::wstring& rest) {
+    auto wait=rest.find(L"\n대기:");
+    if (wait==std::wstring::npos) return rest;
+    auto end=rest.find(L'\n',wait+1);
+    if (end==std::wstring::npos || rest.compare(end+1,3,L"소요:")!=0) return rest;
+    std::wstring out=rest;
+    out.replace(end,1,L" · ");
+    return out;
 }
 
 static void __fastcall appointmentConfirmation(void* dialog, void*, const char* original) {
@@ -212,7 +223,7 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
         }
         if (seat.empty()) return;
         // Preserve the original cost, wait, duration and confirmation question.
-        body=std::wstring(person)+L" → "+seat+L" · "+office+L"\n"+concurrentOfficeRuleText(choice.person)+body.substr(newline);
+        body=std::wstring(person)+L" → "+seat+L" · "+office+L"\n"+concurrentOfficeRuleText(choice.person)+compactWaitDurationLines(body.substr(newline));
         }
     }
     }
