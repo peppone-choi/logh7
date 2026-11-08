@@ -229,6 +229,28 @@ class NpcStrategyTest {
         assertEquals(stranded.bases,occupied.bases)
         assertEquals(ship,occupied.outfits.getValue(1).activeShips!!.values.single())
     }
+
+    @Test fun cancelledJumpCanDockAtTheCurrentGridWithoutSpendingJumpFuel() {
+        val alternate=galaxy.bases.single().copy(id=1001,grid=2488,name="Alternate")
+        val world=Galaxy(galaxy.systems,galaxy.bases+alternate,galaxy.starts)
+        val original=stocks()
+        val depot=original.bases.getValue(1000)
+        val remote=depot.copy(baseId=1001)
+        val fleet=OutfitSupplies.withBalances(original.outfits.getValue(1).copy(position=OutfitPosition(2487)),mapOf(1 to 300))
+        val initial=original.copy(bases=mapOf(1000 to depot.copy(supplies=0),1001 to remote),outfits=mapOf(1 to fleet))
+        val events=mutableListOf<NpcStrategicMovement>()
+        fun advanceWorld(at:Long,stocks:PlanetStocks)=
+            NpcStrategy.advance(simulation.copy(gameMillis=at*1000),world,mutableMapOf(),stocks,events)
+        val reserved=advanceWorld(0,initial)
+        assertEquals(2488,reserved.outfits.getValue(1).strategy?.destination)
+        val changed=reserved.copy(bases=mapOf(1000 to depot,1001 to remote.copy(supplies=0)))
+        val docked=advanceWorld(3600,changed)
+        assertEquals(OutfitPosition(2487,1000),docked.outfits.getValue(1).position)
+        assertEquals(3000,docked.outfits.getValue(1).supplies)
+        assertEquals(97300,docked.bases.getValue(1000).supplies)
+        assertEquals(changed.bases.getValue(1001),docked.bases.getValue(1001))
+        assertTrue(events.isEmpty())
+    }
     @Test fun appointedCommanderOrCapturedDepotCancelsWithoutChargingOrMoving() {
         for(appointed in listOf(true,false)) {
             val players=players();val events=mutableListOf<NpcStrategicMovement>()
