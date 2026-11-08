@@ -1,5 +1,7 @@
 package org.logh7.engine
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -357,6 +359,42 @@ class TacticalCombatTest {
         val exit=NavigationRequest("victim",10001,Power.EMPIRE,"v",1,place=PlaceMove.SwitchMode(5),shipKind=3,unitId=1010001,captainCard=59)
         assertEquals(NavigationRejection.WOUNDED,nav.apply(exit,duel.copy(gameMillis=(now+300)*1000),stock.snapshot(1)).rejection)
         assertNotNull(nav.apply(exit,duel.copy(gameMillis=(now+240+86400)*1000),stock.snapshot(1)).player)
+    }
+
+    @Test fun sameGridDefeatPublishesOnlyTheVictimsCombatExit() = runBlocking {
+        val state = state()
+        val home = galaxy.bases.single().copy(grid = 2488)
+        val world = Galaxy(galaxy.systems, listOf(home), galaxy.starts)
+        val target = TacticalPoint(180f, -95f)
+        val victim = Navigator(1, 10001, Power.EMPIRE, 2488, 1000, 1000, 900, cpPaused = true,
+            hull = FlagshipHull(0, now, hp = 1, shields = List(6) { 0L }),
+            motion = TacticalMotion(2488, now, TacticalPose(target, 0f), 0f, 0f, listOf(target)))
+            .copy(returnBase = home.id)
+        state.players = mapOf("victim" to victim, "pilot" to state.players.getValue("pilot").copy(
+            hull = FlagshipHull(89, now),
+            fire = TacticalFire(1, TacticalPendingFire(1, 2488, 89, victim.unitId, now, now + 120))))
+        state.stocks = state.stocks.copy(outfits = emptyMap(), warehouses = emptyMap())
+        val impacts = mutableListOf<TacticalImpact>()
+        val ends = mutableListOf<TacticalEnd>()
+        val engine = WorldEngine(this, rules, ticking = false, galaxy = world, navigationStore = state.nav,
+            stockStore = state.inventory, worldStateCommitter = state.commit)
+        engine.observeCombat(impacts::add)
+        engine.observeTacticalEnds(ends::add)
+        try {
+            for ((account, player) in state.players) {
+                val joined = CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join(account, player.power, false, joined, account))
+                assertEquals(Admission.ACCEPTED, joined.await())
+            }
+            engine.submit(WorldCommand.AdvanceTo(5000))
+        } finally {
+            engine.drainAndClose()
+        }
+        val returned = assertNotNull(impacts.single().departed)
+        assertEquals(home.id, returned.baseId)
+        assertEquals(victim.grid, returned.grid)
+        assertEquals("victim", impacts.single().recipients[victim.characterId])
+        assertTrue(ends.none { it.character == victim.characterId })
     }
 
     @Test fun aRebelFlagshipShootsARegularFlagshipOfItsOwnSide() {
