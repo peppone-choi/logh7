@@ -192,15 +192,19 @@ class TacticalGroundOperationsTest {
         assertTrue(events.single().cancelled);assertEquals(1,result.outfits.getValue(1).activeGround!!.values.single {it.id==2}.carrier)
         assertTrue(result.outfits.getValue(1).activeGround!!.values.all {it.order==null})
     }
-    @Test fun stationedShipWithoutMotionCannotUseFormationCoordinatesToEvadeTheCommandRange() {
-        val s=state();val old=s.stocks.outfits.getValue(1)
-        s.stocks=s.stocks.copy(outfits=mapOf(1 to old.copy(activeShips=ActiveShipUnits(old.activeShips!!.values.map {
-            if(it.id==1)it.copy(tactical=null,posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1000)) else it
-        }))))
-        val far=Galaxy(galaxy.systems,galaxy.bases.map {if(it.id==1000)it.copy(radius=100f,angle=90f) else it},galaxy.starts)
-        val n=Navigation(far,s.nav,NavigationPolicy());val p=production(s);val before=s.stocks
-        val result=TacticalGroundOperations.accept(request(),session,far,n,p,p.snapshot(1)!!,s.commit,24)
-        assertEquals(NavigationRejection.RANGE,result.rejection);assertEquals(before,s.stocks)
+    @Test fun shipWithoutMotionUsesItsBerthForCommandRange() {
+        for (mode in listOf(TacticalShipMode.STATIONED, TacticalShipMode.ANCHORED)) {
+            val s=state();val old=s.stocks.outfits.getValue(1)
+            s.stocks=s.stocks.copy(outfits=mapOf(1 to old.copy(activeShips=ActiveShipUnits(old.activeShips!!.values.map {
+                if(it.id==1)it.copy(tactical=null,posture=TacticalPosture(2487,mode,1000)) else it
+            }))))
+            val far=Galaxy(galaxy.systems,galaxy.bases.map {if(it.id==1000)it.copy(radius=100f,angle=90f) else it},galaxy.starts)
+            val p=production(s);val before=s.stocks
+            val result=TacticalGroundOperations.accept(request(),session,far,Navigation(far,s.nav,NavigationPolicy()),
+                p,p.snapshot(1)!!,s.commit,24)
+            assertEquals(NavigationRejection.RANGE,result.rejection);assertEquals(before,s.stocks)
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),p).groundReadyAt)
+        }
     }
     @Test fun missingBattlefieldBaseCancelsAPersistedLandingWithoutMovingTroops() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s);assertNotNull(accept(s,n,p).player)

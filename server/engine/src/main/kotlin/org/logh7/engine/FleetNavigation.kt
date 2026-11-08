@@ -70,16 +70,31 @@ internal object FleetNavigation {
         // A reserved warp moves the fleet when its job completes, not on the accepting request.
         val cruiseCost = if (request.destination != null || preview.completedWarp) (before.cruise - after.cruise).coerceAtLeast(0) else 0
         if (followers.values.any { it.cruise < cruiseCost }) return deferred(NavigationRejection.CRUISE)
-        val moved = followers.mapValues { (_, player) -> player.copy(grid = after.grid, baseId = after.baseId,
+        val now = session.gameMillis / 1000
+        val departureBase = before.baseId.takeIf { it != 0 && after.baseId == 0 && after.cpPaused }
+            ?.let { id -> galaxy.bases.single { it.id == id } }
+        var slot = 1
+        val moved = followers.entries.sortedBy { it.value.unitId }.associate { (account, player) -> account to player.copy(
+            grid = after.grid, baseId = after.baseId,
             mode = after.mode, spotId = 0, spotOwner = 0, cruise = player.cruise - cruiseCost,
-            cpPaused = after.cpPaused, cpRecoveryAt = if(player.cpPaused != after.cpPaused)session.gameMillis/1000 else player.cpRecoveryAt,
-            commandRange=if(after.cpPaused)TacticalCommandRange(session.gameMillis/1000,command=player.commandRange?.command ?: 50) else null,
-            moves = Math.addExact(player.moves, 1), motion = null) }
+            cpPaused = after.cpPaused, cpRecoveryAt = if (player.cpPaused != after.cpPaused) now else player.cpRecoveryAt,
+            commandRange = if (after.cpPaused) TacticalCommandRange(now, command = player.commandRange?.command ?: 50) else null,
+            moves = Math.addExact(player.moves, 1),
+            motion = departureBase?.let { TacticalDeployment.departure(it, now, stocks, slot++) },
+            posture = if (departureBase == null) player.posture else null) }
         val next = players + moved + (request.account to after)
         // A reserved warp whose error pulled the fleet into a black hole's gravity zone damages it on arrival.
         val pulled = preview.completedWarp && before.warpTarget != null && after.grid != before.warpTarget &&
             BlackHoleTides.inGravity(galaxy, after.grid)
-        val moving = outfit.copy(position = position).let { if (pulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
+        val ships = departureBase?.let { base ->
+            outfit.activeShips?.values?.let { units -> ActiveShipUnits(units.map { unit ->
+                if (unit.boats == 0 || unit.posture?.let { it.grid == base.grid && it.base == base.id } == true) unit
+                else unit.copy(tactical = NpcTacticalState(TacticalDeployment.departure(base, now, stocks, slot++), now, now),
+                    posture = null, motionCommander = 0, support = null, attack = null, shot = null)
+            }) }
+        } ?: outfit.activeShips
+        val moving = outfit.copy(position = position, activeShips = ships)
+            .let { if (pulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
         val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to moving))
         val settled=CivicActions.settle(galaxy,deployed,session.gameMillis/1000,next.values)
         val prepared = production.prepareReplacement(stocks,configured(settled,after))

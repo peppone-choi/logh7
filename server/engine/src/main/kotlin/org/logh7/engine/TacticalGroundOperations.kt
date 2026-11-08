@@ -95,8 +95,8 @@ internal object TacticalGroundOperations {
             val base=galaxy.bases.singleOrNull {it.id==state.base && it.grid==p.grid} ?: return reject(NavigationRejection.BASE)
             if(ship.support!=null || ship.tactical?.retreat!=null || o.activeGround?.values?.any {it.order?.carrier==id}==true)
                 return reject(NavigationRejection.BUSY)
-            val point=if(state.mode==TacticalShipMode.STATIONED)TacticalBasePosition.at(base,now,stocks)
-                else ship.tactical?.motion?.pose(now,state,galaxy,stocks)?.position ?: TacticalDeployment.initial(id,p.grid,players.values,stocks,galaxy).position
+            val motion = ship.tactical?.motion?.takeIf { it.grid == p.grid && state.mode == TacticalShipMode.ANCHORED }
+            val point = motion?.pose(now,state,galaxy,stocks)?.position ?: TacticalBasePosition.at(base,now,stocks)
             if(hypot((point.x-centre.x).toDouble(),(point.y-centre.y).toDouble())>radius)return reject(NavigationRejection.RANGE)
             val troops=ground(o,id,state.base,command.action)
             if(troops.isEmpty())return reject(NavigationRejection.UNIT)

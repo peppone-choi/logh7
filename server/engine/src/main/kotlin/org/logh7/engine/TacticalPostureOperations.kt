@@ -35,10 +35,12 @@ internal object TacticalPostureOperations {
         return hypot((point.x-at.x).toDouble(),(point.y-at.y).toDouble())<=radius
     }
     private fun pose(s:Ship,grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose {
-        val posture=s.unit.posture?.takeIf {it.grid==grid && it.mode==TacticalShipMode.STATIONED}
+        val posture=s.unit.posture?.takeIf {it.grid==grid && it.mode.requiresBase}
         val base=posture?.let {state->galaxy.bases.singleOrNull {it.id==state.base && it.grid==grid}}
-        if(base!=null)return TacticalPose(TacticalBasePosition.at(base,now,stocks),s.unit.tactical?.motion?.origin?.direction ?: 0f)
-        return s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy,stocks) ?:
+        val motion=s.unit.tactical?.motion?.takeIf {it.grid==grid}
+        if(base!=null && (posture.mode==TacticalShipMode.STATIONED || motion==null))
+            return TacticalPose(TacticalBasePosition.at(base,now,stocks),motion?.origin?.direction ?: 0f)
+        return motion?.pose(now,posture,galaxy,stocks) ?:
             TacticalDeployment.initial(s.unit.id,grid,players,stocks,galaxy)
     }
     private fun pose(p:Navigator,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
