@@ -153,7 +153,7 @@ internal object TacticalSupportOperations {
         if(!needed(order,players,stocks))return reject(NavigationRejection.TARGET)
         if(order.action==TacticalSupportAction.REPAIR) {
             val kind=players.values.singleOrNull {it.unitId==order.target}?.hull?.kind ?: ship(order.target,stocks)!!.unit.stack.kind
-            val cost=UnitSpecifications.ships.single {it.kind==kind}.number("修理消費物資(１隻):修理消費物資(１隻)")
+            val cost=repairCost(kind)
             if(cost<=0 || OutfitSupplies.distribution(source.outfit).getValue(command.unit)<cost)return reject(NavigationRejection.SUPPLY)
         }
         val next=replace(stocks,source,source.unit.copy(support=order,attack=null,shot=null))
@@ -164,21 +164,31 @@ internal object TacticalSupportOperations {
         production.publishCommitted(stocks,prepared)
         return NavigationResult(player,preview.previous,supportReadyAt=order.readyAt)
     }
-    fun offlineFlagshipOrder(outfit:OutfitStock,unit:ActiveShipUnit,player:Navigator,now:Long,scale:Long,
-        players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalSupportOrder? {
+    private fun repairCost(kind:Int)=UnitSpecifications.ships.single {it.kind==kind}
+        .number("修理消費物資(１隻):修理消費物資(１隻)")
+
+    fun offlineOrder(outfit:OutfitStock,unit:ActiveShipUnit,player:Navigator,now:Long,scale:Long,
+        players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy,alliedShips:List<Int>):TacticalSupportOrder? {
         val type=UnitSpecifications.ships.single {it.kind==unit.stack.kind}.type
         val action=when(type) {
             11 -> TacticalSupportAction.REPAIR
             12 -> TacticalSupportAction.SUPPLY
             else -> return null
         }
-        val order=TacticalSupportOrder(action,player.characterId,player.unitId,player.grid,now,now+5*scale)
-        if(!eligible(Ship(outfit,unit),player,order,now,players,stocks,galaxy) || !needed(order,players,stocks))return null
         val available=OutfitSupplies.distribution(outfit).getValue(unit.id)
-        if(action==TacticalSupportAction.SUPPLY)return order.takeIf {available>0}
-        val cost=UnitSpecifications.ships.single {it.kind==checkNotNull(player.hull).kind}
-            .number("修理消費物資(１隻):修理消費物資(１隻)")
-        return order.takeIf {cost in 1..available}
+        if(available==0)return null
+        val source=Ship(outfit,unit)
+        for(target in listOf(player.unitId)+alliedShips) {
+            if(target==unit.id)continue
+            val order=TacticalSupportOrder(action,player.characterId,target,player.grid,now,now+5*scale)
+            if(!needed(order,players,stocks) || !eligible(source,player,order,now,players,stocks,galaxy))continue
+            if(action==TacticalSupportAction.REPAIR) {
+                val kind=if(target==player.unitId)checkNotNull(player.hull).kind else checkNotNull(ship(target,stocks)).unit.stack.kind
+                if(repairCost(kind) !in 1..available)continue
+            }
+            return order
+        }
+        return null
     }
 
     private fun needed(order: TacticalSupportOrder, players: Map<String,Navigator>, stocks: PlanetStocks): Boolean {
