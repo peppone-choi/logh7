@@ -54,6 +54,21 @@ class GamePresenceBattlefieldTest {
         verifyBattlefield(listOf(0x0426)) { it.combat(impact) }
     }
 
+    @Test fun delayedImpactChecksTheCommittedLocationWhenPresenceStillShowsTheOldBattlefield() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("viewer", character, player, received::add))
+        val impact = TacticalImpact(1, 1010001, TacticalWeapon.BEAM,
+            TacticalHit(1, 2487, 100, 1, 2), recipients)
+        for (current in listOf(player.copy(grid = 2488),
+            player.copy(baseId = 1049, mode = 4, cpPaused = false))) {
+            hub.combat(impact, snapshot.copy(navigators = mapOf("pilot" to current)))
+            assertTrue(received.isEmpty())
+        }
+        hub.combat(impact, snapshot.copy(navigators = mapOf("pilot" to player)))
+        assertEquals(listOf(0x0426), received.flatten().map(::opcode))
+    }
+
     @Test fun npcHailReachesOnlyTheHitFlagshipOnce() {
         val hub=GamePresence()
         val target=mutableListOf<ByteArray>()

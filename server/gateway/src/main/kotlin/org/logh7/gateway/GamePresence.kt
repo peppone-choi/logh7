@@ -497,12 +497,13 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 morale=snapshot?.planetStocks?.tacticalCommands?.morale?.get(impact.hit.target) ?: 100)
         members.values.filter { viewer -> viewer.player.generation == impact.generation &&
             impact.recipients[viewer.character.id.toInt()] == viewer.connection }.forEach { viewer ->
-                val departed=impact.departed?.takeIf {it.characterId==viewer.character.id.toInt()}
+                val character=viewer.character.id.toInt()
+                val current=snapshot?.navigators?.values?.singleOrNull {
+                    it.characterId==character && it.generation==impact.generation}
+                val departed=impact.departed?.takeIf {it.characterId==character}
                 if (departed!=null) {
                     // Strategic movement can publish this same transaction's return before its impact.
                     // A newer return/hull or reentered battle must never receive the old exit.
-                    val current=snapshot?.navigators?.values?.singleOrNull {
-                        it.characterId==departed.characterId && it.generation==impact.generation}
                     val awaitingReturn=viewer.player.grid==impact.hit.grid && viewer.player.cpPaused
                     if(departed.generation!=impact.generation || departed.cpPaused ||
                         (snapshot!=null && current!=departed) ||
@@ -515,7 +516,9 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                             departed.returnBase,viewer.offices)}
                     send(viewer,listOfNotNull(org.logh7.protocol.TacticsMessages.notify(impact.hit.grid,false),changed))
                 } else {
-                    if(viewer.player.grid!=impact.hit.grid)return@forEach
+                    val location=if(snapshot==null)viewer.player else current ?: return@forEach
+                    if(viewer.player.grid!=impact.hit.grid || location.grid!=impact.hit.grid ||
+                        (!impact.boarding && (!location.cpPaused || location.baseId!=0)))return@forEach
                     val leave=impact.departed?.let {
                         listOf(org.logh7.protocol.TacticalRetreatMessages.warped(impact.hit.seconds,it.grid,listOf(it.unitId)))
                     }.orEmpty()
