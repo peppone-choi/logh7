@@ -647,7 +647,9 @@ class GameExchange(
         }
         if(messages.none(::exitsCurrentGrid))return messages
         val current=navigation?.snapshot()?.navigators?.get(ticket?.account) ?: return messages
-        if(current.cpPaused || current.grid!=prior.grid || current.generation!=prior.generation)return messages
+        if(current.grid!=prior.grid || current.generation!=prior.generation)return messages
+        // The event loop may drain an old exit after the world has reopened this same battlefield.
+        if(current.cpPaused)return messages.filterNot(::exitsCurrentGrid)
         // The world observer and request publication can both report this same transition.
         return messages.filter {message->
             if(!exitsCurrentGrid(message))true
