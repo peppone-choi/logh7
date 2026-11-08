@@ -383,6 +383,30 @@ class TacticalCommandOperationsTest {
         assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
     }
 
+    @Test fun fortressCannotRepairOrSupplyADeceasedFlagship() {
+        for(opcode in listOf(0x41b,0x41c)) {
+            val s=state()
+            val ally=s.players.getValue("ally").copy(motion=motion(0f,.5f),supplies=400,hull=FlagshipHull(0,now,hp=40))
+            s.players=s.players+("ally" to ally)
+            val command=TacticalCommand(opcode,listOf(ally.unitId),base=1000)
+            val living=s.stocks
+            val dead=living.strategic.copy(people=mapOf(ally.characterId to StrategicPerson(deceasedAt=1)))
+            s.stocks=living.copy(strategic=dead)
+            assertEquals(NavigationRejection.TARGET,accept(run(s),command).rejection)
+            s.stocks=living
+            assertNotNull(accept(run(s),command).player)
+            s.stocks=s.stocks.copy(strategic=dead)
+            val events=mutableListOf<TacticalCommandResult>()
+            settle(run(s),now+5,events)
+            assertTrue(events.single().cancelled)
+            val target=s.players.getValue("ally")
+            assertEquals(ally.hull!!.hp,target.hull!!.hp)
+            assertEquals(ally.supplies,target.supplies)
+            assertEquals(living.bases.getValue(1000).supplies,s.stocks.bases.getValue(1000).supplies)
+            assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+        }
+    }
+
     @Test fun fortressSupportDoesNotAcceptWrongBerthsEnemiesOrStationedCombatCommands() {
         for(opcode in listOf(0x41b,0x41c)) {
             val s=state();val outfit=s.stocks.outfits.getValue(1)
