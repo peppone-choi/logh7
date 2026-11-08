@@ -1,9 +1,15 @@
 // Native 0041cba0 main standing-outfit record. Author: Peppone Choi.
 #pragma once
 #include "planet_info_data.h"
+#include "base_affiliation_data.h"
 
 namespace logh {
 constexpr unsigned outfitPartyBytes = 0x45a0;
+// Mirrors the server's base check: the actual country in its regular camp. A shared
+// display code never grants access, and an unknown owner is left to the server's reply.
+inline bool outfitWarehouseBaseAllowed(const BaseAffiliation::Owner* owner,unsigned ownCountry) {
+    return !owner || (owner->country && !owner->camp && owner->country==ownCountry);
+}
 inline const unsigned char* outfitListRow(const unsigned char* cache, unsigned row) {
     if (!row || row > 100) return nullptr;
     for (unsigned i = 0; i < 100; ++i) {

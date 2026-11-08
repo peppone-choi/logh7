@@ -914,6 +914,16 @@ static int baseAffiliationTest() {
         if(draft.accept(record,sizeof(record))!=(batch==34 ? 2 : 1))return 1045;
     }
     if(draft.value.count!=350 || draft.value.find(350)->country!=0x7fffffff)return 1046;
+    // Warehouse access follows the actual country and regular camp; an unknown owner stays server-decided.
+    const logh::BaseAffiliation::Owner regular{1,42,2,0},rebel{1,42,2,1},neutral{1,0,0,0};
+    if(!logh::outfitWarehouseBaseAllowed(nullptr,42) || !logh::outfitWarehouseBaseAllowed(&regular,42) ||
+        logh::outfitWarehouseBaseAllowed(&regular,43) || logh::outfitWarehouseBaseAllowed(&regular,2) ||
+        logh::outfitWarehouseBaseAllowed(&rebel,42) || logh::outfitWarehouseBaseAllowed(&neutral,0))return 1047;
+    // The earlier grant answers its own token, which an access change has already abandoned.
+    logh::OutfitReplyQueue warehouseReplies;unsigned warehouseReply=0;
+    if(!warehouseReplies.add(7,1,1,true) || !warehouseReplies.add(7,1,2,true) ||
+        !warehouseReplies.take(7,1,true,warehouseReply) || warehouseReply!=1 ||
+        !warehouseReplies.take(7,1,true,warehouseReply) || warehouseReply!=2)return 1048;
     return 0;
 }
 static int outfitAffiliationTest() {
