@@ -20,6 +20,12 @@ class TacticalTerrainTest {
         assertFalse(TacticalTerrain.pathBlocked(galaxy,2487,p(-20f,11f),listOf(p(20f,11f))))
         assertFalse(TacticalTerrain.pathBlocked(galaxy,2487,p(5f,0f),listOf(p(30f,0f))))
         assertTrue(TacticalTerrain.pathBlocked(galaxy,2487,p(5f,0f),listOf(p(1f,0f))))
+        assertTrue(TacticalTerrain.pathBlocked(galaxy,2487,p(5f,0f),listOf(p(-30f,0f))))
+        assertTrue(TacticalTerrain.pathBlocked(galaxy,2487,p(5f,0f),listOf(p(4f,30f))))
+        assertFalse(TacticalTerrain.pathBlocked(galaxy,2487,p(5f,0f),listOf(p(5f,30f))))
+        val escape=TacticalTerrain.route(galaxy,2487,p(5f,0f),p(-30f,0f))
+        assertEquals(p(-30f,0f),escape.last())
+        assertFalse(TacticalTerrain.pathBlocked(galaxy,2487,p(5f,0f),escape))
         assertFalse(TacticalTerrain.pathBlocked(galaxy,2489,p(-20f,0f),listOf(p(20f,0f))))
     }
     @Test fun onlyTheCurrentOwnerOfADefenseHeadquartersReceivesItsContact() {
