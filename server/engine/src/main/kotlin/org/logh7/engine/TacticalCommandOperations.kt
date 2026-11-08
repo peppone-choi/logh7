@@ -464,7 +464,7 @@ internal object TacticalCommandOperations {
                     (id to wing.copy(nextAt=minOf(0xffffffffL,now+StrategicAirTactics.interval(stocks,wing.character,5*scale,wing.source))))))
             }
         }
-        fun advanceMissions() {
+        fun advanceMissions(defeated:Set<Int>) {
             val state=stocks.tacticalCommands;val missions=state.missions.toMutableMap();val merits=state.merits.toMutableMap()
             val finished=mutableMapOf<Int,Pair<Int,Long>>()
             for((id,m) in state.missions) {
@@ -488,8 +488,13 @@ internal object TacticalCommandOperations {
                         val from=pose(p.unitId,p.grid,now,players,stocks,g);val to=pose(m.target,p.grid,now,players,stocks,g)
                         if(active && from!=null && to!=null && hypot((from.position.x-to.position.x).toDouble(),(from.position.y-to.position.y).toDouble())<=12.0)reward=checks
                     }
-                    5 -> if((m.grid?.let {p.grid!=it} ?: !p.cpPaused) && TacticalMissionRules.withdrawalInTime(m.assignedAt,now)){reward=10;completed=true}
-                        else if(now-m.assignedAt>TacticalMissionRules.WITHDRAWAL_LIMIT_GAME_SECONDS)completed=true
+                    5 -> when {
+                        id in defeated -> completed=true
+                        (m.grid?.let {p.grid!=it} ?: !p.cpPaused) && TacticalMissionRules.withdrawalInTime(m.assignedAt,now) -> {
+                            reward=10;completed=true
+                        }
+                        now-m.assignedAt>TacticalMissionRules.WITHDRAWAL_LIMIT_GAME_SECONDS -> completed=true
+                    }
                 }
                 if(!active && m.mission!=5)completed=true
                 if(reward>0)merits[id]=Math.addExact(merits[id] ?: 0,reward)
@@ -527,9 +532,9 @@ internal object TacticalCommandOperations {
     }
     /** Called after every weapon, ground exchange and occupation, before the same durable commit. */
     fun finishMissions(session:SessionState,g:Galaxy,players:MutableMap<String,Navigator>,stocks:PlanetStocks,scale:Long,
-        events:MutableList<TacticalCommandResult>,impacts:MutableList<TacticalImpact>):PlanetStocks {
+        events:MutableList<TacticalCommandResult>,impacts:MutableList<TacticalImpact>,defeated:Set<Int>):PlanetStocks {
         val battle=Battle(session,g,players,stocks,scale,events,impacts)
-        battle.advanceMissions()
+        battle.advanceMissions(defeated)
         return battle.stocks
     }
     internal fun formationOffset(kind:Int,index:Int,count:Int,shipKind:Int):TacticalPoint {
