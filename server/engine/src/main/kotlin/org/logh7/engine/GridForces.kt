@@ -11,7 +11,7 @@ object GridForces {
     fun mobileUnits(outfit: OutfitStock): Long = ships(outfit) + (outfit.activeGround?.values?.count {it.base==0}?.toLong()
         ?: outfit.units.troops.filterKeys {it.kind in ground}.values.sumOf {it.toLong()})
     data class Force(val camp: Camp, val units: Long = 0, val nonSolo: Boolean = false,
-        val ship: Boolean = false, val base: Boolean = false)
+        val ship: Boolean = false, val base: Boolean = false, val deployedShip: Boolean = false)
 
     fun collect(galaxy: Galaxy, generation: Long, navigators: Collection<Navigator>,
         stocks: PlanetStocks?): Map<Int, List<Force>> {
@@ -21,7 +21,8 @@ object GridForces {
             val camps = result.getOrPut(grid) { linkedMapOf() }
             val previous = camps[force.camp] ?: Force(force.camp)
             camps[force.camp] = Force(force.camp, Math.addExact(previous.units, force.units),
-                previous.nonSolo || force.nonSolo, previous.ship || force.ship, previous.base || force.base)
+                previous.nonSolo || force.nonSolo, previous.ship || force.ship, previous.base || force.base,
+                previous.deployedShip || force.deployedShip)
         }
         navigators.filter { it.generation == generation }.forEach {
             val player = it
@@ -30,7 +31,8 @@ object GridForces {
                     outfit.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
             } == true
             // U-10: a revolt's rebels count as their side's rebel camp (manual p.31).
-            add(it.grid, Force(Camp.of(it, stocks?.let { s -> CoupActions.rebel(s, player.characterId,player.country) } == true), 1, nonSolo = grouped, ship = true))
+            add(it.grid, Force(Camp.of(it, stocks?.let { s -> CoupActions.rebel(s, player.characterId,player.country) } == true), 1, nonSolo = grouped, ship = true,
+                deployedShip = player.baseId == 0 && player.mode == 5))
         }
         galaxy.bases.forEach { base ->
             val stock = stocks?.bases?.get(base.id)
@@ -49,15 +51,18 @@ object GridForces {
         stocks?.outfits?.values?.forEach { outfit ->
             val ships = ships(outfit)
             val count = mobileUnits(outfit)
-            if (count > 0) add(outfit.positionIn(galaxy).grid,
-                Force(Camp(outfit.country, CoupActions.outfitCamp(stocks, outfit)==1), count, nonSolo = true, ship = ships > 0))
+            if (count > 0) {
+                val position = outfit.positionIn(galaxy)
+                add(position.grid, Force(Camp(outfit.country, CoupActions.outfitCamp(stocks, outfit)==1),
+                    count, nonSolo = true, ship = ships > 0, deployedShip = ships > 0 && position.baseId == 0))
+            }
             outfit.activeGround?.values.orEmpty().filter {it.base>0}.groupingBy {it.base}.eachCount().forEach { (base,count) ->
                 add(galaxy.bases.single {it.id==base}.grid,
                     Force(Camp(outfit.country, CoupActions.outfitCamp(stocks, outfit)==1),count.toLong(),nonSolo=true))
             }
         }
         stocks?.social?.pirates?.fleets?.values?.filter { it.alive }?.forEach { fleet ->
-            add(fleet.grid, Force(Camp.PIRATES, fleet.units.count { it.boats > 0 }.toLong(), nonSolo = true, ship = true))
+            add(fleet.grid, Force(Camp.PIRATES, fleet.units.count { it.boats > 0 }.toLong(), nonSolo = true, ship = true, deployedShip = true))
         }
         return result.mapValues { it.value.values.toList() }
     }
@@ -66,6 +71,6 @@ object GridForces {
         GridState(galaxy.kind(grid), galaxy.terrain(grid), TacticalContact.contested(forces[grid].orEmpty()), forces[grid].orEmpty().map {
             // Capacity decisions need only distinguish counts above 300. Keep the
             // full Long total in collect(), including for native map reports.
-            CampPresence(it.camp, it.units.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), it.nonSolo, it.ship, it.base)
+            CampPresence(it.camp, it.units.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), it.nonSolo, it.deployedShip, it.base)
         })
 }
