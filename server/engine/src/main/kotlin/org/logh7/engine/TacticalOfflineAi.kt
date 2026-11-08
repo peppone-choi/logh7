@@ -38,16 +38,20 @@ internal object TacticalOfflineAi {
                 stocks.tacticalCommands.orders.any {p.unitId in it.command.units})continue
             val pose=p.motion?.pose(now,p.posture,g,stocks) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,stocks,g)
             val mission=currentMission(p,stocks)
-            val kind=if(stocks.tacticalCommands.confused(p.unitId))5 else mission?.mission ?: 0
+            val camp=TacticalAuthority.camp(p,stocks)
+            val defended=if(mission==null && !camp.insurgent)g.bases.asSequence().filter {it.grid==p.grid && it.kind==0}
+                .filter {stocks.bases[it.id]?.country==p.country && GroundCommandAuthority.garrison(it.id,stocks,g)==p.characterId}
+                .minByOrNull {it.id} else null
+            val kind=if(stocks.tacticalCommands.confused(p.unitId))5 else mission?.mission ?: if(defended!=null)1 else 0
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)).distinct()
-            val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)?.let {
+            val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,camp,stocks,g,players)?.let {
                 id to TacticalFleetAttack.pose(it,now,players,stocks,g)}}
                 .filterNot { TacticalTerrain.sensorBlocked(g,p.grid,pose.position,it.second.position) }
             val enemy=enemies.singleOrNull {kind in 3..4 && it.first==mission?.target}
                 ?: if(kind==0)enemies.minWithOrNull(compareBy<Pair<Int,TacticalPose>> {
                     distance(pose.position,it.second.position)}.thenBy {it.first}) else null
             val goal=when(kind) {
-                1,2->g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid}?.let {
+                1,2->(defended ?: g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid})?.let {
                     TacticalCommandOperations.basePoint(it,now,stocks)}
                 5->{val length=distance(TacticalPoint(0f,0f),pose.position)
                     if(length<1)TacticalPoint(0f,260f) else TacticalPoint(pose.position.x/length*260f,pose.position.y/length*260f)}

@@ -72,6 +72,23 @@ class TacticalOfflineAiTest {
         assertNull(next.outfits.getValue(1).activeShips!!.values.single().attack)
     }
 
+    @Test fun unassignedPlanetGarrisonDefendsItsPostUntilRelieved() {
+        val base=galaxy.bases.single().copy(kind=0,radius=15f)
+        val world=Galaxy(galaxy.systems,listOf(base),galaxy.starts)
+        val plain=stocks()
+        for (appointed in listOf(true,false)) {
+            val players=players()
+            val stock=plain.copy(bases=mapOf(base.id to plain.bases.getValue(base.id)
+                .copy(garrisonCommanderId=if(appointed)10000 else 0)),
+                tacticalCommands=plain.tacticalCommands.copy(missions=emptyMap()))
+            TacticalOfflineAi.advance(offline,world,players,stock,1,mutableListOf())
+            val end=players.getValue("pilot").motion!!.waypoints.single()
+            val point=TacticalCommandOperations.basePoint(base,now,stock)
+            if(appointed) assertTrue(hypot(end.x-point.x,end.y-point.y)<=3.001f)
+            else assertEquals(TacticalPoint(0f,28f),end)
+        }
+    }
+
     @Test fun missionsFromAnotherGridDoNotOverrideLocalOfflinePatrol() {
         for (kind in 3..5) {
             val players=players()
