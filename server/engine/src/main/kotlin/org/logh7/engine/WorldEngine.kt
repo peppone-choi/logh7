@@ -370,6 +370,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val member=session.participants[account] ?: return false
         if(member.online || player.cpPaused || player.generation!=session.generation)return false
         val now=session.gameMillis/1000
+        (player.dockReadyAt ?: player.warpReadyAt)?.let {return it<=now}
         return player.strategy?.jobs.orEmpty().any {it.completesAtGameMillis/1000<=now} ||
             (player.strategy==null && player.fuelReadyAt?.let {it<=now}==true)
     }
@@ -487,7 +488,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val navigationDeadlines=snapshot.navigators.filter {(account,p)->p.generation==session.generation && !p.cpPaused &&
             session.participants[account]?.online==false &&
             (p.warpTarget==null || (profiles[account]?.abilities?.size ?: 0)>2)}.values.flatMap {p->
-            p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null})
+            (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
+                (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
         val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {

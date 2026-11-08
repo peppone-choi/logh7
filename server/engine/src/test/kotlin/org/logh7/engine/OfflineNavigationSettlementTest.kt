@@ -110,9 +110,12 @@ class OfflineNavigationSettlementTest {
     }
     private val profile = StrategicPerson(abilities = List(8) { 50 })
 
-    @Test fun aReservedFleetWarpArrivesWhileTheCommanderIsOfflineAndNotifiesViewers() = runBlocking {
+    @Test fun aReservedFleetWarpWaitsForOfflineCommanderRecoveryAndThenNotifiesViewers() = runBlocking {
         val world = world()
         val reserved = reservedWarp(world)
+        val now = fleetSession.gameMillis / 1000
+        val recovery = now + 3840
+        world.players = mapOf("pilot" to reserved.copy(hull = FlagshipHull(93, now, woundedUntil = recovery)))
         val engine = WorldEngine(this, ticking = false, galaxy = fleetGalaxy, navigationStore = world.nav,
             stockStore = world.inventory, worldStateCommitter = world.commit, npcPolicy = NpcTacticalPolicy(enabled = false))
         val arrivals = java.util.concurrent.CopyOnWriteArrayList<NpcStrategicMovement>()
@@ -122,6 +125,10 @@ class OfflineNavigationSettlementTest {
             engine.submit(WorldCommand.Join("pilot", Power.ALLIANCE, false, joined, "c", 1, profile)); assertEquals(Admission.ACCEPTED, joined.await())
             engine.submit(WorldCommand.Disconnect("pilot", "c"))
             engine.submit(WorldCommand.AdvanceTo(150_000))
+            val waiting = CompletableDeferred<Navigator>()
+            engine.submit(WorldCommand.Quiesce({ world.players.getValue("pilot") }, waiting))
+            assertEquals(2487, waiting.await().grid)
+            assertTrue(arrivals.isEmpty())
             engine.submit(WorldCommand.AdvanceTo(160_000))
             engine.drainAndClose()
             val arrived = world.players.getValue("pilot")

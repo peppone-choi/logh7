@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
+import org.logh7.engine.strategy.*
 import org.logh7.gateway.load.*
 import org.logh7.protocol.*
 import java.nio.ByteBuffer
@@ -17,6 +18,35 @@ class DockingWireTest {
         val packets = mutableListOf<ByteArray>()
         repeat(300) { packets += client.receive(); if (code(packets.last()) == end) return packets }
         error("Missing opcode $end")
+    }
+    @Test fun reconnectReportsRecoveryDeadlineForAnOverdueDock() = runBlocking<Unit> {
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
+            listOf(GalaxyBase(1049, 2487, 60, 0, "Odin", 0, 20f, 86400, 0, 0f, 2f)),
+            Power.entries.associateWith { 2487 })
+        val account = "load-000"
+        val now = SessionRules.load().startSeconds
+        val due = (now + 8 * 3600) * 1000
+        val job = StrategyJob(0, "operation/星系内航行", now * 1000, due, due,
+            PaymentResult.Paid(CpBalance(1000, 840), CpPool.MCP, 160, 160, false), JobState.WAITING)
+        val wounded = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 840, 1000,
+            strategy = StrategyCheckpoint(1, now * 1000, listOf(job)), dockTarget = 1049,
+            hull = FlagshipHull(3, now, woundedUntil = now + 9 * 3600))
+        val store = object : NavigationStore {
+            private var players = mapOf(account to wounded)
+            override fun load() = players
+            override fun save(players: Map<String, Navigator>) { this.players = players }
+        }
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false, navigationStore = store).use { fixture ->
+            fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24))
+            val client = fixture.join(account, true, false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            val ack = ByteBuffer.wrap(through(client, 0x0b00).last())
+            assertEquals(3600, ack.getInt(10))
+            assertEquals(1049, ack.getInt(28))
+            assertEquals(0, fixture.engine.snapshot().navigators.getValue(account).baseId)
+            fixture.engine.submit(WorldCommand.AdvanceTo(9 * 3600_000L / 24))
+            assertEquals(1049, ByteBuffer.wrap(through(client, 0x0b0b).last()).getInt(14))
+        }
     }
     @Test fun reconnectRestoresRemainingDockWaitWithoutChargingOrCompletingIt() = runBlocking<Unit> {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
