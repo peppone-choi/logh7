@@ -2,13 +2,15 @@ package org.logh7.engine
 
 /** Editable starting data for a lottery candidate. Its ID and creation side are stable. */
 data class OriginalCandidateProfile(
-    val surname:String,val givenName:String,val face:Int,val rank:Int,val abilities:List<Int>,val peerage:Peerage?=null
+    val surname:String,val givenName:String,val face:Int,val rank:Int,val abilities:List<Int>,val peerage:Peerage?=null,
+    val portraitKey:String?=null
 ) {
     init {
         require(listOf(surname,givenName).all { name ->
             name.isNotBlank() && name.length<=12 && name.none {it.isISOControl() || it.isSurrogate()}
         })
         require(rank in 2..20 && abilities.size==8 && abilities.all {it in 0..255})
+        require(portraitKey==null || CountryImageStore.validKey(portraitKey))
     }
 
     val creationPower get()=when(face) {
@@ -40,6 +42,7 @@ data class OriginalCandidateEdit(val id:Long,val revision:Long,val profile:Origi
 interface OriginalCandidateStore {
     val supportsEditing:Boolean get()=true
     val supportsFemaleFaces:Boolean get()=true
+    val supportsPortraits:Boolean get()=false
     fun load():List<OriginalCandidateEdit>
     fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?=null):OriginalCandidateEdit?
 }

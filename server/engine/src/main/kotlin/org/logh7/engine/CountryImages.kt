@@ -8,7 +8,7 @@ import javax.imageio.ImageIO
 import javax.imageio.stream.MemoryCacheImageInputStream
 
 /** Editable image originals and bounded game thumbnails. Author: Peppone Choi (peppone-choi). */
-enum class CountryImageKind(val key:String) { EMBLEM("emblem"), FLAG("flag"), MAP_ICON("map_icon") }
+enum class CountryImageKind(val key:String) { EMBLEM("emblem"), FLAG("flag"), MAP_ICON("map_icon"), PORTRAIT("portrait") }
 data class CountryImageInfo(val key:String,val kind:CountryImageKind,val revision:Long,val title:String,val description:String,
     val sha256:String,val width:Int,val height:Int)
 data class CountryImageFile(val info:CountryImageInfo,val png:ByteArray,val rgba:ByteArray)

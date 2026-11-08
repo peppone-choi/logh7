@@ -62,7 +62,7 @@ internal fun Route.countryImageRoutes(store:CountryImageStore?,definitions:Count
         call.audited(audit,OpsAction.IMAGE_BIND,form["operator"],"country=${imageAuditValue(form["country"])},slot=${imageAuditValue(form["slot"])},asset=${imageAuditValue(form["key"])}",imageErrors) {
             val country=form["country"]?.toIntOrNull();val revision=form["revision"]?.toLongOrNull()
             val slot=CountryImageKind.entries.singleOrNull {it.key==form["slot"]};val key=form["key"]?.takeIf {it.isNotEmpty()}
-            if(country==null || revision==null || slot==null)return@audited OpsOutcome.INVALID
+            if(country==null || revision==null || slot==null || slot==CountryImageKind.PORTRAIT)return@audited OpsOutcome.INVALID
             if(store==null)return@audited OpsOutcome.UNAVAILABLE
             withContext(Dispatchers.IO){store.bind(country,revision,slot,key)}.ops()
         }
@@ -104,7 +104,7 @@ internal fun countryImagePage(data:Triple<List<CountryImageInfo>,CountryDefiniti
     val country=definitions.catalog.countries[countryId] ?: definitions.catalog.countries.values.firstOrNull()
     fun hidden(name:String,value:String){append("<input type=\"hidden\" name=\"$name\" value=\"${e(value)}\">")}
     fun operator(){append("<label>운영자 <input name=\"operator\" required pattern=\"[A-Za-z0-9._-]{1,64}\" autocomplete=\"username\"></label>")}
-    fun label(kind:CountryImageKind)=when(kind){CountryImageKind.EMBLEM->"국가 문장";CountryImageKind.FLAG->"깃발";CountryImageKind.MAP_ICON->"지도 아이콘"}
+    fun label(kind:CountryImageKind)=when(kind){CountryImageKind.EMBLEM->"국가 문장";CountryImageKind.FLAG->"깃발";CountryImageKind.MAP_ICON->"지도 아이콘";CountryImageKind.PORTRAIT->"NPC 초상"}
     append("<p>PNG 원본과 수정 이력을 보관합니다. 문장·지도 아이콘은 비율을 유지한 32×32 표시본에 국가색을 입혀 게임에 반영합니다. 깃발의 게임 화면 연결은 준비 중입니다.</p><div class=\"grid\"><section><h2>${if(selected==null)"이미지 등록" else "이미지 수정"}</h2><form id=\"image-edit\" action=\"/admin/images/save\" method=\"post\">")
     hidden("revision",(selected?.revision ?: 0).toString());hidden("country",country?.id?.toString().orEmpty());operator()
     append("<label>이미지 키 <input name=\"key\" required pattern=\"[a-z][a-z0-9_]{0,39}\" maxlength=\"40\" value=\"${e(selected?.key.orEmpty())}\"${if(selected!=null)" readonly" else ""}></label><label>용도 <select name=\"kind\">")
@@ -120,9 +120,9 @@ internal fun countryImagePage(data:Triple<List<CountryImageInfo>,CountryDefiniti
     append("</section><section><h2>국가에 연결</h2><form method=\"get\"><label>국가 <select name=\"country\">")
     definitions.catalog.countries.values.forEach {append("<option value=\"${it.id}\"${if(it.id==country?.id)" selected" else ""}>${e(it.name)} (${it.id})</option>")}
     append("</select></label><button>열기</button></form>")
-    if(country!=null)for(kind in CountryImageKind.entries) {
+    if(country!=null)for(kind in CountryImageKind.entries.filter {it!=CountryImageKind.PORTRAIT}) {
         val binding=snapshot.countries[country.id]
-        val current=when(kind){CountryImageKind.EMBLEM->binding?.emblemKey;CountryImageKind.FLAG->binding?.flagKey;CountryImageKind.MAP_ICON->binding?.mapIconKey}
+        val current=when(kind){CountryImageKind.EMBLEM->binding?.emblemKey;CountryImageKind.FLAG->binding?.flagKey;CountryImageKind.MAP_ICON->binding?.mapIconKey;CountryImageKind.PORTRAIT->null}
         append("<form action=\"/admin/images/bind\" method=\"post\">");hidden("country",country.id.toString());hidden("revision",definitions.revision.toString());hidden("slot",kind.key);operator()
         append("<label>${label(kind)} <select name=\"key\"><option value=\"\">기본 문양 사용</option>")
         images.filter {it.kind==kind}.forEach {append("<option value=\"${it.key}\"${if(it.key==current)" selected" else ""}>${e(it.title)} (${it.key})</option>")}
