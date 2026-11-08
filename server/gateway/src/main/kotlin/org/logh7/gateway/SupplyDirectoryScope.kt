@@ -7,31 +7,33 @@ import org.logh7.protocol.SupplementDirectoryMessages
 internal class SupplyDirectoryScope(private val galaxy:Galaxy,country:CountryId?,
     countries:CountryCatalog=CountryCatalogLoader.current()) {
     private val country=country?.takeIf {it.value in countries.countries}
-    private fun home(stocks:PlanetStocks,outfit:OutfitStock):Boolean = country?.let {own->
-        outfit.country==own && stocks.bases[outfit.baseId]?.let {it.belongsTo(own) && it.camp==0}==true
-    }==true
-
     fun supplement(stocks:PlanetStocks,actor:Int,kind:Int):List<SupplementDirectoryMessages.Unit> {
-        val source=stocks.outfits.values.singleOrNull {it.commanderId==actor && country!=null && it.country==country}
-            ?.takeIf {home(stocks,it)} ?: return emptyList()
+        val own=country ?: return emptyList()
+        val source=stocks.outfits.values.singleOrNull {it.commanderId==actor &&
+            TacticalAuthority.canAccessOutfitWarehouse(stocks,it,actor,own)} ?: return emptyList()
         return source.activeShips?.values.orEmpty().filter {it.stack.kind==kind}.sortedBy {it.id}.map {
             SupplementDirectoryMessages.Unit(it.id,it.stack.kind,UnitSpecifications.ships.single {spec->spec.kind==kind}.number-it.boats)
         }.filter {it.destroyed>0}
     }
 
-    fun supplySource(stocks:PlanetStocks,actor:Int,grid:Int,port:Int?=null):OutfitStock? =
-        stocks.outfits.values.singleOrNull {it.commanderId==actor && it.kind==OutfitKind.TRANSPORT &&
-            country!=null && it.country==country && it.positionIn(galaxy).let { position ->
+    fun supplySource(stocks:PlanetStocks,actor:Int,grid:Int,port:Int?=null):OutfitStock? {
+        val own=country ?: return null
+        val camp=Camp(own,CoupActions.rebel(stocks,actor,own))
+        return stocks.outfits.values.singleOrNull {it.commanderId==actor && it.kind==OutfitKind.TRANSPORT &&
+            TacticalAuthority.camp(it,stocks)==camp && it.positionIn(galaxy).let { position ->
                 position.grid==grid && (port==null || position.baseId==port) &&
-                    stocks.bases[position.baseId]?.let {it.country==country && it.camp==0}==true
+                    stocks.bases[position.baseId]?.let(TacticalAuthority::camp)==camp
             }}
+    }
 
     fun supply(stocks:PlanetStocks,actor:Int,grid:Int):List<OutfitStock> =
         supplySource(stocks,actor,grid)?.let { supplyTargets(stocks,it) }.orEmpty()
 
     fun supplyTargets(stocks:PlanetStocks,source:OutfitStock):List<OutfitStock> {
+        if(source.country!=country)return emptyList()
         val port=source.positionIn(galaxy).baseId
-        return stocks.outfits.values.filter {it.id!=source.id && it.country==country &&
+        val camp=TacticalAuthority.camp(source,stocks)
+        return stocks.outfits.values.filter {it.id!=source.id && TacticalAuthority.camp(it,stocks)==camp &&
             (it.position?.baseId ?: it.baseId)==port}.sortedBy {it.id}
     }
 }

@@ -2575,8 +2575,8 @@ class GameExchange(
                                     val country=currentProfile(identity.account,character.id.toInt()).country
                                     val offices=org.logh7.engine.LogisticsOfficePolicy(world.galaxy)
                                     val allowed=inventory.outfits.values.filter {outfit ->
-                                        val base=inventory.bases[outfit.baseId]
-                                        country!=null && outfit.country==country && base?.belongsTo(country)==true && base.camp==0 &&
+                                        country!=null && org.logh7.engine.TacticalAuthority.canAccessOutfitWarehouse(
+                                            inventory,outfit,character.id.toInt(),country) &&
                                             offices.permits(inventory,character.id.toInt(),country,outfit.kind,
                                                 if(query.search==32)null else query.card)
                                     }

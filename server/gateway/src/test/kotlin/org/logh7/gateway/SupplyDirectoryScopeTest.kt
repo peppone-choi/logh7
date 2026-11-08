@@ -61,6 +61,18 @@ class SupplyDirectoryScopeTest {
         assertEquals(290,stocks.outfits.getValue(2).activeShips!!.values.single().boats)
     }
 
+    @Test fun rebelPortListsOnlySupplyAndSupplementUnitsInTheCommandersCamp() {
+        val coup=CoupState(mapOf(10000 to Plot(10000,CountryId(42),0,members=listOf(10001),revolt=5,bases=setOf(1049))),
+            loyalty=mapOf(1 to 100,2 to 100))
+        val rebel=stocks.copy(bases=stocks.bases+(1049 to stocks.bases.getValue(1049).copy(camp=1)),
+            social=stocks.social.copy(coup=coup))
+        assertEquals(listOf(2),scope(42).supply(rebel,10000,2487).map {it.id})
+        assertEquals(listOf(2),scope(42).supplement(rebel,10001,32).map {it.id})
+        val divided=rebel.copy(social=rebel.social.copy(coup=coup.copy(loyalty=mapOf(1 to 100))))
+        assertTrue(scope(42).supply(divided,10000,2487).isEmpty())
+        assertTrue(scope(42).supplement(divided,10001,32).isEmpty())
+    }
+
     @Test fun departedSourceOrTargetIsExcludedEvenWhenItsHomeBaseMatches() {
         for (id in listOf(1, 2)) {
             val departed = stocks.outfits.getValue(id).copy(position = OutfitPosition(2487))

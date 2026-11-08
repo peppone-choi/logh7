@@ -54,19 +54,20 @@ object CompletenessSupply {
             member == null || !member.online || member.connection != r.connection) return reject(LogisticsRejection.SESSION)
         if (player == null || player.generation != r.generation || player.characterId != r.characterId ||
             player.country != r.country || member.country != r.country) return reject(LogisticsRejection.IDENTITY)
-        val country = r.country ?: return reject(LogisticsRejection.ACCESS)
+        if (r.country == null) return reject(LogisticsRejection.ACCESS)
+        val camp = TacticalAuthority.camp(player, stocks)
         // The CD sends zero if the actor's current outfit is ambiguous among their offices.
         val from = if (r.from != 0) stocks.outfits[r.from] else stocks.outfits.values.singleOrNull {
-            it.country == country && it.kind == OutfitKind.TRANSPORT && it.commanderId == r.characterId &&
+            TacticalAuthority.camp(it, stocks) == camp && it.kind == OutfitKind.TRANSPORT && it.commanderId == r.characterId &&
                 (it.position?.baseId ?: it.baseId) == player.baseId
         }
         if (from == null) return reject(LogisticsRejection.OUTFIT)
         val to = stocks.outfits[r.to] ?: return reject(LogisticsRejection.OUTFIT)
         if (from.id == to.id) return reject(LogisticsRejection.OUTFIT)
-        if (from.country != country || to.country != country || from.kind != OutfitKind.TRANSPORT || from.commanderId != r.characterId)
+        if (TacticalAuthority.camp(from, stocks) != camp || TacticalAuthority.camp(to, stocks) != camp || from.kind != OutfitKind.TRANSPORT || from.commanderId != r.characterId)
             return reject(LogisticsRejection.ACCESS)
         val base = stocks.bases[player.baseId]
-        if (base?.country != country || base.camp != 0 ||
+        if (base?.let(TacticalAuthority::camp) != camp ||
             (from.position?.baseId ?: from.baseId) != player.baseId || (to.position?.baseId ?: to.baseId) != player.baseId)
             return reject(LogisticsRejection.LOCATION)
         val quote = quote(player, from, to)
