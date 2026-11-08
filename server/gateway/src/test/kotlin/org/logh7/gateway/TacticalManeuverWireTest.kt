@@ -43,8 +43,12 @@ class TacticalManeuverWireTest {
         assertEquals(listOf(1010000),TacticalTurnMessages.command(turn.copyOfRange(4,turn.size)).units.map {it.id})
     }
 
-    @ParameterizedTest @ValueSource(booleans=[false,true])
-    fun formationCommandUsesServerHeadingsResumesAsOneGroupAndCompletesForBothPeers(reverse:Boolean)=runBlocking {
+    @ParameterizedTest @ValueSource(strings=["turn","left","right","legacy-right"])
+    fun formationCommandUsesServerHeadingsResumesAsOneGroupAndCompletesForBothPeers(commandKind:String)=runBlocking {
+        val reverse=commandKind!="turn"
+        val reverseSide=if(commandKind.endsWith("right"))1 else 0
+        val completedDirection=if(!reverse) (Math.PI/2).toFloat() else (if(reverseSide==0)-Math.PI else Math.PI).toFloat()
+        val requestHeading=when(commandKind) {"left"->2f;"right"->1f;else->2.5f}
         val opcode=if(reverse)0x0403 else 0x0401
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
@@ -72,8 +76,8 @@ class TacticalManeuverWireTest {
             error("Missing $opcode")
         }
         fun command(character:Int)=TacticalTurnMessages.reply(TacticalTurnMessages.Command(character,
-            listOf(1,2,1010000).map {TacticalTurnMessages.Unit(it,2.5f)},
-            if(reverse)null else (Math.PI/2).toFloat(),if(reverse)1 else 0),123,999).let {it.copyOfRange(4,it.size)}
+            listOf(1,2,1010000).map {TacticalTurnMessages.Unit(it,requestHeading)},
+            if(reverse)null else (Math.PI/2).toFloat(),if(commandKind=="legacy-right")1 else 0),123,999).let {it.copyOfRange(4,it.size)}
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=nav,stockStore=stock,
             worldStateCommitter=commit,powerByIndex={2}).use {fixture ->
             fun join(i:Int,first:Boolean)=fixture.join(fixture.account(i),first,false).client.also {c ->
@@ -93,7 +97,7 @@ class TacticalManeuverWireTest {
             }
             val pending=savedStocks.outfits.getValue(1).activeShips!!.values.single {it.id==2}.tactical!!.motion
             assertNotNull(pending.rotation);assertEquals(1,pending.rotation!!.leader)
-            assertEquals(if(reverse)1 else 0,checkNotNull(pending.rotation).reverseSide)
+            assertEquals(reverseSide,checkNotNull(pending.rotation).reverseSide)
             fixture.engine.submit(WorldCommand.AdvanceTo(2000)) // 48 G-seconds: still inside the manual wait.
             assertEquals(pending,savedStocks.outfits.getValue(1).activeShips!!.values.single {it.id==2}.tactical!!.motion)
             clients[1].close();fixture.awaitState(online=1,connections=1,participants=2)
@@ -108,7 +112,7 @@ class TacticalManeuverWireTest {
                 repeat(3) {
                     val moved=ByteBuffer.wrap(through(c,if(reverse)0x0424 else 0x0423))
                     if(!reverse)assertEquals(-1,moved.get(30).toInt())
-                    assertEquals(if(reverse)Math.PI.toFloat() else (Math.PI/2).toFloat(),kotlin.math.abs(moved.getFloat(14)),0.00001f)
+                    assertEquals(completedDirection,moved.getFloat(14),0.00001f)
                     ids+=moved.getInt(10)
                 }
                 assertEquals(setOf(1,2,1010000),ids)
@@ -119,7 +123,7 @@ class TacticalManeuverWireTest {
             assertEquals(if(reverse)1f else 0f,done.origin.position.y,0.00001f)
             val own=savedPlayers.getValue(fixture.account(0)).motion!!
             assertEquals(if(reverse)0f else 0.5f,own.origin.position.x,0.00001f)
-            assertEquals(if(reverse)Math.PI.toFloat() else (Math.PI/2).toFloat(),kotlin.math.abs(own.direction),0.00001f)
+            assertEquals(completedDirection,own.direction,0.00001f)
 
             clients[0].send(command(10000))
             for(c in clients)through(c,opcode)

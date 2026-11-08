@@ -945,13 +945,16 @@ class GameExchange(
                         val character=checkNotNull(currentCharacter(identity.account))
                         val turn=org.logh7.protocol.TacticalTurnMessages.command(body)
                         require(turn.character==character.id.toInt())
+                        // The CD's right button sends 1.0 for every selected unit and a zero trailing byte.
+                        val reverseSide=if(turn.reverse && turn.reverseByte==0 && turn.units.all {it.direction==1f}) 1
+                            else turn.reverseByte
                         pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),captainCard=if(character.power==2)59 else 195,
                             shipKind=character.shipKind,commandAbility=character.abilities[4],tacticalMove=org.logh7.engine.TacticalMove(
                                 turn.units.map {it.id},0f,turn.direction ?: 0f,listOf(org.logh7.engine.TacticalPoint(0f,0f)),
                                 maneuver=if(turn.reverse)org.logh7.engine.TacticalManeuver.REVERSE else org.logh7.engine.TacticalManeuver.TURN,
-                                reverseSide=turn.reverseByte))).thenApply {result ->
+                                reverseSide=reverseSide))).thenApply {result ->
                             val player=checkNotNull(result.player ?: result.previous)
                             publication=Publication(character,player,false)
                             (if(result.player==null)listOf(org.logh7.protocol.TacticalTurnMessages.reply(turn,gameSeconds(),0,false))
