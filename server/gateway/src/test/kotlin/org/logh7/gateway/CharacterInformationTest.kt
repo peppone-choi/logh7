@@ -32,6 +32,27 @@ class CharacterInformationTest {
         hub.remove("peer"); assertNull(hub.detail("viewer",10001))
         hub.remove("viewer"); assertNull(hub.detail("viewer",10000))
     }
+    @Test fun originalPortraitRequiresTheSameLiveRoomEvenForFriendlyCharacters() {
+        val hub=GamePresence()
+        val own=GamePresence.Member("viewer",character,
+            Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4,spotId=10490003,spotOwner=10000),{})
+        val peer=own.copy(connection="peer",character=character.copy(id=1001,power=3,generated=false),
+            player=own.player.copy(characterId=1001,country=Power.ALLIANCE.country))
+        hub.update(own);hub.update(peer)
+        assertEquals(peer.character,hub.spotPortrait("viewer",1001))
+        assertNull(hub.spotPortrait("viewer",10000))
+        assertNull(hub.spotPortrait("forged",1001))
+        hub.update(peer.copy(character=peer.character.copy(generated=true)))
+        assertNull(hub.spotPortrait("viewer",1001))
+        for(player in listOf(peer.player.copy(spotId=10490004),peer.player.copy(spotOwner=1001),
+            peer.player.copy(baseId=1050),peer.player.copy(grid=2488),peer.player.copy(generation=2),
+            peer.player.copy(spotId=0))) {
+            hub.update(peer.copy(player=player.copy(country=Power.EMPIRE.country)))
+            assertNull(hub.spotPortrait("viewer",1001))
+        }
+        hub.update(peer);hub.remove("peer")
+        assertNull(hub.spotPortrait("viewer",1001))
+    }
     private fun opcode(bytes: ByteArray) = ByteBuffer.wrap(bytes).getShort(4).toInt() and 65535
     private fun through(client: SyntheticClient, end: Int): ByteArray {
         repeat(64) { val message=client.receive(); if (opcode(message)==end) return message }
@@ -40,6 +61,56 @@ class CharacterInformationTest {
     private fun query(client: SyntheticClient, id: Int): ByteArray {
         client.send(ByteBuffer.allocate(6).putShort(0x354).putInt(id).array())
         return through(client,0x355)
+    }
+    @Test fun sameRoomPortraitCrossesTheEncryptedConnectionAndStopsAfterDeparture() {
+        val home=GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home")),listOf(home),
+            mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))
+        val now=SessionRules.load().startSeconds
+        val room=10490003
+        val original=OriginalCharacterMessages.localCandidates.first().character.copy(generated=false)
+        val definitions=CharacterCreation.originalDefinitions()
+        val image=ByteArray(4096){90}
+        val portraits=PublishedOriginalCandidates(definitions)
+        portraits.publish(listOf(OriginalCandidateEdit(original.id,1,definitions.first().profile.copy(portraitKey="face"))))
+        portraits.publishPortraits(mapOf("face" to CandidatePortrait(1,image)))
+        java.nio.file.Files.newOutputStream(directory.resolve("characters.properties")).use {out ->
+            java.util.Properties().apply {setProperty("load-001",CharacterProfile.legacy(original).encoded())}.store(out,null)
+        }
+        var savedPlayers=listOf(10000,original.id.toInt(),10001).mapIndexed { index,id ->
+            "load-%03d".format(index) to Navigator(1,id,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4,
+                spotId=if(index==2)room+1 else room,cpRecoveryAt=now)
+        }.toMap()
+        val navigation=object:NavigationStore {
+            override fun load()=savedPlayers
+            override fun save(players:Map<String,Navigator>){savedPlayers=players}
+        }
+        LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false,navigationStore=navigation,originalCandidates=portraits).use { f ->
+            fun ready(i:Int,create:Boolean)=f.join(f.account(i),create,false).client.also {
+                it.send(SyntheticClient.opcode(0x0f00));through(it,0x0f01)
+            }
+            val viewer=ready(0,true)
+            val peer=ready(1,false)
+            val outsider=ready(2,true)
+            fun send(client:SyntheticClient,q:OutfitPartyMessages.Query) =
+                client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(q.outfit).putInt(q.base).put(q.mode.toByte()).array())
+            send(viewer,OutfitPartyMessages.Query(10000,1,CountryIdentityMessages.MODE))
+            val flags=through(viewer,0x032f)[16].toInt()
+            assertTrue(flags and CountryIdentityMessages.SPOT_PORTRAIT!=0)
+            assertEquals(0,flags and CountryIdentityMessages.PORTRAIT)
+            fun verify(client:SyntheticClient,nonce:Int,bytes:ByteArray?) {
+                val q=OutfitPartyMessages.Query(original.id.toInt(),nonce,CountryImageMessages.SPOT_PORTRAIT_MODE)
+                send(client,q)
+                for(frame in CountryImageMessages.portraitReply(q,if(bytes==null)0 else 1,bytes))
+                    assertContentEquals(frame,through(client,0x032f))
+            }
+            verify(viewer,2,image)
+            verify(outsider,3,null)
+            peer.close()
+            f.awaitState(online=2,connections=2,participants=3)
+            Thread.sleep(1100)
+            verify(viewer,4,null)
+        }
     }
     @Test fun encryptedQueriesReturnLiveSelfAndPeerAndDenialDoesNotBreakTheCipher() {
         val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Empire")),emptyList(),

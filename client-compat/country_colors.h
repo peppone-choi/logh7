@@ -29,7 +29,7 @@ static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
     ULONGLONG sentAt,pollAt,identityAt,basesAt;
-    bool identityReceived,fuelSupported,productionQuotesSupported,repairQuotesSupported,supplyQuotesSupported,portraitSupported;
+    bool identityReceived,fuelSupported,productionQuotesSupported,repairQuotesSupported,supplyQuotesSupported,portraitSupported,spotPortraitSupported;
     ULONGLONG fuelAt,portraitAt;
     FuelProgress fuel;
     unsigned imageCountry;std::uint64_t imageRevision;
@@ -73,6 +73,7 @@ static bool receiveCountryPaint(const BYTE* record) {
         inbox.repairQuotesSupported=(record[10]&1)!=0;
         inbox.supplyQuotesSupported=(record[10]&2)!=0;
         inbox.portraitSupported=(record[10]&4)!=0;
+        inbox.spotPortraitSupported=(record[10]&8)!=0;
         if(!inbox.portraitSupported)clearOwnPortrait();
     }
     if(inbox.pending && inbox.mode==fuelStatusMode && readFuelProgress(record,inbox.character,inbox.nonce,inbox.fuel)) {

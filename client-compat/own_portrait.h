@@ -35,6 +35,8 @@ static bool uploadPortraitTexture(UploadedCountryTexture& texture,const BYTE* rg
     return createUploadedTexture(texture,tga,sizeof(tga),device);
 }
 
+#include "spot_portrait.h"
+
 static UploadedCountryTexture* ownPortraitTexture(void* world,unsigned character) {
     static UploadedCountryTexture texture;
     static unsigned loaded=0;
@@ -113,6 +115,8 @@ static unsigned __cdecl drawOwnPortraitSlot(void* quad,const float* point,const 
     const float source[]={0,0,32,40};
     if(quad && world)if(auto texture=lobbyPortraitTexture(world,quad))
         return draw(texture->quad,point,source,color,width,height);
+    if(quad && world)if(auto texture=spotPortraitTexture(world,quad))
+        return draw(texture->quad,point,source,color,width,height);
     auto own=world ? at<BYTE*>(world,8) : nullptr;
     if(quad && world==ownPortraitWorld && own && at<BYTE>(own,0) && at<unsigned>(own,0x24)==ownPortraitCharacter &&
         at<BYTE>(world,0x2a58f8) && !at<BYTE>(world,0x126718)) {
@@ -130,6 +134,7 @@ static bool installOwnPortrait() {
     struct Site {unsigned address;BYTE bytes[5];const void* hook;};
     const Site sites[]={{0x58d293,{0xe8,0x48,0x61,0,0},&loadOwnPortraitSlot},
                         {0x51f457,{0xe8,0x84,0x3f,0x07,0},&loadLobbyPortraitStub},
+                        {0x549b41,{0xe8,0x9a,0x98,0x04,0},&loadSpotPortraitSlot},
                         {0x50cef5,{0xe8,0x06,0x0d,0xfd,0xff},&drawOwnPortraitSlot}};
     for(const auto& site:sites)if(memcmp(reinterpret_cast<void*>(site.address),site.bytes,5))return false;
     for(const auto& site:sites) {

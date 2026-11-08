@@ -31,7 +31,7 @@ struct CountryImageDraft {
             std::uint64_t emblem=0;
             if(mode==18 ? (!lobbyCountryNumber(fields[8],3,emblem) || emblem==1 || n[0]>4098) : fields[8][0]!=0)return 0;
             bytes=static_cast<unsigned>(n[0]);hash=static_cast<unsigned>(n[1]);length=static_cast<unsigned>(n[2]);chunks=static_cast<unsigned>(n[3]);
-            if((bytes!=2 && bytes!=4098 && bytes!=8194) || ((mode==20 || mode==21) && (bytes>4098 || (revision>0)!=(bytes==4098))) ||
+            if((bytes!=2 && bytes!=4098 && bytes!=8194) || ((mode>=20 && mode<=22) && (bytes>4098 || (revision>0)!=(bytes==4098))) ||
                 length!=((bytes+2)/3)*4 || chunks!=(length+11)/12)return 0;
             value.revision=revision;value.nativeEmblem=static_cast<unsigned>(emblem);header=true;return 1;
         }
