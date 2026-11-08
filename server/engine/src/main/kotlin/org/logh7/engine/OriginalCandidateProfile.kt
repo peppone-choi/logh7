@@ -11,12 +11,26 @@ data class OriginalCandidateProfile(
         require(rank in 2..20 && abilities.size==8 && abilities.all {it in 0..255})
     }
 
-    // The two original male banks are contiguous in the CD's tcf.hed.
-    val creationPower get()=if(face in 1..158)2 else 3
-    fun matchesCreationPower(power:Int)=when(power) {
-        2 -> face in 1..158
-        3 -> face in 100001..100108 && rank!=3
-        else -> false
+    val creationPower get()=when(face) {
+        in empireMaleFaces,in empireFemaleFaces -> 2
+        in allianceMaleFaces,in allianceFemaleFaces -> 3
+        else -> 0
+    }
+    val gender get()=if(face in empireFemaleFaces || face in allianceFemaleFaces)1 else 0
+    fun matchesCreationPower(power:Int)=power in 2..3 && creationPower==power && (power!=3 || rank!=3)
+
+    companion object {
+        // CD tcf.hed. Original female faces are separate slots in o.tcf.
+        private val empireMaleFaces=1..158
+        private val empireFemaleFaces=10001..10006
+        private val allianceMaleFaces=100001..100108
+        private val allianceFemaleFaces=110001..110004
+
+        fun faceNumbers(power:Int,gender:Int)=when(power) {
+            2 -> if(gender==0)empireMaleFaces else empireFemaleFaces
+            3 -> if(gender==0)allianceMaleFaces else allianceFemaleFaces
+            else -> IntRange.EMPTY
+        }
     }
 }
 
@@ -25,6 +39,7 @@ data class OriginalCandidateEdit(val id:Long,val revision:Long,val profile:Origi
 
 interface OriginalCandidateStore {
     val supportsEditing:Boolean get()=true
+    val supportsFemaleFaces:Boolean get()=true
     fun load():List<OriginalCandidateEdit>
     fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?=null):OriginalCandidateEdit?
 }

@@ -120,13 +120,17 @@ class CharacterCreationCountryTest {
         val definitions=CharacterCreation.originalDefinitions()
         val published=PublishedOriginalCandidates(definitions)
         val empireProfile=definitions.single {it.id==1001L}.profile
-        val custom=empireProfile.copy(surname="은하함장",givenName="로아",face=112,rank=10)
+        val custom=empireProfile.copy(surname="은하함장",givenName="로아",face=10006,rank=10)
         val first=s42.copy(creationPower=2)
         val second=first.copy(country=CountryId(43),shipStyle=alliance)
         val start=Clock.fixed(Instant.ofEpochMilli(1000),ZoneOffset.UTC)
         val store=CharacterCreation(file,clock=start,lotteryWindowMillis=10,publishedOriginals=published)
         published.publish(listOf(OriginalCandidateEdit(1003,1,custom,first.country)))
         assertEquals(listOf(1001L,1003L),store.candidates("eligible",first).map {it.character.id})
+        assertEquals(1,store.candidates("eligible",first).last().character.gender)
+        assertFalse(published.accepts(1001,custom.copy(face=110004)))
+        assertFalse(published.accepts(1004,custom.copy(face=10007),first.country))
+        assertTrue(published.accepts(1002,custom.copy(face=110004)))
         assertEquals(listOf(1001L),store.candidates("other",second).map {it.character.id})
         assertEquals(listOf(1001L,1002L),store.candidates("unscoped").map {it.character.id})
         assertFailsWith<IllegalArgumentException> {store.apply("other",listOf(1003),second)}
@@ -145,6 +149,9 @@ class CharacterCreationCountryTest {
         assertEquals(first.country,won.country)
         assertEquals(first.shipStyle,won.shipStyle)
         assertEquals(custom.face,won.character.face)
+        assertEquals(1,won.character.gender)
+        assertEquals(won,CharacterCreation(file,clock=Clock.offset(start,Duration.ofMillis(20)),
+            publishedOriginals=published).profiles().getValue("eligible"))
         assertEquals(custom.rank,won.character.rank)
         assertEquals(custom.surname,won.character.surname)
     }

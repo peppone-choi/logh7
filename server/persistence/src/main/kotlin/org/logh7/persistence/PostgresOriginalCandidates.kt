@@ -13,8 +13,18 @@ import java.util.UUID
 class PostgresOriginalCandidates(private val connect:()->Connection,private val world:UUID):OriginalCandidateStore {
     @Volatile override var supportsEditing=false
         private set
+    @Volatile override var supportsFemaleFaces=false
+        private set
 
     override fun load():List<OriginalCandidateEdit> = connect().use { db ->
+        supportsFemaleFaces=db.prepareStatement("""
+            SELECT EXISTS (SELECT FROM pg_constraint
+                WHERE conrelid=to_regclass('original_candidate_profile')
+                AND conname='original_candidate_profile_native_face_check' AND convalidated)
+        """).use { query ->
+            query.queryTimeout=5
+            query.executeQuery().use {rows -> rows.next();rows.getBoolean(1)}
+        }
         db.prepareStatement("SELECT * FROM original_candidate_profile WHERE world_identity=? ORDER BY candidate_id").use { query ->
             query.queryTimeout=5
             query.setObject(1,world)
