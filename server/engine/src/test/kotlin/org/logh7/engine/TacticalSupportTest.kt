@@ -126,6 +126,25 @@ class TacticalSupportTest {
         }
     }
 
+    @Test fun aConfusedSupportShipCannotStartOrFinishACommand() {
+        for(action in TacticalSupportAction.entries) {
+            val s=state(repair=action==TacticalSupportAction.REPAIR)
+            val command=request(action,2)
+            val before=s.stocks
+            val confused=before.tacticalCommands.copy(morale=mapOf(1 to 15))
+            s.stocks=before.copy(tacticalCommands=confused)
+            assertEquals(NavigationRejection.TARGET,
+                accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).rejection)
+            s.stocks=before
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+            s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(morale=confused.morale))
+            val out=mutableListOf<TacticalSupportResult>()
+            settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+120,out)
+            assertTrue(out.single().cancelled)
+            assertEquals(before.outfits.getValue(1),s.stocks.outfits.getValue(1))
+        }
+    }
+
     @Test fun supplyBetweenUnitsOfTheSameFleetDoesNotChangeItsTotal() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
