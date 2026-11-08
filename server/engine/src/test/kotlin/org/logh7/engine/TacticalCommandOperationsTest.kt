@@ -76,7 +76,7 @@ class TacticalCommandOperationsTest {
         s.players=s.players+("enemy" to Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,
             hull=FlagshipHull(89,now),motion=motion(10f)))
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(activeShips=ActiveShipUnits(slowed)))+
-            (2 to enemy.copy(activeShips=ActiveShipUnits(listOf(target)),units=UnitInventory(mapOf(UnitStack(carrier) to 1)))),
+            (2 to enemy.copy(commanderId=10002,activeShips=ActiveShipUnits(listOf(target)),units=UnitInventory(mapOf(UnitStack(carrier) to 1)))),
             tacticalCommands=TacticalCommandState(air=mapOf(99 to TacticalAirWing(10002,2488,99,1,1,now+100,.5f))))
         val r=run(s);val before=s.stocks.outfits.getValue(2).activeShips!!.values.single()
         assertNotNull(accept(r,TacticalCommand(0x406,listOf(1010000),kind=3,targetKind=0x81,target=99)).player)
@@ -105,7 +105,7 @@ class TacticalCommandOperationsTest {
             s.players=s.players+("pilot" to s.players.getValue("pilot").copy(hull=FlagshipHull(4,now)))+
                 ("enemy" to Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,
                     hull=FlagshipHull(89,now),motion=motion(10f)))
-            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(target)),
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(commanderId=10002,activeShips=ActiveShipUnits(listOf(target)),
                 units=UnitInventory(mapOf(UnitStack(carrier) to 1)))),tacticalCommands=TacticalCommandState(
                 air=mapOf(99 to TacticalAirWing(10002,2488,99,source,1,now+100))))
             val r=run(s)
@@ -146,7 +146,8 @@ class TacticalCommandOperationsTest {
         }
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to friendly.copy(activeShips=ActiveShipUnits(ships))))
         val wing=TacticalAirWing(10002,2488,99,0,0,now+100)
-        s.stocks=s.stocks.copy(tacticalCommands=TacticalCommandState(air=mapOf(99 to wing)))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to s.stocks.outfits.getValue(2).copy(commanderId=10002)),
+            tacticalCommands=TacticalCommandState(air=mapOf(99 to wing)))
         val navigation=Navigation(world,s.nav,NavigationPolicy(),clockScale=1)
         val production=PlanetProduction(world,s.stock,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
         fun moveShip(outfitId:Int,unitId:Int,x:Float,y:Float) {
@@ -265,24 +266,30 @@ class TacticalCommandOperationsTest {
         }
     }
 
-    @Test fun deployedWingStopsAfterCommanderDeathAndRestoresTargetSpeedOnReload() {
-        val s=state();val foe=s.stocks.outfits.getValue(2)
-        val target=foe.activeShips!!.values.single()
-        val moving=target.copy(tactical=target.tactical!!.copy(
-            motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))
-        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to foe.copy(activeShips=ActiveShipUnits(listOf(moving)))))
-        val r=run(s)
-        assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=1,target=99)).player)
-        settle(r,now+5)
-        val wing=s.stocks.tacticalCommands.air.getValue(1)
-        assertEquals(.25f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+    @Test fun deployedWingStopsAfterCommanderDeathOrCampSplitAndRestoresTargetSpeedOnReload() {
+        for(death in listOf(true,false)) {
+            val s=state();val foe=s.stocks.outfits.getValue(2)
+            val target=foe.activeShips!!.values.single()
+            val moving=target.copy(tactical=target.tactical!!.copy(
+                motion=motion(0f,1.5f).copy(velocity=.5f,waypoints=listOf(TacticalPoint(0f,40f)))))
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to foe.copy(activeShips=ActiveShipUnits(listOf(moving)))))
+            val r=run(s)
+            assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=1,target=99)).player)
+            settle(r,now+5)
+            val wing=s.stocks.tacticalCommands.air.getValue(1)
+            assertEquals(.25f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
 
-        s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now+5) {_,_->true}
-        val hits=mutableListOf<TacticalImpact>()
-        settle(run(s),wing.nextAt,impacts=hits)
-        assertTrue(hits.none {it.airBattle})
-        assertTrue(s.stocks.tacticalCommands.air.isEmpty())
-        assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+            if(death)s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now+5) {_,_->true}
+            else {
+                val coup=CoupState(mapOf(10000 to Plot(10000,Power.EMPIRE.country,0,revolt=5)))
+                s.stocks=s.stocks.copy(social=s.stocks.social.copy(coup=coup))
+            }
+            val hits=mutableListOf<TacticalImpact>()
+            settle(run(s),wing.nextAt,impacts=hits)
+            assertTrue(hits.none {it.airBattle})
+            assertTrue(s.stocks.tacticalCommands.air.isEmpty())
+            assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+        }
     }
 
     @Test fun carrierLaunchSpendsExactlyTenAndLandingRestoresTargetSpeed() {
