@@ -83,13 +83,17 @@ class PostgresCountryImages(private val connect:()->Connection):CountryImageStor
         }
     }
     override fun bind(country:Int,expectedDefinitionsRevision:Long,slot:CountryImageKind,key:String?):CountryImageOutcome {
-        if(country<=0 || expectedDefinitionsRevision<0 || key!=null && !CountryImageStore.validKey(key))return CountryImageOutcome.INVALID
+        if(country<=0 || expectedDefinitionsRevision<0 || slot==CountryImageKind.PORTRAIT ||
+            key!=null && !CountryImageStore.validKey(key))return CountryImageOutcome.INVALID
         return transaction {db,revision->
             if(revision!=expectedDefinitionsRevision)return@transaction CountryImageOutcome.CONFLICT
             val source=query(db,"""SELECT p.native_key,p.emblem_asset,p.flag_asset,p.map_icon_asset,c.asset_profile FROM nation_country c
                 JOIN nation_asset_profile p ON c.asset_profile=p.profile_key WHERE c.country_id=?""",country) {
                 Array(5){i->it.getString(i+1)}}.singleOrNull() ?: return@transaction CountryImageOutcome.NOT_FOUND
-            val index=when(slot){CountryImageKind.EMBLEM->1;CountryImageKind.FLAG->2;CountryImageKind.MAP_ICON->3}
+            val index=when(slot){
+                CountryImageKind.EMBLEM->1;CountryImageKind.FLAG->2;CountryImageKind.MAP_ICON->3
+                CountryImageKind.PORTRAIT->error("Portrait is not a country slot")
+            }
             if(source[index]==key)return@transaction CountryImageOutcome.UNCHANGED
             if(key!=null && read(db,key,null)?.info?.kind!=slot)return@transaction CountryImageOutcome.INVALID
             source[index]=key

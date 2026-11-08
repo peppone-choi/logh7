@@ -109,7 +109,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             countryImageRoutes(countryImages,countryDefinitions,port,audit)
             facilityDefinitionRoutes(facilityDefinitions,publishedFacilities,galaxy,facilityCommands,port,audit)
             npcFleetDialogueRoutes(snapshots,npcDialogueStore,publishedNpcDialogue,port,audit,token!=null || users!=null)
-            originalCandidateRoutes(originalCandidateStore,originalCandidates,port,audit,token!=null || users!=null)
+            originalCandidateRoutes(originalCandidateStore,originalCandidates,countryImages,port,audit,token!=null || users!=null)
             progressRoutes(checklist,"/admin/progress","/admin/progress/data")
             get("/health") {
                 when (snapshots.health()) {

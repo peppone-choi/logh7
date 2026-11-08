@@ -90,4 +90,44 @@ class PostgresCountryImagesTest {
         assertEquals(CountryImageOutcome.NOT_FOUND,store.restore("map",2,999))
         assertEquals(2,store.snapshot().revision)
     }
+
+    @Test fun candidatePortraitUsesTheCurrentUploadedVersionInItsOwnWorld()=fixture {connect->
+        fun migrate(vararg files:String)=connect().use { db -> db.createStatement().use { sql ->
+            for(file in files)sql.execute(checkNotNull(javaClass.getResourceAsStream("/db/migration/$file"))
+                .bufferedReader().use {it.readText()})
+        } }
+        migrate("V11__original_candidate_profile.sql","V12__original_candidate_country.sql",
+            "V13__original_candidate_peerage.sql","V14__original_candidate_female_faces.sql")
+        val world=UUID.randomUUID()
+        val candidates=PostgresOriginalCandidates(connect,world)
+        val images=PostgresCountryImages(connect)
+        val fallback=OriginalCandidateProfile("시험","후보",10001,10,List(8){50})
+        assertTrue(candidates.load().isEmpty())
+        assertFalse(candidates.supportsPortraits)
+        assertNotNull(candidates.save(1001,0,fallback,CountryId(2)))
+        migrate("V15__original_candidate_portrait_asset.sql")
+        assertEquals(fallback,candidates.load().single().profile)
+        assertTrue(candidates.supportsPortraits)
+
+        val kind=CountryImageKind.PORTRAIT
+        val original=upload(0xffeeaa33.toInt())
+        val replacement=upload(0xff336699.toInt())
+        assertEquals(CountryImageOutcome.CHANGED,images.save("face",kind,0,"초상","",original))
+        assertEquals(CountryImageOutcome.CHANGED,images.save("flag",CountryImageKind.FLAG,0,"깃발","",original))
+        assertEquals(CountryImageOutcome.INVALID,images.bind(2,images.snapshot().revision,kind,"face"))
+        for(key in listOf("missing","flag"))assertFailsWith<IllegalArgumentException> {
+            candidates.save(1001,1,fallback.copy(portraitKey=key),CountryId(2))
+        }
+        val assigned=fallback.copy(portraitKey="face")
+        assertEquals(assigned,candidates.save(1001,1,assigned,CountryId(2))?.profile)
+        assertEquals(assigned,candidates.save(1003,0,assigned,CountryId(2))?.profile)
+        assertNull(candidates.save(1001,1,fallback,CountryId(2)))
+        assertEquals(CountryImageOutcome.CHANGED,images.save("face",kind,1,"새 초상","",replacement))
+        val reopened=PostgresOriginalCandidates(connect,world)
+        val saved=reopened.load().first()
+        assertEquals(assigned,saved.profile)
+        assertContentEquals(replacement.png,images.read(checkNotNull(saved.profile.portraitKey))?.png)
+        assertTrue(PostgresOriginalCandidates(connect,UUID.randomUUID()).load().isEmpty())
+        assertEquals(fallback,reopened.save(1001,2,fallback,CountryId(2))?.profile)
+    }
 }

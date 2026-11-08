@@ -16,7 +16,7 @@ private val peerageNames=listOf("공작","후작","백작","자작","남작","�
 private fun CountryCatalog.candidatePower(id:Int)=countries[id]?.takeIf {it.nativePower in 2..3}
     ?.let {families.getValue(it.family).creationPower}
 
-internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,published:PublishedOriginalCandidates,
+internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,published:PublishedOriginalCandidates,images:CountryImageStore?,
     port:Int,audit:OpsAudit?,authenticated:Boolean) {
     get("/admin/original-candidates") {
         if(!authenticated) {
@@ -29,9 +29,13 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         } catch(_:java.sql.SQLException){false} catch(_:IllegalArgumentException){false}
         val id=call.request.queryParameters["candidate"]?.toLongOrNull()
         val newCountry=call.request.queryParameters["new"]?.toIntOrNull()
+        val portraits=if(loaded && store?.supportsPortraits==true) try {
+            withContext(Dispatchers.IO){images?.list()?.filter {it.kind==CountryImageKind.PORTRAIT}}
+        } catch(_:java.sql.SQLException){null} else null
         call.response.headers.append(HttpHeaders.CacheControl,"no-store")
-        call.respondText(candidatePage(published,id,newCountry,loaded && audit!=null && store?.supportsEditing==true,
-            store?.supportsFemaleFaces==true),ContentType.Text.Html)
+        val editable=loaded && audit!=null && store?.supportsEditing==true && (!store.supportsPortraits || portraits!=null)
+        call.respondText(candidatePage(published,id,newCountry,editable,store?.supportsFemaleFaces==true,
+            store?.supportsPortraits==true,portraits),ContentType.Text.Html)
     }
     post("/admin/original-candidates") {
         if(!authenticated) {
@@ -44,17 +48,18 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         val rawCountry=form["country"]
         val country=rawCountry?.toIntOrNull()?.takeIf {it>0}?.let(::CountryId)
         val creating=form["create"]=="1"
+        val portrait=form["portrait"]?.takeIf {it.isNotEmpty()}
         val profile=runCatching {
             val title=requireNotNull(form["peerage"]).toInt()
             require(title in 0..Peerage.entries.size)
             OriginalCandidateProfile(form["surname"].orEmpty().trim(),form["given"].orEmpty().trim(),
                 form["face"].orEmpty().toInt(),form["rank"].orEmpty().toInt(),
-                abilities.indices.map {form["ability$it"].orEmpty().toInt()},Peerage.entries.getOrNull(title-1))
+                abilities.indices.map {form["ability$it"].orEmpty().toInt()},Peerage.entries.getOrNull(title-1),portrait)
         }.getOrNull()
         call.audited(audit,OpsAction.ORIGINAL_CANDIDATE_EDIT,form["operator"],
-            "candidate=$id,revision=$revision,country=${country?.value},create=$creating",
+            "candidate=$id,revision=$revision,country=${country?.value},create=$creating,portrait=${profile?.portraitKey}",
             mapOf(OpsOutcome.CONFLICT to "이미 쓰는 번호이거나 편집 버전이 바뀌었거나 국가의 후보 한도에 도달했습니다.",
-                OpsOutcome.INVALID to "후보 번호, 응모 국가의 생성 계열과 작위 체계, 얼굴 번호, 계급과 능력치 범위를 확인하세요.")) {
+                OpsOutcome.INVALID to "후보 번호, 응모 국가, 얼굴 번호, 등록 초상, 계급·작위와 능력치를 확인하세요.")) {
             if(id==null || revision==null || revision<0 || profile==null || rawCountry==null ||
                 (rawCountry.isNotEmpty() && country==null) || !published.accepts(id,profile,country))
                 return@audited OpsOutcome.INVALID
@@ -68,8 +73,12 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
             } else if(id !in published.defaults && id !in published.current())return@audited OpsOutcome.INVALID
             if(store?.supportsEditing!=true || (profile.gender==1 && !store.supportsFemaleFaces))
                 return@audited OpsOutcome.UNAVAILABLE
+            if(portrait!=null && !store.supportsPortraits)return@audited OpsOutcome.UNAVAILABLE
+            if(store.supportsPortraits && form["portrait"]==null)return@audited OpsOutcome.INVALID
             withContext(Dispatchers.IO) {
-                val saved=store.save(id,revision,profile,country) ?: return@withContext OpsOutcome.CONFLICT
+                val saved=try {store.save(id,revision,profile,country)}
+                    catch(_:IllegalArgumentException){return@withContext OpsOutcome.INVALID}
+                if(saved==null)return@withContext OpsOutcome.CONFLICT
                 published.publish(listOf(saved))
                 OpsOutcome.CHANGED
             }
@@ -77,7 +86,8 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
     }
 }
 
-private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCountry:Int?,editable:Boolean,femaleFaces:Boolean)=buildString {
+private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCountry:Int?,editable:Boolean,femaleFaces:Boolean,
+    portraitSchema:Boolean,portraits:List<CountryImageInfo>?)=buildString {
     fun escape(text:String)=text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;")
     fun number(name:String,value:Int,min:Int,max:Int)=
         "<input type=\"number\" name=\"$name\" value=\"$value\" min=\"$min\" max=\"$max\" required>"
@@ -109,7 +119,8 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
     val empire=profile.creationPower==2
     val revision=edit?.revision ?: 0
     append("<p>생성 계열 ${if(empire)"제국" else "동맹"} · 편집 버전 $revision</p>")
-    if(!editable)append("<p>저장하려면 운영자 인증, 감사 기록, 정의 DB V13이 필요합니다.</p>")
+    if(portraitSchema && portraits==null)append("<p>등록 초상 목록을 불러올 수 없어 현재 후보를 편집할 수 없습니다.</p>")
+    else if(!editable)append("<p>저장하려면 운영자 인증, 감사 기록, 정의 DB V13이 필요합니다.</p>")
     append("<form id=\"edit\" method=\"post\"><fieldset${if(editable)"" else " disabled"}><legend>추첨 시작 데이터</legend>")
     append("<input type=\"hidden\" name=\"revision\" value=\"$revision\">")
     if(creating) {
@@ -138,6 +149,15 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
     }
     append("</select></label>")
     if(!femaleFaces)append("<p>여성 초상을 선택하려면 정의 DB V14를 적용하세요.</p>")
+    if(!portraitSchema)append("<p>등록 NPC 초상을 지정하려면 정의 DB V15를 적용하세요.</p>")
+    if(portraits!=null) {
+        val portrait=if(creating)null else portraits.firstOrNull {it.key==profile.portraitKey}
+        append("<label>등록 NPC 초상 <select name=\"portrait\"><option value=\"\">원본 얼굴 사용</option>")
+        for(image in portraits)
+            append("<option value=\"${escape(image.key)}\" data-revision=\"${image.revision}\"${if(image==portrait)" selected" else ""}>${escape(image.title)} (${escape(image.key)})</option>")
+        append("</select></label><img id=\"portrait-preview\" width=\"64\" height=\"80\" style=\"object-fit:contain\" alt=\"등록 초상 미리보기\" hidden>")
+        append("<p><a href=\"/admin/images\">NPC 초상 등록·교체</a> · 등록 초상은 운영 웹에서 미리 볼 수 있습니다. 게임 표시 연결은 준비 중입니다.</p>")
+    }
     append("<label>시작 계급 <select name=\"rank\">")
     for((index,rank) in militaryRanks.withIndex()) {
         val code=index+2
@@ -149,6 +169,10 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
     for((index,name) in abilities.withIndex())append("<label>$name ${number("ability$index",profile.abilities[index],0,255)}</label>")
     append("</div><button>저장</button></fieldset></form><p id=\"status\" role=\"status\"></p>")
     append("""<script>const form=document.querySelector('#edit'),status=document.querySelector('#status');
+const portrait=form.elements.portrait,preview=document.querySelector('#portrait-preview');
+if(portrait){const update=()=>{preview.hidden=!portrait.value;
+if(portrait.value)preview.src='/admin/images/file/'+encodeURIComponent(portrait.value)+'?revision='+portrait.selectedOptions[0].dataset.revision;
+else preview.removeAttribute('src');};portrait.onchange=update;update();}
 form.onsubmit=async e=>{e.preventDefault();const fields=form.querySelector('fieldset'),body=new URLSearchParams(new FormData(form));fields.disabled=true;
 try{const response=await fetch(form.action,{method:'POST',body});if(!response.ok){status.textContent=await response.text();return;}
 location.replace('?candidate='+encodeURIComponent(body.get('candidate')));}catch{status.textContent='저장 상태를 확인할 수 없습니다.';}finally{fields.disabled=false;}};</script></html>""")

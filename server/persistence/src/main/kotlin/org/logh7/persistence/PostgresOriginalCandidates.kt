@@ -15,6 +15,8 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
         private set
     @Volatile override var supportsFemaleFaces=false
         private set
+    @Volatile override var supportsPortraits=false
+        private set
 
     override fun load():List<OriginalCandidateEdit> = connect().use { db ->
         supportsFemaleFaces=db.prepareStatement("""
@@ -33,6 +35,7 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                 val labels=(1..columns.columnCount).map(columns::getColumnLabel).toSet()
                 val scoped="country_id" in labels
                 val peerageColumn="peerage" in labels
+                val portraitColumn="portrait_asset" in labels
                 while(rows.next()) {
                     val values=rows.getArray("abilities")
                     val abilities=try {(values.array as Array<*>).map {(it as Number).toInt()}} finally {values.free()}
@@ -40,23 +43,36 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                     val peerage=if(peerageColumn)rows.getInt("peerage").takeUnless {rows.wasNull()}?.let {Peerage.entries[it-1]} else null
                     add(OriginalCandidateEdit(rows.getLong("candidate_id"),rows.getLong("revision"),
                         OriginalCandidateProfile(rows.getString("surname"),rows.getString("given_name"),
-                            rows.getInt("face"),rows.getInt("rank"),abilities,peerage),country))
+                            rows.getInt("face"),rows.getInt("rank"),abilities,peerage,
+                            if(portraitColumn)rows.getString("portrait_asset") else null),country))
                 }
                 supportsEditing=peerageColumn
+                supportsPortraits=portraitColumn
             } }
         }
     }
 
     override fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?):OriginalCandidateEdit? {
         require(id in 1..9999 && expected>=0)
+        val portraitColumn=supportsPortraits
+        val portrait=profile.portraitKey
+        require(portrait==null || portraitColumn)
         val sql=if(expected==0L)"""INSERT INTO original_candidate_profile
-            (surname,given_name,face,rank,abilities,country_id,peerage,world_identity,candidate_id,revision)
-            VALUES (?,?,?,?,?,?,?,?,?,1) ON CONFLICT (world_identity,candidate_id) DO NOTHING RETURNING revision"""
-        else """UPDATE original_candidate_profile SET surname=?,given_name=?,face=?,rank=?,abilities=?,country_id=?,peerage=?,revision=revision+1
+            (surname,given_name,face,rank,abilities,country_id,peerage${if(portraitColumn)",portrait_asset" else ""},world_identity,candidate_id,revision)
+            VALUES (?,?,?,?,?,?,?${if(portraitColumn)",?" else ""},?,?,1) ON CONFLICT (world_identity,candidate_id) DO NOTHING RETURNING revision"""
+        else """UPDATE original_candidate_profile SET surname=?,given_name=?,face=?,rank=?,abilities=?,country_id=?,peerage=?${if(portraitColumn)",portrait_asset=?" else ""},revision=revision+1
             WHERE world_identity=? AND candidate_id=? AND revision=? RETURNING revision"""
         return connect().use { db ->
             db.autoCommit=false
             try {
+                if(portrait!=null)db.prepareStatement("""
+                    SELECT 1 FROM nation_image_current JOIN nation_asset USING(asset_key)
+                    WHERE asset_key=? AND asset_kind='portrait'
+                """).use { query ->
+                    query.queryTimeout=5
+                    query.setString(1,portrait)
+                    query.executeQuery().use {require(it.next()) {"Unknown portrait asset"}}
+                }
                 if(country!=null && countryIsFull(db,country,id)) {
                     db.rollback()
                     return null
@@ -73,9 +89,11 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                         if(country==null)query.setNull(6,Types.BIGINT) else query.setLong(6,country.value.toLong())
                         val peerage=profile.peerage
                         if(peerage==null)query.setNull(7,Types.SMALLINT) else query.setInt(7,peerage.ordinal+1)
-                        query.setObject(8,world)
-                        query.setInt(9,id.toInt())
-                        if(expected>0)query.setLong(10,expected)
+                        var index=8
+                        if(portraitColumn)query.setString(index++,portrait)
+                        query.setObject(index++,world)
+                        query.setInt(index++,id.toInt())
+                        if(expected>0)query.setLong(index,expected)
                         query.executeQuery().use {rows ->
                             if(rows.next())OriginalCandidateEdit(id,rows.getLong(1),profile,country) else null
                         }
