@@ -29,9 +29,8 @@ internal object TacticalPostureOperations {
         if(mode==TacticalShipMode.STATIONED && (stock.camp!=0 || country==null || stock.country!=country))return false
         val at=TacticalBasePosition.at(b,seconds,stocks)
         // Native 004b3700 excludes destinations within the planet's radius 5 + unit radius .25.
-        // Replacement policy: admit its reachable perimeter with .25 docking margin; diameter alone
-        // can otherwise require a destination the original movement editor refuses to accept.
-        val radius=maxOf(1.0,b.diameter.toDouble(),if(b.kind==0)5.5 else 0.5)
+        // Allow room to aim outside that perimeter and to complete the order while the planet orbits.
+        val radius=maxOf(1.0,b.diameter.toDouble(),if(b.kind==0)8.0 else 0.5)
         return hypot((point.x-at.x).toDouble(),(point.y-at.y).toDouble())<=radius
     }
     private fun pose(s:Ship,grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose {
