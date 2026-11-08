@@ -106,7 +106,7 @@ static void drawTacticalBaseStatus() {
     int width=at<int>(display,0x2a604),height=at<int>(display,0x2a608);
     if (width<743 || width>4096 || height<600 || height>4096) return;
     wchar_t name[32]={},title[96],balance[96];pickerName(emergencySupplyStatus.base,name);
-    if (!name[0])_snwprintf_s(name,_countof(name),_TRUNCATE,L"거점 %u",emergencySupplyStatus.base);
+    if (!name[0])wcscpy_s(name,L"거점 이름 미수신");
     _snwprintf_s(title,_countof(title),_TRUNCATE,L"긴급보급 %ls: %ls",emergencySupplyStatus.target ? L"완료" : L"개방",name);
     if (emergencySupplyStatus.target)_snwprintf_s(balance,_countof(balance),_TRUNCATE,L"부대 보급 가능 %u / 대상 잔량 %u",
         emergencySupplyStatus.available,emergencySupplyStatus.supplies);

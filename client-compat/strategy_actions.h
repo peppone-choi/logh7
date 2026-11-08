@@ -340,7 +340,7 @@ static bool updateOrbitalStrike() {
     taxText(2,L"지상전이 시작되기 전에만 공격할 수 있습니다.");
     if(quoted) {
         pickerName(state.strategyBase,name);
-        swprintf_s(label,L"대상 %ls (#%u)",name,state.strategyBase);taxText(3,label);
+        swprintf_s(label,L"대상 %ls",name[0] ? name : L"거점 이름 미수신");taxText(3,label);
         swprintf_s(label,L"참가 함정 %u유닛",state.strategyArgument);taxText(4,label);
         swprintf_s(label,L"기함 물자 %u · MCP 0 · PCP 0",state.strategyValue);taxText(5,label);
     } else {taxText(3,L"");taxText(4,L"");taxText(5,L"");}
@@ -407,7 +407,7 @@ static bool updateStrategyAction(void*) {
     } else if(army && !state.strategyOutfit)wcscpy_s(label,L"지휘 중인 부대가 없습니다.");
     else if(army)swprintf_s(label,L"대상 부대 ID  %u",state.strategyOutfit);else swprintf_s(label,L"대상: 본인");
     taxText(3,label);
-    if(estate) {wchar_t name[32]={};pickerName(state.strategyBase,name);swprintf_s(label,L"봉토: %ls (%u)",name,state.strategyBase);taxText(4,label);}
+    if(estate) {wchar_t name[32]={};pickerName(state.strategyBase,name);swprintf_s(label,L"봉토: %ls",name[0] ? name : L"-");taxText(4,label);}
     else if(title) {static const wchar_t* titles[]={L"공작",L"후작",L"백작",L"자작",L"남작",L"제국기사"};
         if(command==3)swprintf_s(label,L"작위: %ls",titles[state.strategyValue%6]);else swprintf_s(label,L"훈장 종류: %u",state.strategyValue+1);taxText(4,label);}
     else if(repairSupport==1 && repairQuote.ready) {

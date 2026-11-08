@@ -88,8 +88,8 @@ static void drawTransportAction() {
         static const wchar_t* fields[]={L"수송원 거점",L"수송처 거점",L"군수물자",L"유닛 종류",L"유닛 수"};
         wchar_t system[96];transportSystemLabel(state.strategyTarget,system);
         swprintf_s(label,L"현재 선택: %ls · 수송처 성계: %ls",fields[state.strategyField%5],system);taxText(1,label);
-        pickerName(state.strategyBase,name);swprintf_s(label,L"수송원: %ls (%u)",name[0] ? name : L"-",state.strategyBase);taxText(2,label);
-        pickerName(state.strategyTarget,name);swprintf_s(label,L"수송처: %ls (%u)",name[0] ? name : L"-",state.strategyTarget);taxText(3,label);
+        pickerName(state.strategyBase,name);swprintf_s(label,L"수송원: %ls",name[0] ? name : L"-");taxText(2,label);
+        pickerName(state.strategyTarget,name);swprintf_s(label,L"수송처: %ls",name[0] ? name : L"-");taxText(3,label);
         if(transport.kind==0xffff)swprintf_s(label,L"군수물자 %u · 유닛 없음",state.strategyAmount);
         else {
             wchar_t item[64];
@@ -109,7 +109,7 @@ static void drawTransportAction() {
         taxText(2,label);
         if(pack) {
             pickerName(destination,name);
-            swprintf_s(label,L"패키지 %u → %ls (%u)",pack->id,name[0] ? name : L"-",destination);taxText(3,label);
+            swprintf_s(label,L"패키지 %u → %ls",pack->id,name[0] ? name : L"-");taxText(3,label);
             bool units=wcschr(pack->name,L'+')!=nullptr,aboard=wcschr(pack->name,L'*')!=nullptr;
             swprintf_s(label,L"%ls %u%ls · %ls",aboard ? L"출항 물자" : L"군수물자",supplies,units ? L" + 유닛" : L"",aboard ? L"적재 중(반입 대상)" : L"수송 창고(반출 대상)");
             taxText(4,label);
