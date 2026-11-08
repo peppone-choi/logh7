@@ -69,7 +69,7 @@ object TacticsMessages {
     data class Unit(val id: Int,val kind: Int,val outfit: Int,val character: Int,val supplies: Int,
         val cruise: Float,val destroyed: Int,val x: Float,val y: Float,val z: Float,val direction: Float,val damaged: Int = 0,
         val mode:Int=6,val base:Int=0,val troops:List<Int> = emptyList(),val morale:Int=100,val confused:Boolean=false,
-        val leader:Int=0,val leaderX:Float=0f,val leaderY:Float=0f,val leaderZ:Float=0f,val leaderDirection:Float=0f)
+        val leader:Int=0,val leaderX:Float=0f,val leaderY:Float=0f,val leaderZ:Float=0f,val leaderDirection:Float=0f,val detected:Boolean=true)
     fun notify(grid: Int, active: Boolean): ByteArray {
         require(grid in 0..4999)
         return LoginMessages.sessionMessage(0x0f1f,ByteBuffer.allocate(5).put(if(active)1 else 0).putInt(grid).array())
@@ -129,7 +129,7 @@ object TacticsMessages {
         val out=ByteBuffer.allocate(2+47*units.size).putShort(units.size.toShort())
         units.forEach {u->out.putInt(u.id).put(u.morale.toByte()).put(if(u.confused)1 else 0).putInt(u.character)
             .putFloat(u.x).putFloat(u.y).putFloat(u.z).putFloat(u.direction).putInt(u.leader)
-            .putFloat(u.leaderX).putFloat(u.leaderY).putFloat(u.leaderZ).putFloat(u.leaderDirection).put(1)}
+            .putFloat(u.leaderX).putFloat(u.leaderY).putFloat(u.leaderZ).putFloat(u.leaderDirection).put(if(u.detected)1 else 0)}
         return LoginMessages.sessionMessage(0x033b,out.array())
     }
     /** 00422d80: 55 wire bytes per corps, versus the native padded 60-byte record. */

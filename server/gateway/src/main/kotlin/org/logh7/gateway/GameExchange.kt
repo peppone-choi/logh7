@@ -168,6 +168,7 @@ class GameExchange(
         }
     }
     private var tacticalResumeGrid: Int? = null
+    private var hiddenTacticalUnits=emptySet<Int>()
     private var recoveryCheckedAt: Long? = null
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
         stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
@@ -534,6 +535,19 @@ class GameExchange(
                 } else it.text
                 listOf(ChatMessages.spot(ChatMessages.Spot(player.characterId, text), gameSeconds()))
             }.orEmpty()
+            val tacticalRefresh=if(worldInitialized && player.cpPaused && deliveredTactics==true && previous?.grid==player.grid) {
+                val battle=tactics(account)
+                val corps=org.logh7.protocol.TacticsMessages.corps(battle.corps.filter {it.character==player.characterId})
+                if(world?.galaxy?.let { org.logh7.engine.TacticalTerrain.starRadius(it,player.grid) }==null) listOf(corps)
+                else {
+                    val updates=battle.detectionChanges(hiddenTacticalUnits)
+                    hiddenTacticalUnits=battle.units.filterNot {it.detected}.map {it.id}.toSet()
+                    if(updates.isEmpty())listOf(corps) else listOf(corps,org.logh7.protocol.TacticsMessages.states(updates))
+                }
+            } else {
+                hiddenTacticalUnits=emptySet()
+                emptyList()
+            }
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
                 (if (relocated) (if(previous.cpPaused && previous.grid != player.grid)
@@ -547,9 +561,7 @@ class GameExchange(
                             gameSeconds(),player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) +
                     (if (worldInitialized) reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()) else emptyList())
                 else completedWork(if (worldInitialized) result else result.copy(warpCancellation = null), character)) +
-                (if(worldInitialized && player.cpPaused && deliveredTactics==true && previous?.grid==player.grid)
-                    listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
-                    else emptyList()) +
+                tacticalRefresh +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
                     ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + navigationGuide + listOfNotNull(groundStatus) +
                 groundResult + listOfNotNull(if (readyForNotice) officeCpNotice(character, player) else null)
@@ -2688,6 +2700,7 @@ class GameExchange(
                                 if (!worldInitialized && tactical != null) startupGroundOrders =
                                     tactical.groundOrders.filterTo(mutableSetOf()) { it.character == player.characterId }
                                 tacticalResumeGrid=tactical?.grid
+                                hiddenTacticalUnits=tactical?.units.orEmpty().filterNot {it.detected}.map {it.id}.toSet()
                                 reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()).singleOrNull()?.let { startupWarpNotice = it }
                                 if (opcode == 0x0f02) startupGridReady = true
                                 listOf(BootstrapMessages.characterId(entered),

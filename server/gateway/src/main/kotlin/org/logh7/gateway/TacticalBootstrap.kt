@@ -83,11 +83,26 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 mode=u.posture?.mode?.wire ?: TacticalShipMode.SAILING.wire,base=u.posture?.base ?: 0,
                 troops=stocks.outfits[u.outfit]?.activeGround?.values.orEmpty().filter {it.carrier==u.id}.sortedBy {it.id}.map {it.id},
                 morale=stocks.tacticalCommands.morale[u.id] ?: 100,confused=stocks.tacticalCommands.confused(u.id))
-        }.let {units->units.map {u->
-            val leader=stocks.tacticalCommands.formationLeaders[u.id]?.let {id->units.singleOrNull {it.id==id}}
-            if(leader==null)u else u.copy(leader=leader.id,leaderX=leader.x,leaderY=leader.y,leaderZ=leader.z,leaderDirection=leader.direction)
-        }}.also {require(it.size<=600)}
+        }.let { units ->
+            val observer=units.singleOrNull {it.id==viewer.unitId}
+            val camps=unitCamps
+            val own=TacticalAuthority.camp(viewer,stocks)
+            val detected=units.associate { u -> u.id to (
+                observer==null || camps[u.id]==own ||
+                    !TacticalTerrain.sensorBlocked(galaxy,viewer.grid,TacticalPoint(observer.x,observer.y),TacticalPoint(u.x,u.y))) }
+            units.map { u ->
+                val visible=detected.getValue(u.id)
+                val leader=stocks.tacticalCommands.formationLeaders[u.id]?.takeIf {detected[it]==true}
+                    ?.let {id->units.singleOrNull {it.id==id}}
+                if(leader==null)u.copy(detected=visible)
+                else u.copy(detected=visible,leader=leader.id,leaderX=leader.x,leaderY=leader.y,leaderZ=leader.z,leaderDirection=leader.direction)
+            }
+        }.also {require(it.size<=600)}
     }
+
+    fun detectionChanges(previousHidden:Set<Int>):List<TacticsMessages.Unit> =
+        units.filter { it.detected==(it.id in previousHidden) }
+
     val groundDefinitions by lazy { snapshot.planetStocks?.outfits?.values.orEmpty().sortedBy {it.id}.flatMap {outfit ->
         val carriers=units.filter {it.outfit==outfit.id && it.destroyed<UnitSpecifications.ships.single {s->s.kind==it.kind}.number}
             .map {it.id}.toSet()
