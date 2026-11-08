@@ -47,13 +47,15 @@ class TacticalManeuverWireTest {
     fun formationCommandUsesServerHeadingsResumesAsOneGroupAndCompletesForBothPeers(commandKind:String)=runBlocking {
         val reverse=commandKind!="turn"
         val reverseSide=if(commandKind.endsWith("right"))1 else 0
-        val completedDirection=if(!reverse) (Math.PI/2).toFloat() else (if(reverseSide==0)-Math.PI else Math.PI).toFloat()
+        val initialDirection=if(commandKind=="right") .5f else 0f
+        val target=initialDirection+(if(!reverse) Math.PI/2 else if(reverseSide==0) -Math.PI else Math.PI)
+        val completedDirection=target.toFloat()
         val requestHeading=when(commandKind) {"left"->2f;"right"->1f;else->2.5f}
         val opcode=if(reverse)0x0403 else 0x0401
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Battle",3)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
         val now=SessionRules.load().startSeconds
-        fun motion(y:Float)=TacticalMotion(2488,now,TacticalPose(TacticalPoint(0f,y),0f),0f,0f,listOf(TacticalPoint(0f,y)))
+        fun motion(y:Float)=TacticalMotion(2488,now,TacticalPose(TacticalPoint(0f,y),initialDirection),0f,initialDirection,listOf(TacticalPoint(0f,y)))
         var savedPlayers=(0..1).associate {i->"load-00$i" to Navigator(1,10000+i,Power.EMPIRE,2488,1000,1000,900,
             cpPaused=true,supplies=if(i==0)400 else 1000,hull=FlagshipHull(0,now,hp=100),motion=motion(0.5f-i*0.25f))}
         val kind=32
@@ -92,8 +94,8 @@ class TacticalManeuverWireTest {
                 val bytes=through(c,opcode);val packet=ByteBuffer.wrap(bytes)
                 assertEquals(0,packet.int);assertEquals(if(reverse)240 else 120,packet.getInt(10))
                 assertEquals(3,packet.get(18).toInt());assertEquals(1,packet.getInt(19))
-                assertEquals(0f,packet.getFloat(23));assertEquals(2,packet.getInt(27))
-                assertEquals(1010000,packet.getInt(35));assertEquals(0f,packet.getFloat(39))
+                assertEquals(initialDirection,packet.getFloat(23));assertEquals(2,packet.getInt(27))
+                assertEquals(1010000,packet.getInt(35));assertEquals(initialDirection,packet.getFloat(39))
             }
             val pending=savedStocks.outfits.getValue(1).activeShips!!.values.single {it.id==2}.tactical!!.motion
             assertNotNull(pending.rotation);assertEquals(1,pending.rotation!!.leader)
@@ -123,7 +125,7 @@ class TacticalManeuverWireTest {
             assertEquals(if(reverse)1f else 0f,done.origin.position.y,0.00001f)
             val own=savedPlayers.getValue(fixture.account(0)).motion!!
             assertEquals(if(reverse)0f else 0.5f,own.origin.position.x,0.00001f)
-            assertEquals(completedDirection,own.direction,0.00001f)
+            assertEquals(kotlin.math.atan2(kotlin.math.sin(target),kotlin.math.cos(target)).toFloat(),own.direction,0.00001f)
 
             clients[0].send(command(10000))
             for(c in clients)through(c,opcode)
