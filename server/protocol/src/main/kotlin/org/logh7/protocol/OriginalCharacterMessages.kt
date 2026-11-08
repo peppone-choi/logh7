@@ -46,6 +46,12 @@ object OriginalCharacterMessages {
         return data.int == 0 && data.short.toInt() == 0x13 && data.short.toInt() in setOf(0, 0x4a) && data.remaining() == 21 &&
             ByteArray(data.remaining()).also(data::get).all { it == 0.toByte() }
     }
+    fun catalogueTransaction(candidates:List<Candidate>,request:ByteArray?=null):List<ByteArray> {
+        val body=request?.copyOfRange(2,request.size)
+            ?: ByteBuffer.allocate(29).putInt(0).putShort(0x13).putShort(0x4a).array()
+        return listOf(LoginMessages.sessionMessage(0x1200,body),catalogue(candidates),
+            LoginMessages.sessionMessage(0x1201,byteArrayOf()))
+    }
     fun entryId(bytes: ByteArray): Long {
         require(bytes.size == 6 && ByteBuffer.wrap(bytes).short.toInt() and 65535 == 0x1004)
         return ByteBuffer.wrap(bytes, 2, 4).int.toLong() and 0xffffffffL

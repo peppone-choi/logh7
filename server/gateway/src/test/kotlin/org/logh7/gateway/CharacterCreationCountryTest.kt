@@ -115,6 +115,40 @@ class CharacterCreationCountryTest {
         assertEquals(before,CharacterCreation().candidates("hero",selection).single().character)
     }
 
+    @Test fun countryRosterKeepsAnAcceptedEntryAfterTransferAndRestart() {
+        val file=dir.resolve("country-originals.properties")
+        val definitions=CharacterCreation.originalDefinitions()
+        val published=PublishedOriginalCandidates(definitions)
+        val empireProfile=definitions.single {it.id==1001L}.profile
+        val custom=empireProfile.copy(surname="은하함장",givenName="로아",face=112,rank=10)
+        val first=s42.copy(creationPower=2)
+        val second=first.copy(country=CountryId(43),shipStyle=alliance)
+        val start=Clock.fixed(Instant.ofEpochMilli(1000),ZoneOffset.UTC)
+        val store=CharacterCreation(file,clock=start,lotteryWindowMillis=10,publishedOriginals=published)
+        published.publish(listOf(OriginalCandidateEdit(1003,1,custom,first.country)))
+        assertEquals(listOf(1001L,1003L),store.candidates("eligible",first).map {it.character.id})
+        assertEquals(listOf(1001L),store.candidates("other",second).map {it.character.id})
+        assertEquals(listOf(1001L,1002L),store.candidates("unscoped").map {it.character.id})
+        assertFailsWith<IllegalArgumentException> {store.apply("other",listOf(1003),second)}
+        assertFailsWith<IllegalArgumentException> {store.accept("name",request(2,custom.surname),first)}
+        store.apply("eligible",listOf(1003),first)
+        published.publish(listOf(OriginalCandidateEdit(1003,2,custom,second.country),
+            OriginalCandidateEdit(1001,1,empireProfile,second.country)))
+
+        val restored=CharacterCreation(file,clock=start,publishedOriginals=published)
+        assertEquals(listOf(1003L),restored.candidates("eligible").map {it.character.id})
+        assertTrue(restored.candidates("late",first).isEmpty())
+        assertEquals(listOf(1001L,1003L),restored.candidates("late",second).map {it.character.id})
+        assertFailsWith<IllegalArgumentException> {CharacterCreation(file,clock=start)}
+        val settled=CharacterCreation(file,clock=Clock.offset(start,Duration.ofMillis(20)),publishedOriginals=published)
+        val won=settled.profiles().getValue("eligible")
+        assertEquals(first.country,won.country)
+        assertEquals(first.shipStyle,won.shipStyle)
+        assertEquals(custom.face,won.character.face)
+        assertEquals(custom.rank,won.character.rank)
+        assertEquals(custom.surname,won.character.surname)
+    }
+
     @Test fun cancelRemovesOnlyTheOwnersUnfinishedCreationAndAllowsAFreshStart() {
         val store=CharacterCreation()
         store.accept("x",request(3,"Owner"),s42,"conn1")
