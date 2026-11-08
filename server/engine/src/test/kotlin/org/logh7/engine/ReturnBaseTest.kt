@@ -30,20 +30,46 @@ class ReturnBaseTest {
         assertEquals(selected, nav.apply(request, session).player)
         assertEquals(before, nav.apply(request.copy(returnBase = 0), session).player)
     }
-    @Test fun invalidWorldOwnershipIdentityAndSaveFailureCannotChangeSelection() {
+    @Test fun invalidSelectionIdentityAndSaveFailureCannotChangeValidSelection() {
         val store = Store(); val nav = Navigation(galaxy, store, NavigationPolicy())
         nav.apply(request.copy(returnBase = 1048), session)
         val before = store.data
         for (target in listOf(65535, 1050, 2015)) assertNotNull(nav.apply(request.copy(returnBase = target), session).rejection)
         assertEquals(NavigationRejection.IDENTITY, nav.apply(request.copy(characterId = 10001, returnBase = 1048), session).rejection)
         assertEquals(NavigationRejection.SESSION, nav.apply(request.copy(connection = "old", returnBase = 1048), session).rejection)
-        val changed = PlanetStocks(1, 0, mapOf(1048 to PlanetStock(1048, 3, 0, 0, 0, 0)))
-        assertEquals(NavigationRejection.ACCESS, nav.apply(request.copy(returnBase = 1048), session, changed).rejection)
-        assertEquals(NavigationRejection.BASE, nav.apply(request.copy(returnBase = 1048), session,
-            PlanetStocks(1, 0, emptyMap())).rejection)
         assertEquals(before, store.data)
         store.fail = true
         assertFailsWith<java.io.IOException> { nav.apply(request.copy(returnBase = 0), session) }
         assertEquals(before, nav.snapshot(1))
+    }
+
+    @Test fun reconnectClearsAFormerReturnBaseAndSavesTheClearedSelection() {
+        val store = Store()
+        val selected = Navigation(galaxy, store, NavigationPolicy())
+            .apply(request.copy(returnBase = 1048), session).player!!
+        val captured = PlanetStocks(1, 0, mapOf(1048 to PlanetStock(1048, 2, 0, 0, 0, 0)
+            .copy(owner = Allegiance.Country(CountryId(42)))))
+        val nav = Navigation(galaxy, store, NavigationPolicy())
+        val refresh = request.copy(tactical = false)
+        store.fail = true
+        assertFailsWith<java.io.IOException> { nav.apply(refresh, session, captured) }
+        assertEquals(selected, nav.snapshot(1).getValue("pilot"))
+        store.fail = false
+
+        val cleared = selected.copy(returnBase = 0)
+        assertEquals(cleared, nav.apply(refresh, session, captured).player)
+        assertEquals(cleared, Navigation(galaxy, store, NavigationPolicy()).snapshot(1).getValue("pilot"))
+        assertEquals(NavigationRejection.ACCESS, nav.apply(request.copy(returnBase = 1048), session, captured).rejection)
+        assertEquals(NavigationRejection.BASE, nav.apply(request.copy(returnBase = 1048), session,
+            PlanetStocks(1, 0, emptyMap())).rejection)
+    }
+
+    @Test fun recoveryWithoutLiveOwnershipKeepsAReturnBaseCapturedByThePlayerCountry() {
+        val nav = Navigation(galaxy, Store(), NavigationPolicy())
+        val captured = PlanetStocks(1, 0, mapOf(2015 to PlanetStock(2015, 2, 0, 0, 0, 0)))
+        val selected = nav.apply(request.copy(returnBase = 2015), session, captured).player!!
+        assertEquals(2015, selected.returnBase)
+        assertEquals(selected, nav.apply(request, session).player)
+        assertEquals(selected, nav.apply(request, session, captured).player)
     }
 }

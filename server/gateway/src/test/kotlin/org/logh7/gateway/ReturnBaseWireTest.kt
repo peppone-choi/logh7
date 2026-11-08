@@ -23,6 +23,33 @@ class ReturnBaseWireTest {
         client.send(packet.copyOfRange(4, packet.size))
         return through(client, 0x0356).filter { code(it) != 0x0b0d } // Independent periodic map snapshots.
     }
+
+    @Test fun startupPublishesTheClearedReturnPlanetFromAStaleSave() = runBlocking<Unit> {
+        val base = GalaxyBase(1048, 2487, 80, 0, "Soest", 0, 20f, 86400, 0, 0f, 2f)
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)), listOf(base),
+            Power.entries.associateWith { 2487 })
+        var players = mapOf("load-000" to Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000,
+            returnBase = base.id))
+        var inventory = PlanetStocks(1, 0, mapOf(base.id to PlanetStock(base.id, 3, 0, 0, 0, 0)))
+        val navigation = object : NavigationStore {
+            override fun load() = players
+            override fun save(next: Map<String, Navigator>) { players = next }
+        }
+        val stocks = object : PlanetStockStore {
+            override fun load() = inventory
+            override fun save(stocks: PlanetStocks) { inventory = stocks }
+        }
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false, stockStore = stocks,
+            navigationStore = navigation).use { fixture ->
+            val client = fixture.join(fixture.account(0), true, false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            val startup = through(client, 0x0f01).filter { code(it) == 0x0323 && ByteBuffer.wrap(it).getInt(6) == 10000 }
+            assertTrue(startup.isNotEmpty())
+            assertTrue(startup.all { ByteBuffer.wrap(it).getInt(26) == 0 })
+            assertEquals(0, players.getValue(fixture.account(0)).returnBase)
+        }
+    }
+
     @Test fun selectionDenialsReconnectAndCpUpdatesKeepAuthoritativeReturnPlanet() = runBlocking<Unit> {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2), GalaxySystem(4, 2015, 4, "Alliance", 3)),
             listOf(GalaxyBase(1048, 2487, 80, 0, "Soest", 0, 20f, 86400, 0, 0f, 2f),
