@@ -25,6 +25,33 @@ class NpcTacticsTest {
         }
     }
 
+    @Test fun aStarHidesTargetsFromOutsideObserversButAllowsFireInsideTheSensorCircle() {
+        val world=Galaxy(galaxy.systems.map { if(it.grid==2488)it.copy(star=0) else it },galaxy.bases,galaxy.starts)
+        val heading=(-Math.PI/2).toFloat()
+        fun motion(x:Float):TacticalMotion {
+            val point=TacticalPoint(x,0f)
+            return TacticalMotion(2488,now,TacticalPose(point,heading),0f,heading,listOf(point))
+        }
+        for((observer,target,boats) in listOf(Triple(20f,19f,300),Triple(21f,19f,50),Triple(19f,17f,300))) {
+            val state=state(boats)
+            val players=state.players.mapValues {(_,player)->player.copy(motion=motion(target))}.toMutableMap()
+            val outfit=state.stocks.outfits.getValue(1)
+            val unit=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(observer),now,now))
+            val stocks=state.stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(unit)))))
+            val hits=mutableListOf<TacticalImpact>()
+            val after=NpcTactics.advance(session,world,players,stocks,NpcTacticalPolicy(),24,hits,mutableListOf())
+            val tactical=after.outfits.getValue(1).activeShips!!.values.single().tactical!!
+            if(observer>=20f) {
+                assertEquals(0,tactical.target)
+                assertNull(tactical.retreat)
+                assertTrue(hits.isEmpty())
+            } else {
+                assertEquals(1010000,tactical.target)
+                assertTrue(hits.isNotEmpty())
+            }
+        }
+    }
+
     @Test fun cautiousFleetsStartLegalWithdrawalAtHalfStrength() {
         for((boats,behavior,withdraws) in listOf(
             Triple(150,NpcCombatBehavior.STANDARD,false),

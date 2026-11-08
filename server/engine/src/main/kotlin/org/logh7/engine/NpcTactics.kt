@@ -105,7 +105,11 @@ internal object NpcTactics {
             if(live.isEmpty())continue
             val behavior=policy.behavior(session.generation,outfitId)
             val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy)
-            val returnJumps=if(policy.strategic && enemies.isNotEmpty())NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
+            val detectsEnemies=enemies.isNotEmpty() && live.any { unit ->
+                val observer=initial(unit,outfit,position.grid,now,players,stocks,galaxy).position
+                enemies.any { !TacticalTerrain.sensorBlocked(galaxy,position.grid,observer,it.pose.position) }
+            }
+            val returnJumps=if(policy.strategic && detectsEnemies)NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
             val cargo=OutfitSupplies.distribution(outfit)
             val retreat=live.mapNotNull {it.tactical?.takeIf {s->s.motion.grid==position.grid}?.retreat}.minByOrNull {it.acceptedAt}
             val lossThreshold=if(behavior==NpcCombatBehavior.CAUTIOUS)2 else 4
@@ -114,7 +118,7 @@ internal object NpcTactics {
                 live.all {stocks.tacticalCommands.confused(it.id)} ||
                 (returnJumps!=null && returnJumps>0 && live.any {cargo.getValue(it.id)<it.boats}) ||
                 live.all {u->TacticalWeapon.entries.all {TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},it).power==0}}
-            val withdrawal=retreat ?: if(critical && enemies.isNotEmpty()) exit(galaxy,outfit,position.grid,players,stocks)?.let {
+            val withdrawal=retreat ?: if(critical && detectsEnemies) exit(galaxy,outfit,position.grid,players,stocks)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
             for(id in live.map {it.id}) {
                 outfit=stocks.outfits.getValue(outfitId)
@@ -126,7 +130,8 @@ internal object NpcTactics {
                 var state=before
                 if(state==null || now>=state.nextDecisionAt || state.retreat!=withdrawal) {
                     val target=enemies.map {it to hypot(it.pose.position.x.toDouble()-origin.position.x,it.pose.position.y.toDouble()-origin.position.y)}
-                        .filter {it.second<=policy.sight}.minWithOrNull(compareBy<Pair<Contact,Double>> {it.second}.thenBy {it.first.id})
+                        .filter {it.second<=policy.sight && !TacticalTerrain.sensorBlocked(galaxy,position.grid,origin.position,it.first.pose.position)}
+                        .minWithOrNull(compareBy<Pair<Contact,Double>> {it.second}.thenBy {it.first.id})
                     val goal=if(withdrawal!=null) {
                         val dx=(withdrawal.destination%100-position.grid%100).toFloat();val dy=(withdrawal.destination/100-position.grid/100).toFloat()
                         val length=hypot(dx,dy);TacticalPoint(dx/length*280,dy/length*280)
@@ -164,10 +169,12 @@ internal object NpcTactics {
                         OutfitSupplies.distribution(outfit).getValue(id)-cost<returnJumps*unit.boats)continue
                     val precision=behavior==NpcCombatBehavior.PRECISION
                     val nearby=contacts(outfit,position.grid,now,players,stocks,galaxy)
-                    val inArc=(if(precision)nearby else nearby.sortedBy {it.id}).asSequence().mapNotNull { contact ->
-                        val effect=TacticalArmaments.effectiveness(mount,pose,contact.pose.position)
-                        if(effect==0)null else contact to effect
-                    }
+                    val inArc=(if(precision)nearby else nearby.sortedBy {it.id}).asSequence()
+                        .filterNot { TacticalTerrain.sensorBlocked(galaxy,position.grid,pose.position,it.pose.position) }
+                        .mapNotNull { contact ->
+                            val effect=TacticalArmaments.effectiveness(mount,pose,contact.pose.position)
+                            if(effect==0)null else contact to effect
+                        }
                     val ranked=if(precision)inArc.sortedWith(compareByDescending<Pair<Contact,Int>> {it.second}.thenBy {it.first.id}) else inArc
                     val candidates=ranked.filterNot { (contact,_) -> TacticalLineOfFire.blocked(id,position.grid,
                         TacticalAuthority.camp(outfit,stocks),pose.position,contact.pose.position,now,players.values,stocks,galaxy) }

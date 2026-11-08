@@ -37,6 +37,13 @@ object TacticalTerrain {
         }
         return false
     }
+    /** A target inside the sensor obstacle is hidden from observers outside it. */
+    fun sensorBlocked(galaxy: Galaxy, grid: Int, observer: TacticalPoint, target: TacticalPoint): Boolean {
+        val radius = (starRadius(galaxy, grid) ?: return false) * 2
+        return hypot(observer.x.toDouble(), observer.y.toDouble()) >= radius &&
+            hypot(target.x.toDouble(), target.y.toDouble()) < radius
+    }
+
     /** Weapons cannot fire through the star (W p.50 line-of-fire terrain); the segment interior is tested. */
     fun fireBlocked(galaxy: Galaxy, grid: Int, from: TacticalPoint, to: TacticalPoint): Boolean {
         val radius = starRadius(galaxy, grid) ?: return false
