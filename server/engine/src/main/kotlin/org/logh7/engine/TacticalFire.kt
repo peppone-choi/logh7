@@ -160,7 +160,8 @@ internal object TacticalCombat {
             TacticalDeployment.initial(p.unitId,p.grid,players,stocks,galaxy)} ?: victim.regular!!.let {
             it.second.tactical?.takeIf {t->t.motion.grid==player.grid}?.motion?.pose(now,it.second.posture,galaxy,stocks) ?: TacticalDeployment.initial(it.second.id,
                 player.grid,players,stocks,galaxy)}
-        if(TacticalTerrain.sensorBlocked(galaxy,player.grid,source.position,target.position))return 0
+        if(TacticalTerrain.sharedSensorBlocked(galaxy,player.grid,TacticalAuthority.camp(player,stocks),
+            source.position,target.position,now,players,stocks))return 0
         if(TacticalLineOfFire.blocked(player.unitId,player.grid,TacticalAuthority.camp(player,stocks),source.position,target.position,now,players,stocks,galaxy))return 0
         return TacticalArmaments.effectiveness(mount, source, target.position)
     }

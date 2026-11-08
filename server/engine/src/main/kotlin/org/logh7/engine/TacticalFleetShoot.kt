@@ -49,7 +49,8 @@ internal object TacticalFleetShoot {
             if(mount.power==0)return reject(NavigationRejection.WEAPON)
             if(!TacticalReload.canFire(u,weapon,now+5*scale,scale) || !(u.reload?.ready(weapon,now) ?: true))return reject(NavigationRejection.ENERGY)
             if(OutfitSupplies.distribution(o).getValue(id)<cost(u,mount,weapon))return reject(NavigationRejection.SUPPLY)
-            if(TacticalTerrain.sensorBlocked(galaxy,player.grid,pose.position,targetPosition))return reject(NavigationRejection.RANGE)
+            if(TacticalTerrain.sharedSensorBlocked(galaxy,player.grid,TacticalAuthority.camp(player,stocks),
+                pose.position,targetPosition,now,players.values,stocks))return reject(NavigationRejection.RANGE)
             if(TacticalLineOfFire.blocked(id,player.grid,TacticalAuthority.camp(player,stocks),pose.position,
                 targetPosition,now,players.values,stocks,galaxy))return reject(NavigationRejection.RANGE)
             if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
@@ -105,7 +106,8 @@ internal object TacticalFleetShoot {
             val mount=GuardCombat.mount(TacticalArmaments.mount(spec,shot.weapon),shot.weapon,outfit,unit.id)
             val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
             val targetPosition=TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position
-            if(TacticalTerrain.sensorBlocked(galaxy,position.grid,origin.position,targetPosition))continue
+            if(TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,TacticalAuthority.camp(outfit,stocks),
+                origin.position,targetPosition,now,players.values,stocks))continue
             val effect=TacticalArmaments.effectiveness(mount,origin,targetPosition)
             val cost=cost(unit,mount,shot.weapon)
             if(effect==0 || stocks.tacticalCommands.confused(id) || TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),origin.position,
