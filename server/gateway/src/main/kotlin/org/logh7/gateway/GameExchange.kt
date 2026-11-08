@@ -1239,8 +1239,13 @@ class GameExchange(
                                 }
                             }
                             // Declining a replacement keeps the preceding reservation until explicit cancel/disconnect.
-                            return handshake.stageAll(listOf(LoginMessages.sessionMessage(0x032f,
-                                org.logh7.protocol.CountrySelectionMessages.reply(request,accepted,selected?.creationPower ?: 0,selected?.shipStyle?.value ?: ""))),clearHeader=0)
+                            val acknowledgement=LoginMessages.sessionMessage(0x032f,
+                                org.logh7.protocol.CountrySelectionMessages.reply(request,accepted,selected?.creationPower ?: 0,selected?.shipStyle?.value ?: ""))
+                            // The CD fetches this cache before the country picker opens and immediately renders it on ACK.
+                            val roster=if(selected!=null && request.query.mode==org.logh7.protocol.CountrySelectionMessages.LOTTERY &&
+                                characters.hasEditedCandidates())OriginalCharacterMessages.catalogueTransaction(characters.candidates(identity.account,selected))
+                            else emptyList()
+                            return handshake.stageAll(roster+acknowledgement,clearHeader=0)
                         }
                         if(opcode==0x032e && body.size==11 && (body[10].toInt() and 255)==org.logh7.protocol.LobbyCountryMessages.MODE) {
                             // Before creation/lottery a game connection may read only its own world's catalogue.
@@ -2424,8 +2429,7 @@ class GameExchange(
                         }
                         if(traceOpcodes && !OriginalCharacterMessages.catalogueRequest(body))System.err.println("trace ${identity.account} 1200 body ${java.util.HexFormat.of().formatHex(body)}")
                         check(gameLoggedIn && OriginalCharacterMessages.catalogueRequest(body))
-                        val messages = listOf(LoginMessages.sessionMessage(0x1200, body.copyOfRange(2, body.size)),
-                            OriginalCharacterMessages.catalogue(characters.candidates(identity.account,selectedCountry())), LoginMessages.sessionMessage(0x1201, byteArrayOf()))
+                        val messages=OriginalCharacterMessages.catalogueTransaction(characters.candidates(identity.account,selectedCountry()),body)
                         return handshake.stageAll(messages, clearHeader = 0)
                     }
                     0x1004 -> {

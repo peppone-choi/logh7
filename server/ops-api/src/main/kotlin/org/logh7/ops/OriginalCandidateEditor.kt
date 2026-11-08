@@ -12,6 +12,9 @@ private val abilities=listOf("통솔","정치","운영","정보","지휘","기�
 private val militaryRanks=listOf("원수","상급대장","대장","중장","소장","준장","대령","중령","소령","대위",
     "중위","소위","준위","상사","중사","하사","상등병","일등병","이등병")
 
+private fun CountryCatalog.candidatePower(id:Int)=countries[id]?.takeIf {it.nativePower in 2..3}
+    ?.let {families.getValue(it.family).creationPower}
+
 internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,published:PublishedOriginalCandidates,
     port:Int,audit:OpsAudit?,authenticated:Boolean) {
     get("/admin/original-candidates") {
@@ -24,8 +27,9 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
             true
         } catch(_:java.sql.SQLException){false} catch(_:IllegalArgumentException){false}
         val id=call.request.queryParameters["candidate"]?.toLongOrNull()
+        val newCountry=call.request.queryParameters["new"]?.toIntOrNull()
         call.response.headers.append(HttpHeaders.CacheControl,"no-store")
-        call.respondText(candidatePage(published,id,loaded && audit!=null),ContentType.Text.Html)
+        call.respondText(candidatePage(published,id,newCountry,loaded && audit!=null && store?.supportsCountryBinding==true),ContentType.Text.Html)
     }
     post("/admin/original-candidates") {
         if(!authenticated) {
@@ -35,19 +39,29 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         val form=call.adminForm(port) ?: return@post
         val id=form["candidate"]?.toLongOrNull()
         val revision=form["revision"]?.toLongOrNull()
+        val rawCountry=form["country"]
+        val country=rawCountry?.toIntOrNull()?.takeIf {it>0}?.let(::CountryId)
+        val creating=form["create"]=="1"
         val profile=runCatching {
             OriginalCandidateProfile(form["surname"].orEmpty().trim(),form["given"].orEmpty().trim(),
                 form["face"].orEmpty().toInt(),form["rank"].orEmpty().toInt(),
                 abilities.indices.map {form["ability$it"].orEmpty().toInt()})
         }.getOrNull()
-        call.audited(audit,OpsAction.ORIGINAL_CANDIDATE_EDIT,form["operator"],"candidate=$id,revision=$revision",
-            mapOf(OpsOutcome.CONFLICT to "편집 버전이 바뀌었습니다. 최신 화면을 다시 여세요.",
-                OpsOutcome.INVALID to "인물 이름, 얼굴 번호, 계급과 능력치 범위를 확인하세요.")) {
-            if(id==null || revision==null || revision<0 || profile==null || !published.accepts(id,profile))
+        call.audited(audit,OpsAction.ORIGINAL_CANDIDATE_EDIT,form["operator"],
+            "candidate=$id,revision=$revision,country=${country?.value},create=$creating",
+            mapOf(OpsOutcome.CONFLICT to "이미 쓰는 번호이거나 편집 버전이 바뀌었거나 국가의 후보 한도에 도달했습니다.",
+                OpsOutcome.INVALID to "후보 번호, 국가의 생성 계열, 이름, 얼굴 번호, 계급과 능력치 범위를 확인하세요.")) {
+            if(id==null || revision==null || revision<0 || profile==null || rawCountry==null ||
+                (rawCountry.isNotEmpty() && country==null) || !published.accepts(id,profile,country))
                 return@audited OpsOutcome.INVALID
-            if(store==null)return@audited OpsOutcome.UNAVAILABLE
+            if(country!=null && CountryCatalogLoader.current().candidatePower(country.value)!=profile.creationPower)
+                return@audited OpsOutcome.INVALID
+            if(creating) {
+                if(revision!=0L || id in published.defaults || country==null)return@audited OpsOutcome.INVALID
+            } else if(id !in published.defaults && id !in published.current())return@audited OpsOutcome.INVALID
+            if(store?.supportsCountryBinding!=true)return@audited OpsOutcome.UNAVAILABLE
             withContext(Dispatchers.IO) {
-                val saved=store.save(id,revision,profile) ?: return@withContext OpsOutcome.CONFLICT
+                val saved=store.save(id,revision,profile,country) ?: return@withContext OpsOutcome.CONFLICT
                 published.publish(listOf(saved))
                 OpsOutcome.CHANGED
             }
@@ -55,34 +69,56 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
     }
 }
 
-private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,editable:Boolean)=buildString {
+private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCountry:Int?,editable:Boolean)=buildString {
     fun escape(text:String)=text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;")
     fun number(name:String,value:Int,min:Int,max:Int)=
         "<input type=\"number\" name=\"$name\" value=\"$value\" min=\"$min\" max=\"$max\" required>"
     val edits=published.current()
     val definitions=published.defaults
-    val selected=definitions[id] ?: definitions.values.firstOrNull()
+    val catalog=CountryCatalogLoader.current()
+    val countries=catalog.countries.values.filter {catalog.candidatePower(it.id)!=null}
+    val newPower=newCountry?.let(catalog::candidatePower)
+    val creating=newPower!=null
+    val profiles=definitions.mapValues {it.value.profile}+edits.mapValues {it.value.profile}
+    val selected=if(creating)null else id?.takeIf {it in profiles} ?: profiles.keys.firstOrNull()
     append("""<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LOGH7 원작 인물 추첨</title><style>body{margin:40px auto;max-width:720px;padding:0 20px;background:#101b2a;color:#e6eef8;font:16px/1.6 system-ui,sans-serif}a{color:#9ed2ff}label{display:block;margin:8px 0}input,select,button{font:inherit;max-width:100%;padding:5px}fieldset{margin:16px 0}.abilities{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}</style>
-<nav><a href="/admin">운영 현황</a></nav><h1>원작 인물 추첨</h1><p>현재 월드의 추첨 후보를 편집합니다. 새 추첨 결과부터 적용되며 이미 당첨된 캐릭터는 기존 프로필을 사용합니다.</p>""")
-    if(selected==null) {append("<p>등록된 추첨 후보가 없습니다.</p></html>");return@buildString}
+<nav><a href="/admin">운영 현황</a></nav><h1>원작 인물 추첨</h1><p>현재 월드의 후보와 응모할 수 있는 국가를 관리합니다. 이미 당첨된 캐릭터는 기존 프로필을 사용합니다.</p>""")
     append("<form method=\"get\"><label>후보 <select name=\"candidate\">")
-    for(candidate in definitions.values) {
-        val profile=edits[candidate.id]?.profile ?: candidate.profile
-        append("<option value=\"${candidate.id}\"${if(candidate==selected)" selected" else ""}>${escape(profile.surname)} ${escape(profile.givenName)} · ${candidate.id}</option>")
+    for((candidate,profile) in profiles.toSortedMap()) {
+        val country=edits[candidate]?.country?.value?.let {catalog.countries[it]?.name}
+        append("<option value=\"$candidate\"${if(candidate==selected)" selected" else ""}>${escape(profile.surname)} ${escape(profile.givenName)} · $candidate · ${escape(country ?: "계열 공용")}</option>")
     }
     append("</select></label><button>열기</button></form>")
-    val edit=edits[selected.id]
-    val profile=edit?.profile ?: selected.profile
-    val empire=selected.creationPower==2
+    if(editable && countries.isNotEmpty()) {
+        append("<form method=\"get\"><label>새 후보를 추가할 국가 <select name=\"new\">")
+        for(country in countries)append("<option value=\"${country.id}\"${if(country.id==newCountry)" selected" else ""}>${escape(country.name)}</option>")
+        append("</select></label><button>새 후보</button></form>")
+    }
+    val edit=edits[selected]
+    val profile=if(creating)definitions.values.firstOrNull {it.creationPower==newPower}?.profile else profiles[selected]
+    if(profile==null) {append("<p>등록된 추첨 후보가 없습니다.</p></html>");return@buildString}
+    val empire=profile.creationPower==2
     val revision=edit?.revision ?: 0
     append("<p>생성 계열 ${if(empire)"제국" else "동맹"} · 편집 버전 $revision</p>")
-    if(!editable)append("<p>저장하려면 운영자 인증, 감사 기록, 정의 DB V11이 필요합니다.</p>")
+    if(!editable)append("<p>저장하려면 운영자 인증, 감사 기록, 정의 DB V12가 필요합니다.</p>")
     append("<form id=\"edit\" method=\"post\"><fieldset${if(editable)"" else " disabled"}><legend>추첨 시작 데이터</legend>")
-    append("<input type=\"hidden\" name=\"candidate\" value=\"${selected.id}\"><input type=\"hidden\" name=\"revision\" value=\"$revision\">")
+    append("<input type=\"hidden\" name=\"revision\" value=\"$revision\">")
+    if(creating) {
+        val ids=PublishedOriginalCandidates.NEW_IDS
+        val free=ids.firstOrNull {it !in profiles}
+        append("<input type=\"hidden\" name=\"create\" value=\"1\"><label>후보 번호 ${number("candidate",free?.toInt() ?: ids.last.toInt(),ids.first.toInt(),ids.last.toInt())}</label>")
+    } else append("<input type=\"hidden\" name=\"candidate\" value=\"$selected\">")
+    val scoped=if(creating)newCountry else edit?.country?.value
+    val sameBank=countries.filter {catalog.candidatePower(it.id)==profile.creationPower}
+    append("<label>응모 국가 <select name=\"country\" ${if(selected in definitions)"" else "required"}>")
+    if(selected in definitions)append("<option value=\"\">계열 공용</option>")
+    if(scoped!=null && sameBank.none {it.id==scoped})append("<option value=\"\" selected disabled>호환 국가 선택 필요</option>")
+    for(country in sameBank)append("<option value=\"${country.id}\"${if(country.id==scoped)" selected" else ""}>${escape(country.name)}</option>")
+    append("</select></label>")
     append("<label>운영자 <input name=\"operator\" maxlength=\"64\"></label>")
-    append("<label>성 <input name=\"surname\" maxlength=\"12\" value=\"${escape(profile.surname)}\" required></label>")
-    append("<label>이름 <input name=\"given\" maxlength=\"12\" value=\"${escape(profile.givenName)}\" required></label>")
+    append("<label>성 <input name=\"surname\" maxlength=\"12\" value=\"${if(creating)"" else escape(profile.surname)}\" required></label>")
+    append("<label>이름 <input name=\"given\" maxlength=\"12\" value=\"${if(creating)"" else escape(profile.givenName)}\" required></label>")
     val faces=if(empire)1..158 else 100001..100108
     append("<label>원본 얼굴 번호 ${number("face",profile.face,faces.first,faces.last)} (${faces.first}–${faces.last})</label>")
     append("<label>시작 계급 <select name=\"rank\">")

@@ -5,6 +5,9 @@ import java.nio.file.Path
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.gateway.load.*
+import org.logh7.engine.CountryId
+import org.logh7.engine.OriginalCandidateEdit
+import org.logh7.engine.PublishedOriginalCandidates
 import org.logh7.protocol.*
 import kotlin.test.*
 
@@ -13,6 +16,9 @@ class CountrySelectionWireTest {
     private fun choice(client:SyntheticClient,country:Int,mode:Int=8,nonce:Int=1,session:Int=1):List<String> {
         val base=nonce*65536+session
         client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(country).putInt(base).put(mode.toByte()).array())
+        return choiceReply(client,country,mode,base)
+    }
+    private fun choiceReply(client:SyntheticClient,country:Int,mode:Int,base:Int):List<String> {
         val b=ByteBuffer.wrap(client.expect(0x032f))
         assertEquals(0,b.int);assertEquals(0x032f,b.short.toInt() and 65535)
         assertEquals(country,b.int);assertEquals(base,b.int);assertEquals(mode,b.get().toInt());assertEquals(2,b.get().toInt())
@@ -91,6 +97,38 @@ class CountrySelectionWireTest {
             val saved=CharacterCreation(directory.resolve("characters.properties"))
             assertEquals(listOf(1002L),saved.entries(f.account(0)))
             assertEquals(org.logh7.engine.CountryId(3),saved.applicationSelection(f.account(0))?.country)
+        }
+    }
+
+    @Test fun editedLotteryCatalogueReplacesThePrefetchedListBeforeTheCountryAcknowledgement() {
+        val defaults=CharacterCreation.originalDefinitions()
+        val published=PublishedOriginalCandidates(defaults)
+        val original=defaults.first().profile
+        published.publish(listOf(OriginalCandidateEdit(1003,1,original.copy(surname="별빛함장"),CountryId(2))))
+        LoadFixture(directory,2,LoadMetrics(),ticking=false,originalCandidates=published).use {f->
+            f.game(f.account(0),false).use {client->
+                fun readCatalogue():List<Int> {
+                    client.expect(0x1200)
+                    val body=ByteBuffer.wrap(client.expect(0x120f));body.position(6)
+                    val ids=List(body.get().toInt() and 255) {
+                        body.position(body.position()+8)
+                        val id=body.int
+                        val name=body.get().toInt() and 255
+                        body.position(body.position()+name*2+15)
+                        id
+                    }
+                    client.expect(0x1201)
+                    return ids
+                }
+                client.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(0).putShort(0x13).putShort(0x4a).array())
+                assertEquals(listOf(1001,1002),readCatalogue())
+                for((country,ids) in listOf(2 to listOf(1001,1003),3 to listOf(1002))) {
+                    val base=country*65536+1
+                    client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(country).putInt(base).put(9).array())
+                    assertEquals(ids,readCatalogue())
+                    assertEquals("1",choiceReply(client,country,9,base)[1])
+                }
+            }
         }
     }
 }

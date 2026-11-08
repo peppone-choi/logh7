@@ -64,9 +64,10 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val applications = mutableMapOf<String, List<Long>>()
     private val applicationSelections = mutableMapOf<String, CountrySelection>()
     private var deadline = 0L
+    private val originalIds=originals.map {it.character.id}.toSet()
     init {
         require(lotteryWindowMillis in 1..3_600_000)
-        require(originals.map { it.character.id }.distinct().size == originals.size && originals.all { it.minimumFame >= 0 && it.character.id in 1..9999 })
+        require(originalIds.size == originals.size && originals.all { it.minimumFame >= 0 && it.character.id in 1..9999 })
         require(accountFame.values.all { it >= 0 })
         require(styles.keys==setOf(2,3))
         require(starters.keys == setOf(2, 3) && starters.all { (power, kinds) ->
@@ -88,16 +89,27 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 nextId = maxOf(nextId, profile.character.id + 1)
             }
             require(applications.size <= 4096 && (applications.isEmpty() || deadline > 0))
+            val roster=originalPool(publishedOriginals.current()).associateBy {it.character.id}
             require(applications.all { (account, ids) -> account !in registered && ids.size in 1..5 &&
-                ids.distinct().size == ids.size && ids.all { id -> originals.any { it.character.id == id &&
-                    applicationSelections[account]?.let {s->s.creationPower==it.character.power} != false } } })
+                ids.distinct().size == ids.size && ids.all { id -> roster[id]?.let {
+                    val selection=applicationSelections[account]
+                    if(selection==null)id in originalIds else selection.creationPower==it.character.power
+                } == true } }) { "Pending original lottery requires its candidate definitions" }
             require(applicationSelections.keys.all { it in applications }) { "Selection without application" }
         }
     }
     private fun displayed(data:CharacterMessages.Generate)=if(data.generated)data else KoreanDisplayNames.original(data)
-    private fun effectiveOriginal(data:CharacterMessages.Generate,edits:Map<Long,OriginalCandidateEdit>):CharacterMessages.Generate {
-        val edit=edits[data.id]?.profile ?: return data
-        return data.copy(surname=edit.surname,givenName=edit.givenName,face=edit.face,rank=edit.rank,abilities=edit.abilities)
+    private fun originalPool(edits:Map<Long,OriginalCandidateEdit>):List<OriginalCharacterMessages.Candidate> {
+        fun OriginalCharacterMessages.Candidate.edited(id:Long=character.id):OriginalCharacterMessages.Candidate {
+            val edit=edits[id]?.profile ?: return this
+            return copy(character=character.copy(id=id,surname=edit.surname,givenName=edit.givenName,
+                face=edit.face,rank=edit.rank,abilities=edit.abilities,
+                shipName=if(id==character.id)character.shipName else "Local $id"))
+        }
+        val added=edits.values.filter {it.id !in originalIds}.sortedBy {it.id}.map {row->
+            OriginalCharacterMessages.localCandidates.first {it.character.power==row.profile.creationPower}.edited(row.id)
+        }
+        return originals.map {it.edited()}+added
     }
     // Preserve the model already chosen if the administrator changes definitions during the wizard.
     private fun profile(data:CharacterMessages.Generate)=CharacterProfile(data,CountryId(data.power),
@@ -159,6 +171,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     }
     @Synchronized fun entries(account: String): List<Long> { resolveLottery(); return applications[account].orEmpty().toList() }
     @Synchronized fun applicationSelection(account:String):CountrySelection? {resolveLottery();return applicationSelections[account]}
+    fun hasEditedCandidates()=publishedOriginals.current().isNotEmpty()
     @Synchronized fun candidates(account: String, selection: CountrySelection? = null): List<OriginalCharacterMessages.Candidate> {
         resolveLottery()
         if (account in registered || account in pending) return emptyList()
@@ -166,9 +179,15 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         val currentFame=fame(account)
         val selected=selection ?: applicationSelections[account]
         val edits=publishedOriginals.current()
-        return originals.filter { it.minimumFame <= currentFame && registered.values.none { owned -> owned.character.id == it.character.id } &&
-            (selected == null || it.character.power == selected.creationPower) }
-            .map {it.copy(character=effectiveOriginal(KoreanDisplayNames.original(it.character),edits))}
+        val accepted=applications[account].orEmpty().takeIf {selected==applicationSelections[account]}.orEmpty()
+        val owned=registered.values.mapTo(mutableSetOf()) {it.character.id}
+        return originalPool(edits).filter {candidate->
+            val id=candidate.character.id
+            val country=edits[id]?.country
+            candidate.minimumFame<=currentFame && id !in owned &&
+                (selected==null || candidate.character.power==selected.creationPower) &&
+                (country==null || country==selected?.country || id in accepted)
+        }.map {it.copy(character=KoreanDisplayNames.original(it.character))}
     }
     fun fame(account: String): Int = accountFame[account] ?: 0
     @Synchronized fun entryState(account: String, id: Long, selection: CountrySelection? = null): ByteArray {
@@ -195,13 +214,12 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private fun resolveLottery() {
         if (applications.isEmpty() || clock.millis() < deadline) return
         val winners = registered.toMutableMap()
-        val edits=publishedOriginals.current()
+        val roster=originalPool(publishedOriginals.current()).associateBy {it.character.id}
         val accounts = applications.keys.toMutableList().also { java.util.Collections.shuffle(it, random) }
         for (account in accounts) {
             if (account in winners) continue
             val id = applications.getValue(account).firstOrNull { candidate -> winners.values.none { it.character.id == candidate } } ?: continue
-            val candidate = originals.single { it.character.id == id }
-            val character=effectiveOriginal(candidate.character,edits)
+            val character=roster.getValue(id).character
             val selection=applicationSelections[account]
             val style=selection?.shipStyle ?: styles.getValue(character.power)
             // The hero keeps its own model unless the chosen style differs; then the same-type model of that style.

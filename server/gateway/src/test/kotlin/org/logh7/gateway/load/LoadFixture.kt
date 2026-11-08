@@ -18,7 +18,8 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     private val sessionDirectory:GameSessionDirectory?=null,private val sessionId:Int=1,
     private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,accountSource:Map<String,String>?=null,
     private val accountFame:FameLedger?=null,sessionDurability:SessionDurability?=null,
-    awaitIdentities:Boolean=false,prepare:(WorldEngine)->Unit = {}) : AutoCloseable {
+    awaitIdentities:Boolean=false,private val originalCandidates:PublishedOriginalCandidates=PublishedOriginalCandidates(),
+    prepare:(WorldEngine)->Unit = {}) : AutoCloseable {
     val accounts = accountSource ?: (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val engine = WorldEngine(scope, SessionRules.load().copy(capacity = capacity), timings = metrics, galaxy = galaxy, ticking = ticking,durability=sessionDurability,
@@ -70,7 +71,8 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
                 gameSeconds = { engine.snapshot().session!!.gameSeconds }, admission = observedAdmission,
                 world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { navigationDecorator(EngineGameNavigation(engine, scope)) },
                 stock = galaxy?.let { EngineGameStock(engine, scope) }, administration = galaxy?.let { EngineGameAdministration(engine, scope, it) },
-                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,accountFame=accountFame)
+                sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,accountFame=accountFame,
+                originalCandidates=originalCandidates)
             try {
                 candidate.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
                 metrics.observe("bindRetries", attempt.toLong()); return candidate to ports
