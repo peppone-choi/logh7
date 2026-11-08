@@ -2000,6 +2000,17 @@ class GameExchange(
                                     }
                                     return null
                                 }
+                                if(query.preview && query.command==org.logh7.engine.OrbitalStrikeActions.STRIKE) {
+                                    val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
+                                        query.character,currentProfile(identity.account,query.character).country,checkNotNull(generation),
+                                        query.command,query.card,character.rank),phase=org.logh7.engine.OrbitalStrikeActions.QUOTE_PHASE)
+                                    pendingWorld=administration.social(request).thenApply {result ->
+                                        val cost=if(result.rejection==null)org.logh7.engine.OrbitalStrikeActions.SUPPLIES else 0
+                                        org.logh7.protocol.StrategyActionMessages.orbitalStrikeQuote(query,result.rejection?.let {it.ordinal+1} ?: 0,
+                                            result.found,result.outcome,cost)
+                                    }
+                                    return null
+                                }
                                 if(query.preview && !query.isRepairQuote) {
                                     pendingWorld=stocks().thenApply {stored ->
                                         val inventory=checkNotNull(stored)
@@ -2307,6 +2318,7 @@ class GameExchange(
                                                     org.logh7.engine.SocialRejection.TARGET->"사정 밖"
                                                     org.logh7.engine.SocialRejection.MAXIMUM->"물자 부족"
                                                     org.logh7.engine.SocialRejection.COOLDOWN->"지상전 중"
+                                                    org.logh7.engine.SocialRejection.QUOTE_CHANGED->"공격 조건이 바뀌었습니다."
                                                     else->"불가"}).take(65)),gameSeconds()))
                                         if(strike.isNotEmpty() && result.outcome>=1)navigation?.snapshot()?.let {snapshot->
                                             presence?.groundRefresh(checkNotNull(generation),player.grid,result.found,gameSeconds(),snapshot,

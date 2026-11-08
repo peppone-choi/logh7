@@ -56,18 +56,18 @@ object StrategyActionMessages {
         // U-08: value is the unit kind, preview argument -1 quotes, and commit base binds the quoted site.
         val production=command in 31..36
         val repair=command==61
-        // U-31 orbital ground attack from the compatibility DLL's commander-tab button: no card, no arguments.
+        // U-31: preview selects the nearest enemy site, commit echoes its base and the quoted attacker count.
         val strike=command==230
         // Imperial succession: 233 後継指名 on the emperor card (target = heir; previews list empire people), 234 継承拒否 on the personal card.
         val succession=command in setOf(233,234)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
         require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,15,17,19,20,21,31,32,33,34,35,36,39,40,230,233,234,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,95,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
-        require(!preview || personnel || command==24 || market || production || repair || command in setOf(233,10,11,12,13,19,20,29,40,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39))
+        require(!preview || personnel || command==24 || market || production || repair || strike || command in setOf(233,10,11,12,13,19,20,29,40,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
         // 会談 12/談話 13 list same-base people of the same side; commits travel in 7f13.
         if(command in setOf(10,11,12,13,87))require(preview && card==0)
-        if(!operation && !market && !transport && !proposal && !funds && !trade && !production && !repair)require(argument==0 && amount==0)
+        if(!operation && !market && !transport && !proposal && !funds && !trade && !production && !repair && !strike)require(argument==0 && amount==0)
         if(civic)require(!preview && value in 0..2 && base==0 && argument==0 && amount==0 &&
             card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (if(command==55)target==0 && card in setOf(59,195) else value!=0 || target>0))
@@ -97,7 +97,8 @@ object StrategyActionMessages {
             (value==0 || command==80 && !preview && value in 0..7))
         else if(succession)require(base==0 && argument==0 && amount==0 && value==0 &&
             (if(command==234)card==0 && target==0 && !preview else card==1 && (preview || target>0)))
-        else if(strike)require(!preview && card==0 && base==0 && argument==0 && amount==0 && target==0 && value==0)
+        else if(strike)require(card==0 && amount==0 && target==0 &&
+            (base==0 && argument==0 && value==0 || !preview && base in 1..65535 && argument in 1..10 && value>0))
         else if(production)require(card in 1..260 && amount==0 && target==0 &&
             (value==0 || command in 35..36 && value in 0..199) &&
             if(preview)base==0 && (argument==-1 || argument==0 && command in 35..36 && value==0)
@@ -133,6 +134,16 @@ object StrategyActionMessages {
         target>0 && (if(preview)argument==-1 else argument>0)
     /** Status lives in the otherwise unused rank field; no original success ACK is forged. */
     data class CivicStatus(val phase:Int,val outfit:Int,val base:Int,val readyAt:Long,val effect:Int)
+    fun orbitalStrikeQuote(q:Query,status:Int,base:Int,attackers:Int,supplies:Int):List<ByteArray> {
+        require(q.command==230 && q.preview && status in 0..65535)
+        require(if(status==0)base in 1..65535 && attackers in 1..10 && supplies in 1..65535 else base==0 && attackers==0 && supplies==0)
+        val payload=q.raw.copyOf()
+        ByteBuffer.wrap(payload).putShort(10,status.toShort()).putInt(17,supplies)
+            .putShort(21,attackers.toShort()).putInt(23,base)
+        payload[16]=21
+        return listOf(LoginMessages.sessionMessage(0x1200,payload),LoginMessages.sessionMessage(0x1201,byteArrayOf()))
+    }
+
     fun response(q:Query,status:Int,changed:Boolean?=null,civic:CivicStatus?=null,outcome:Int=0,found:Int=0,report:Int=0,
         fundBalance:Long?=null,tradeReportCurrency:StrategyCurrencyLabel?=null,evaluationBalance:Long?=null):List<ByteArray> {
         require(status in 0..65535 && outcome in 0..3 && found>=0)

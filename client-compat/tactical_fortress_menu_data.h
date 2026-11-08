@@ -34,11 +34,16 @@ inline void commanderMenu(bool chief,BYTE enabled[24]) {
     enabled[orbitalStrikeSlot]=1;
 }
 // The 0x7f00 strategy record (ordinal 0x46) that asks the server for one orbital ground attack.
-inline void orbitalStrikeRecord(BYTE record[36],unsigned character,unsigned short token) {
+inline void orbitalStrikeRecord(BYTE record[36],unsigned character,unsigned short token,bool preview,
+    unsigned base=0,unsigned attackers=0,unsigned short supplies=0) {
     for(unsigned i=0;i<36;++i)record[i]=0;
     *reinterpret_cast<unsigned*>(record)=character;
     *reinterpret_cast<unsigned short*>(record+4)=0x7f00;
     *reinterpret_cast<unsigned short*>(record+6)=static_cast<unsigned short>(orbitalStrikeCommand);
+    *reinterpret_cast<unsigned short*>(record+10)=supplies;
+    record[16]=preview ? 1 : 0;
+    *reinterpret_cast<unsigned*>(record+20)=attackers;
+    *reinterpret_cast<unsigned*>(record+28)=base;
     *reinterpret_cast<unsigned short*>(record+32)=token;
 }
 }

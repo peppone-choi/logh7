@@ -929,11 +929,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
                     val tradeQuote=TradeActions.quotes(i.command,i.value) && r.phase==TradeActions.QUOTE_PHASE
                     val productionQuote=i.command in ProductionActions.commands && r.phase==ProductionActions.QUOTE_PHASE
-                    if(tradeQuote || productionQuote) {
+                    val strikeQuote=i.command==OrbitalStrikeActions.STRIKE && r.phase==OrbitalStrikeActions.QUOTE_PHASE
+                    if(tradeQuote || productionQuote || strikeQuote) {
                         val inventory=production?.snapshot(session.generation)
-                        val player=navigation?.snapshot(session.generation)?.get(i.account)
+                        val navigators=navigation?.snapshot(session.generation).orEmpty()
+                        val player=navigators[i.account]
                         command.result.complete(if(inventory==null)SocialResult(player,null,SocialRejection.SESSION)
-                            else SocialActions.evaluate(checkNotNull(galaxy),r,session,player,inventory))
+                            else SocialActions.evaluate(checkNotNull(galaxy),r,session,player,inventory,
+                                if(strikeQuote)navigators.values else emptyList()))
                         continue
                     }
                     val recovered=recoverNavigation(NavigationRequest(i.account,i.characterId,i.country,i.connection,i.generation,

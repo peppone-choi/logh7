@@ -164,9 +164,12 @@ static bool commanderMenuTest() {
     BYTE enabled[24];logh::commanderMenu(true,enabled);
     for(unsigned i=0;i<24;++i)if(enabled[i]!=(i==20 || i==21 || i==23))return false;
     logh::commanderMenu(false,enabled);for(unsigned i=0;i<24;++i)if(enabled[i]!=(i==21))return false;
-    BYTE strike[36];logh::orbitalStrikeRecord(strike,10000,7);
+    BYTE strike[36];logh::orbitalStrikeRecord(strike,10000,7,true);
     if(*reinterpret_cast<unsigned*>(strike)!=10000 || *reinterpret_cast<unsigned short*>(strike+4)!=0x7f00 ||
-        *reinterpret_cast<unsigned short*>(strike+6)!=230 || *reinterpret_cast<unsigned short*>(strike+32)!=7 || strike[16] || strike[8])return false;
+        *reinterpret_cast<unsigned short*>(strike+6)!=230 || *reinterpret_cast<unsigned short*>(strike+32)!=7 || strike[16]!=1 || strike[8])return false;
+    logh::orbitalStrikeRecord(strike,10000,8,false,1177,3,100);
+    if(strike[16] || *reinterpret_cast<unsigned short*>(strike+10)!=100 ||
+        *reinterpret_cast<unsigned*>(strike+20)!=3 || *reinterpret_cast<unsigned*>(strike+28)!=1177)return false;
     return true;
 }
 static bool fortressMenuAuthorityTest() {

@@ -22,8 +22,26 @@ class OrbitalStrikeActionsTest {
         return Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,mode=5,cpPaused=cpPaused,
             motion=TacticalMotion(2487,now,TacticalPose(at,0f),0f,0f,listOf(at)))
     }
-    private fun act(p:Navigator,s:PlanetStocks=stocks())=SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest(
-        "a","a",10000,Power.EMPIRE,1,OrbitalStrikeActions.STRIKE,0,1)),session,p,s,listOf(p))
+    private fun act(p:Navigator,s:PlanetStocks=stocks(),phase:Int=0,base:Int=0,attackers:Int=0,supplies:Int=0)=
+        SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,
+            OrbitalStrikeActions.STRIKE,0,1,base=base,argument=attackers,value=supplies),phase=phase),session,p,s,listOf(p))
+
+    @Test fun quotedStrikeLeavesStateAloneAndRejectsChangedTerms() {
+        val s=stocks();val p=player(10f);val cost=OrbitalStrikeActions.SUPPLIES
+        val quote=act(p,s,phase=OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(quote.rejection);assertFalse(quote.changed)
+        assertEquals(1000,quote.found);assertEquals(1,quote.outcome)
+        assertSame(s,quote.stocks);assertSame(p,quote.player)
+        val stale=listOf(act(p,s,base=1001,attackers=1,supplies=cost),
+            act(p,s,base=1000,attackers=2,supplies=cost),act(p,s,base=1000,attackers=1,supplies=cost+1))
+        for(result in stale) {
+            assertEquals(SocialRejection.QUOTE_CHANGED,result.rejection)
+            assertSame(s,result.stocks);assertSame(p,result.player)
+        }
+        val actual=act(p,s,base=quote.found,attackers=quote.outcome,supplies=cost)
+        assertTrue(actual.changed)
+        assertEquals(p.supplies-cost,actual.player?.supplies)
+    }
 
     @Test fun additionalCountryBombardmentUsesActualDefendersAndOnlyItsOwnEscorts() {
         val p=player(10f).copy(country=CountryId(42))

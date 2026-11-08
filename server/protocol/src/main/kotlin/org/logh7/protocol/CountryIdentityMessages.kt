@@ -8,6 +8,7 @@ object CountryIdentityMessages {
     const val SUPPLY_QUOTE=2
     const val PORTRAIT=4
     const val SPOT_PORTRAIT=8
+    const val ORBITAL_STRIKE_QUOTE=16
     fun reply(query:OutfitPartyMessages.Query,country:Int,nativePower:Int,name:String,calendar:String,
         yearOffset:Int,revision:Long,registered:Boolean,portrait:Boolean=false,spotPortrait:Boolean=false):ByteArray {
         require(query.mode==MODE && query.outfit>0 && query.base in 1..65535)
@@ -20,7 +21,7 @@ object CountryIdentityMessages {
         // Mode 11 has no camp or cargo. Keep the existing fuel and production words for older DLLs.
         return OutfitPartyMessages.party(query,2,0,0,emptyList(),emptyList(),1,2,
             fields.mapIndexed {index,value->OutfitPartyMessages.Member(index+1,index,0,value)})
-            .also {it[10]=(REPAIR_QUOTE or SUPPLY_QUOTE or (if(portrait)PORTRAIT else 0) or
+            .also {it[10]=(REPAIR_QUOTE or SUPPLY_QUOTE or ORBITAL_STRIKE_QUOTE or (if(portrait)PORTRAIT else 0) or
                 (if(spotPortrait)SPOT_PORTRAIT else 0)).toByte()}
     }
 }
