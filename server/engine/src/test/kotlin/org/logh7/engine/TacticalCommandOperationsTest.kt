@@ -308,13 +308,21 @@ class TacticalCommandOperationsTest {
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to foe.copy(activeShips=ActiveShipUnits(listOf(moving)))))
         val r=run(s)
         assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=1,target=99)).player)
-        settle(r,now+5)
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(r,now+5,events)
+        assertEquals(.25f,events.single {it.stateOnly}.motions.getValue(99).velocity)
         val next=s.stocks.tacticalCommands.air.getValue(1).nextAt
         assertEquals(.25f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+        s.players=s.players+("enemy" to Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,
+            hull=FlagshipHull(89,now),motion=motion(100f)))
         val allied=s.stocks.outfits.getValue(2).copy(country=Power.EMPIRE.country)
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to allied),
             warehouses=s.stocks.warehouses+(20 to s.stocks.warehouses.getValue(20).copy(country=Power.EMPIRE.country)))
-        val hits=settle(run(s),next-1)
+        events.clear()
+        val hits=settle(run(s),next-1,events)
+        val restored=events.single {it.stateOnly}
+        assertEquals(.5f,restored.motions.getValue(99).velocity)
+        assertEquals(mapOf(10000 to "one",10001 to "two"),restored.recipients)
         assertTrue(hits.none {it.airBattle})
         assertTrue(s.stocks.tacticalCommands.air.isEmpty())
         assertEquals(.5f,s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)

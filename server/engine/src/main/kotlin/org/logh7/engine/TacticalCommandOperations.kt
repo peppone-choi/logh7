@@ -438,6 +438,16 @@ internal object TacticalCommandOperations {
             }
             return effective to motions
         }
+        private fun updateWingTargetMotion(wing:TacticalAirWing,motion:TacticalMotion) {
+            val target=wing.target
+            val commander=players.values.singleOrNull {it.unitId==target}?.characterId ?:
+                ship(target,stocks)?.let {TacticalAuthority.commander(it.outfit,it.unit,stocks)} ?: 0
+            motion(target,motion,commander)
+            val order=TacticalQueuedCommand(commander.takeIf {it>0} ?: wing.character,wing.grid,now,now,
+                TacticalCommand(0x40e,listOf(wing.source),kind=wing.mode,target=target))
+            events+=TacticalCommandResult(session.generation,order,now,audience(session,wing.grid,players),
+                motions=mapOf(target to motion),stateOnly=true)
+        }
         fun removeWing(id:Int) {
             val wing=stocks.tacticalCommands.air[id] ?: return
             stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=stocks.tacticalCommands.air-id))
@@ -446,8 +456,8 @@ internal object TacticalCommandOperations {
                 val m=p?.motion ?: ship(wing.target,stocks)?.unit?.tactical?.motion
                 if(m!=null && m.grid==wing.grid && m.velocity>0f) {
                     val at=pose(wing.target,wing.grid,now,players,stocks,g) ?: return
-                    motion(wing.target,m.copy(acceptedAt=now,origin=at,velocity=wing.slowVelocity,waypoints=m.remaining(now),reportedWaypoints=0,waitSeconds=0),
-                        p?.characterId ?: ship(wing.target,stocks)?.let {TacticalAuthority.commander(it.outfit,it.unit,stocks)} ?: 0)
+                    updateWingTargetMotion(wing,m.copy(acceptedAt=now,origin=at,velocity=wing.slowVelocity,
+                        waypoints=m.remaining(now),reportedWaypoints=0,waitSeconds=0))
                 }
             }
         }
@@ -495,8 +505,8 @@ internal object TacticalCommandOperations {
                         if(moving!=null && moving.velocity>0 && wing.slowVelocity==null) {
                             val existing=stocks.tacticalCommands.air.values.firstOrNull {it.source!=id && it.target==wing.target && it.slowVelocity!=null}?.slowVelocity
                             wing=wing.copy(slowVelocity=existing ?: moving.velocity)
-                            if(existing==null)motion(wing.target,moving.copy(acceptedAt=now,origin=target,velocity=moving.velocity*.5f,waypoints=moving.remaining(now),reportedWaypoints=0,waitSeconds=0),
-                                    players.values.singleOrNull {it.unitId==wing.target}?.characterId ?: ship(wing.target,stocks)?.let {TacticalAuthority.commander(it.outfit,it.unit,stocks)} ?: 0)
+                            if(existing==null)updateWingTargetMotion(wing,moving.copy(acceptedAt=now,origin=target,
+                                velocity=moving.velocity*.5f,waypoints=moving.remaining(now),reportedWaypoints=0,waitSeconds=0))
                         }
                     }
                 }
