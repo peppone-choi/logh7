@@ -11,9 +11,8 @@ internal object BaseOccupationOperations {
         // U-07 (CD manual p.39): armed occupation of neutral Fezzan ends its neutrality; it becomes the occupier's planet.
         if(owner.camp!=0 || owner.country==null && owner.owner !is Allegiance.Independent &&
             !(owner.owner==Allegiance.Neutral && base.name==TradeActions.FEZZAN_NAME))return null
-        if(owner.country?.let {GroundBattleOperations.participants(stocks,base,it).isNotEmpty()}==true)return null
-        return GroundBattleOperations.countries(stocks).filter {it!=owner.country &&
-            GroundBattleOperations.participants(stocks,base,it).isNotEmpty()}.singleOrNull()
+        val winner=GroundBattleOperations.sides(stocks,base).singleOrNull()?.first ?: return null
+        return winner.first.takeIf {winner.second==0 && it!=owner.country}
     }
     fun pending(stocks:PlanetStocks,galaxy:Galaxy)=galaxy.bases.any {victor(stocks,it)!=null}
 
@@ -26,7 +25,7 @@ internal object BaseOccupationOperations {
             val winner=victor(stocks,base) ?: continue
             // Occupation evaluation (design-evaluation-points.md): the victor's ground commanders here and its
             // tactical participants in the grid share it equally, before the occupation rewrites the outfits.
-            val groundIds=GroundBattleOperations.participants(stocks,base,winner).map {it.id}.toSet()
+            val groundIds=GroundBattleOperations.participants(stocks,base,winner,0).map {it.id}.toSet()
             val earners=stocks.outfits.values.filter {o->o.activeGround?.values.orEmpty().any {it.id in groundIds}}.map {it.commanderId}+
                 players.values.filter {it.country==winner && it.generation==session.generation &&
                     it.grid==base.grid && it.cpPaused}.map {it.characterId}

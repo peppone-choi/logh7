@@ -5,16 +5,15 @@ package org.logh7.engine
 data class GroundBattleResult(val generation:Long,val grid:Int,val base:Int,val seconds:Long,
     val damaged:List<Int>,val destroyed:List<Int>,val recipients:Map<Int,String>,val conclusion:GroundBattleConclusion?=null)
 
-data class GroundBattleConclusion(val survivingCountry:CountryId?,val withdrawal:Boolean=false)
+data class GroundBattleConclusion(val survivingCountry:CountryId?,val withdrawal:Boolean=false,val insurgent:Boolean=false)
 
 /** Public read of who actually fights on a base (manual p.51: 30 units per side; the rest wait in reserve). */
 object GroundBattleView {
     fun fighting(stocks:PlanetStocks,base:GalaxyBase):Set<Int> =
-        GroundBattleOperations.countries(stocks).flatMap {GroundBattleOperations.participants(stocks,base,it)}.map {it.id}.toSet()
+        GroundBattleOperations.sides(stocks,base).flatMap {it.second}.map {it.id}.toSet()
 }
 internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
-    fun countries(stocks:PlanetStocks)=stocks.outfits.values.map {it.country}.distinct().sortedBy {it.value}
 
     fun participants(stocks:PlanetStocks,base:GalaxyBase,country:CountryId,camp:Int?=null):List<ActiveGroundUnit> =
         stocks.outfits.values.filter {it.country==country && (camp==null || CoupActions.outfitCamp(stocks,it)==camp)}
@@ -22,9 +21,15 @@ internal object GroundBattleOperations {
             .filter {it.base==base.id && GroundBattleRules.admitsCrewType(base,specifications.getValue(it.stack.kind).type)}
             .sortedBy {it.id}.take(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
 
-    private fun sides(stocks:PlanetStocks,base:GalaxyBase)=countries(stocks).mapNotNull {country ->
-        participants(stocks,base,country).takeIf {it.isNotEmpty()}?.let {country to it}
-    }
+    fun sides(stocks:PlanetStocks,base:GalaxyBase)=stocks.outfits.values
+        .map {it.country to CoupActions.outfitCamp(stocks,it)}.distinct()
+        .sortedWith(compareBy({it.first.value},{it.second})).mapNotNull {side ->
+            participants(stocks,base,side.first,side.second).takeIf {it.isNotEmpty()}?.let {side to it}
+        }
+
+    private fun conclusion(winner:Pair<CountryId,Int>?,withdrawal:Boolean=false)=
+        GroundBattleConclusion(winner?.first,withdrawal,insurgent=winner?.second==1)
+
     fun contested(stocks:PlanetStocks,base:GalaxyBase)=sides(stocks,base).size>1
 
     fun advance(session:SessionState,galaxy:Galaxy,players:Map<String,Navigator>,stocks:PlanetStocks,
@@ -45,7 +50,7 @@ internal object GroundBattleOperations {
             val present=sides(next,base)
             if(present.size<=1) {
                 clocks.remove(base.id)
-                if(base.id in withdrawals)emit(now,emptyList(),emptyList(),GroundBattleConclusion(present.singleOrNull()?.first,withdrawal=true))
+                if(base.id in withdrawals)emit(now,emptyList(),emptyList(),conclusion(present.singleOrNull()?.first,withdrawal=true))
                 continue
             }
             var at=clocks[base.id] ?: now
@@ -95,7 +100,7 @@ internal object GroundBattleOperations {
             val survivors=sides(next,base)
             if(survivors.size>1)clocks[base.id]=at else clocks.remove(base.id)
             if(damaged.isNotEmpty()) {
-                val conclusion=if(survivors.size<=1)GroundBattleConclusion(survivors.singleOrNull()?.first) else null
+                val conclusion=if(survivors.size<=1)conclusion(survivors.singleOrNull()?.first) else null
                 emit(at,damaged.toList(),destroyed.toList(),conclusion)
             }
         }
@@ -104,7 +109,7 @@ internal object GroundBattleOperations {
             val positions=buildMap {
                 for(outfit in next.outfits.values) {
                     for(unit in outfit.activeGround?.values.orEmpty()) {
-                        if(unit.base>0)put(unit.id,unit.base to outfit.country)
+                        if(unit.base>0)put(unit.id,unit.base to TacticalAuthority.camp(outfit,next))
                     }
                 }
             }
