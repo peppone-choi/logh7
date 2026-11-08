@@ -13,7 +13,9 @@ import kotlin.test.*
 
 class TacticalGroundWireTest {
     @TempDir lateinit var directory:Path
-    @Test fun encryptedDeployResumesPrivatelyAndWithdrawReturnsTheSameIds()=runBlocking {
+    @Test fun encryptedDeployResumesPrivatelyAndWithdrawReturnsTheSameIds()=encounter()
+    @Test fun overCapacityLandingCancellationReachesBothPeersAndNotifiesOnlyTheCommander()=encounter(cancelSaved=true)
+    private fun encounter(cancelSaved:Boolean=false)=runBlocking {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,0f,86400,0,0f,2f),
                 GalaxyBase(1001,2487,80,0,"Enemy",0,0f,86400,0,0f,2f)),Power.entries.associateWith {2487})
@@ -23,15 +25,27 @@ class TacticalGroundWireTest {
             cpPaused=true,hull=FlagshipHull(0,now),motion=motion())}
         val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),tactical=NpcTacticalState(motion(),now,now),
             posture=TacticalPosture(2487,TacticalShipMode.ANCHORED,1000))))
-        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),carrier=1),ActiveGroundUnit(3,UnitStack(1),carrier=1)))
+        val aboard=listOf(ActiveGroundUnit(2,UnitStack(0),carrier=1),ActiveGroundUnit(3,UnitStack(1),carrier=1))
+        val stationed=if(cancelSaved) List(GroundBattleRules.BOX_CAPACITY_PER_FACTION-1) {
+            ActiveGroundUnit(4+it,UnitStack(0),base=1000)
+        } else emptyList()
+        val troops=ActiveGroundUnits(aboard+stationed)
         val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,10000,UnitInventory(ships.quantities(),troops.quantities()),
             activeShips=ships,activeGround=troops,position=OutfitPosition(2487))
         var savedStocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,0,0,0),1001 to PlanetStock(1001,3,0,0,0,0)),mapOf(1 to outfit),
-            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),nextShipId=4)
+            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),nextShipId=4+stationed.size)
+        if(cancelSaved) {
+            val pending=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,1,1000,now,now+600)
+            savedStocks=savedStocks.copy(outfits=mapOf(1 to outfit.copy(activeGround=ActiveGroundUnits(
+                aboard.map {it.copy(order=pending)}+stationed))))
+        }
         val nav=object:NavigationStore {override fun load()=savedPlayers;override fun save(players:Map<String,Navigator>){savedPlayers=players}}
         val stock=object:PlanetStockStore {override fun load()=savedStocks;override fun save(stocks:PlanetStocks){savedStocks=stocks}}
         val commit=WorldStateCommitter {p,s->savedPlayers=p.toMap();savedStocks=checkNotNull(s)}
-        fun through(c:SyntheticClient,op:Int):ByteArray {repeat(500){val p=c.receive();if(ByteBuffer.wrap(p).getShort(4).toInt()==op)return p};error("Missing $op")}
+        fun through(c:SyntheticClient,op:Int,accept:(ByteArray)->Boolean={true}):ByteArray {
+            repeat(500) {val p=c.receive();if(ByteBuffer.wrap(p).getShort(4).toInt()==op && accept(p))return p}
+            error("Missing $op")
+        }
         fun notice(c:SyntheticClient)=ChatMessages.spot(through(c,0x0f1d).drop(4).toByteArray())
         fun noticesBeforeClock(c: SyntheticClient): List<ChatMessages.Spot> = buildList {
             c.send(SyntheticClient.opcode(0x0300))
@@ -51,6 +65,21 @@ class TacticalGroundWireTest {
             fun join(index:Int,create:Boolean)=fixture.join(fixture.account(index),create,false).client.also {c->
                 c.send(SyntheticClient.opcode(0x0f00));through(c,0x0f01);c.send(SyntheticClient.opcode(0x0f02));through(c,0x0f03)}
             val clients=mutableListOf(join(0,true),join(1,true))
+            if(cancelSaved) {
+                assertEquals(aboard.size,fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).activeGround!!.values.count {it.order!=null})
+                fixture.engine.submit(WorldCommand.AdvanceTo(25000))
+                withTimeout(5000){while(fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).activeGround!!.values.any {it.order!=null})delay(1)}
+                for(client in clients) {
+                    val packet=ByteBuffer.wrap(through(client,0x040f) {ByteBuffer.wrap(it).int==1})
+                    assertEquals(1,packet.getInt(0))
+                    assertEquals(0,packet.getInt(10))
+                    assertEquals(10000,packet.getInt(14))
+                }
+                assertEquals(ChatMessages.Spot(10000,"[육전] 조건 변경으로 취소"),notice(clients[0]))
+                assertTrue(noticesBeforeClock(clients[1]).isEmpty())
+                assertEquals(troops,fixture.engine.snapshot().planetStocks!!.outfits.getValue(1).activeGround)
+                return@runBlocking
+            }
             clients[1].send(command(0x040f,10001));assertEquals(1,ByteBuffer.wrap(through(clients[1],0x040f)).int)
             assertEquals(ChatMessages.Spot(10001,"[육전] 이 함정의 지휘 권한이 없습니다."),notice(clients[1]))
             clients[0].send(command(0x040f,10000));val ack=ByteBuffer.wrap(through(clients[0],0x040f))
