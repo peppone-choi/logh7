@@ -172,6 +172,13 @@ internal object NpcStrategy {
         var stocks=original
         var forceCache:Map<Int,List<GridForces.Force>>?=null
         fun forces():Map<Int,List<GridForces.Force>> = forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks).also {forceCache=it}
+        fun dockLocally(outfit:OutfitStock,destination:OutfitPosition) {
+            val (inventory,replenished)=checkNotNull(supplied(stocks,outfit.copy(position=destination),galaxy,departing=false))
+            val docked=replenished.copy(strategy=NpcStrategicState(now+21600),
+                activeShips=ActiveShipUnits(replenished.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,posture=null)}))
+            stocks=inventory.copy(outfits=inventory.outfits+(outfit.id to docked))
+            forceCache=null
+        }
         for(id in original.outfits.keys.sorted()) {
             var outfit=stocks.outfits.getValue(id)
             val position=outfit.positionIn(galaxy)
@@ -185,11 +192,15 @@ internal object NpcStrategy {
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
                 val planned=target(galaxy,forces(),outfit,stocks,destination)
+                if(planned?.grid==position.grid) {
+                    dockLocally(outfit,planned)
+                    continue
+                }
                 // Re-evaluate source hostility as well as destination capacity after earlier arrivals.
                 if(distance(position.grid,destination)!=1 || planned?.grid!=destination || !allowed(galaxy,forces(),outfit,destination)) {
                     val unavailableDepot=galaxy.bases.any {base->base.grid==destination &&
                         stocks.bases[base.id]?.let {it.country!=outfit.country || it.camp!=0 || it.supplies==0}==true}
-                    val reroute=if(unavailableDepot && position.baseId==0 && planned!=null && planned.grid!=position.grid)
+                    val reroute=if(unavailableDepot && position.baseId==0 && planned!=null)
                         home(galaxy,forces(),outfit,stocks)?.takeIf {it.next==planned.grid}
                     else null
                     val strategy=if(reroute==null || !canDepart(stocks,outfit,galaxy))NpcStrategicState(now+21600)
@@ -225,12 +236,7 @@ internal object NpcStrategy {
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
                 val destination=target(galaxy,forces(),outfit,stocks)
                 if(destination?.grid==position.grid) {
-                    // Recover older fleets stranded in orbit over an available depot.
-                    val replenished=checkNotNull(supplied(stocks,outfit.copy(position=destination),galaxy,departing=false))
-                    val docked=replenished.second.copy(strategy=NpcStrategicState(now+21600),
-                        activeShips=ActiveShipUnits(replenished.second.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,posture=null)}))
-                    stocks=replenished.first.copy(outfits=replenished.first.outfits+(id to docked))
-                    forceCache=null
+                    dockLocally(outfit,destination)
                 } else {
                     val next=if(destination==null || !canDepart(stocks,outfit,galaxy))NpcStrategicState(now+21600) else NpcStrategicState(now+21600,destination.grid,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
