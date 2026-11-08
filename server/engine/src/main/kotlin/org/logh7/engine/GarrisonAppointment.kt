@@ -28,6 +28,7 @@ internal object GarrisonAppointment {
             !participant.online || participant.connection!=r.connection) return reject(AppointmentRejection.SESSION)
         if (player==null || r.country==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.country!=r.country || participant.country!=r.country) return reject(AppointmentRejection.IDENTITY)
+        if(BattleDeath.deceased(stocks,r.characterId))return reject(AppointmentRejection.IDENTITY)
         val country=r.country
         val policy=OrganizationalOfficePolicy(galaxy,countries)
         val role=policy.role(r.targetCard,country) ?: return reject(AppointmentRejection.AUTHORITY)
@@ -44,7 +45,8 @@ internal object GarrisonAppointment {
         // profile ranks are only the fallback when no stored rank exists.
         val actorRank=ProposalActions.rank(stocks,r.characterId,country,r.actorRank,countries)
         if(!policy.authorized(stocks,role,seat,r.characterId,actorRank))return reject(AppointmentRejection.AUTHORITY)
-        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country)return reject(AppointmentRejection.TARGET)
+        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country || BattleDeath.deceased(stocks,r.target))
+            return reject(AppointmentRejection.TARGET)
         if(!role.eligible(actorRank,ProposalActions.rank(stocks,r.target,country,r.targetRank,countries)))
             return reject(AppointmentRejection.RANK)
         if(player.cpPaused || player.navigationPending)return reject(AppointmentRejection.BUSY)

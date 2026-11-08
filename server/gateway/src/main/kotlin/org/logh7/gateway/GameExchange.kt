@@ -2645,6 +2645,7 @@ class GameExchange(
                                         val country=checkNotNull(scope.country)
                                         val eligible=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}.filter {target ->
                                             target.id!=character.id && countryOf[target.id.toInt()]==country &&
+                                                !org.logh7.engine.BattleDeath.deceased(inventory,target.id.toInt()) &&
                                                 role.eligible(actorRank,scope.rank(inventory,target.id.toInt(),target.rank)) &&
                                                 policy.cardCount(inventory,target.id.toInt())<14
                                         }

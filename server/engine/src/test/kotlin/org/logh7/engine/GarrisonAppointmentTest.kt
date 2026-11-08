@@ -76,6 +76,15 @@ class GarrisonAppointmentTest {
             assertEquals(614,recovered.mcp)
         } finally {engine.drainAndClose()}
     }
+    @Test fun deceasedActorOrCandidateCannotChangeOfficesOrSpendCp() {
+        for((character,rejection) in listOf(10000 to AppointmentRejection.IDENTITY,10001 to AppointmentRejection.TARGET)) {
+            val state=stocks.copy(strategic=StrategicState(people=mapOf(character to StrategicPerson(deceasedAt=1))))
+            val result=act(s=state)
+            assertEquals(rejection,result.rejection)
+            assertEquals(player,result.player)
+            assertEquals(state,result.stocks)
+        }
+    }
     @Test fun actualForeignAndUnattachedMembershipCannotBeUsedForAppointment() {
         for(country in listOf(CountryId(1),CountryId(4),CountryId(42),null)) {
             val denied=act(request.copy(targetCountry=country))
