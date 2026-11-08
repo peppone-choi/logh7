@@ -360,6 +360,29 @@ class TacticalCommandOperationsTest {
             }
         }
     }
+    @Test fun fortressCannotRepairAGuardShipFromANewOrSavedOrder() {
+        val s=state()
+        val option=checkNotNull(GuardShips.option(0))
+        val ship=ActiveShipUnit(3,UnitStack(option.baseKind),damaged=1,
+            posture=TacticalPosture(2488,TacticalShipMode.STATIONED,1000))
+        val roster=ActiveShipUnits(listOf(ship))
+        val guard=OutfitStock(3,2,OutfitKind.PATROL,1000,30,units=UnitInventory(roster.quantities()),
+            activeShips=roster,position=OutfitPosition(2488,1000),guard=mapOf(ship.id to option.index))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(3 to guard),
+            warehouses=s.stocks.warehouses+(30 to OutfitWarehouse(30,2,OutfitKind.PATROL,1000)))
+        val repair=TacticalCommand(0x41b,listOf(ship.id),base=1000)
+        assertEquals(NavigationRejection.TARGET,accept(run(s),repair).rejection)
+        val before=s.stocks
+        val pending=TacticalQueuedCommand(10000,2488,now,now+5,repair)
+        s.stocks=before.copy(tacticalCommands=before.tacticalCommands.copy(orders=listOf(pending)))
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(run(s),now+5,events)
+        assertTrue(events.single().cancelled)
+        assertEquals(guard,s.stocks.outfits.getValue(3))
+        assertEquals(before.bases.getValue(1000).supplies,s.stocks.bases.getValue(1000).supplies)
+        assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+    }
+
     @Test fun fortressSupportDoesNotAcceptWrongBerthsEnemiesOrStationedCombatCommands() {
         for(opcode in listOf(0x41b,0x41c)) {
             val s=state();val outfit=s.stocks.outfits.getValue(1)
