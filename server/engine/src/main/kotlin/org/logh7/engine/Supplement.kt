@@ -35,8 +35,7 @@ internal object Supplement {
         val outfit=stocks.outfits[r.outfit] ?: return reject(LogisticsRejection.OUTFIT)
         // update03: guard ships are never replenished; disband and buy again instead.
         if(outfit.guard!=null)return reject(LogisticsRejection.ACCESS)
-        val owner=stocks.bases.getValue(outfit.baseId)
-        if(outfit.country!=country || owner.country!=country || owner.camp!=0 || outfit.commanderId!=r.characterId)
+        if(!TacticalAuthority.canAccessOutfitWarehouse(stocks,outfit,r.characterId,country) || outfit.commanderId!=r.characterId)
             return reject(LogisticsRejection.ACCESS)
         if(r.base!=outfit.baseId || (outfit.position?.baseId ?: outfit.baseId)!=outfit.baseId ||
             r.kind!=outfit.kind.wire || p.baseId!=outfit.baseId || p.cpPaused ||

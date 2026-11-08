@@ -359,10 +359,12 @@ class WorldBootstrap(val galaxy: Galaxy,
             WorldMessages.warehouse(base,0,0,0,outfit=outfitId,unavailable=reportUnavailable))
         val country=countryId?.let { org.logh7.engine.CountryId(it) }
         if (country==null || outfit.baseId!=base || outfit.country!=country) return unavailable("Outfit warehouse identity mismatch")
-        val owner = stocks.bases[base]
-        if (owner==null || !owner.belongsTo(country) || owner.camp!=0) return unavailable("Outfit warehouse base access denied")
+        if (!org.logh7.engine.TacticalAuthority.canAccessOutfitWarehouse(stocks,outfit,character,country))
+            return unavailable("Outfit warehouse base access denied")
+        val camp=org.logh7.engine.CoupActions.camp(stocks,character,country)
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
-        val commandsSharedWarehouse = stocks.outfits.values.any { it.warehouseId == warehouse.id && it.commanderId == character }
+        val commandsSharedWarehouse = stocks.outfits.values.any { it.warehouseId == warehouse.id && it.commanderId == character &&
+            org.logh7.engine.CoupActions.outfitCamp(stocks,it)==camp }
         if (character<=0 || (!commandsSharedWarehouse && !logisticsOffices.permits(stocks,character,country,outfit.kind)))
             return unavailable("Outfit warehouse access denied")
         fun entries(values: Map<org.logh7.engine.UnitStack,Int>) = values.entries
