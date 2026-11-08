@@ -5,6 +5,24 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class StrategyActionMessagesTest {
+    @Test fun approvalRequiresAMailIdAndTokenAndKeepsBothOnRejection() {
+        val body=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(99)
+            .putShort(0).putShort(3).putInt(42).put(0).putInt(0).putShort(0).putInt(0).putShort(0xffff.toShort()).array()
+        val query=StrategyActionMessages.query(body)
+        assertEquals(42,query.target)
+        val rejection=ByteBuffer.wrap(StrategyActionMessages.response(query,8,changed=false).first())
+        assertEquals(8,rejection.getShort(16).toInt())
+        assertEquals(42,rejection.getInt(18))
+        assertEquals(3,rejection.get(22).toInt())
+        assertEquals(0xffff,rejection.getShort(33).toInt() and 0xffff)
+        for (offset in listOf(12,29)) {
+            val invalid=body.clone().also {ByteBuffer.wrap(it).putShort(offset,0)}
+            assertFailsWith<IllegalArgumentException> {StrategyActionMessages.query(invalid)}
+        }
+        val noMail=body.clone().also {ByteBuffer.wrap(it).putInt(14,0)}
+        assertFailsWith<IllegalArgumentException> {StrategyActionMessages.query(noMail)}
+    }
+
     @Test fun orbitalStrikeQuoteAndCommitBindTheTargetCostAndEscortCount() {
         fun query(preview:Boolean,base:Int=0,attackers:Int=0,cost:Int=0)=StrategyActionMessages.query(ByteBuffer.allocate(31)
             .putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(230).putShort(0).putShort(cost.toShort())
