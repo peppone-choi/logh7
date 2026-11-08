@@ -112,6 +112,31 @@ class CountryNavigationRoutingTest {
             assertNull(settled.dockTarget);assertEquals(pilot.moves,settled.moves)
         }
     }
+    @Test fun rebelDockingAndQuayAccessFollowTheCurrentCamp() {
+        val country=assertNotNull(pilot.country)
+        val rebel=CoupState(mapOf(pilot.characterId to Plot(pilot.characterId,country,0,revolt=5,bases=setOf(1049))))
+        val friendly=stocks.copy(bases=stocks.bases.mapValues {(_,base)->base.copy(camp=1)},social=stocks.social.copy(coup=rebel))
+        val retaken=friendly.copy(bases=stocks.bases)
+        val initial=session()
+        val dock=request().copy(unitId=pilot.unitId,captainCard=59,place=PlaceMove.Dock(1049,4))
+        val quay=galaxy.facilitiesAt(1049,friendly,catalog).single {it.kind==4}.spots.single {it.kind==6}
+        for(world in listOf(friendly,retaken)) {
+            val nav=navigation(Store(mapOf("pilot" to pilot)))
+            val reserved=assertNotNull(nav.apply(dock,initial,friendly).player)
+            val due=initial.copy(gameMillis=reserved.strategy!!.jobs.single().completesAtGameMillis)
+            val settled=assertNotNull(nav.apply(request().copy(tactical=false),due,world).player)
+            assertNull(settled.dockTarget)
+            assertEquals(if(world==friendly)1049 else 0,settled.baseId)
+        }
+        val docked=pilot.copy(baseId=1049,mode=4)
+        for(move in listOf(PlaceMove.Spot(quay.id,0),PlaceMove.SwitchMode(5))) {
+            val action=dock.copy(place=move)
+            assertNotNull(navigation(Store(mapOf("pilot" to docked))).apply(action,initial,friendly).player)
+            assertEquals(NavigationRejection.ACCESS,
+                navigation(Store(mapOf("pilot" to docked))).apply(action,initial,retaken).rejection)
+        }
+    }
+
     @Test fun returnPlanetAndCaptainCardCannotBorrowAnotherCountryOrTheModelPalette() {
         val docked=pilot.copy(baseId=1049,mode=4)
         val own=navigation(Store(mapOf("pilot" to docked))).apply(request().copy(returnBase=1049),session(),stocks)

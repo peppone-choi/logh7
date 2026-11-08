@@ -283,12 +283,12 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val dueWarp = ranged.warpTarget?.takeIf { fueled.warpTarget == null && !fueled.cpPaused }
         completedWarp = dueWarp != null
         // Docking reservations cannot be cancelled or refunded (design 2026-10-30, evidence:guess). A destination
-        // that stopped being a regular own base before execution keeps the flagship at its origin.
+        // that stopped belonging to the player's camp before execution keeps the flagship at its origin.
         val dueDock = ranged.dockTarget?.takeIf { fueled.dockTarget == null }
         val dockOwner=dueDock?.let {id->
             val base=galaxy.conditions[id]
             val stock=stocks?.bases?.get(id)
-            base!=null && ownBase(ranged,stock?.owner ?: galaxy.initialOwners.getValue(id),stock?.camp ?: base.camp)
+            base!=null && ownBase(ranged,stock?.owner ?: galaxy.initialOwners.getValue(id),stock?.camp ?: base.camp,stocks)
         }
         val docked = if (dueDock != null && dockOwner!=true)
             fueled.copy(baseId = ranged.baseId, mode = ranged.mode, moves = ranged.moves) else fueled
@@ -512,14 +512,12 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (stocks != null && stock == null) return NavigationRejection.BASE
         val owner = stock?.owner ?: galaxy.initialOwners.getValue(target)
         val camp = stock?.camp ?: condition.camp
-        val playerCamp = stocks?.let { CoupActions.camp(it, player.characterId, player.country) } ?: 0
-        return NavigationRejection.ACCESS.takeUnless { FlagshipRecovery.ownsReturnBase(player, owner, camp, playerCamp) }
+        return NavigationRejection.ACCESS.takeUnless { ownBase(player, owner, camp, stocks) }
     }
 
-    private fun ownBase(player:Navigator,owner:Allegiance,camp:Int)=camp==0 && when(owner) {
-        is Allegiance.Country -> player.country==owner.id
-        is Allegiance.Independent -> player.country==null && player.characterId==owner.characterId
-        else -> false
+    private fun ownBase(player:Navigator,owner:Allegiance,camp:Int,stocks:PlanetStocks?):Boolean {
+        val playerCamp=stocks?.let {CoupActions.camp(it,player.characterId,player.country)} ?: 0
+        return TacticalAuthority.ownsBase(player,owner,camp,playerCamp)
     }
     internal fun captainCard(request:NavigationRequest,player:Navigator,
         countries:CountryCatalog=configuredCountries ?: CountryCatalogLoader.current()):Boolean {
@@ -619,7 +617,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val base = galaxy.conditions[before.baseId] ?: return reject(NavigationRejection.BASE)
                 val stock=stocks?.bases?.get(base.baseId)
                 if (base.grid != before.grid || !ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),
-                    stock?.camp ?: base.camp)) return reject(NavigationRejection.ACCESS)
+                    stock?.camp ?: base.camp,stocks)) return reject(NavigationRejection.ACCESS)
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
                 if (before.spotId != 0 && (before.spotOwner != 0 ||
@@ -639,7 +637,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     val base = galaxy.conditions[move.baseId] ?: return reject(NavigationRejection.BASE)
                     if (base.grid != before.grid || move.mode != 4) return reject(NavigationRejection.BASE)
                     val stock=stocks?.bases?.get(base.baseId)
-                    if (!ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),stock?.camp ?: base.camp))
+                    if (!ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),stock?.camp ?: base.camp,stocks))
                         return reject(NavigationRejection.ACCESS)
                     if (before.baseId == move.baseId && before.mode == move.mode) return reject(NavigationRejection.BASE)
                     val pipeline = NavigationWork.pipeline(before, policy)
@@ -659,7 +657,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val condition = galaxy.conditions.getValue(before.baseId)
                 val stored = stocks?.bases?.get(before.baseId)
                 val friendly = ownBase(before,stored?.owner ?: galaxy.initialOwners.getValue(condition.baseId),
-                    stored?.camp ?: condition.camp)
+                    stored?.camp ?: condition.camp,stocks)
                 val facilities = galaxy.facilitiesAt(before.baseId, stocks,countries)
                 val target = facilities.singleOrNull { f -> f.spots.any { it.id == move.id } }
                 if (move.id == 0) {

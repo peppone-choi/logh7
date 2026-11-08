@@ -91,6 +91,13 @@ object TacticalAuthority {
     fun camp(player:Navigator,stocks:PlanetStocks)=Camp.of(player,CoupActions.rebel(stocks,player.characterId,player.country))
     fun camp(outfit:OutfitStock,stocks:PlanetStocks)=Camp(outfit.country,CoupActions.outfitCamp(stocks,outfit)==1)
     fun camp(base:PlanetStock):Camp?=base.country?.let {Camp(it,base.camp==1)}
+    fun ownsBase(player:Navigator,owner:Allegiance,camp:Int,playerCamp:Int):Boolean =
+        camp==playerCamp && when(owner) {
+            is Allegiance.Country -> player.country==owner.id
+            is Allegiance.Independent -> player.country==null && player.characterId==owner.characterId
+            else -> false
+        }
+
     /** Native captain-card variant; this display code never determines who owns a unit. */
     fun captainCard(player:Navigator,countries:CountryCatalog=CountryCatalogLoader.current()):Int? {
         val display=player.country?.let {countries.countries[it.value]?.nativePower ?: return null} ?: player.shipStyle.nativePower
