@@ -64,10 +64,22 @@ class ProposalActionsWireTest {
             val sender=fixture.join(fixture.account(0),false,false).client;sender.send(SyntheticClient.opcode(0x0f00));next(sender,0x0f01)
             val recipient=fixture.join(fixture.account(1),false,false).client;recipient.send(SyntheticClient.opcode(0x0f00));next(recipient,0x0f01)
             val answer=body(Wire.reply(Wire.Reply(0,1,0,Wire.Peer(10001),Wire.Peer(10000),0,0,0,Proposals.APPROVE)))
-            recipient.send(answer);next(recipient,0x0356)
+            val approval=ByteBuffer.allocate(31).putShort(0x1200).putInt(10001).putShort(0x7f00).putShort(99).putShort(0)
+                .putShort(3).putInt(1).put(0).putInt(0).putShort(0).putInt(0).putShort(17).array()
+            fun approvalResult():ByteBuffer {
+                recipient.send(approval)
+                val result=ByteBuffer.wrap(next(recipient,0x1200))
+                next(recipient,0x1201);next(recipient,0x0356)
+                assertEquals(1,result.getInt(18));assertEquals(17,result.getShort(33).toInt())
+                return result
+            }
+            val accepted=approvalResult()
+            assertEquals(0,accepted.getShort(16).toInt());assertEquals(2,accepted.get(22).toInt())
             assertEquals(960,state.players.getValue("load-001").mcp)
             assertTrue(OrganizationalOfficePolicy(galaxy).holders(state.stocks,19,CountryId(2)).isEmpty())
             assertEquals(Proposals.APPROVE,state.stocks.social.proposals.mails.single().reply)
+            val duplicate=approvalResult()
+            assertNotEquals(0,duplicate.getShort(16).toInt());assertEquals(3,duplicate.get(22).toInt())
             recipient.send(answer);next(recipient,0x0356);assertEquals(960,state.players.getValue("load-001").mcp)
             query(sender,10000,17)
             val reply=next(sender,0x0f14);assertEquals(1,ByteBuffer.wrap(reply).getInt(10))

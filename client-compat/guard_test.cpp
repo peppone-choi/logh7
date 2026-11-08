@@ -33,6 +33,7 @@
 #include <vector>
 #pragma comment(lib,"gdi32.lib")
 #include "mail_refresh.h"
+#include "proposal_approval_state.h"
 #include "korean_windows.h"
 #include "dialog_text.h"
 #include "portrait_label.h"
@@ -269,6 +270,44 @@ static bool mailDeliveryTest() {
     delivery.reset();
     return !delivery.pending && !delivery.context && delivery.title.empty() &&
         !delivery.begin(&editor,&session,10000,10001,0xffffffff,7,L"",L"");
+}
+static bool proposalApprovalTest() {
+    unsigned char record[36];memset(record,0xcc,sizeof(record));
+    logh::proposalApprovalRecord(record,10001,7,17);
+    const unsigned char expected[36]={0x11,0x27,0,0, 0,0x7f, 99,0, 0,0, 3,0, 7,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 17,0, 0,0};
+    if(memcmp(record,expected,sizeof(record)))return false;
+    using State=logh::ProposalApproval;
+    State state;int world=0,other=0;
+    if(state.begin(nullptr,10001,7,17,0) || state.begin(&world,0,7,17,0) || state.begin(&world,10001,0,17,0) ||
+        state.begin(&world,10001,7,0,0) || state.outstanding)return false;
+    if(!state.begin(&world,10001,7,17,1000))return false;
+    if(state.begin(&world,10001,8,18,1000) || state.mail!=7 || state.token!=17)return false; // no duplicate while open
+    // Another character, world, mail or token and a preview-like flag are all stale.
+    if(state.receive(&world,10002,7,17,0,2) || state.receive(&other,10001,7,17,0,2) ||
+        state.receive(&world,10001,8,17,0,2) || state.receive(&world,10001,7,18,0,2) ||
+        state.receive(&world,10001,7,17,0,1) || !state.outstanding || state.outcome!=State::Waiting)return false;
+    state.observe(&world,10001);
+    if(!state.outstanding || state.expire(1000+logh::proposalApprovalWait-1))return false;
+    if(!state.receive(&world,10001,7,17,0,2) || state.outcome!=State::Accepted || !state.settled())return false;
+    if(state.begin(&world,10001,7,18,1000))return false; // a result not yet shown still blocks
+    if(state.receive(&world,10001,7,17,0,2))return false; // repeated answer
+    state.clear();
+    const unsigned refusals[][2]={{10,3},{0,3},{8,2}}; // only status 0 flag 2 is accepted
+    for(const auto& answer:refusals) {
+        if(!state.begin(&world,10001,7,18,0) || !state.receive(&world,10001,7,18,answer[0],answer[1]) ||
+            state.outcome!=State::Rejected || state.status!=answer[0])return false;
+        state.clear();
+    }
+    // A late answer after the wait is stale; a logout drops the request.
+    if(!state.begin(&world,10001,7,19,0) || !state.expire(logh::proposalApprovalWait) || state.outcome!=State::Unconfirmed ||
+        state.outstanding || state.receive(&world,10001,7,19,0,2) || state.outcome!=State::Unconfirmed)return false;
+    state.observe(&world,10002);
+    if(state.settled() || state.mail)return false;
+    if(!state.begin(&world,10001,7,20,0))return false;
+    state.observe(&other,10001);
+    if(state.outstanding || state.receive(&world,10001,7,20,0,2))return false;
+    return wcscmp(logh::proposalApprovalFailure(10),logh::proposalApprovalFailure(8)) &&
+        wcscmp(logh::proposalApprovalFailure(99),logh::proposalApprovalFailure(0));
 }
 static bool mailRefreshTest() {
     unsigned char peer[0x124]={};
@@ -1183,7 +1222,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
     if(!commanderMenuTest())return 196;
-    if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest()) return 252;
+    if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest() || !proposalApprovalTest()) return 252;
     if (!legacyKoreanGlyphTest()) return 253;
     if (!nameCardDisplayTest()) return 254;
     if (!messengerStatusTextTest()) return 255;

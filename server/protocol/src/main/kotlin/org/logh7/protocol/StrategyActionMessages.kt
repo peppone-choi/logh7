@@ -61,7 +61,7 @@ object StrategyActionMessages {
         // Imperial succession: 233 後継指名 on the emperor card (target = heir; previews list empire people), 234 継承拒否 on the personal card.
         val succession=command in setOf(233,234)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
-        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,15,17,19,20,21,31,32,33,34,35,36,39,40,230,233,234,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,95,98,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
+        require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,15,17,19,20,21,31,32,33,34,35,36,39,40,230,233,234,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,95,98,99,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
         require(!preview || personnel || command==24 || market || production || repair || strike || command in setOf(233,10,11,12,13,19,20,29,40,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39))
         // 会見 87 uses this directory only to list people in the requester's spot; commits travel in 7f12.
@@ -88,6 +88,9 @@ object StrategyActionMessages {
         else if(proposal)require(card in 0..260 && argument in 0..260 && amount in 0..260 && base>=0 &&
             (if(preview)card==0 && argument==0 && amount==0 && (value==0 && base==0 || value in setOf(0x0707,0x0708) && base>0)
              else target>0 && value in 1..0xffff && (if(value in setOf(0x0707,0x0708))base>0 && amount>0 else base==0 && amount==0)))
+        // Mailbox approval echoes the mail ID and request token in the normal strategy result.
+        else if(command==99)require(!preview && card==0 && target>0 && value==3 && base==0 &&
+            b.getShort(29).toInt()!=0)
         else if(justice)require(card in 0..260 && argument==0 && amount==0 && (if(preview)command!=86 && value in 0..1 && (base==0 || command==70 && value==1 && base>0)
              else if(command==86)card==0 && target==0 && base==0 && value in setOf(0,2,3)
              else target>0 && when(command) {69 -> card>0 && value in 1..7 && base==0;70 -> card>0 && value in 0..1 && base>0
@@ -126,7 +129,7 @@ object StrategyActionMessages {
             (base==0 && argument==0 || !preview && base>0 && argument in 1..2) &&
             (if(card in setOf(59,195))target==0 else target>0))
         else require(value==0 && base==0 && card in setOf(0,59,195))
-        val listed=personnel || operation || market || transport || proposal || justice || espionage || coup || funds || goal || trade || production || strike || succession || command in setOf(10,11,12,13,87)
+        val listed=personnel || operation || market || transport || proposal || justice || espionage || coup || funds || goal || trade || production || strike || succession || command in setOf(10,11,12,13,87,99)
         return Query(character,command,card,if(command==65)argument else if(listed)0 else target,message.copyOfRange(2,message.size),
             if(listed)target else 0,base,value,preview,amount,argument)
     }
