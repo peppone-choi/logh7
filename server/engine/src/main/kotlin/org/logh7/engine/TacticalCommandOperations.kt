@@ -9,7 +9,7 @@ import kotlin.math.*
 internal object TacticalCommandOperations {
     private data class Ship(val outfit:OutfitStock,val unit:ActiveShipUnit)
     private fun ship(id:Int,s:PlanetStocks)=s.outfits.values.mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)}}.singleOrNull()
-    private fun baseCommander(base:GalaxyBase,owner:PlanetStock,s:PlanetStocks,g:Galaxy):Int {
+    fun baseCommander(base:GalaxyBase,owner:PlanetStock,s:PlanetStocks,g:Galaxy):Int {
         val country=owner.country ?: return 0
         if(base.kind!=1)return GroundCommandAuthority.garrison(base.id,s,g)
         val policy=OrganizationalOfficePolicy(g)

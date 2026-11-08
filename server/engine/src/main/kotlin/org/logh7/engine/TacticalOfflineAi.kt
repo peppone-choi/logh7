@@ -39,9 +39,11 @@ internal object TacticalOfflineAi {
             val pose=p.motion?.pose(now,p.posture,g,stocks) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,stocks,g)
             val mission=currentMission(p,stocks)
             val camp=TacticalAuthority.camp(p,stocks)
-            val defended=if(mission==null && !camp.insurgent)g.bases.asSequence().filter {it.grid==p.grid && it.kind==0}
-                .filter {stocks.bases[it.id]?.country==p.country && GroundCommandAuthority.garrison(it.id,stocks,g)==p.characterId}
-                .minByOrNull {it.id} else null
+            val defended=if(mission==null && !camp.insurgent)g.bases.asSequence().filter {it.grid==p.grid}
+                .filter {base->stocks.bases[base.id]?.let {owner->
+                    owner.country==p.country && owner.camp==0 &&
+                        TacticalCommandOperations.baseCommander(base,owner,stocks,g)==p.characterId
+                }==true}.minByOrNull {it.id} else null
             val kind=if(stocks.tacticalCommands.confused(p.unitId))5 else mission?.mission ?: if(defended!=null)1 else 0
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)).distinct()
             val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,camp,stocks,g,players)?.let {
