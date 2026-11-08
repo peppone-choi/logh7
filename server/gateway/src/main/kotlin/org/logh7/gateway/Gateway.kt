@@ -101,7 +101,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var strategicMovementSubscription: AutoCloseable? = null
     private var occupationSubscription:AutoCloseable?=null
     private var fortressSinkingSubscription:AutoCloseable?=null
-    private var experienceSubscription:AutoCloseable?=null
+    private var characterRefreshSubscription:AutoCloseable?=null
     private var groundBattleSubscription:AutoCloseable?=null
     private var groundSubscription:AutoCloseable?=null
     private var postureSubscription:AutoCloseable? = null
@@ -251,8 +251,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                     snapshot.session?.gameSeconds ?: 0L)
             }
         }}
-        // CP-experience settlement changes abilities outside a request; refresh the owner's own record.
-        experienceSubscription=presence?.let {p->navigation!!.observeExperience {ids->
+        // Settlement can change the character record outside a request.
+        characterRefreshSubscription=presence?.let {p->navigation!!.observeCharacterRefresh {ids->
             navigation.snapshot()?.let {snapshot->for(id in ids) {
                 val character=currentCharacters().characterById(id)?.let {WorldCharacters.view(it,snapshot)} ?: continue
                 val player=snapshot.navigators.values.singleOrNull {it.characterId==id} ?: continue
@@ -446,7 +446,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         combatSubscription?.close()
         movementSubscription?.close()
         strategicMovementSubscription?.close()
-        groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close();fortressSinkingSubscription?.close();experienceSubscription?.close()
+        groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close();fortressSinkingSubscription?.close();characterRefreshSubscription?.close()
         postureSubscription?.close()
         tacticalCommandSubscription?.close()
         supportSubscription?.close()

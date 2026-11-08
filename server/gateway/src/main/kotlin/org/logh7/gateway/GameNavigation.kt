@@ -16,7 +16,7 @@ fun interface GameNavigation {
     fun observeSupport(observer:(TacticalSupportResult)->Unit):AutoCloseable = AutoCloseable {}
     fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable = AutoCloseable {}
     fun observeFortressSinking(observer:(org.logh7.engine.Navigator)->Unit):AutoCloseable = AutoCloseable {}
-    fun observeExperience(observer:(List<Int>)->Unit):AutoCloseable = AutoCloseable {}
+    fun observeCharacterRefresh(observer:(List<Int>)->Unit):AutoCloseable = AutoCloseable {}
     fun observeGroundBattles(observer:(GroundBattleResult)->Unit):AutoCloseable = AutoCloseable {}
     fun observeGround(observer:(TacticalGroundResult)->Unit):AutoCloseable = AutoCloseable {}
     fun observePostures(observer:(TacticalPostureResult)->Unit):AutoCloseable = AutoCloseable {}
@@ -32,7 +32,7 @@ class EngineGameNavigation(private val engine: WorldEngine, private val scope: C
     override fun observeSupport(observer:(TacticalSupportResult)->Unit) = engine.observeSupport(observer)
     override fun observeOccupations(observer:(BaseOccupation)->Unit) = engine.observeOccupations(observer)
     override fun observeFortressSinking(observer:(org.logh7.engine.Navigator)->Unit) = engine.observeFortressSinking(observer)
-    override fun observeExperience(observer:(List<Int>)->Unit) = engine.observeExperience(observer)
+    override fun observeCharacterRefresh(observer:(List<Int>)->Unit) = engine.observeCharacterRefresh(observer)
     override fun observeGroundBattles(observer:(GroundBattleResult)->Unit) = engine.observeGroundBattles(observer)
     override fun observeGround(observer:(TacticalGroundResult)->Unit) = engine.observeGround(observer)
     override fun observePostures(observer:(TacticalPostureResult)->Unit) = engine.observePostures(observer)
