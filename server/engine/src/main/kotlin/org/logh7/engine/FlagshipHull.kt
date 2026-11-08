@@ -25,12 +25,13 @@ internal object FlagshipRecovery {
     fun defeated(player:Navigator,seconds:Long,galaxy:Galaxy,stocks:PlanetStocks,
         players:Collection<Navigator> = emptyList()):Navigator {
         val country=player.country
-        val start=country?.let {galaxy.countryStarts[it]}
+        val start=galaxy.startFor(country)
         val owned=galaxy.bases.filter { base ->
             val stock=stocks.bases[base.id]
             val initial=galaxy.conditions.getValue(base.id)
-            country!=null && initial.habitability==1 && (stock?.let {it.belongsTo(country) && it.camp==0}
-                ?: (galaxy.initialOwners.getValue(base.id).country==country && initial.camp==0))
+            val owner=stock?.owner ?: galaxy.initialOwners.getValue(base.id)
+            initial.habitability==1 && (stock?.camp ?: initial.camp)==0 &&
+                owner==(country?.let {Allegiance.Country(it)} ?: Allegiance.Independent(player.characterId))
         }
         // Manual P04: a return system that is in tactics sends the flagship to another system.
         val busy=GridForces.collect(galaxy,stocks.generation,
@@ -38,15 +39,15 @@ internal object FlagshipRecovery {
             .filterValues {TacticalContact.contested(it)}.keys
         val bases=owned.filter {it.grid !in busy}.ifEmpty {owned}
         val home=bases.singleOrNull {it.id==player.returnBase}
-            ?: stocks.strategic.capitals[country]?.let {capital->bases.singleOrNull {it.id==capital}}
             ?: bases.singleOrNull {it.grid==start && Capital.of(it)?.power==country?.value}
             ?: bases.filter {it.grid==start}.minByOrNull {it.id}
+            ?: stocks.strategic.capitals[country]?.let {capital->bases.singleOrNull {it.id==capital}}
             ?: bases.minByOrNull {it.id}
         val until=minOf(0xffffffffL,seconds+86400)
         val kind=Flagships.forType(player.shipStyle.nativePower,3).kind
         return player.copy(grid=home?.grid ?: start ?: player.grid,baseId=home?.id ?: 0,
             mode=if(home==null)5 else 4,spotId=0,spotOwner=0,cpPaused=false,cpRecoveryAt=seconds,
-            motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,energy=TacticalEnergy.ZERO,
+            motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null,energy=TacticalEnergy.ZERO,
             fuelReadyAt=null,strategy=null,dockTarget=null,warpTarget=null,supplies=0,
             hull=FlagshipHull(kind,seconds,woundedUntil=until,clockScale=player.hull?.clockScale ?: 24))
     }

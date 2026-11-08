@@ -214,6 +214,8 @@ Python 30개는 통과했으며 `test_display_hooks.py`가 원본 CALL 목적지
 업로드 자산·새 국가 가입·국가별 출신/얼굴 분기는 남는다.
 [실제 실행과 프로토콜](../docs/protocol/session-login.md#세-화면의-공통-국가-목록-2026-11-06).
 
+본인 부상 상태(2026-11-08, 작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi))): 같은 mode 11 응답의 `record[10]` 비트 `0x20`을 `readCountryIdentity`가 `wounded`로 읽는다. 기존 신원 조회의 5초 주기·nonce·세션·국가 대조를 그대로 쓰며, 값이 없으면(구 서버) 표시하지 않는다. 전략 HUD 왼쪽 띠의 기준 x 350, 기준 y `frame.height-72`(1080 높이에서 약 1008, 능력치 아래 범위선 옆 빈 공간)에 ‘부상 중’ 한 줄을 그린다. 우측 패널의 함내 글자와 겹치지 않도록 옮겼다. 명령·버튼은 추가하지 않는다. 원본 1920×1080에서 기존 능력치·항속 표시와 겹치지 않는 것을 확인했다. 캡처는 `work/defeat-return-native/wound-final-before.png`에 있다. 호환 DLL 가드는 0x20의 판독과 기존 플래그와의 분리를 검사한다.
+
 ## HD 텍스처 묶음 (2026-11-06)
 
 설치 폴더에 `hd\`(exe 폴더의 형제, `data\` 옆)가 있으면 본 텍스처 로드(`0x5e29eb`·`0x5e2a1f`)가 `hd\<data 기준 상대 경로>.<원본 FNV-1a 32 8자리>.png`를 대신 읽는다(원본 판마다 다른 파일이라 업데이트판에 기본판 HD가 붙지 않는다). 얼굴 TCF의 메모리 로드는 `hd\mem\tcf.<원본 바이트 FNV-1a 32>.png`로 연결한다. 원본의 정확히 N배(2~8)인 파일만 쓰고, HD 텍스처는 `GetLevelDesc`가 원래 크기를 보고해 2D UV가 원래 픽셀 공간에 남는다. 폴더가 없으면 아무것도 바꾸지 않는다. 묶음은 `tools/assets/build_hd_pack.py`로 만들고, 처음 4000건은 `hd\hd-textures.log`에 남는다. 1024×768 로비·생성 얼굴·전략·전술 일부를 기본/HD로 대조했다. 메모리 증가·팔레트 선체 제외·미확인 범위는 [리마스터 계획 2.1절](../docs/client/remaster-plan.md)에 있다.

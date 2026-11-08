@@ -1469,9 +1469,12 @@ class GameExchange(
                         }
                         if(party?.mode==org.logh7.protocol.CountryIdentityMessages.MODE) {
                             check(worldInitialized);require(party.outfit==character.id.toInt()) {"Own country identity only"}
+                            val wounded=navigation?.snapshot()?.navigators?.get(identity.account)
+                                ?.takeIf {it.generation==generation && it.characterId==party.outfit}
+                                ?.hull?.let {it.woundedUntil>gameSeconds()}==true
                             return handshake.stageAll(listOf(world.countryIdentity(party,
                                 currentProfile(identity.account,character.id.toInt()).country?.value,character.power,
-                                originalCandidates!=null && !character.generated,spotPortrait=originalCandidates!=null)),clearHeader=0)
+                                originalCandidates!=null && !character.generated,spotPortrait=originalCandidates!=null,wounded=wounded)),clearHeader=0)
                         }
                         if(party?.mode==org.logh7.protocol.FuelMessages.STATUS_MODE) {
                             check(worldInitialized)

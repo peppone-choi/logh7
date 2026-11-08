@@ -72,6 +72,18 @@ class FlagshipCombatWireTest {
             assertEquals(1010001,unit.getInt(8));assertEquals(93,unit.getShort(12).toInt());assertEquals(0,unit.getInt(38))
             assertEquals(1000,unit.getInt(28));assertEquals(4,unit.get(14).toInt())
             assertFalse(fixture.engine.snapshot().navigators.getValue("load-001").cpPaused)
+            fun wounded(nonce:Int):Boolean {
+                clients[1].send(ByteBuffer.allocate(11).putShort(0x032e).putInt(10001).putInt(nonce)
+                    .put(CountryIdentityMessages.MODE.toByte()).array())
+                val response=through(clients[1],0x032f)
+                assertEquals(nonce,ByteBuffer.wrap(response).getInt(10))
+                return response[16].toInt() and CountryIdentityMessages.WOUNDED!=0
+            }
+            assertTrue(wounded(1))
+            val deadline=checkNotNull(returned.hull).woundedUntil
+            fixture.engine.submit(WorldCommand.AdvanceTo((deadline-now)*1000/24))
+            fixture.await("injury deadline reached") {fixture.engine.snapshot().session!!.gameSeconds>=deadline}
+            assertFalse(wounded(2))
         }
     }
 }
