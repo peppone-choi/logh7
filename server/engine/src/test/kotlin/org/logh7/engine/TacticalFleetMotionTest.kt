@@ -224,6 +224,25 @@ class TacticalFleetMotionTest {
     private fun move(s:State,nav:Navigation,p:PlanetProduction,r:NavigationRequest=request())=
         TacticalFleetMotion.move(r,session,galaxy,nav,p,p.snapshot(1)!!,s.commit)
 
+    @Test fun newMovementPreservesOnlyTheSlowdownAlreadyAppliedByAnAttackWing() {
+        for(active in listOf(false,true)) {
+            val s=state()
+            val attack=TacticalAirWing(10001,2488,99,1,1,now+100,if(active).25f else null)
+            val approaching=attack.copy(source=98,slowVelocity=null)
+            val escort=attack.copy(source=97,mode=0,slowVelocity=null)
+            val wings=listOf(attack,approaching,escort).associateBy {it.source}
+            s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(air=wings))
+            val accepted=move(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s))
+            assertNotNull(accepted.player)
+            assertEquals(if(active).5f else 1f,accepted.tacticalMotions.getValue(1).velocity)
+            assertEquals(1f,accepted.tacticalMotions.getValue(2).velocity)
+            val updated=s.stocks.tacticalCommands.air
+            assertEquals(if(active)1f else null,updated.getValue(99).slowVelocity)
+            assertEquals(approaching,updated.getValue(98))
+            assertEquals(escort,updated.getValue(97))
+        }
+    }
+
     @Test fun fleetMoveKeepsFormationAndSurvivesNpcTicksAndStopFreezesCurrentPose() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val result=move(s,nav,p)

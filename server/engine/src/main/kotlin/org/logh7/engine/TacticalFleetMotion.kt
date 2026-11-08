@@ -75,13 +75,22 @@ internal object TacticalFleetMotion {
             },command.parallel,turnRate=TacticalMotion.NATIVE_TURN_RATE,waitSeconds=5*clockScale)}
         if(requestedMotions.values.any {m->TacticalTerrain.pathBlocked(galaxy,player.grid,m.origin.position,m.waypoints)})
             return reject(NavigationRejection.RANGE)
-        val attacked=stocks.tacticalCommands.air.values.filter {it.mode==1 && it.target in requestedMotions}.map {it.target}.toSet()
-        val motions=requestedMotions.mapValues {(id,m)->
+        val baseMotions=requestedMotions.mapValues {(id,motion)->
             val guard=ships.singleOrNull {it.second.id==id}?.first
-            val scaled=if(m.velocity>0f)m.copy(velocity=GuardCombat.speed(m.velocity,guard,id)) else m
-            if(id in attacked)scaled.copy(velocity=scaled.velocity*.5f) else scaled}
-        var next=if(attacked.isEmpty())stocks else stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=
-            stocks.tacticalCommands.air.mapValues {(_,wing)->if(wing.target in attacked)wing.copy(slowVelocity=requestedMotions.getValue(wing.target).velocity) else wing}))
+            if(motion.velocity>0f)motion.copy(velocity=GuardCombat.speed(motion.velocity,guard,id)) else motion
+        }
+        val slowed=stocks.tacticalCommands.air.values.filter {
+            it.mode==1 && it.slowVelocity!=null && it.target in baseMotions
+        }.map {it.target}.toSet()
+        val motions=baseMotions.mapValues {(id,motion)->
+            if(id in slowed)motion.copy(velocity=motion.velocity*.5f) else motion
+        }
+        var next=if(slowed.isEmpty())stocks else stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=
+            stocks.tacticalCommands.air.mapValues {(_,wing)->
+                if(wing.mode==1 && wing.slowVelocity!=null && wing.target in slowed)
+                    wing.copy(slowVelocity=baseMotions.getValue(wing.target).velocity)
+                else wing
+            }))
         for((outfit,unit) in ships) {
             val current=next.outfits.getValue(outfit.id)
             val motion=motions.getValue(unit.id)
