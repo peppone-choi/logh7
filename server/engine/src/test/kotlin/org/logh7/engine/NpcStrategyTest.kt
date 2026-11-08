@@ -47,8 +47,13 @@ class NpcStrategyTest {
         val held=advance(0,stocks(),players,events)
         assertEquals(NpcStrategicState(21600),held.outfits.getValue(1).strategy)
         // Caught out on the enemy grid, it reserves the jump back towards its own depot.
-        val out=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2488))})}
+        val stranded=stocks().let {s->s.copy(outfits=s.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2488))})}
+        val out=stranded.copy(outfits=stranded.outfits.mapValues {(_,o)->OutfitSupplies.withBalances(o,mapOf(1 to 300))})
         assertEquals(NpcStrategicState(21600,2487,3600),advance(0,out,players,events).outfits.getValue(1).strategy)
+        val waiting=advance(0,stranded,players,events)
+        assertEquals(NpcStrategicState(21600),waiting.outfits.getValue(1).strategy)
+        assertEquals(waiting.bases,stranded.bases)
+        assertEquals(NpcStrategicState(43200),advance(21600,waiting,players,events).outfits.getValue(1).strategy)
         // An even fight on that grid is accepted while the fuel lasts: it stays to fight rather than withdrawing.
         val fuelled=out.copy(outfits=out.outfits.mapValues {(_,o)->OutfitSupplies.withBalances(o,mapOf(1 to 2700))})
         assertEquals(NpcStrategicState(21600),advance(0,fuelled,players(),events).outfits.getValue(1).strategy)
@@ -267,6 +272,9 @@ class NpcStrategyTest {
         val failed=advance(3600,reserved,players,events)
         assertEquals(OutfitPosition(2487,1000),failed.outfits.getValue(1).position)
         assertEquals(reserved.bases,failed.bases);assertEquals(0,failed.outfits.getValue(1).supplies);assertTrue(events.isEmpty())
+        val emptyDepot=advance(0,stocks().copy(bases=reserved.bases),players,events)
+        assertNull(emptyDepot.outfits.getValue(1).strategy?.destination)
+        assertEquals(reserved.bases,emptyDepot.bases)
         val idle=advance(0,stocks(),mutableMapOf(),events)
         assertNull(idle.outfits.getValue(1).strategy!!.destination)
         for(kind in listOf(OutfitKind.TRANSPORT,OutfitKind.GROUND)) {
