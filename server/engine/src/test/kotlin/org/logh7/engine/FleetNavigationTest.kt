@@ -196,19 +196,27 @@ class FleetNavigationTest {
         apply(state,request)
         assertEquals(aide,state.players.getValue("aide"))
     }
-    @Test fun memberInPublicRoomOrDifferentGridOrAmbiguousOutfitIsNotTeleported() {
-        for (scenario in 0..2) {
+    @Test fun membersOutsideTheTravelGroupAreNotTeleported() {
+        for (scenario in 0..3) {
             val state = state(); addAide(state)
             val aide = state.players.getValue("aide")
             if(scenario==0) {
                 val publicSpot=galaxy.facilities.getValue(1000).flatMap {it.spots}.first {it.access==SpotAccess.PUBLIC}
                 state.players=state.players+("aide" to aide.copy(spotId=publicSpot.id))
             } else if(scenario==1) state.players=state.players+("aide" to aide.copy(grid=2488,baseId=0,mode=5,spotId=0))
-            else state.stocks=state.stocks.copy(outfits=state.stocks.outfits+
+            else if(scenario==2) state.stocks=state.stocks.copy(outfits=state.stocks.outfits+
                 (2 to OutfitStock(2,3,OutfitKind.PATROL,1000,20,commanderId=10001)),
                 warehouses=state.stocks.warehouses+(20 to OutfitWarehouse(20,3,OutfitKind.PATROL,1000)))
+            else {
+                val now=session.gameMillis/1000
+                val justice=state.stocks.social.justice
+                val detention=Detention(aide.characterId,CountryId(3),now,now+Justice.DAY,base=1000)
+                state.stocks=state.stocks.copy(social=state.stocks.social.copy(justice=
+                    justice.copy(detentions=justice.detentions+(aide.characterId to detention))))
+            }
             val before=state.players.getValue("aide")
-            apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
+            assertNull(apply(state,request.copy(place=PlaceMove.SwitchMode(5))).single().rejection)
+            assertEquals(0,state.players.getValue("pilot").baseId)
             assertEquals(before,state.players.getValue("aide"))
         }
     }
