@@ -83,7 +83,8 @@ data class PlanetProductionPolicy(val suppliesPerDay: Int = 1000, val maximumSto
 internal class PlanetProduction(private val galaxy: Galaxy, private val store: PlanetStockStore?,
     private val startSeconds: Long, private val policy: PlanetProductionPolicy, generation: Long = 1,
     restored:PlanetStocks?=store?.load(),
-    private val civicPlayers:(Long)->Collection<Navigator>? = {null}) {
+    private val civicPlayers:(Long)->Collection<Navigator>? = {null},
+    private val commitOfficeRecovery:(PlanetStocks, PlanetStocks, Long)->Boolean = { _, _, _ -> false }) {
     private val units = UnitProduction(galaxy, policy.units, policy.economy, policy.maximumStock)
     private val deployment = InitialOutfitDeployment(galaxy)
     private var current = restored?.also { restored ->
@@ -196,7 +197,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy,players,eliminated=eliminated),supplier?.invoke().orEmpty(),g=galaxy),seconds,players,eliminated=eliminated)
         if (settled == previous) return checkNotNull(previous)
         val next = detached(settled)
-        store?.save(next) // Publish only after durable replacement.
+        if (previous == null || previous.generation != generation || !commitOfficeRecovery(previous, next, seconds))
+            store?.save(next)
         current = next
         return next
     }

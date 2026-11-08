@@ -120,6 +120,9 @@ class GameExchange(
     private var deliveredTactics: Boolean? = null
     private var worldInitialized = false
     private var startupWarpNotice: ByteArray? = null
+    private var lastOfficeCpNotice: Pair<Int, List<Int>>? = null
+    private var officeCpStocks: org.logh7.engine.PlanetStocks? = null
+    private var officeCpPenalty = 0
     private var startupGroundOrders = emptySet<TacticalGroundOrder>()
     private var startupGridReady = false
     private enum class NavigationGuide(val text: String) {
@@ -218,6 +221,28 @@ class GameExchange(
         WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(account).also {
             check(it.character.id.toInt()==characterId) {"Command character identity mismatch"}
         }
+    private fun officeCpNotice(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator,
+        force: Boolean = false): ByteArray? {
+        val map = world ?: return null
+        val stocks = navigation?.snapshot()?.planetStocks ?: return null
+        if (officeCpStocks !== stocks) {
+            val offices = org.logh7.engine.OrganizationalOfficePolicy(map.galaxy).held(stocks, player.characterId)
+                .count { it.country == player.country }
+            officeCpPenalty = org.logh7.engine.OfficeCpRecovery.penalty(offices)
+            officeCpStocks = stocks
+        }
+        val penalty = officeCpPenalty
+        val values = character.abilities.subList(1, 3)
+        val previous = lastOfficeCpNotice
+        val current = penalty to values
+        lastOfficeCpNotice = current
+        if (penalty == 0 && (previous?.first ?: 0) == 0 || !force && current == previous) return null
+        val politics = org.logh7.engine.OfficeCpRecovery.effective(values[0], penalty)
+        val administration = org.logh7.engine.OfficeCpRecovery.effective(values[1], penalty)
+        val text = if (penalty == 0) "CP 복원 정치/운영 $politics/$administration"
+            else "CP -${penalty}% 정치/운영 ${values[0]}→$politics/${values[1]}→$administration"
+        return ChatMessages.spot(ChatMessages.Spot(player.characterId, text), gameSeconds())
+    }
     private fun currencyLabel(country: org.logh7.engine.CountryId?): org.logh7.protocol.StrategyCurrencyLabel? =
         country?.let(org.logh7.engine.CountryCatalogLoader::currency)
             ?.takeIf { it.validForEditing() }?.let { org.logh7.protocol.StrategyCurrencyLabel(it.name, it.symbol) }
@@ -526,7 +551,8 @@ class GameExchange(
                     listOf(org.logh7.protocol.TacticsMessages.corps(tactics(account).corps.filter {it.character==player.characterId}))
                     else emptyList()) +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
-                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + navigationGuide + listOfNotNull(groundStatus) + groundResult
+                    ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + navigationGuide + listOfNotNull(groundStatus) +
+                groundResult + listOfNotNull(if (readyForNotice) officeCpNotice(character, player) else null)
         }
     }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
@@ -1119,7 +1145,8 @@ class GameExchange(
                             publication=Publication(character,player,false)
                             listOf(org.logh7.protocol.ResignationMessages.response(query,gameSeconds(),player.pcp,player.mcp,result.rejection==null),
                                 characterMessage(character,player,true),unitMessage(character,player))+
-                                result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()
+                                result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty() +
+                                listOfNotNull(if (result.changed) officeCpNotice(character, player) else null)
                         }
                         return null
                     }
@@ -1535,7 +1562,9 @@ class GameExchange(
                                     if (outfit != null && outfitBase != null) org.logh7.protocol.LogisticsDirectoryMessages.Outfit(
                                         outfit.id, outfit.kind.wire, outfit.number, world.baseWire(outfitBase)) else null, charged)
                             }
-                            listOf(org.logh7.protocol.CharacterInformationMessages.response(id, profile))
+                            listOf(org.logh7.protocol.CharacterInformationMessages.response(id, profile)) +
+                                listOfNotNull(target?.takeIf { it.player.characterId == deliveredPlayer?.characterId }
+                                    ?.let { officeCpNotice(it.character, it.player, force = true) })
                         }
                         return null
                     }
@@ -2582,7 +2611,8 @@ class GameExchange(
                                         }
                                         org.logh7.protocol.AppointmentDirectoryMessages.people(query,eligible.map {target ->
                                             org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,scope.captainCard())+
-                                                administration!!.offices(target.id.toInt(),country.value,checkNotNull(generation)).map {it.kind})
+                                                administration!!.offices(target.id.toInt(),country.value,checkNotNull(generation)).map {it.kind},
+                                                prospectiveOffices=policy.held(inventory,target.id.toInt()).count {it.country==country}+1)
                                         })
                                     }
                                     5 -> {

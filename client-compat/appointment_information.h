@@ -130,6 +130,32 @@ static std::wstring fuelConfirmationText(BYTE* command) {
     return text;
 }
 
+// Confirmation line for the appointment. When the person record's +0x22 u16 carries the expected-office
+// marker 0x4c00|count, the line shows that count and the preview penalty. Otherwise the general rule is kept.
+// Preview only: the server remains the authority for the actual effective values.
+static std::wstring concurrentOfficeRuleText(const BYTE* person) {
+    unsigned offices=0;
+    if (person && logh::concurrentOfficeMarker(static_cast<unsigned short>(logh::infoShort(person,0x22)),offices)) {
+        wchar_t text[120];
+        if (offices<4) swprintf_s(text,L"예상 겸직 %u개 · 4개부터 CP 회복 페널티",offices);
+        else swprintf_s(text,L"예상 겸직 %u개 · CP 회복 정치·운영 -%u%%",
+            offices,logh::concurrentOfficePenaltyPercent(offices));
+        return text;
+    }
+    return L"겸직 4개부터 CP 회복에 페널티";
+}
+
+// Joins an adjacent "대기:" / "소요:" pair of the original body into one line to keep the dialog within five lines.
+static std::wstring compactWaitDurationLines(const std::wstring& rest) {
+    auto wait=rest.find(L"\n대기:");
+    if (wait==std::wstring::npos) return rest;
+    auto end=rest.find(L'\n',wait+1);
+    if (end==std::wstring::npos || rest.compare(end+1,3,L"소요:")!=0) return rest;
+    std::wstring out=rest;
+    out.replace(end,1,L" · ");
+    return out;
+}
+
 static void __fastcall appointmentConfirmation(void* dialog, void*, const char* original) {
     reinterpret_cast<void(__thiscall*)(void*,const char*)>(0x5706e0)(dialog,original);
     AppointmentChoice choice;
@@ -197,7 +223,7 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
         }
         if (seat.empty()) return;
         // Preserve the original cost, wait, duration and confirmation question.
-        body=std::wstring(person)+L" → "+seat+L" · "+office+body.substr(newline);
+        body=std::wstring(person)+L" → "+seat+L" · "+office+L"\n"+concurrentOfficeRuleText(choice.person)+compactWaitDurationLines(body.substr(newline));
         }
     }
     }

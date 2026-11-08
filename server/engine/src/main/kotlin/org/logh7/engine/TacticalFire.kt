@@ -231,7 +231,9 @@ internal object TacticalCombat {
         committer: WorldStateCommitter?, npcPolicy:NpcTacticalPolicy = NpcTacticalPolicy(enabled=false),
         scale:Long=24,onMovement:(TacticalMovement)->Unit = {},onSupport:(TacticalSupportResult)->Unit = {},onPosture:(TacticalPostureResult)->Unit = {},onGround:(TacticalGroundResult)->Unit = {},onGroundBattle:(GroundBattleResult)->Unit = {},onOccupation:(BaseOccupation)->Unit = {},onStrategicMovement:(NpcStrategicMovement)->Unit = {},onCommand:(TacticalCommandResult)->Unit = {},
         /** Flagships sunk inside a breached fortress (docked players get no combat impact). */
-        onFortressSunk:(Navigator)->Unit = {}): List<TacticalImpact> {
+        onFortressSunk:(Navigator)->Unit = {},
+        settleOfficeRecovery:(PlanetStocks, PlanetStocks, Map<String, Navigator>)->Map<String, Navigator> =
+            { _, _, players -> players }): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
@@ -332,8 +334,9 @@ internal object TacticalCombat {
         clearFinishedOrders(players,galaxy,inventory,now)
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)
-        checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(players, prepared)
-        navigation.publishCommitted(original, players, session.generation)
+        val recovered = settleOfficeRecovery(stocks, prepared, players)
+        checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(recovered, prepared)
+        navigation.publishCommitted(original, recovered, session.generation)
         production.publishCommitted(stocks, prepared)
         strategicMovements.forEach(onStrategicMovement)
         movements.forEach(onMovement)

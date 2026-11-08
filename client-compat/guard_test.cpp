@@ -1434,6 +1434,17 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::appointmentCapitalPower(2)!=2 || logh::appointmentCapitalPower(56)!=2 ||
         logh::appointmentCapitalPower(193)!=3 || logh::appointmentCapitalPower(54) ||
         logh::appointmentCapitalPower(175) || logh::appointmentCapitalPower(231)) return 71;
+    if (logh::concurrentOfficePenaltyPercent(0)!=0 || logh::concurrentOfficePenaltyPercent(3)!=0 ||
+        logh::concurrentOfficePenaltyPercent(4)!=5 || logh::concurrentOfficePenaltyPercent(5)!=10 ||
+        logh::concurrentOfficePenaltyPercent(6)!=15 || logh::concurrentOfficePenaltyPercent(7)!=20 ||
+        logh::concurrentOfficePenaltyPercent(15)!=20 || logh::concurrentOfficePenaltyPercent(0xffffffffu)!=20) return 1126;
+    {
+        unsigned offices=99;
+        if (!logh::concurrentOfficeMarker(0x4c00,offices) || offices!=0 ||
+            !logh::concurrentOfficeMarker(0x4c0f,offices) || offices!=15 ||
+            logh::concurrentOfficeMarker(0x4c10,offices) || logh::concurrentOfficeMarker(0x4b05,offices) ||
+            logh::concurrentOfficeMarker(0x5c03,offices) || logh::concurrentOfficeMarker(0,offices)) return 1127;
+    }
     unsigned char outfitCache[100 * 32] = {};
     outfitCache[32] = 1; outfitCache[36] = 7;
     outfitCache[96] = 1; outfitCache[100] = 9;

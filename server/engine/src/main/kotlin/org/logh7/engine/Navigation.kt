@@ -184,7 +184,8 @@ data class NavigationResult(val player: Navigator?, val previous: Navigator? = n
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,
     private val policy: NavigationPolicy, private val cpIntervalSeconds: Long = 7200, private val clockScale: Long = 24,
     restored:Map<String,Navigator> = store?.load().orEmpty(),
-    private val configuredCountries:CountryCatalog?=null) {
+    private val configuredCountries:CountryCatalog?=null,
+    private val recoveryPenalty: (Navigator) -> Int = { 0 }) {
     init { require(cpIntervalSeconds in 1..86400 && clockScale in 1..1000) }
     private var players = restored.toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
@@ -272,7 +273,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val docked = if (dueDock != null && dockOwner!=true)
             fueled.copy(baseId = ranged.baseId, mode = ranged.mode, moves = ranged.moves) else fueled
         // Without known abilities CP recovery waits for the next login (its clock is not advanced).
-        val recovered = if (request.offlineSettle && !request.offlineAbilities) docked else recover(docked, request, now)
+        val recovered = if (request.offlineSettle && !request.offlineAbilities) docked else
+            recoverCp(docked, request.politics, request.administration, now)
         val settled = recovered
         fun contact(player: Navigator): Navigator {
             val active = if(stocks == null) player.cpPaused else
@@ -562,15 +564,18 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             warpTarget = if (completed) null else player.warpTarget)
     }
     /** W27 fixes the interval and offline recovery. Cap and ability formula are provisional. */
-    private fun recover(player: Navigator, request: NavigationRequest, now: Long): Navigator {
+    fun recoverCp(player: Navigator, politics: Int, administration: Int, now: Long,
+        penalty: Int? = null): Navigator {
         val last = player.cpRecoveryAt
         // Legacy files have no trustworthy recovery time. Start a clock without inventing a backlog.
         if (last == null || now < last || player.cpPaused) return player.copy(cpRecoveryAt = now)
         val periods = (now - last) / cpIntervalSeconds
         if (periods == 0L) return player
+        val reduction = penalty ?: recoveryPenalty(player)
         fun balance(current: Int, ability: Int) = if (current >= policy.maximumCp) current else
             minOf(policy.maximumCp.toLong(), current.toLong() + periods * (policy.recoveryBase.toLong() + ability / 2)).toInt()
-        return player.copy(pcp = balance(player.pcp, request.politics), mcp = balance(player.mcp, request.administration),
+        return player.copy(pcp = balance(player.pcp, OfficeCpRecovery.effective(politics, reduction)),
+            mcp = balance(player.mcp, OfficeCpRecovery.effective(administration, reduction)),
             cpRecoveryAt = last + periods * cpIntervalSeconds)
     }
     private fun movePlace(request: NavigationRequest, before: Navigator, now: Long, stocks: PlanetStocks?,countries:CountryCatalog): NavigationResult {

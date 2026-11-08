@@ -86,7 +86,13 @@ class AppointmentWireTest {
                 next(actor,0x1200)
                 val people=next(actor,0x1202)
                 assertEquals(if(accepted)1 else 0,people[6].toInt())
-                if(accepted)assertEquals(10001,ByteBuffer.wrap(people).getInt(7))
+                if(accepted) {
+                    val person=ByteBuffer.wrap(people)
+                    assertEquals(10001,person.getInt(7))
+                    val rankOffset=12+people[11].toInt()*2
+                    assertEquals(targetRank,person.getShort(rankOffset).toInt())
+                    assertEquals(0x4c01,person.getShort(rankOffset+2).toInt())
+                }
                 next(actor,0x1201)
                 actor.send(ByteBuffer.allocate(6).putShort(0x0322).putInt(10001).array())
                 val detail = next(actor,0x0323)
