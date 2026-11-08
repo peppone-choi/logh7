@@ -873,6 +873,24 @@ class TacticalCommandOperationsTest {
         assertEquals(0f,fortress.velocity)
     }
 
+    @Test fun aLateFortressOrderChecksThePositionAtItsScheduledStart() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
+        val s=state()
+        val destination=TacticalPoint(0f,20f)
+        val oldMotion=motion(0f,-20f).copy(velocity=1f,waypoints=listOf(TacticalPoint(25f,-20f)),waitSeconds=0)
+        val pending=TacticalQueuedCommand(10000,2488,now,now+5,TacticalCommand(0x41f,base=1000,points=listOf(destination)))
+        s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(orders=listOf(pending),
+            fortresses=mapOf(1000 to TacticalFortressMotion(2488,oldMotion))))
+        assertTrue(TacticalTerrain.pathBlocked(world,2488,oldMotion.pose(now+5).position,listOf(destination)))
+        assertFalse(TacticalTerrain.pathBlocked(world,2488,oldMotion.pose(now+30).position,listOf(destination)))
+        val nav=Navigation(world,s.nav,NavigationPolicy(),clockScale=1)
+        val production=PlanetProduction(world,s.stock,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+        val events=mutableListOf<TacticalCommandResult>()
+        TacticalCombat.settle(session.copy(gameMillis=(now+30)*1000),world,nav,production,s.commit,scale=1,onCommand=events::add)
+        assertTrue(events.single {it.order==pending}.cancelled)
+        assertEquals(oldMotion.waypoints.last(),TacticalBasePosition.at(world.bases.single(),now+300,s.stocks))
+    }
+
     @Test fun aMobileFortressWithBrokenPropulsionCannotMove() {
         // CD manual p.46: orbital attack can destroy a mobile fortress's propulsion (FortressArmor).
         val s=state();s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(brokenPropulsion=setOf(1000)))
