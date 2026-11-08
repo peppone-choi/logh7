@@ -214,7 +214,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (request.offlineSettle && existing == null) return reject(NavigationRejection.SESSION)
         val countries=configuredCountries ?: CountryCatalogLoader.current()
         if(request.country!=null && request.country.value !in countries.countries)return reject(NavigationRejection.IDENTITY)
-        val start=if(existing==null)galaxy.startFor(request.country) ?: return reject(NavigationRejection.BASE) else existing.grid
+        val start=existing?.grid ?: galaxy.startFor(request.country) ?: request.country?.let {country->
+            CountryFounding.activeCapitals(stocks,countries)[country]?.let {capital->
+                galaxy.conditions[capital]?.grid
+            }
+        } ?: return reject(NavigationRejection.BASE)
         val style=existing?.shipStyle ?: request.shipStyle ?: request.country?.let {
             if(it.value !in countries.countries)return reject(NavigationRejection.IDENTITY)
             countries.shipStyle(it)

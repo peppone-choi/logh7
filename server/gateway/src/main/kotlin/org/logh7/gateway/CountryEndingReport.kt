@@ -11,7 +11,7 @@ import org.logh7.protocol.LoginMessages
 internal object CountryEndingReport {
     private fun countries(snapshot:WorldSnapshot,catalog:CountryCatalog):Set<CountryId> =
         snapshot.result?.countries?.keys ?: snapshot.session?.countries?.takeIf {it.isNotEmpty()}
-        ?: catalog.countries.keys.map(::CountryId).toSet()
+        ?: catalog.countries.values.filterNot(CountryFounding::isFounded).map {CountryId(it.id)}.toSet()
     fun count(snapshot:WorldSnapshot,catalog:CountryCatalog)=countries(snapshot,catalog).size
     fun reply(request:CountryEndingMessages.Request,snapshot:WorldSnapshot?,profiles:Map<String,CharacterProfile>,
         catalog:CountryCatalog,appearances:List<CountryAppearance>,viewerCountry:Int=0,galaxy:Galaxy?=null):List<ByteArray> {

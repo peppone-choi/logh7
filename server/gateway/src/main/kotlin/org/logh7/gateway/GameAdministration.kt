@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture
 
 fun interface GameAdministration {
     fun tax(request: TaxRequest): CompletableFuture<TaxResult>
+    val foundingEnabled:Boolean get()=false
     fun budget(request:BudgetRequest):CompletableFuture<BudgetResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Budget is unavailable"))
     fun social(request:SocialRequest):CompletableFuture<SocialResult> =
@@ -34,6 +35,7 @@ fun interface GameAdministration {
     fun stationedOutfit(player: Navigator): Int = 0
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, private val galaxy: Galaxy) : GameAdministration {
+    override val foundingEnabled:Boolean get()=engine.foundingEnabled
     override fun social(request:SocialRequest):CompletableFuture<SocialResult> {
         val future=CompletableFuture<SocialResult>()
         scope.launch {try {

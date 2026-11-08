@@ -29,7 +29,10 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
         return carried.filter { (account, data) ->
             val profile=profiles.getValue(account)
             val kind=org.logh7.engine.Flagships.forType(profile.shipStyle.nativePower,data.shipType).kind
-            next.carry(account,profile.copy(character=data.copy(shipKind=kind)))
+            val founded=org.logh7.engine.CountryFounding.isFounded(
+                profile.country?.let {org.logh7.engine.CountryCatalogLoader.current().countries[it.value]})
+            val carriedProfile=if(founded)profile.copy(country=null) else profile
+            next.carry(account,carriedProfile.copy(character=data.copy(shipKind=kind,rank=if(founded)13 else data.rank)))
         }.keys.toList()
     }
 }

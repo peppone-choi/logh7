@@ -201,12 +201,20 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         // World actor queue/tick timings for the lag alerts (ops /metrics).
         val actorTimings = org.logh7.ops.ActorTimingHistograms()
         val npcProfiles=org.logh7.engine.PublishedNpcFleetDialogue()
+        val worldIdentity=if(sessionDirectory!=null && (accountFame!=null || definitionsConnect!=null)) {
+            val identity=org.logh7.persistence.FileWorldIdentity.loadOrCreate(sessionDirectory,directorySync)
+            synchronized(worldIdentities) {check(worldIdentities.add(identity)) {"Two sessions have the same persistent world identity"}}
+            resources.addFirst(AutoCloseable {synchronized(worldIdentities){worldIdentities.remove(identity)}})
+            identity
+        } else null
         val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store, timings = actorTimings,
             galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState,
             npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true,
                 chooseFireTarget = jev?.let { advisor -> { decision -> advisor.choose(sessionId,decision) } },
                 behavior = { generation,outfit -> npcProfiles.current(generation,outfit)?.behavior ?: org.logh7.engine.NpcCombatBehavior.STANDARD }),
-            awaitIdentities = world != null) }
+            awaitIdentities = world != null,
+            founding = if (worldIdentity!=null && countryDefinitions!=null && world?.galaxy?.unaffiliatedStart!=null)
+                org.logh7.engine.CountryFoundingRegistry(java.util.UUID.fromString(worldIdentity),countryDefinitions) else null) }
         catch (failure: Throwable) {
             try { stockStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
@@ -214,12 +222,6 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             throw failure
         }
         resources.addFirst(AutoCloseable { runBlocking { engine.drainAndClose() } })
-        val worldIdentity=if(sessionDirectory!=null && (accountFame!=null || definitionsConnect!=null)) {
-            val identity=org.logh7.persistence.FileWorldIdentity.loadOrCreate(sessionDirectory,directorySync)
-            synchronized(worldIdentities) {check(worldIdentities.add(identity)) {"Two sessions have the same persistent world identity"}}
-            resources.addFirst(AutoCloseable {synchronized(worldIdentities){worldIdentities.remove(identity)}})
-            identity
-        } else null
         val fame=accountFame?.forWorld(checkNotNull(worldIdentity))
             ?.also {it.importLegacy(characterFile?.resolveSibling("${characterFile.fileName}.fame"))}
         val npcProfileStore=if(worldIdentity!=null && definitionsConnect!=null)org.logh7.persistence.PostgresNpcFleetDialogue(

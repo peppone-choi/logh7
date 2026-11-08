@@ -35,7 +35,10 @@ internal object LobbyCountryCatalogue {
         if (request.query.base == LobbyCountryMessages.EMBLEM_PROBE) {
             return listOf(LoginMessages.sessionMessage(0x032f, LobbyCountryMessages.emblemCapability(request)))
         }
-        val countries=source.catalog.countries.values.sortedBy {it.id}.take(LobbyCountryMessages.MAX_OFFSET)
+        val localCapitals=source.snapshot?.planetStocks?.strategic?.capitals.orEmpty()
+        val countries=source.catalog.countries.values.filter {
+            !org.logh7.engine.CountryFounding.isFounded(it) || CountryId(it.id) in localCapitals
+        }.sortedBy {it.id}.take(LobbyCountryMessages.MAX_OFFSET)
         val page=countries.drop(request.offset).take(LobbyCountryMessages.PAGE)
         val snapshot=source.snapshot?.takeIf {it.session?.generation==null || it.session?.generation==source.generation}
         val members=WorldCharacters.profiles(source.profiles,snapshot).values.mapNotNull {it.country}.groupingBy {it}.eachCount()
@@ -47,7 +50,7 @@ internal object LobbyCountryCatalogue {
                 members[CountryId(country.id)] ?: 0,bases[CountryId(country.id)] ?: 0,country.nativePower,country.nativeCamp,
                 // The family key is withheld until its asset reference is confirmed (no arbitrary truncation).
                 "",if(selection(country.id,source.catalog,source.starts-snapshot?.session?.eliminated.orEmpty().keys)!=null)
-                    LobbyCountryMessages.CREATE or LobbyCountryMessages.LOTTERY else 0)
+                    LobbyCountryMessages.CREATE or (if(org.logh7.engine.CountryFounding.isFounded(country))0 else LobbyCountryMessages.LOTTERY) else 0)
         }
         val header=LobbyCountryMessages.Header(countries.size,request.offset,rows.size,source.revision,
             snapshot?.session?.elapsedGameSeconds ?: 0,source.generation,totalBases,
