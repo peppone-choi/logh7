@@ -346,18 +346,22 @@ class WorldBootstrap(val galaxy: Galaxy,
         warehouseShips(units.ships,spare.values).map { LogisticsMessages.ShipStock(it.kind,it.units,it.boats) },
         units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { LogisticsMessages.TroopStock(1000+it.key.kind,it.key.level,it.value) })
-    fun outfitWarehouse(base: Int, outfitId: Int, character: Int, countryId:Int, stocks: org.logh7.engine.PlanetStocks): ByteArray {
+    fun outfitWarehouse(base: Int, outfitId: Int, character: Int, countryId:Int?, stocks: org.logh7.engine.PlanetStocks,
+        reportUnavailable: Boolean = false): ByteArray {
+        fun unavailable(reason: String): ByteArray {
+            require(reportUnavailable) { reason }
+            return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base,0,0,0,outfit=outfitId,unavailable=true))
+        }
         val outfit = stocks.outfits[outfitId] ?: return LoginMessages.sessionMessage(0x0327,
-            WorldMessages.warehouse(base,0,0,0,outfit=outfitId))
-        val country=org.logh7.engine.CountryId(countryId)
-        require(outfit.baseId == base && outfit.country == country) { "Outfit warehouse identity mismatch" }
-        val owner = stocks.bases.getValue(base)
-        require(owner.belongsTo(country) && owner.camp == 0) { "Outfit warehouse base access denied" }
+            WorldMessages.warehouse(base,0,0,0,outfit=outfitId,unavailable=reportUnavailable))
+        val country=countryId?.let { org.logh7.engine.CountryId(it) }
+        if (country==null || outfit.baseId!=base || outfit.country!=country) return unavailable("Outfit warehouse identity mismatch")
+        val owner = stocks.bases[base]
+        if (owner==null || !owner.belongsTo(country) || owner.camp!=0) return unavailable("Outfit warehouse base access denied")
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         val commandsSharedWarehouse = stocks.outfits.values.any { it.warehouseId == warehouse.id && it.commanderId == character }
-        require(character > 0 && (commandsSharedWarehouse || logisticsOffices.permits(stocks,character,country,outfit.kind))) {
-            "Outfit warehouse access denied"
-        }
+        if (character<=0 || (!commandsSharedWarehouse && !logisticsOffices.permits(stocks,character,country,outfit.kind)))
+            return unavailable("Outfit warehouse access denied")
         fun entries(values: Map<org.logh7.engine.UnitStack,Int>) = values.entries
             .sortedWith(compareBy({ it.key.kind },{ it.key.level })).map { WorldMessages.Stock(it.key.kind,it.key.level,it.value) }
         return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base,warehouse.supplies,warehouse.food,warehouse.mineral,

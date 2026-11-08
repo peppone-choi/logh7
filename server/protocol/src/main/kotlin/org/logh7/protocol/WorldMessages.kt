@@ -11,8 +11,10 @@ object WorldMessages {
     data class WarehouseShips(val kind: Int, val units: Int, val boats: Int)
     /** 0041a870/0041aff0: ships carry units/boats; troops carry grade/units. */
     fun warehouse(base: Int, supplies: Int, food: Int, mineral: Int,
-        ships: List<WarehouseShips> = emptyList(), troops: List<Stock> = emptyList(), outfit: Int = 0) = body {
+        ships: List<WarehouseShips> = emptyList(), troops: List<Stock> = emptyList(), outfit: Int = 0,
+        unavailable: Boolean = false) = body {
         require(base > 0 && outfit >= 0 && supplies >= 0 && food >= 0 && mineral >= 0)
+        require(!unavailable || (outfit > 0 && supplies == 0 && food == 0 && mineral == 0 && ships.isEmpty() && troops.isEmpty()))
         fun stacks(values: List<Stock>, maximum: Int, kinds: IntRange, kindOffset: Int = 0) {
             require(values.size <= maximum && values.map { it.kind to it.level }.distinct().size == values.size)
             writeByte(values.size)
@@ -21,7 +23,8 @@ object WorldMessages {
                 writeShort(value.kind + kindOffset); writeByte(value.level); writeShort(value.quantity)
             }
         }
-        writeInt(base); writeInt(outfit); writeInt(0)
+        // Revival: distinguish an unavailable outfit warehouse from an empty one.
+        writeInt(base); writeInt(outfit); writeInt(if (unavailable) 1 else 0)
         require(ships.size <= 99 && ships.map { it.kind }.distinct().size == ships.size)
         writeByte(ships.size)
         ships.forEach { ship ->

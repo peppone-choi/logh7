@@ -1622,7 +1622,8 @@ class GameExchange(
                         } else {
                             val character = checkNotNull(currentCharacter(identity.account))
                             pendingWorld = stocks().thenApply { listOf(if (outfit == 0) world.warehouse(base, it) else
-                                world.outfitWarehouse(base,outfit,character.id.toInt(),checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,checkNotNull(it))) }
+                                world.outfitWarehouse(base,outfit,character.id.toInt(),currentProfile(identity.account,character.id.toInt()).country?.value,
+                                    checkNotNull(it),reportUnavailable=true)) }
                             return null
                         }
                     }
