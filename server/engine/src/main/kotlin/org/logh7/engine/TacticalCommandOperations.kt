@@ -340,7 +340,7 @@ internal object TacticalCommandOperations {
             } else {
                 val capacity=u?.unit?.let {OutfitSupplies.unitCapacity(it)} ?: 10000
                 val balance=u?.let {OutfitSupplies.distribution(it.outfit).getValue(id)} ?: p?.supplies ?: return false
-                val count=minOf(available,capacity-balance);if(count==0)return false
+                val count=minOf(available,capacity-balance);if(count<=0)return false
                 if(u==null)personal(id){it.copy(supplies=it.supplies+count)} else spend(id,-count)
                 stocks=stocks.copy(bases=stocks.bases+(base to stock.copy(supplies=available-count)))
             }
