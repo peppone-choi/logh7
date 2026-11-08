@@ -61,6 +61,22 @@ class DockingWorkTest {
         assertEquals(0, stayed.baseId); assertEquals(5, stayed.mode); assertEquals(0, stayed.moves)
         assertNull(stayed.dockTarget); assertTrue(stayed.strategy!!.jobs.isEmpty())
     }
+    @Test fun aPaidDockWaitsForRecoveryAcrossReloadWithoutUsingMoreCp() {
+        val store = Store()
+        val queued = Navigation(galaxy, store, NavigationPolicy())
+            .apply(request.copy(place = PlaceMove.Dock(1000, 4)), session(0)).player!!
+        store.players = mapOf("pilot" to queued.copy(hull = FlagshipHull(3, 1, woundedUntil = 29000)))
+        val nav = Navigation(galaxy, store, NavigationPolicy(recoveryBase = 0))
+        val waiting = nav.apply(request.copy(politics = 0, administration = 0), session(28999))
+        assertFalse(waiting.completedDock)
+        assertEquals(0, waiting.player?.baseId)
+        assertEquals(29000L, waiting.player?.dockReadyAt)
+        val arrived = nav.apply(request.copy(politics = 0, administration = 0), session(29000))
+        assertTrue(arrived.completedDock)
+        assertEquals(1000, arrived.player?.baseId)
+        assertEquals(queued.mcp, arrived.player?.mcp)
+        assertFalse(nav.apply(request, session(29000)).completedDock)
+    }
     @Test fun failedAcceptanceAndArrivalWritesCannotPublishJobPaymentOrLocation() {
         val store = Store()
         val nav = Navigation(galaxy, store, NavigationPolicy())

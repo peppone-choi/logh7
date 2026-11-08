@@ -41,8 +41,9 @@ data class Navigator(val generation: Long, val characterId: Int, val country: Co
             pcpUsed,mcpUsed,ShipStyleId.fromLegacy(power))
     val power:Power get()=country.legacyPower()
     val unitId: Int get() = Math.addExact(characterId, 1_000_000)
-    val dockReadyAt: Long? get() = if (dockTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
-    val warpReadyAt: Long? get() = if (warpTarget == null) null else strategy!!.jobs.single().completesAtGameMillis / 1000
+    private val travelReadyAt: Long get() = maxOf(strategy!!.jobs.single().completesAtGameMillis / 1000, hull?.woundedUntil ?: 0)
+    val dockReadyAt: Long? get() = if (dockTarget == null) null else travelReadyAt
+    val warpReadyAt: Long? get() = if (warpTarget == null) null else travelReadyAt
     val navigationPending: Boolean get() = fuelReadyAt != null || dockTarget != null || warpTarget != null
     init { require(generation > 0 && characterId in 1..0x7fefffff && grid in 0..4999 &&
         pcp >= 0 && mcp >= 0 && cruise >= 0 && pcpUsed in 0..CpExperience.USED_LIMIT && mcpUsed in 0..CpExperience.USED_LIMIT && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
@@ -559,6 +560,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     }
     private fun settleWork(player: Navigator, now: Long): Navigator {
         if (player.cpPaused) return player
+        // An injury can begin after the travel order was paid for. Leave it queued until recovery.
+        if ((player.warpTarget != null || player.dockTarget != null) && now < (player.hull?.woundedUntil ?: 0)) return player
         val checkpoint = player.strategy
         if (checkpoint == null) { // Preserve deadlines already acknowledged by pre-job servers.
             return if (player.fuelReadyAt?.let { now >= it } == true)
