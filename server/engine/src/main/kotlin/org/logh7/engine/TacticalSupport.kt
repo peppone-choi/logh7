@@ -232,9 +232,11 @@ internal object TacticalSupportOperations {
                 // 004c15a0 subtracts this wire counter from the commissioned maximum, not survivors.
                 damaged+=UnitSpecifications.ships.single {it.kind==target.unit.stack.kind}.number-target.unit.boats
             }
-            val remaining=OutfitSupplies.distribution(ship(id,stocks)!!.outfit).getValue(id)
-            results+=TacticalSupportResult(session.generation,order.grid,order.action,id,order.target,remaining,targetSupplies,damaged,
-                audience(session,order.grid,players))
+            val updatedSource=checkNotNull(ship(id,stocks))
+            val remaining=OutfitSupplies.distribution(updatedSource.outfit).getValue(id)
+            results+=if(remaining==available)cancelled(session,updatedSource,order,players)
+                else TacticalSupportResult(session.generation,order.grid,order.action,id,order.target,remaining,targetSupplies,damaged,
+                    audience(session,order.grid,players))
         }
         return stocks
     }
