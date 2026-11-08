@@ -32,16 +32,24 @@ class NpcTacticsTest {
             val point=TacticalPoint(x,0f)
             return TacticalMotion(2488,now,TacticalPose(point,heading),0f,heading,listOf(point))
         }
-        for((observer,target,boats) in listOf(Triple(20f,19f,300),Triple(21f,19f,50),Triple(19f,17f,300))) {
+        val cases=listOf(Triple(20f,19f,300),Triple(21f,19f,50),Triple(19f,17f,300)).map {it to false} +
+            (Triple(21f,19f,300) to true)
+        for((positions,shared) in cases) {
+            val (observer,target,boats)=positions
             val state=state(boats)
             val players=state.players.mapValues {(_,player)->player.copy(motion=motion(target))}.toMutableMap()
+            if(shared) {
+                val point=TacticalPoint(18f,2f)
+                players["scout"]=Navigator(1,10001,Power.EMPIRE,2488,1000,1000,900,cpPaused=true,
+                    hull=FlagshipHull(0,now),motion=TacticalMotion(2488,now,TacticalPose(point,0f),0f,0f,listOf(point)))
+            }
             val outfit=state.stocks.outfits.getValue(1)
             val unit=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(observer),now,now))
             val stocks=state.stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(unit)))))
             val hits=mutableListOf<TacticalImpact>()
             val after=NpcTactics.advance(session,world,players,stocks,NpcTacticalPolicy(),24,hits,mutableListOf())
             val tactical=after.outfits.getValue(1).activeShips!!.values.single().tactical!!
-            if(observer>=20f) {
+            if(observer>=20f && !shared) {
                 assertEquals(0,tactical.target)
                 assertNull(tactical.retreat)
                 assertTrue(hits.isEmpty())
