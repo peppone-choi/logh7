@@ -207,6 +207,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
             return reject(NavigationRejection.SESSION)
         if (member.country != request.country) return reject(NavigationRejection.IDENTITY)
+        if (request.tacticalMove != null && BattleDeath.deceased(stocks,request.characterId))
+            return reject(NavigationRejection.IDENTITY)
         if (persist) settleRetreats(session, stocks)
         // U-11: a dead character's navigator gives way to the account's next character.
         val existing = players[request.account]?.takeIf { it.generation == request.generation &&

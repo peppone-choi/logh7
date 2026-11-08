@@ -11,6 +11,7 @@ internal object TacticalFleetMotion {
         var player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(player.hull?.woundedUntil?.let {it>session.gameMillis/1000}==true)return reject(NavigationRejection.WOUNDED)
         if(!navigation.captainCard(request,player))return reject(NavigationRejection.CARD)
