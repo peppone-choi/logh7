@@ -36,7 +36,8 @@ internal object TacticalSupportOperations {
     private fun targetPoint(id: Int, player: Navigator, now: Long, players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy): TacticalPoint? {
         if(id>1_000_000) {
             val target=players.values.singleOrNull {it.unitId==id && it.grid==player.grid && TacticalAuthority.camp(it,stocks)==TacticalAuthority.camp(player,stocks) &&
-                it.baseId==0 && it.mode==5 && it.cpPaused && it.hull!=null} ?: return null
+                it.baseId==0 && it.mode==5 && it.cpPaused && it.hull!=null &&
+                !BattleDeath.deceased(stocks,it.characterId)} ?: return null
             return (target.motion?.pose(now,target.posture,galaxy,stocks) ?: TacticalDeployment.initial(id,target.grid,players.values,stocks,galaxy)).position
         }
         val target=ship(id,stocks) ?: return null

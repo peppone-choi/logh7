@@ -102,6 +102,30 @@ class TacticalSupportTest {
         }
     }
 
+    @Test fun deceasedFlagshipCannotReceiveNewOrSavedSupport() {
+        for(action in TacticalSupportAction.entries) {
+            val s=state(repair=action==TacticalSupportAction.REPAIR)
+            val recipient=s.players.getValue("pilot").copy(characterId=10001)
+            s.players=s.players+("recipient" to recipient)
+            val command=request(action,recipient.unitId)
+            val dead=s.stocks.strategic.copy(people=mapOf(10001 to StrategicPerson(deceasedAt=1)))
+            val before=s.stocks
+            s.stocks=before.copy(strategic=dead)
+            assertEquals(NavigationRejection.TARGET,
+                accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).rejection)
+            s.stocks=before
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+            s.stocks=s.stocks.copy(strategic=dead)
+            val out=mutableListOf<TacticalSupportResult>()
+            settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+120,out)
+            assertTrue(out.single().cancelled)
+            assertEquals(recipient.supplies,s.players.getValue("recipient").supplies)
+            assertEquals(recipient.hull!!.hp,s.players.getValue("recipient").hull!!.hp)
+            assertEquals(before.outfits.getValue(1).supplies,s.stocks.outfits.getValue(1).supplies)
+            assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().support)
+        }
+    }
+
     @Test fun supplyBetweenUnitsOfTheSameFleetDoesNotChangeItsTotal() {
         val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
