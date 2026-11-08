@@ -407,6 +407,24 @@ class TacticalCommandOperationsTest {
         }
     }
 
+    @Test fun fortressSupplyNeverWithdrawsCargoFromAnOverloadedSavedShip() {
+        val s=state()
+        val fleet=s.stocks.outfits.getValue(1)
+        val source=fleet.activeShips!!.values.first().copy(boats=1)
+        val cargo=OutfitSupplies.unitCapacity(source)+1
+        val ships=ActiveShipUnits(listOf(source.copy(supplies=cargo)))
+        val overloaded=fleet.copy(activeShips=ships,units=UnitInventory(ships.quantities()),supplies=cargo)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to overloaded))
+        val before=s.stocks.bases.getValue(1000).supplies
+        val r=run(s)
+        assertNotNull(accept(r,TacticalCommand(0x41c,listOf(source.id),base=1000)).player)
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(r,now+5,events)
+        assertTrue(events.single().cancelled)
+        assertEquals(before,s.stocks.bases.getValue(1000).supplies)
+        assertEquals(overloaded,s.stocks.outfits.getValue(1))
+    }
+
     @Test fun fortressSupportDoesNotAcceptWrongBerthsEnemiesOrStationedCombatCommands() {
         for(opcode in listOf(0x41b,0x41c)) {
             val s=state();val outfit=s.stocks.outfits.getValue(1)
