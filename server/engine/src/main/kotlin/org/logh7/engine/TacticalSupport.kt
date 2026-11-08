@@ -33,7 +33,8 @@ internal object TacticalSupportOperations {
     private fun pose(s: Ship, grid: Int, now: Long, players: Collection<Navigator>, stocks: PlanetStocks, galaxy: Galaxy) =
         s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy,stocks) ?:
             TacticalDeployment.initial(s.unit.id,grid,players,stocks,galaxy)
-    private fun targetPoint(id: Int, player: Navigator, now: Long, players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy): TacticalPoint? {
+    private fun targetPoint(order: TacticalSupportOrder, player: Navigator, now: Long, players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy): TacticalPoint? {
+        val id=order.target
         if(id>1_000_000) {
             val target=players.values.singleOrNull {it.unitId==id && it.grid==player.grid && TacticalAuthority.camp(it,stocks)==TacticalAuthority.camp(player,stocks) &&
                 it.baseId==0 && it.mode==5 && it.cpPaused && it.hull!=null &&
@@ -41,7 +42,8 @@ internal object TacticalSupportOperations {
             return (target.motion?.pose(now,target.posture,galaxy,stocks) ?: TacticalDeployment.initial(id,target.grid,players.values,stocks,galaxy)).position
         }
         val target=ship(id,stocks) ?: return null
-        if(target.unit.boats==0 || TacticalAuthority.camp(target.outfit,stocks)!=TacticalAuthority.camp(player,stocks) ||
+        if(target.unit.boats==0 || (order.action==TacticalSupportAction.REPAIR && target.outfit.guard!=null) ||
+            TacticalAuthority.camp(target.outfit,stocks)!=TacticalAuthority.camp(player,stocks) ||
             target.outfit.positionIn(galaxy)!=OutfitPosition(player.grid))return null
         return pose(target,player.grid,now,players.values,stocks,galaxy).position
     }
@@ -53,7 +55,7 @@ internal object TacticalSupportOperations {
             source.outfit.positionIn(galaxy)!=OutfitPosition(order.grid))return false
         val spec=UnitSpecifications.ships.single {it.kind==source.unit.stack.kind}
         if(spec.type!=(if(order.action==TacticalSupportAction.REPAIR)11 else 12))return false
-        val to=targetPoint(order.target,player,now,players,stocks,galaxy) ?: return false
+        val to=targetPoint(order,player,now,players,stocks,galaxy) ?: return false
         val from=pose(source,order.grid,now,players.values,stocks,galaxy).position
         val commander=(player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.grid,
             players.values,stocks,galaxy)).position
@@ -164,7 +166,7 @@ internal object TacticalSupportOperations {
         val target=ship(order.target,stocks) ?: return false
         return if(order.action==TacticalSupportAction.SUPPLY)
             OutfitSupplies.distribution(target.outfit).getValue(order.target)<OutfitSupplies.unitCapacity(target.unit)
-            else target.unit.damaged>0 && target.outfit.guard==null // update03: no guard repairs
+            else target.unit.damaged>0
     }
     fun advance(session: SessionState, galaxy: Galaxy, players: MutableMap<String,Navigator>, initial: PlanetStocks,
         results: MutableList<TacticalSupportResult>): PlanetStocks {

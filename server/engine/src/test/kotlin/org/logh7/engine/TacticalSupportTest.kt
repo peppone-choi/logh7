@@ -170,6 +170,31 @@ class TacticalSupportTest {
         assertEquals(10000,out.single().targetSupplies)
     }
 
+    @Test fun aSavedRepairCannotSpendSuppliesOnAGuardShip() {
+        val s=state(repair=true)
+        val source=s.stocks.outfits.getValue(1)
+        val units=source.activeShips!!.values
+        val repair=units.first()
+        val target=units.last().copy(stack=UnitStack(checkNotNull(GuardShips.option(0)).baseKind))
+        val fleetShips=ActiveShipUnits(listOf(repair))
+        val guardShips=ActiveShipUnits(listOf(target))
+        val fleet=source.copy(units=UnitInventory(fleetShips.quantities()),activeShips=fleetShips)
+        val guard=OutfitStock(3,2,OutfitKind.PATROL,1000,30,units=UnitInventory(guardShips.quantities()),
+            activeShips=guardShips,position=OutfitPosition(2488),guard=mapOf(target.id to 0))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+mapOf(1 to fleet,3 to guard),
+            warehouses=s.stocks.warehouses+(30 to OutfitWarehouse(30,2,OutfitKind.PATROL,1000)))
+        assertEquals(NavigationRejection.TARGET,accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),
+            request(TacticalSupportAction.REPAIR,target.id)).rejection)
+        val order=TacticalSupportOrder(TacticalSupportAction.REPAIR,10000,target.id,2488,now,now+120)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(
+            activeShips=ActiveShipUnits(listOf(repair.copy(support=order))))))
+        val out=mutableListOf<TacticalSupportResult>()
+        settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+120,out)
+        assertTrue(out.single().cancelled)
+        assertEquals(guard,s.stocks.outfits.getValue(3))
+        assertEquals(fleet,s.stocks.outfits.getValue(1))
+    }
+
     @Test fun partialRepairKeepsLostBoatsLostAndRejectsLessThanOneShipsCost() {
         val s=state(true)
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits.mapValues {(id,o)->if(id==1)
