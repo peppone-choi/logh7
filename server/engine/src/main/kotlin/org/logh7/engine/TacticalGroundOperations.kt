@@ -133,27 +133,30 @@ internal object TacticalGroundOperations {
         events:MutableList<TacticalGroundResult>):PlanetStocks {
         var next=stocks;val now=session.gameMillis/1000
         val pending=stocks.outfits.values.flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order}}.distinct()
+            .sortedWith(compareBy({it.readyAt},{it.acceptedAt},{it.carrier}))
         for(order in pending) {
             val o=next.outfits.values.singleOrNull {it.activeGround?.values?.any {u->u.order==order}==true} ?: continue
             val p=players.values.singleOrNull {it.characterId==order.character}
             val state=berth(o,order.carrier,order.grid)
             val carrier=o.activeShips?.values?.singleOrNull {it.id==order.carrier}
-            val reserved=next.outfits.values.filter {it.country==o.country}.sumOf {other->other.activeGround?.values.orEmpty().count {
-                it.base==order.base || it.order?.let {a->a.action==TacticalGroundAction.DEPLOY && a.base==order.base}==true}}
             val units=o.activeGround!!.values.filter {it.order==order}
             val base=galaxy.bases.singleOrNull {it.id==order.base && it.grid==order.grid}
             val valid=session.ended==null && p!=null && base!=null && carrier!=null && operational(carrier,next) &&
                 !BattleDeath.deceased(next,p.characterId) && p.cpPaused && p.baseId==0 && p.grid==order.grid &&
                 owned(o,order.carrier,p,galaxy,next) && state?.base==order.base &&
                 when(order.action) {
-                    TacticalGroundAction.DEPLOY -> reserved<=GroundBattleRules.BOX_CAPACITY_PER_FACTION && admits(base,units)
+                    TacticalGroundAction.DEPLOY -> admits(base,units)
                     TacticalGroundAction.WITHDRAW -> hasRoom(o,carrier,units.size)
                     else -> false
                 }
             if(valid && now<order.readyAt)continue
+            val completed=valid && (order.action!=TacticalGroundAction.DEPLOY ||
+                next.outfits.values.filter {it.country==o.country}.sumOf {other->
+                    other.activeGround?.values.orEmpty().count {it.base==order.base}
+                }+units.size<=GroundBattleRules.BOX_CAPACITY_PER_FACTION)
             val ids=units.map {it.id}.toSet()
             val roster=ActiveGroundUnits(o.activeGround.values.map {unit ->
-                if(unit.id !in ids)unit else if(!valid)unit.copy(order=null)
+                if(unit.id !in ids)unit else if(!completed)unit.copy(order=null)
                 else if(order.action==TacticalGroundAction.DEPLOY)unit.copy(carrier=0,base=order.base,origin=order.carrier,order=null)
                 else unit.copy(carrier=order.carrier,base=0,origin=0,order=null)
             })
@@ -161,7 +164,7 @@ internal object TacticalGroundOperations {
             val recipients=session.participants.mapNotNull {(a,m)->players[a]?.takeIf {
                 m.online && m.connection!=null && it.generation==session.generation && it.grid==order.grid && it.cpPaused && it.baseId==0
             }?.let {it.characterId to checkNotNull(m.connection)}}.toMap()
-            events+=TacticalGroundResult(session.generation,order,ids.toList(),now,recipients,!valid)
+            events+=TacticalGroundResult(session.generation,order,ids.toList(),now,recipients,!completed)
         }
         return next
     }

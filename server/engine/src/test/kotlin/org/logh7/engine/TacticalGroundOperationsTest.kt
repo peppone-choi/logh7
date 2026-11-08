@@ -125,6 +125,31 @@ class TacticalGroundOperationsTest {
         galaxy=galaxy(80)
         val h=state(kind=2);assertNotNull(accept(h,Navigation(galaxy,h.nav,NavigationPolicy()),production(h)).player)
     }
+    @Test fun anOverbookedSaveLandsTheFirstValidReservationThatFits() {
+        for(invalidLater in listOf(false,true)) {
+            val s=state(defenders=29)
+            val outfit=s.stocks.outfits.getValue(1)
+            val earlier=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,4,1000,now,now+599)
+            val later=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,1,1000,now,now+600)
+            val roster=ActiveGroundUnits(outfit.activeGround!!.values.map {unit->
+                when(unit.carrier) {
+                    1 -> unit.copy(order=later)
+                    4 -> unit.copy(order=earlier)
+                    else -> unit
+                }
+            })
+            s.stocks=s.stocks.copy(outfits=mapOf(1 to outfit.copy(activeGround=roster)),
+                tacticalCommands=s.stocks.tacticalCommands.copy(morale=if(invalidLater)mapOf(1 to 15) else emptyMap()))
+            val events=mutableListOf<TacticalGroundResult>()
+            val after=TacticalGroundOperations.advance(session.copy(gameMillis=(now+600)*1000),galaxy,s.players,s.stocks,events)
+            assertEquals(listOf(earlier,later),events.map {it.order})
+            assertEquals(listOf(false,true),events.map {it.cancelled})
+            val troops=after.outfits.getValue(1).activeGround!!.values
+            assertEquals(30,troops.count {it.base==1000})
+            assertEquals(2,troops.count {it.carrier==1 && it.order==null})
+        }
+    }
+
     @Test fun carrierMustStillShareTheCommandersBattleCamp() {
         val s=state()
         val before=s.stocks
