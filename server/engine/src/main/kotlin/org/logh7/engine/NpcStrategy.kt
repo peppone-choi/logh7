@@ -133,14 +133,23 @@ internal object NpcStrategy {
         if(home==null)return null
         return OutfitPosition(home.next,if(home.next==home.base.grid)home.base.id else 0)
     }
+    private fun depot(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy)=
+        stocks.bases[outfit.positionIn(galaxy).baseId]?.takeIf {it.country==outfit.country && it.camp==0}
+
+    private fun jumpShortfall(ships:List<ActiveShipUnit>,balances:Map<Int,Int>)=
+        ships.sumOf {max(0,it.boats-balances.getValue(it.id)).toLong()}
+
+    private fun canDepart(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy):Boolean {
+        val ships=outfit.activeShips!!.values.filter {it.boats>0}
+        return jumpShortfall(ships,OutfitSupplies.distribution(outfit))<=(depot(stocks,outfit,galaxy)?.supplies ?: 0)
+    }
+
     private fun supplied(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy,departing:Boolean=true):Pair<PlanetStocks,OutfitStock>? {
         val live=outfit.activeShips!!.values.filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit).toMutableMap()
-        val baseId=outfit.positionIn(galaxy).baseId
-        val depot=stocks.bases[baseId]?.takeIf {it.country==outfit.country && it.camp==0}
+        val depot=depot(stocks,outfit,galaxy)
         var available=depot?.supplies ?: 0
-        val missing=live.sumOf {max(0,(if(departing)it.boats else 0)-balances.getValue(it.id)).toLong()}
-        if(missing>available)return null
+        if(departing && jumpShortfall(live,balances)>available)return null
         for(unit in live) {
             val amount=max(0,(if(departing)unit.boats else 0)-balances.getValue(unit.id))
             balances[unit.id]=balances.getValue(unit.id)+amount;available-=amount
@@ -152,7 +161,7 @@ internal object NpcStrategy {
             balances[unit.id]=balances.getValue(unit.id)+amount;available-=amount
         }
         if(departing)for(unit in live)balances[unit.id]=balances.getValue(unit.id)-unit.boats
-        val inventory=if(depot==null)stocks else stocks.copy(bases=stocks.bases+(baseId to depot.copy(supplies=available)))
+        val inventory=if(depot==null)stocks else stocks.copy(bases=stocks.bases+(depot.baseId to depot.copy(supplies=available)))
         return inventory to OutfitSupplies.withBalances(outfit,balances)
     }
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
@@ -183,7 +192,7 @@ internal object NpcStrategy {
                     val reroute=if(hostileDepot && position.baseId==0 && planned!=null && planned.grid!=position.grid)
                         home(galaxy,forces(),outfit,stocks)?.takeIf {it.next==planned.grid}
                     else null
-                    val strategy=if(reroute==null)NpcStrategicState(now+21600)
+                    val strategy=if(reroute==null || !canDepart(stocks,outfit,galaxy))NpcStrategicState(now+21600)
                         else NpcStrategicState(now+21600,reroute.next,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=strategy)))
                     continue
@@ -223,7 +232,7 @@ internal object NpcStrategy {
                     stocks=replenished.first.copy(outfits=replenished.first.outfits+(id to docked))
                     forceCache=null
                 } else {
-                    val next=if(destination==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,destination.grid,now+3600)
+                    val next=if(destination==null || !canDepart(stocks,outfit,galaxy))NpcStrategicState(now+21600) else NpcStrategicState(now+21600,destination.grid,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
                 }
             }
