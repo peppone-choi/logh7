@@ -14,8 +14,9 @@ data class TacticalQueuedCommand(val character:Int,val grid:Int,val acceptedAt:L
     init {require(character>0 && grid in 0..4999 && acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL)}
 }
 data class TacticalMissionState(val character:Int,val mission:Int,val targetKind:Int,val target:Int,val assignedAt:Long,
-    val checkedAt:Long=assignedAt,val completed:Boolean=false,val grid:Int?=null) {
-    init {require(character>0 && mission in 0..5 && targetKind in 0..255 && target>=0 && assignedAt in 0..0xffffffffL && checkedAt in assignedAt..0xffffffffL && (grid==null || grid in 0..4999))}
+    val checkedAt:Long=assignedAt,val completed:Boolean=false,val grid:Int?=null,val defaultDefense:Boolean=false) {
+    init {require(character>0 && mission in 0..5 && targetKind in 0..255 && target>=0 && assignedAt in 0..0xffffffffL && checkedAt in assignedAt..0xffffffffL && (grid==null || grid in 0..4999) &&
+        (!defaultDefense || mission==1 && grid!=null && target>0))}
 }
 data class TacticalAirWing(val character:Int,val grid:Int,val source:Int,val target:Int,val mode:Int,val nextAt:Long,
     val slowVelocity:Float?=null) {

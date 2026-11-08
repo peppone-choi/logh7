@@ -41,6 +41,15 @@ class TacticalCommandStateStoreTest {
         Files.writeString(path,Files.readString(path).replace("LOGH7-STOCK-30","LOGH7-STOCK-29"))
         FilePlanetStockStore(path).use {assertFails {it.load()}}
     }
+    @Test fun defaultDefenseAndItsLastCreditTimeSurviveWorldReload() {
+        val command=state()
+        val mission=command.missions.getValue(10001).copy(grid=2488,checkedAt=1540,defaultDefense=true)
+        val stock=PlanetStocks(1,0,emptyMap(),tacticalCommands=command.copy(missions=mapOf(10001 to mission)))
+        val path=directory.resolve("default-defense")
+        FilePlanetStockStore(path).use {it.save(stock)}
+        FilePlanetStockStore(path).use {assertEquals(stock,it.load())}
+    }
+
     @Test fun legacyVersionOneRemainsCanonicalAndVersionTwoRetainsAiAndRewardReceipts() {
         fun version(text:String)=java.nio.ByteBuffer.wrap(java.util.Base64.getUrlDecoder().decode(text)).int
         val legacy=state();val old=TacticalCommandStateCodec.encode(legacy)

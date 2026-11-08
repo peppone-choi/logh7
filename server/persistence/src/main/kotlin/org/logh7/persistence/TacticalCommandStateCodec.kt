@@ -18,9 +18,11 @@ internal object TacticalCommandStateCodec {
         List(count(32)){TacticalPoint(readFloat(),readFloat())},ints(800))
     private fun DataOutputStream.mission(m:TacticalMissionState,version:Int) {
         writeInt(m.character);writeInt(m.mission);writeInt(m.targetKind);writeInt(m.target);writeLong(m.assignedAt);writeLong(m.checkedAt);writeBoolean(m.completed);if(version>=2)writeInt(m.grid ?: -1)
+        if(version>=5)writeBoolean(m.defaultDefense)
     }
     private fun DataInputStream.mission(version:Int)=TacticalMissionState(readInt(),readInt(),readInt(),readInt(),readLong(),readLong(),readBoolean(),
-        if(version>=2)readInt().also {require(it in -1..4999)}.takeIf {it>=0} else null)
+        if(version>=2)readInt().also {require(it in -1..4999)}.takeIf {it>=0} else null,
+        version>=5 && readBoolean())
     private fun DataOutputStream.map(values:Map<Int,Int>) {writeInt(values.size);values.toSortedMap().forEach {(k,v)->writeInt(k);writeInt(v)}}
     private fun DataInputStream.map():Map<Int,Int> {
         val result=linkedMapOf<Int,Int>();repeat(count(1000)){require(result.put(readInt(),readInt())==null)};return result
@@ -28,7 +30,7 @@ internal object TacticalCommandStateCodec {
     fun encode(s:TacticalCommandState):String {
         val bytes=ByteArrayOutputStream()
         DataOutputStream(bytes).use {out->with(out) {
-            val version=if(s.groundTargets.isNotEmpty())4 else if(s.fortressDamage.isNotEmpty() || s.brokenPropulsion.isNotEmpty())3 else
+            val version=if((s.missions.values+s.proposals.values).any {it.defaultDefense})5 else if(s.groundTargets.isNotEmpty())4 else if(s.fortressDamage.isNotEmpty() || s.brokenPropulsion.isNotEmpty())3 else
                 if(s.aiSwitches.isEmpty() && s.creditedMerits.isEmpty() && s.aiNextAt.isEmpty() &&
                 (s.missions.values+s.proposals.values).none {it.grid!=null})1 else 2
             writeInt(version);writeInt(s.orders.size)
@@ -46,7 +48,7 @@ internal object TacticalCommandStateCodec {
             if(version>=2) {map(s.aiSwitches);writeInt(s.creditedMerits.size);s.creditedMerits.toSortedMap().forEach {(id,v)->writeInt(id);writeLong(v)}
                 writeInt(s.aiNextAt.size);s.aiNextAt.toSortedMap().forEach {(id,v)->writeInt(id);writeLong(v)}}
             if(version>=3) {map(s.fortressDamage);ints(s.brokenPropulsion.sorted())}
-            if(version==4)map(s.groundTargets)
+            if(version>=4)map(s.groundTargets)
         }}
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes.toByteArray())
     }
@@ -54,7 +56,7 @@ internal object TacticalCommandStateCodec {
         require(text.length in 1..2_000_000)
         val input=DataInputStream(ByteArrayInputStream(Base64.getUrlDecoder().decode(text)))
         return input.use {with(it) {
-            val version=readInt();require(version in 1..4)
+            val version=readInt();require(version in 1..5)
             val orders=List(count(1000)){TacticalQueuedCommand(readInt(),readInt(),readLong(),readLong(),command())}
             val morale=map();val authority=map();val formations=map()
             fun readMissions():Map<Int,TacticalMissionState> {
@@ -78,7 +80,7 @@ internal object TacticalCommandStateCodec {
             if(version>=2)repeat(count(1000)){require(aiNextAt.put(readInt(),readLong())==null)}
             val damage=if(version>=3)map() else emptyMap()
             val broken=if(version>=3)ints(350).also {require(it==it.distinct().sorted())}.toSet() else emptySet()
-            val targets=if(version==4)map() else emptyMap()
+            val targets=if(version>=4)map() else emptyMap()
             require(available()==0)
             TacticalCommandState(orders,morale,authority,formations,missions,proposals,air,fortresses,ranks,merits,emergency,leaders,ai,credits,aiNextAt,damage,broken,targets).also {require(encode(it)==text)}
         }}

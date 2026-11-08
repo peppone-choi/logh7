@@ -467,14 +467,28 @@ internal object TacticalCommandOperations {
         fun advanceMissions(defeated:Set<Int>) {
             val state=stocks.tacticalCommands;val missions=state.missions.toMutableMap();val merits=state.merits.toMutableMap()
             val finished=mutableMapOf<Int,Pair<Int,Long>>()
-            for((id,m) in state.missions) {
+            val forces by lazy {GridForces.collect(g,session.generation,players.values,stocks)}
+            for((account,p) in players) {
+                val id=p.characterId
+                val existing=missions[id]
+                if(existing!=null && !existing.completed && !existing.defaultDefense)continue
+                val base=if(id !in defeated && TacticalOfflineAi.eligible(session,account,p,stocks) &&
+                    TacticalContact.contested(forces[p.grid].orEmpty()))TacticalOfflineAi.defenseBase(p,stocks,g) else null
+                if(base!=null) {
+                    if(existing?.defaultDefense!=true || existing.completed || existing.target!=base.id || existing.grid!=p.grid)
+                        missions[id]=TacticalMissionState(id,1,0,base.id,now,grid=p.grid,defaultDefense=true)
+                } else if(existing?.defaultDefense==true) {
+                    missions.remove(id)
+                }
+            }
+            for((id,m) in missions.toMap()) {
                 if(m.completed || m.mission==0)continue
                 if(session.ended!=null) {missions[id]=m.copy(completed=true);continue}
                 val p=players.values.singleOrNull {it.characterId==id} ?: continue
                 val checks=TacticalMissionRules.completedCheckIntervals(m.checkedAt,now)
                 var reward=0L;var completed=false
                 if(m.mission!=5 && m.grid!=null && p.grid!=m.grid) {missions[id]=m.copy(completed=true);finished[id]=m.mission to 0L;continue}
-                val active=TacticalContact.contested(GridForces.collect(g,session.generation,players.values,stocks)[p.grid].orEmpty())
+                val active=TacticalContact.contested(forces[p.grid].orEmpty())
                 when(m.mission) {
                     1 -> if((m.grid==null || p.grid==m.grid) && stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true && active)reward=checks else completed=true
                     2 -> if(stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true){reward=10;completed=true}
