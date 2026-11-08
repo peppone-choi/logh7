@@ -182,7 +182,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val commands=mutableListOf<TacticalCommandResult>()
         val fortressSunk=mutableListOf<Navigator>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
-            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add,fortressSunk::add)
+            npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add,fortressSunk::add,
+            settleOfficeRecovery = { old, updated, players -> settleOfficeRecovery(session.gameMillis / 1000, old, updated, players) })
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         // Reconcile durable capital/session endings before observers can start a native
@@ -251,7 +252,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         throw failure
     }
     private val simulation = SessionSimulation(rules, generationStore.current())
-    private val navigation = galaxy?.let { Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed,initialWorld.second) }
+    private val navigation = galaxy?.let {
+        Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed, initialWorld.second,
+            recoveryPenalty = ::officeRecoveryPenalty)
+    }
     private var durableState = durability?.let { store ->
         try {
             var restored = store.load()
@@ -288,9 +292,57 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,
         durableState?.session?.generation ?: simulation.snapshot().generation,initialWorld.first,
-        {generation->navigation?.snapshot(generation)?.values})
+        {generation->navigation?.snapshot(generation)?.values}, ::commitProductionOfficeRecovery)
         .also {if(awaitIdentities)it.identities=null} }
     private val territory=galaxy?.let(::WorldTerritory)
+    private val officePolicy = galaxy?.let { OrganizationalOfficePolicy(it) }
+    private var countedOffices: PlanetStocks? = null
+    private var officeCounts = emptyMap<Pair<Int, CountryId>, Int>()
+
+    private fun officesIn(stocks: PlanetStocks): Map<Pair<Int, CountryId>, Int> {
+        if (countedOffices !== stocks) {
+            officeCounts = checkNotNull(officePolicy).all(stocks).groupingBy { it.character to it.country }.eachCount()
+            countedOffices = stocks
+        }
+        return officeCounts
+    }
+
+    private fun officeRecoveryPenalty(player: Navigator): Int {
+        val country = player.country ?: return 0
+        val stocks = production?.snapshot(player.generation) ?: return 0
+        return OfficeCpRecovery.penalty(officesIn(stocks)[player.characterId to country] ?: 0)
+    }
+
+    /** Settle whole intervals at the previous rate before publishing a new office count. */
+    private fun commitProductionOfficeRecovery(old: PlanetStocks, updated: PlanetStocks, now: Long): Boolean {
+        val committer = worldStateCommitter ?: return false
+        val movement = navigation ?: return false
+        val previous = movement.snapshot(old.generation)
+        val next = settleOfficeRecovery(now, old, updated, previous)
+        if (previous == next) return false
+        committer.saveWorld(next, updated)
+        movement.publishCommitted(previous, next, old.generation)
+        return true
+    }
+
+    private fun settleOfficeRecovery(now: Long, old: PlanetStocks, updated: PlanetStocks,
+        players: Map<String, Navigator>): Map<String, Navigator> {
+        if (old.strategic.offices == updated.strategic.offices && old.bases == updated.bases &&
+            old.outfits == updated.outfits && old.nationalOffices == updated.nationalOffices &&
+            old.logisticsOfficers == updated.logisticsOfficers && old.strategic.capitals == updated.strategic.capitals) return players
+        val before = officesIn(old)
+        val after = officesIn(updated)
+        val previousPlayers = navigation?.snapshot(old.generation).orEmpty()
+        val identities by lazy { production?.identities?.invoke().orEmpty().associateBy { it.id } }
+        return players.mapValues { (account, player) ->
+            val oldCountry = previousPlayers[account]?.country
+            val oldPenalty = OfficeCpRecovery.penalty(before[player.characterId to oldCountry] ?: 0)
+            if (oldPenalty == OfficeCpRecovery.penalty(after[player.characterId to player.country] ?: 0)) return@mapValues player
+            val abilities = old.strategic.people[player.characterId]?.abilities ?: profiles[account]?.abilities
+                ?: identities[player.characterId]?.abilities ?: return@mapValues player
+            checkNotNull(navigation).recoverCp(player, abilities[1], abilities[2], now, oldPenalty)
+        }
+    }
     private val published = AtomicReference(durableState?.snapshot(rules) ?: WorldSnapshot(0, 0, simulation.snapshot()))
     private val origin = monotonicMillis()
     private var elapsed = initialElapsed
@@ -584,7 +636,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             val previous=checkNotNull(navigation).snapshot(session.generation)
                             require(result.navigators.all {(account,player)->previous[account]?.let {
                                 it.generation==player.generation && it.characterId==player.characterId && it.country==player.country}==true})
-                            val next=previous+result.navigators+(request.account to after)
+                            val next=settleOfficeRecovery(session.gameMillis / 1000, inventory, prepared,
+                                previous+result.navigators+(request.account to after))
                             val membership=if(isFounding)SessionAction.Defect(request.account,checkNotNull(after.country)) else null
                             val transition=if(membership!=null && durability!=null)
                                 transitionSession(rules,checkNotNull(durableState),membership).also {
@@ -601,7 +654,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             }
                             navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
-                            result=result.copy(stocks=prepared)
+                            result=result.copy(player=next.getValue(request.account),stocks=prepared,
+                                navigators=result.navigators.mapValues { (account, _) -> next.getValue(account) })
                             if(isFounding)reconcileTerritory()
                         }
                     }
@@ -846,13 +900,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if (result.changed) {
                         if (worldStateCommitter == null) result = GarrisonAppointmentResult(recovered?.player, inventory, AppointmentRejection.STORAGE)
                         else {
-                            val before = checkNotNull(recovered?.player)
                             val after = checkNotNull(result.player)
                             val prepared = production.prepareReplacement(inventory, checkNotNull(result.stocks))
-                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation) + (request.account to after), prepared)
-                            navigation.publishCommitted(request.account, before, after)
+                            val previous = checkNotNull(navigation).snapshot(session.generation)
+                            val next = settleOfficeRecovery(session.gameMillis / 1000, inventory, prepared, previous + (request.account to after))
+                            worldStateCommitter.saveWorld(next, prepared)
+                            navigation.publishCommitted(previous, next, session.generation)
                             production.publishCommitted(inventory, prepared)
-                            result = result.copy(stocks = prepared)
+                            result = result.copy(player = next.getValue(request.account), stocks = prepared)
                         }
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
@@ -877,13 +932,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if (result.changed) {
                         if (worldStateCommitter == null) result = OfficeDismissalResult(recovered?.player, inventory, DismissalRejection.STORAGE)
                         else {
-                            val before = checkNotNull(recovered?.player)
                             val after = checkNotNull(result.player)
                             val prepared = production.prepareReplacement(inventory, checkNotNull(result.stocks))
-                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation) + (request.account to after), prepared)
-                            navigation.publishCommitted(request.account, before, after)
+                            val previous = checkNotNull(navigation).snapshot(session.generation)
+                            val next = settleOfficeRecovery(session.gameMillis / 1000, inventory, prepared, previous + (request.account to after))
+                            worldStateCommitter.saveWorld(next, prepared)
+                            navigation.publishCommitted(previous, next, session.generation)
                             production.publishCommitted(inventory, prepared)
-                            result = result.copy(stocks = prepared)
+                            result = result.copy(player = next.getValue(request.account), stocks = prepared)
                         }
                     }
                     state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(),
@@ -908,12 +964,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if(result.changed) {
                         if(worldStateCommitter==null) result=OfficeResignationResult(recovered?.player,inventory,ResignationRejection.STORAGE)
                         else {
-                            val before=checkNotNull(recovered?.player);val after=checkNotNull(result.player)
+                            val after=checkNotNull(result.player)
                             val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
-                            worldStateCommitter.saveWorld(checkNotNull(navigation).snapshot(session.generation)+(request.account to after),prepared)
-                            navigation.publishCommitted(request.account,before,after)
+                            val previous=checkNotNull(navigation).snapshot(session.generation)
+                            val next=settleOfficeRecovery(session.gameMillis / 1000,inventory,prepared,previous+(request.account to after))
+                            worldStateCommitter.saveWorld(next,prepared)
+                            navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
-                            result=result.copy(stocks=prepared)
+                            result=result.copy(player=next.getValue(request.account),stocks=prepared)
                         }
                     }
                     state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=production.snapshot(session.generation))
@@ -952,16 +1010,17 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if(result.changed) {
                         if(worldStateCommitter==null)result=SocialResult(recovered?.player,inventory,SocialRejection.STORAGE)
                         else {
-                            val after=checkNotNull(result.player);val before=checkNotNull(recovered?.player)
+                            val after=checkNotNull(result.player)
                             val prepared=production.prepareReplacement(inventory,checkNotNull(result.stocks))
                             val previous=checkNotNull(navigation).snapshot(session.generation)
                             require(result.navigators.all {(account,player)->account!=i.account && previous[account]?.let {
                                 it.generation==player.generation && it.characterId==player.characterId}==true})
-                            worldStateCommitter.saveWorld(previous+result.navigators+(i.account to after),prepared)
-                            if(result.navigators.isEmpty())navigation.publishCommitted(i.account,before,after)
-                            else navigation.publishCommitted(previous+(i.account to before),previous+result.navigators+(i.account to after),session.generation)
+                            val next=settleOfficeRecovery(session.gameMillis / 1000,inventory,prepared,previous+result.navigators+(i.account to after))
+                            worldStateCommitter.saveWorld(next,prepared)
+                            navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
-                            result=result.copy(stocks=prepared)
+                            result=result.copy(player=next.getValue(i.account),stocks=prepared,
+                                navigators=result.navigators.mapValues { (account, _) -> next.getValue(account) })
                             // U-25 defection: the session record follows the committed world (user decision 2026-11-01).
                             if(result.defected!=null) {
                                 val action=SessionAction.Defect(i.account,result.defected)

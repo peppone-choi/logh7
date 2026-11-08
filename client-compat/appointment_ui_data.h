@@ -36,4 +36,19 @@ inline unsigned appointmentInformationCard(unsigned mode, unsigned rowValue, uns
     unsigned card = mode == 12 ? rowValue : (mode == 13 || mode == 14 ? requestedCard : 0);
     return card > 0 && card <= 260 ? card : 0;
 }
+// Display preview of the server's concurrent-office rule: from four offices, 5% per office, capped at 20%.
+// It applies only to the political/operations effective values used for CP recovery. It does not
+// grant or remove authority, and the server remains the authority for the actual values.
+inline unsigned concurrentOfficePenaltyPercent(unsigned offices) {
+    if (offices < 4) return 0;
+    if (offices >= 7) return 20;
+    return (offices - 3) * 5;
+}
+// Expected-office marker 0x4c00|count at the person record's second u16 (+0x22, same carrier as
+// the rank at +0x20 in 0x57a1f0). Only 0x4c00..0x4c0f is accepted; anything else keeps the general rule.
+inline bool concurrentOfficeMarker(unsigned short value, unsigned& offices) {
+    if ((value & 0xff00) != 0x4c00 || (value & 0xff) > 15) return false;
+    offices = value & 0xff;
+    return true;
+}
 }

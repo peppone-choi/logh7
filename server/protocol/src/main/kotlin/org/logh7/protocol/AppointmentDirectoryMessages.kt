@@ -45,7 +45,7 @@ object AppointmentDirectoryMessages {
         }
         return transaction(query,0x120d,bytes.toByteArray())
     }
-    data class Person(val character:CharacterMessages.Generate,val cards:List<Int>)
+    data class Person(val character:CharacterMessages.Generate,val cards:List<Int>,val prospectiveOffices:Int?=null)
     data class Outfit(val id:Int,val number:Int,val kind:Int,val base:WorldMessages.Base)
     /** 00562890: byte count; availability flag, outfit identity, number/kind, optional base. */
     fun outfits(query:Query,values:List<Outfit>):List<ByteArray> {
@@ -66,7 +66,9 @@ object AppointmentDirectoryMessages {
         require(value.cards.size<=16 && value.cards.all { it in 0..260 })
         writeInt(person.id.toInt());name(person.surname)
         // 0055ba80 stores the first u16 at record+0x20; 0057a1f0 reads it as rank.
-        writeShort(person.rank);writeShort(0)
+        require(value.prospectiveOffices == null || value.prospectiveOffices in 1..15)
+        // 0055bbe8 reads the second u16 into the adjacent word. Only appointment candidates carry the extension.
+        writeShort(person.rank);writeShort(value.prospectiveOffices?.let {0x4c00 or it} ?: 0)
         writeByte(value.cards.size);value.cards.forEach(::writeShort)
         writeByte(0);writeByte(0) // Detailed unit/base locations are omitted from this personnel directory.
         val age=person.age.toLong()*CharacterMessages.AGE_SECONDS_PER_YEAR

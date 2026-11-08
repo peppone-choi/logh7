@@ -130,6 +130,21 @@ static std::wstring fuelConfirmationText(BYTE* command) {
     return text;
 }
 
+// Confirmation line for the appointment. When the person record's +0x22 u16 carries the expected-office
+// marker 0x4c00|count, the line shows that count and the preview penalty. Otherwise the general rule is kept.
+// Preview only: the server remains the authority for the actual effective values.
+static std::wstring concurrentOfficeRuleText(const BYTE* person) {
+    unsigned offices=0;
+    if (person && logh::concurrentOfficeMarker(static_cast<unsigned short>(logh::infoShort(person,0x22)),offices)) {
+        wchar_t text[120];
+        if (offices<4) swprintf_s(text,L"예상 겸직 %u개 · 4개부터 정치·운영 실효값 5%%씩 감소(최대 20%%), CP 회복에만 적용",offices);
+        else swprintf_s(text,L"예상 겸직 %u개 · 정치·운영 실효값 -%u%% (최대 20%%), CP 회복에만 적용",
+            offices,logh::concurrentOfficePenaltyPercent(offices));
+        return text;
+    }
+    return L"겸직 4개부터 정치·운영 실효값 5%씩 감소(최대 20%), CP 회복에만 적용";
+}
+
 static void __fastcall appointmentConfirmation(void* dialog, void*, const char* original) {
     reinterpret_cast<void(__thiscall*)(void*,const char*)>(0x5706e0)(dialog,original);
     AppointmentChoice choice;
@@ -197,7 +212,7 @@ static void __fastcall appointmentConfirmation(void* dialog, void*, const char* 
         }
         if (seat.empty()) return;
         // Preserve the original cost, wait, duration and confirmation question.
-        body=std::wstring(person)+L" → "+seat+L" · "+office+body.substr(newline);
+        body=std::wstring(person)+L" → "+seat+L" · "+office+L"\n"+concurrentOfficeRuleText(choice.person)+body.substr(newline);
         }
     }
     }
