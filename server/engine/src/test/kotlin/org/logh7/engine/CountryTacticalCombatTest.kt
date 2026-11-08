@@ -93,6 +93,26 @@ class CountryTacticalCombatTest {
         assertEquals(0,independent.baseId);assertEquals(pilot.grid,independent.grid)
     }
 
+    @Test fun defeatUsesTheStartingPlanetBeforeARelocatedCapitalAndClearsTheOldPosture() {
+        val country=CountryId(42)
+        val birth=galaxy.bases.single()
+        val capital=birth.copy(id=1001,grid=2489)
+        val field=Galaxy(galaxy.systems+GalaxySystem(4,2489,4,"New capital",2),
+            listOf(birth,capital),galaxy.starts,countryStarts=mapOf(country to birth.grid))
+        val before=stocks().copy(outfits=emptyMap(),warehouses=emptyMap())
+        val inventory=before.copy(bases=before.bases+(capital.id to before.bases.getValue(birth.id).copy(baseId=capital.id)),
+            strategic=before.strategic.copy(capitals=mapOf(country to capital.id)))
+        val pilot=players().getValue("pilot").copy(posture=TacticalPosture(birth.grid,TacticalShipMode.ANCHORED,birth.id))
+        val fallback=FlagshipRecovery.defeated(pilot,now,field,inventory)
+        assertEquals(birth.id,fallback.baseId)
+        assertNull(fallback.posture)
+        assertEquals(capital.id,FlagshipRecovery.defeated(pilot.copy(returnBase=capital.id),now,field,inventory).baseId)
+        val independent=pilot.copy(country=null,returnBase=capital.id)
+        val claimed=inventory.copy(bases=inventory.bases+(capital.id to inventory.bases.getValue(capital.id)
+            .copy(owner=Allegiance.Independent(pilot.characterId))))
+        assertEquals(capital.id,FlagshipRecovery.defeated(independent,now,field,claimed).baseId)
+    }
+
     @Test fun breachedFortressSinksOnlyItsActualHoldersStationedUnits() {
         val fortress=galaxy.bases.single().copy(kind=1)
         val field=Galaxy(galaxy.systems,listOf(fortress),galaxy.starts)
