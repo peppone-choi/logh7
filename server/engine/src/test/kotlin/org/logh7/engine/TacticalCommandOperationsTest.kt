@@ -349,6 +349,23 @@ class TacticalCommandOperationsTest {
         assertEquals(1L,relieved.strategic.people.getValue(10000).merit)
     }
 
+    @Test fun sameGridDefeatEndsDefenseWithoutCreditAtTheCheckBoundary() {
+        val s=state()
+        val mission=TacticalMissionState(10000,1,0,1000,now,grid=2488)
+        val stock=s.stocks.copy(tacticalCommands=TacticalCommandState(missions=mapOf(10000 to mission)))
+        val boundary=session.copy(gameMillis=(now+TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS)*1000)
+        val pilot=s.players.getValue("pilot")
+        val returned=pilot.copy(baseId=1000,mode=4,cpPaused=false,motion=null,commandRange=null)
+        val players=(s.players+("pilot" to returned)).toMutableMap()
+        val events=mutableListOf<TacticalCommandResult>()
+        val defending=TacticalCommandOperations.finishMissions(boundary,galaxy,players,stock,1,mutableListOf(),mutableListOf(),emptySet())
+        assertEquals(1L,defending.tacticalCommands.merits[10000])
+        val defeated=TacticalCommandOperations.finishMissions(boundary,galaxy,players,stock,1,events,mutableListOf(),setOf(10000))
+        assertTrue(defeated.tacticalCommands.missions.getValue(10000).completed)
+        assertTrue(defeated.tacticalCommands.merits.isEmpty())
+        assertEquals(mapOf(10000 to (1 to 0L)),events.single().finishedMissions)
+    }
+
     @Test fun withdrawalRewardsAnExitButNotDefeatAndReturn() {
         val s=state()
         val mission=TacticalMissionState(10000,5,0,0,now,grid=2488)
