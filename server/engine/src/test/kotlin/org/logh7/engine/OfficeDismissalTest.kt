@@ -12,6 +12,22 @@ class OfficeDismissalTest {
     private fun session(power:Power)=SessionSimulation(SessionRules.load()).also {it.join("actor",power,false,"c")}.exportState()
     private fun stock()=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1177)3 else 2,0,100,200,300)})
     private fun player(power:Power)=Navigator(1,10000,power,if(power==Power.EMPIRE)2487 else 2015,1000,1000,1000)
+    @Test fun deceasedPeopleWithStaleOfficesCannotAuthorizeOrBeSelectedForDismissal() {
+        val base=stock()
+        val assigned=base.copy(bases=base.bases+(1048 to base.bases.getValue(1048).copy(governorId=10000,garrisonCommanderId=10001)))
+        val request=OfficeDismissalRequest("actor","c",10000,Power.EMPIRE,1,10001,55,1,2)
+        val pilot=player(Power.EMPIRE)
+        val policy=OfficeDismissalPolicy(galaxy)
+        assertEquals(listOf(10001),policy.available(assigned,10000,2,1).map {it.target})
+        for ((id,rejection) in listOf(10000 to DismissalRejection.IDENTITY,10001 to DismissalRejection.TARGET)) {
+            val saved=assigned.copy(strategic=assigned.strategic.copy(people=mapOf(id to StrategicPerson(deceasedAt=1))))
+            assertTrue(policy.available(saved,10000,2,1).isEmpty())
+            val result=OfficeDismissal.evaluate(galaxy,request,session(Power.EMPIRE),pilot,saved)
+            assertEquals(rejection,result.rejection)
+            assertEquals(pilot,result.player)
+            assertEquals(saved,result.stocks)
+        }
+    }
     @Test fun foreignAndUnattachedTargetsCannotLoseTheirOfficesThroughADomesticCard() {
         val s=stock();val p=player(Power.EMPIRE)
         val q=OfficeDismissalRequest("actor","c",10000,Power.EMPIRE,1,10001,55,1,2)
