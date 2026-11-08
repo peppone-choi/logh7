@@ -148,6 +148,17 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
 
 /** Same provisional formation for initialization and a first authoritative move origin. */
 object TacticalDeployment {
+    internal fun departure(base: GalaxyBase, now: Long, stocks: PlanetStocks?, slot: Int): TacticalMotion {
+        val centre = TacticalBasePosition.at(base, now, stocks)
+        val direction = (slot % 32 * (2.0 * Math.PI / 32)).toFloat()
+        // Keep the group clear of the planet's native movement exclusion radius.
+        val radius = maxOf(6f, base.diameter + 1f) + slot / 32 * 1.5f
+        val point = TacticalPoint(centre.x + kotlin.math.sin(direction) * radius,
+            centre.y + kotlin.math.cos(direction) * radius)
+        val acceptedAt = minOf(now, 0xffffffffL - TacticalMotion.WAIT_SECONDS)
+        return TacticalMotion(base.grid, acceptedAt, TacticalPose(point, direction), 0f, direction, listOf(point))
+    }
+
     /** Native radar uses a radius of 250; keep every initial unit inside it. */
     /** A side's rebel camp (U-10) deploys facing its regular camp from the other edge, like an enemy. */
     fun formation(index: Int, power: Power, insurgent: Boolean = false): TacticalPose {

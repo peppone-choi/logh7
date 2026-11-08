@@ -61,6 +61,39 @@ class FleetNavigationTest {
         assertEquals(0L,forces.getValue(2487).single().units)
         assertEquals(player,apply(state,request).single().player)
     }
+
+    @Test fun directDepartureIntoBattleKeepsFlagshipAndFleetNearTheSameBerth() {
+        for (command in listOf(PlaceMove.SwitchMode(5), PlaceMove.Dock(0,5))) {
+            val state = state()
+            if (command is PlaceMove.Dock) state.players = state.players.mapValues { (_, player) -> player.copy(spotId = 0) }
+            addAide(state)
+            val fleet = state.stocks.outfits.getValue(1)
+            state.stocks = ActiveShips.initialize(state.stocks.copy(
+                outfits = state.stocks.outfits + (2 to OutfitStock(2,2,OutfitKind.PATROL,1001,20,
+                    units = UnitInventory(mapOf(UnitStack(3) to 1)), position = OutfitPosition(home.grid))),
+                warehouses = state.stocks.warehouses + (20 to OutfitWarehouse(20,2,OutfitKind.PATROL,1001))))
+            val now = session.gameMillis / 1000
+            val anchored = state.stocks.outfits.getValue(fleet.id).activeShips!!.values.first().let { unit ->
+                unit.copy(posture = TacticalPosture(home.grid,TacticalShipMode.ANCHORED,home.id))
+            }
+            val initialized = state.stocks.outfits.getValue(fleet.id)
+            state.stocks = state.stocks.copy(outfits = state.stocks.outfits + (fleet.id to initialized.copy(
+                activeShips = ActiveShipUnits(listOf(anchored) + initialized.activeShips!!.values.drop(1)))))
+            val departure = apply(state, request.copy(place = command)).single()
+            val captain = assertNotNull(departure.player, departure.rejection?.name)
+            val aide = state.players.getValue("aide")
+            assertTrue(captain.cpPaused)
+            assertEquals(OutfitPosition(home.grid), state.stocks.outfits.getValue(fleet.id).position)
+            val ships = state.stocks.outfits.getValue(fleet.id).activeShips!!.values
+            assertEquals(anchored, ships.first())
+            val points = (listOf(captain.motion, aide.motion) + ships.drop(1).map { it.tactical?.motion })
+                .map { assertNotNull(it).pose(now).position }
+            val centre = TacticalBasePosition.at(home, now, state.stocks)
+            assertEquals(points.size, points.toSet().size)
+            assertTrue(points.all { kotlin.math.hypot(it.x - centre.x, it.y - centre.y) in 5.5f..7f })
+            assertEquals(captain.motion, apply(state, request).single().player?.motion)
+        }
+    }
     @Test fun wholeFleetCapacityIsCheckedBeforeAnyCostOrPositionChange() {
         val state=state()
         apply(state,request.copy(place=PlaceMove.SwitchMode(5)))

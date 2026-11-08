@@ -446,7 +446,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (request.place != null) {
             if (destination != null) return reject(NavigationRejection.BASE)
             val moved = movePlace(request, before, now, stocks,countries)
-            val result = moved.copy(player=moved.player?.let(::contact))
+            val player = moved.player?.let(::contact)
+            val result = if (player?.cpPaused == true && player.baseId == 0 && before.baseId != 0) {
+                val base = galaxy.bases.single { it.id == before.baseId }
+                moved.copy(player = player.copy(motion = TacticalDeployment.departure(base, now, stocks, slot = 0)))
+            } else moved.copy(player = player)
             if (persist) result.player?.let { commit(request.account, it, session.generation) }
             return result.copy(completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
         }
