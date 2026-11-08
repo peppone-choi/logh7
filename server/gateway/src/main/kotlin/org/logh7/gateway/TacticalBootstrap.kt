@@ -113,11 +113,17 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     }}
     private fun rotations():List<ByteArray> {
         data class Entry(val id:Int,val character:Int,val motion:TacticalMotion)
-        val entries=people.mapNotNull {p->p.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(p.unitId,p.characterId,it)}} +
-            snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
-                o.activeShips?.values.orEmpty().filter {it.boats>0 && it.motionCommander==TacticalAuthority.commander(o,it,snapshot.planetStocks!!)}.mapNotNull {u->
-                    u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(u.id,u.motionCommander,it)}
-                }}
+        val stocks=checkNotNull(snapshot.planetStocks)
+        val entries=people.filterNot {BattleDeath.deceased(stocks,it.characterId)}.mapNotNull {p->
+            p.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(p.unitId,p.characterId,it)}
+        } + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
+            o.activeShips?.values.orEmpty().filter {u->
+                u.boats>0 && u.motionCommander==TacticalAuthority.commander(o,u,stocks) &&
+                    !BattleDeath.deceased(stocks,u.motionCommander)
+            }.mapNotNull {u->
+                u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(u.id,u.motionCommander,it)}
+            }
+        }
         return entries.groupBy {Triple(it.character,it.motion.acceptedAt,it.motion.rotation)}.values.flatMap {group ->
             TacticalMotionMessages.formation(group.associate {it.id to it.motion},snapshot.session?.gameSeconds ?: 0,group.first().character)
         }

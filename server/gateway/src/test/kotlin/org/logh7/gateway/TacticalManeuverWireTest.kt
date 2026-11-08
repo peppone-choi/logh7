@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import kotlinx.coroutines.*
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.junit.jupiter.api.io.TempDir
@@ -13,6 +14,35 @@ import kotlin.test.*
 
 class TacticalManeuverWireTest {
     @TempDir lateinit var directory:Path
+    @Test
+    fun reconnectOmitsDeadCommandersRotationAndRestoresTheLivingGroup() {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
+            listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        fun motion(id:Int,selection:List<Int>):TacticalMotion {
+            val point=TacticalPoint(id.toFloat()%10,0f)
+            return TacticalMotion(2487,100,TacticalPose(point,0f),0f,1f,listOf(point),
+                rotation=TacticalRotation(TacticalManeuver.TURN,selection.first(),120,selection))
+        }
+        val living=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,900,cpPaused=true,
+            motion=motion(1010000,listOf(1010000)))
+        val dead=living.copy(characterId=10001,motion=motion(1010001,listOf(1,1010001)))
+        val ship=ActiveShipUnit(1,UnitStack(32),motionCommander=dead.characterId,
+            tactical=NpcTacticalState(motion(1,listOf(1,1010001)),100,100))
+        val ships=ActiveShipUnits(listOf(ship))
+        val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,dead.characterId,UnitInventory(ships.quantities()),
+            activeShips=ships,position=OutfitPosition(2487))
+        val stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,0,0,0)),
+            outfits=mapOf(1 to outfit),warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),
+            strategic=StrategicState(people=mapOf(dead.characterId to StrategicPerson(deceasedAt=105))),nextShipId=2)
+        val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,110,0,0,emptyMap(),1,1,null),
+            navigators=mapOf("living" to living,"dead" to dead),planetStocks=stocks)
+        val turns=TacticalBootstrap(snapshot,galaxy,living){null}.resume()
+            .filter {ByteBuffer.wrap(it).getShort(4).toInt()==0x0401}
+        val turn=turns.single()
+        assertEquals(110,ByteBuffer.wrap(turn).getInt(10))
+        assertEquals(listOf(1010000),TacticalTurnMessages.command(turn.copyOfRange(4,turn.size)).units.map {it.id})
+    }
+
     @ParameterizedTest @ValueSource(booleans=[false,true])
     fun formationCommandUsesServerHeadingsResumesAsOneGroupAndCompletesForBothPeers(reverse:Boolean)=runBlocking {
         val opcode=if(reverse)0x0403 else 0x0401
