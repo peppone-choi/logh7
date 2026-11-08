@@ -30,7 +30,8 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         val id=call.request.queryParameters["candidate"]?.toLongOrNull()
         val newCountry=call.request.queryParameters["new"]?.toIntOrNull()
         call.response.headers.append(HttpHeaders.CacheControl,"no-store")
-        call.respondText(candidatePage(published,id,newCountry,loaded && audit!=null && store?.supportsEditing==true),ContentType.Text.Html)
+        call.respondText(candidatePage(published,id,newCountry,loaded && audit!=null && store?.supportsEditing==true,
+            store?.supportsFemaleFaces==true),ContentType.Text.Html)
     }
     post("/admin/original-candidates") {
         if(!authenticated) {
@@ -65,7 +66,8 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
             if(creating) {
                 if(revision!=0L || id in published.defaults || country==null)return@audited OpsOutcome.INVALID
             } else if(id !in published.defaults && id !in published.current())return@audited OpsOutcome.INVALID
-            if(store?.supportsEditing!=true)return@audited OpsOutcome.UNAVAILABLE
+            if(store?.supportsEditing!=true || (profile.gender==1 && !store.supportsFemaleFaces))
+                return@audited OpsOutcome.UNAVAILABLE
             withContext(Dispatchers.IO) {
                 val saved=store.save(id,revision,profile,country) ?: return@withContext OpsOutcome.CONFLICT
                 published.publish(listOf(saved))
@@ -75,7 +77,7 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
     }
 }
 
-private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCountry:Int?,editable:Boolean)=buildString {
+private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCountry:Int?,editable:Boolean,femaleFaces:Boolean)=buildString {
     fun escape(text:String)=text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;")
     fun number(name:String,value:Int,min:Int,max:Int)=
         "<input type=\"number\" name=\"$name\" value=\"$value\" min=\"$min\" max=\"$max\" required>"
@@ -125,8 +127,17 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
     append("<label>운영자 <input name=\"operator\" maxlength=\"64\"></label>")
     append("<label>성 <input name=\"surname\" maxlength=\"12\" value=\"${if(creating)"" else escape(profile.surname)}\" required></label>")
     append("<label>이름 <input name=\"given\" maxlength=\"12\" value=\"${if(creating)"" else escape(profile.givenName)}\" required></label>")
-    val faces=if(empire)1..158 else 100001..100108
-    append("<label>원본 얼굴 번호 ${number("face",profile.face,faces.first,faces.last)} (${faces.first}–${faces.last})</label>")
+    append("<label>원본 얼굴 번호 <select name=\"face\" required>")
+    for(gender in 0..1) {
+        if(gender==1 && !femaleFaces && profile.gender!=1)continue
+        val label=if(gender==0)"남성" else "여성"
+        append("<optgroup label=\"$label\">")
+        for(face in OriginalCandidateProfile.faceNumbers(profile.creationPower,gender))
+            append("<option value=\"$face\"${if(face==profile.face)" selected" else ""}>$label $face</option>")
+        append("</optgroup>")
+    }
+    append("</select></label>")
+    if(!femaleFaces)append("<p>여성 초상을 선택하려면 정의 DB V14를 적용하세요.</p>")
     append("<label>시작 계급 <select name=\"rank\">")
     for((index,rank) in militaryRanks.withIndex()) {
         val code=index+2

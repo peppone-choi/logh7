@@ -104,7 +104,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         fun OriginalCharacterMessages.Candidate.edited(id:Long=character.id):OriginalCharacterMessages.Candidate {
             val edit=edits[id]?.profile ?: return this
             return copy(character=character.copy(id=id,surname=edit.surname,givenName=edit.givenName,
-                face=edit.face,rank=edit.rank,abilities=edit.abilities,title=edit.peerage?.let {it.ordinal+1} ?: 0,
+                face=edit.face,gender=edit.gender,rank=edit.rank,abilities=edit.abilities,title=edit.peerage?.let {it.ordinal+1} ?: 0,
                 shipName=if(id==character.id)character.shipName else "Local $id"))
         }
         val added=edits.values.filter {it.id !in originalIds}.sortedBy {it.id}.map {row->
