@@ -6,7 +6,7 @@ package org.logh7.engine
  * sends this request over the 0x7f00 strategy channel. Every rule below is evidence:guess:
  * a character in tactics, not wounded, whose flagship is within [RANGE] of an enemy planet's surface in the same grid,
  * spends [SUPPLIES] of its flagship's supplies; each defending ground unit there loses [DAMAGE] strength (removed at 0)
- * and the planet's public order falls by [PEACE]. Each living ship unit the character commands within [RANGE] of the same
+ * and the planet's public order falls by [PEACE]. Each operational ship unit the character commands within [RANGE] of the same
  * planet joins the attack and adds another [DAMAGE] (at most [MAX_ATTACKERS] attackers in all).
  * A planet with a running ground battle refuses the attack (user decision 2026-11-02, COOLDOWN).
  * A garrison saved only as quantities gets per-unit identities first (GroundUnits.reorganize).
@@ -46,7 +46,7 @@ object OrbitalStrikeActions {
         val centre=TacticalBasePosition.at(base,now,s)
         fun inRange(x:Float,y:Float)=kotlin.math.hypot((centre.x-x).toDouble(),(centre.y-y).toDouble())-base.diameter<=RANGE
         val escorts=s.outfits.values.filter {TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) && it.positionIn(g)==OutfitPosition(p.grid)}.sumOf {o->
-            o.activeShips?.values.orEmpty().count {u->u.boats>0 && TacticalAuthority.commander(o,u,s)==p.characterId &&
+            o.activeShips?.values.orEmpty().count {u->u.boats>u.damaged && !s.tacticalCommands.confused(u.id) && TacticalAuthority.commander(o,u,s)==p.characterId &&
                 (u.tactical?.motion?.pose(now,u.posture,g,s)?.position ?: TacticalDeployment.initial(u.id,p.grid,players,s,g).position)
                     .let {inRange(it.x,it.y)}}}
         val attackers=minOf(MAX_ATTACKERS,1+escorts)
