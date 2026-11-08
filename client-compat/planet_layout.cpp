@@ -406,6 +406,29 @@ static void drawHudStrips() {
         static_cast<float>(width - 743 - (centre + 339)));
 }
 
+// 004d5ff5 draws the strategy HUD cruise fill through 0x4cb2b0. Its y varies with resolution,
+// so the guard matches only the fixed x236 / h10 / w>=1 call shape. The fill moves to x-100, y+16
+// (y is applied at every resolution) and widens with 1 + (w-1)*3 (76 at half, 151 at full).
+// 004d5f01 (MCP) keeps its original call.
+static int __fastcall drawCruiseGauge(void* manager, void*, const float* scale, float x, float y, float width,
+    float height, void* sprite, int mode, unsigned color, int first, int second) {
+    if (x == 236.0f && height == 10.0f && width >= 1.0f) {
+        x -= 100.0f;
+        y += 16.0f;
+        width = 1.0f + (width - 1.0f) * 3.0f;
+    }
+    return reinterpret_cast<int(__thiscall*)(void*, const float*, float, float, float, float, void*, int, unsigned, int, int)>(0x4cb2b0)
+        (manager, scale, x, y, width, height, sprite, mode, color, first, second);
+}
+static bool installCruiseGaugeRect() {
+    auto call = reinterpret_cast<BYTE*>(0x4d5ff5);
+    // Original x86 call to 0x4cb2b0 (rel32 0xffff52b6).
+    const BYTE expected[5] = {0xe8,0xb6,0x52,0xff,0xff};
+    BYTE replacement[5] = {0xe8};
+    *reinterpret_cast<LONG*>(replacement + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&drawCruiseGauge) - call - 5);
+    return patchBytes(call, expected, replacement, sizeof(replacement));
+}
+
 static void __fastcall drawHud(void* map, void*) {
     reinterpret_cast<void(__thiscall*)(void*)>(0x4d5610)(map);
     drawHudStrips();
@@ -749,6 +772,15 @@ static void install() {
     for (unsigned address : hudGroups) patchBytes(reinterpret_cast<void*>(address), &oldGroup, &newGroup, 1);
     // Both HUD paths pass cruising as a double, but the CD format consumes an int.
     patchBytes(reinterpret_cast<void*>(0x78d574), "%-4d\n", "%-4.f", 6);
+    // Strategy HUD cruise bar: 004d5f0d multiplies [+54] by an absolute 1/20000 float.
+    // Redirect only that FMUL operand to a fixed 1/1000 (maximum cruise 1000); the
+    // shared constant at 0x66e654 and the numeric HUD path are left unchanged.
+    static const float cruiseGaugeScale = 1.0f / 1000.0f;
+    const BYTE expectedCruiseGauge[6] = {0xd8,0x0d,0x54,0xe6,0x66,0};
+    BYTE cruiseGauge[6] = {0xd8,0x0d,0,0,0,0};
+    *reinterpret_cast<DWORD*>(cruiseGauge + 2) = static_cast<DWORD>(reinterpret_cast<uintptr_t>(&cruiseGaugeScale));
+    if (!patchBytes(reinterpret_cast<void*>(0x4d5f0d), expectedCruiseGauge, cruiseGauge, sizeof(cruiseGauge))) { status = -3; return; }
+    if (!installCruiseGaugeRect()) { status = -3; return; }
     // Optional HD texture pack (hd\ next to data\); a failure keeps the original textures.
     installHdTextures();
     status = 2;
