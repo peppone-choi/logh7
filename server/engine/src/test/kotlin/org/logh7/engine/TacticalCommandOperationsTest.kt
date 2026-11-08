@@ -563,6 +563,28 @@ class TacticalCommandOperationsTest {
         assertNotNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.retreat)
     }
 
+    @Test fun admittedFleetRetreatCannotWarpAfterTheOutfitDocksOrChangesGrid() {
+        for (position in listOf(OutfitPosition(2488,1000),OutfitPosition(2487))) {
+            val s=state()
+            val fleet=s.stocks.outfits.getValue(1)
+            val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=true)
+            val ships=ActiveShipUnits(fleet.activeShips!!.values.map {
+                it.copy(motionCommander=10000,
+                    tactical=NpcTacticalState(motion(260f,it.id*.4f),now,now,retreat=retreat))
+            })
+            val moved=fleet.copy(position=position,activeShips=ships)
+            val before=s.stocks.copy(outfits=s.stocks.outfits+(1 to moved))
+            val events=mutableListOf<TacticalMovement>()
+            val due=session.copy(gameMillis=(now+155)*1000)
+            val after=TacticalFleetRetreat.advance(due,galaxy,s.players.toMutableMap(),before,events)
+            val result=after.outfits.getValue(1)
+            assertEquals(position,result.position)
+            assertEquals(listOf(1,2),result.activeShips!!.values.map {it.id})
+            assertTrue(result.activeShips.values.all {it.tactical?.retreat==null})
+            assertTrue(events.isEmpty())
+        }
+    }
+
     @Test fun regularRetreatMovesOnlySelectedStableIdsAndLeavesLandedTroopsBehind() {
         val s=state();s.players=s.players.mapValues {(account,p)->if(account=="pilot")p.copy(motion=motion(260f)) else p}
         val o=s.stocks.outfits.getValue(1)
