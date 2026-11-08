@@ -25,9 +25,7 @@ static struct PlanetInformation {
     logh::PlanetDirectory directory;
     logh::PlanetPlaces places;
     bool placesReady;
-    logh::PlanetOfficeHolder governor,garrison;
-    unsigned governorCard,garrisonCard;
-    bool governorSent,governorReady,garrisonSent,garrisonReady;
+    logh::PlanetOfficeLookup governor,garrison;
     bool directoryVisible, directoryLocal, tactical;
     unsigned directoryRows[350], directoryCount, directoryPage;
     ULONGLONG directorySentAt;
@@ -35,6 +33,8 @@ static struct PlanetInformation {
     ULONGLONG requestedAt, acceptAfter;
     BYTE condition[0x180], warehouse[0x300];
 } planetInformation = {};
+// Outlives planetInformation: a reply can arrive after the window closed or reopened.
+static logh::PlanetOfficeWire planetOfficeWire;
 
 #include "planet_window.h"
 
@@ -84,6 +84,7 @@ static void closePlanetInformation() {
         reinterpret_cast<void(__thiscall*)(void*, int)>(0x502ea0)(planetInformation.popup, 0);
     planetInformation.popup = nullptr;
     planetInformation.world = nullptr;
+    planetOfficeWire.abandon();
 }
 
 static void requestPlanetInformation() {
@@ -92,8 +93,8 @@ static void requestPlanetInformation() {
     auto& info = planetInformation;
     info.conditionsReady = info.warehouseReady = info.placesReady = info.displayed = false;
     info.places = {};
-    info.governor={};info.garrison={};info.governorCard=info.garrisonCard=0;
-    info.governorSent=info.governorReady=info.garrisonSent=info.garrisonReady=false;
+    info.governor={};info.garrison={};
+    planetOfficeWire.abandon();
     info.timeoutShown = false;
     info.page = 0;
     info.requestedAt = GetTickCount64();
@@ -135,14 +136,14 @@ static void __cdecl receivedPlanetPlaces(void* world) {
     }
 }
 static void __cdecl receivedPlanetGovernor(void* world) {
+    auto response=static_cast<const BYTE*>(world)+0x3d4994;
+    // Before any window check: a hidden or closed window must still release the slot.
+    if (!planetOfficeWire.settle(logh::infoShort(response,0))) return;
     auto& info=planetInformation;
-    if (!info.popup || info.world!=world || info.directoryVisible || !info.count || !info.governorSent) return;
-    if (info.governorSent && info.governor.accept(static_cast<const BYTE*>(world)+0x3d4994,info.governorCard,info.ids[info.index])) {
-        info.governorReady=true;info.displayed=false;
-    }
-    if (info.garrisonSent && info.garrison.accept(static_cast<const BYTE*>(world)+0x3d4994,info.garrisonCard,info.ids[info.index])) {
-        info.garrisonReady=true;info.displayed=false;
-    }
+    if (!info.popup || info.world!=world || info.directoryVisible || !info.count) return;
+    auto& office=info.governor.state==logh::PlanetOfficeLookup::waiting ? info.governor : info.garrison;
+    office.receive(response,info.ids[info.index]);
+    if (office.state!=logh::PlanetOfficeLookup::sending) info.displayed=false;
 }
 static unsigned placesResume=0x4bdd33;
 static void __declspec(naked) planetGovernorCopied() {
@@ -204,21 +205,28 @@ static unsigned planetCountrySeen=0;
 static void updatePlanetGovernor() {
     auto& info=planetInformation;
     if (!info.conditionsReady) return;
-    auto base=planetBase(info.ids[info.index]);
-    auto offices=logh::planetOfficeKinds(base,info.condition[4],info.condition[5]);
-    auto send=reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0);
-    if (!info.governorSent) {
-        info.governorCard=offices.first;info.governorSent=true;
-        if (offices.first) { unsigned query=offices.first;send(info.world,0,0x16,&query);return; }
-        info.governorReady=true;
+    using Lookup=logh::PlanetOfficeLookup;
+    const auto now=GetTickCount64();
+    if (planetOfficeWire.overdue(now)) {
+        auto& late=info.governor.state==Lookup::waiting ? info.governor : info.garrison;
+        late.state=Lookup::unconfirmed;info.displayed=false;
     }
-    if (!info.governorReady && GetTickCount64()-info.requestedAt<5000) return;
-    if (!info.garrisonSent) {
-        info.garrisonCard=offices.second;
-        info.garrisonSent=true;
-        if (offices.second) { unsigned query=offices.second;send(info.world,0,0x16,&query); }
-        else info.garrisonReady=true;
+    if (info.governor.state==Lookup::unstarted || info.garrison.state==Lookup::unstarted) {
+        auto offices=logh::planetOfficeKinds(planetBase(info.ids[info.index]),info.condition[4],info.condition[5]);
+        if (info.governor.state==Lookup::unstarted) info.governor.start(offices.first);
+        if (info.garrison.state==Lookup::unstarted && info.governor.state>=Lookup::ready) info.garrison.start(offices.second);
     }
+    auto& office=info.governor.state==Lookup::sending ? info.governor : info.garrison;
+    if (office.state!=Lookup::sending) return;
+    if (!planetOfficeWire.available(now)) {
+        // Held by an abandoned query. A reply here could belong to it, so do not guess.
+        if (now-info.requestedAt>=planetOfficeWire.replyLimit) {office.state=Lookup::unconfirmed;info.displayed=false;}
+        return;
+    }
+    unsigned query=logh::planetOfficeQuery(office.card,office.page);
+    office.state=Lookup::waiting;
+    planetOfficeWire.sent(office.card,now);
+    reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(info.world,0,0x16,&query);
 }
 static void updatePlanetDirectory() {
     auto& info=planetInformation;
@@ -404,7 +412,7 @@ static int __cdecl planetInfoMenu(void* gui) {
                 }
                 break;
             }
-            if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady || !info.placesReady || (info.governorSent && !info.governorReady) || (info.garrisonSent && !info.garrisonReady)) &&
+            if (info.popup && (!info.displayed || (!info.timeoutShown && (!info.conditionsReady || !info.warehouseReady || !info.placesReady) &&
                 GetTickCount64() - info.requestedAt >= 5000))) showPlanetInformation();
             return -1;
         }

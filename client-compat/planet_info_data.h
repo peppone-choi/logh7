@@ -134,6 +134,59 @@ struct PlanetOfficeHolder {
         return true;
     }
 };
+// Compatibility 034e: the native u16 card field also carries a zero-based page.
+inline unsigned planetOfficeQuery(unsigned card,unsigned page) {
+    return 0x8000u|(page<<8)|card;
+}
+// One office across 034f pages. Only a holder or a short page is an answer; a
+// rejected reply or an exhausted page field stays unconfirmed, never unappointed.
+struct PlanetOfficeLookup {
+    static constexpr unsigned pageSize=64,lastPage=127;
+    enum State : unsigned char {unstarted,sending,waiting,ready,unconfirmed};
+    PlanetOfficeHolder holder;
+    unsigned card=0,page=0;
+    State state=unstarted;
+    void start(unsigned kind) {
+        holder={};card=kind;page=0;state=kind ? sending : ready;
+    }
+    void receive(const unsigned char* response,unsigned base) {
+        if (state!=waiting) return;
+        if (!holder.accept(response,card,base)) state=unconfirmed;
+        else if (holder.id || response[2]<pageSize) state=ready;
+        else if (page==lastPage) state=unconfirmed;
+        else {++page;state=sending;}
+    }
+};
+// 034f echoes the card but not the page, so a late page cannot be told apart
+// from the page just requested. Allow one query on the wire across retargeting
+// and reopening; a reply to an abandoned query only releases the slot.
+struct PlanetOfficeWire {
+    static constexpr uint64_t replyLimit=5000,forgetLimit=30000;
+    bool busy=false,abandoned=false;
+    unsigned card=0;
+    uint64_t sentAt=0;
+    void sent(unsigned kind,uint64_t now) {
+        busy=true;abandoned=false;card=kind;sentAt=now;
+    }
+    void abandon() {abandoned=busy;}
+    // True when the reply answers the current lookup. Another card is not ours.
+    bool settle(unsigned kind) {
+        if (!busy || kind!=card) return false;
+        busy=false;
+        return !abandoned;
+    }
+    // Reports the current lookup's timeout once. The slot stays held for its late reply.
+    bool overdue(uint64_t now) {
+        if (!busy || abandoned || now-sentAt<replyLimit) return false;
+        abandoned=true;
+        return true;
+    }
+    // A failed server query sends no reply and ends the session, so stop waiting eventually.
+    bool available(uint64_t now) {
+        if (busy && now-sentAt>=forgetLimit) busy=false;
+        return !busy;
+    }
+};
 // A row keeps its server ID independently of the native catalogue slot and
 // display/filter order. At most one four-base condition request is outstanding.
 struct PlanetDirectory {
