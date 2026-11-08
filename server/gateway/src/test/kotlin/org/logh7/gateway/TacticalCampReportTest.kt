@@ -55,6 +55,31 @@ class TacticalCampReportTest {
         assertEquals(TacticalCampMessages.Side(3,0,false),TacticalCampReport.side(Camp.FEZZAN))
     }
 
+    @Test fun nativeStateReportsStarCoverPerObserverAndUsesActualCombatCamp() {
+        val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
+        fun position(p:Navigator,y:Float):Navigator {
+            val point=TacticalPoint(0f,y)
+            return p.copy(motion=TacticalMotion(10,250,TacticalPose(point,0f),0f,0f,listOf(point)))
+        }
+        val outside=position(viewer,21f)
+        val enemy=position(navigators.getValue("other"),19f)
+        val ally=position(pilot(10002,42),19f)
+        val sample=snapshot().copy(navigators=mapOf("viewer" to outside,"other" to enemy,"ally" to ally))
+        val boot=TacticalBootstrap(sample,world,outside,catalog,::person)
+        val units=boot.units
+        assertTrue(units.single {it.id==ally.unitId}.detected)
+        assertFalse(units.single {it.id==enemy.unitId}.detected)
+        val packet=TacticsMessages.states(units)
+        assertEquals(0,packet[8+47*units.indexOfFirst {it.id==enemy.unitId}+46].toInt())
+        val inside=position(viewer,18f)
+        val changed=sample.copy(navigators=sample.navigators+("viewer" to inside))
+        val hidden=units.filterNot {it.detected}.map {it.id}.toSet()
+        assertTrue(boot.detectionChanges(hidden).isEmpty())
+        assertFalse(boot.detectionChanges(emptySet()).single {it.id==enemy.unitId}.detected)
+        val insideBoot=TacticalBootstrap(changed,world,inside,catalog,::person)
+        assertTrue(insideBoot.detectionChanges(hidden).single {it.id==enemy.unitId}.detected)
+    }
+
     @Test fun onlyTheViewersCurrentGridAndGenerationInTacticsAreServed() {
         // The away viewer sees its own grid only: the away fleet and itself.
         val away=reply(who=navigators.getValue("away"))
