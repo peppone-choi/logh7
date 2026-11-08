@@ -50,7 +50,7 @@ internal object NpcStrategy {
     private data class DepotRoute(val base:GalaxyBase,val next:Int,val jumps:Int)
     private data class RouteVisit(val grid:Int,val first:Int,val jumps:Int,val estimatedTotal:Int)
 
-    private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):DepotRoute? {
+    private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,spentJumps:Int=0):DepotRoute? {
         val origin=outfit.positionIn(galaxy).grid
         fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
         val depots=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
@@ -62,7 +62,7 @@ internal object NpcStrategy {
         val strength=GridForces.mobileUnits(outfit)
         if(strength !in 1..GridEntryRules.MAX_UNITS_PER_CAMP.toLong())return local
         val balances=OutfitSupplies.distribution(outfit)
-        val affordable=outfit.activeShips!!.values.filter {it.boats>0}.minOf {balances.getValue(it.id)/it.boats}
+        val affordable=outfit.activeShips!!.values.filter {it.boats>0}.minOf {balances.getValue(it.id)/it.boats}-spentJumps
         val camp=Camp(outfit.country,false)
         val entry=GridEntry(camp,strength.toInt(),false)
         fun remaining(grid:Int)=depots.keys.minOf {distance(grid,it)}
@@ -105,7 +105,8 @@ internal object NpcStrategy {
      * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards a reachable own depot
      * (`evidence:guess`, 2026-11-04 replacement policy).
      */
-    private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,preferred:Int?=null):OutfitPosition? {
+    private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,
+        players:Collection<Navigator>,preferred:Int?=null):OutfitPosition? {
         val position=outfit.positionIn(galaxy)
         val origin=position.grid
         val camp=Camp(outfit.country,false)
@@ -129,7 +130,16 @@ internal object NpcStrategy {
             val required=maxOf(unit.boats*2,(home?.let {it.jumps*unit.boats+shot} ?: 0))
             balances.getValue(unit.id)<required
         }
-        if(goal!=null && beatable(origin) && !short)return if(goal==origin)null else step(galaxy,forces,outfit,origin,goal,preferred)?.let(::OutfitPosition)
+        if(goal!=null && beatable(origin) && !short) {
+            if(goal==origin)return null
+            val next=step(galaxy,forces,outfit,origin,goal,preferred)?.let(::OutfitPosition) ?: return null
+            if(home==null)return next
+            val projected=outfit.copy(position=next)
+            val projectedStocks=stocks.copy(outfits=stocks.outfits+(outfit.id to projected))
+            val projectedForces=GridForces.collect(galaxy,stocks.generation,players,projectedStocks)
+            val returnRoute=home(galaxy,projectedForces,projected,projectedStocks,spentJumps=1)
+            if(returnRoute!=null && jumpShortfall(live,balances,1+returnRoute.jumps)==0L)return next
+        }
         if(home==null)return null
         return OutfitPosition(home.next,if(home.next==home.base.grid)home.base.id else 0)
     }
@@ -194,7 +204,7 @@ internal object NpcStrategy {
             val pending=outfit.strategy
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
-                val planned=target(galaxy,forces(),outfit,stocks,destination)
+                val planned=target(galaxy,forces(),outfit,stocks,players.values,destination)
                 if(planned?.grid==position.grid) {
                     dockLocally(outfit,planned)
                     continue
@@ -237,7 +247,7 @@ internal object NpcStrategy {
                 movements+=NpcStrategicMovement(session.generation,id,position.grid,destination,now,
                     moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
-                val destination=target(galaxy,forces(),outfit,stocks)
+                val destination=target(galaxy,forces(),outfit,stocks,players.values)
                 if(destination?.grid==position.grid) {
                     dockLocally(outfit,destination)
                 } else {
