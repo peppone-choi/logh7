@@ -98,9 +98,21 @@ internal object GroundBattleOperations {
                 emit(at,damaged.toList(),destroyed.toList(),conclusion)
             }
         }
-        // Orders end with either troop: a destroyed, withdrawn or re-embarked unit no longer holds or receives one.
-        val landed=next.outfits.values.flatMap {it.activeGround?.values.orEmpty()}.filter {it.base>0}.map {it.id}.toSet()
-        val orders=next.tacticalCommands.groundTargets.filter {(unit,target)->unit in landed && target in landed}
+        val targets=next.tacticalCommands.groundTargets
+        val orders=if(targets.isEmpty())targets else {
+            val positions=buildMap {
+                for(outfit in next.outfits.values) {
+                    for(unit in outfit.activeGround?.values.orEmpty()) {
+                        if(unit.base>0)put(unit.id,unit.base to outfit.country)
+                    }
+                }
+            }
+            targets.filter {(unit,target)->
+                val attacker=positions[unit]
+                val defender=positions[target]
+                attacker!=null && defender!=null && attacker.first==defender.first && attacker.second!=defender.second
+            }
+        }
         if(orders!=next.tacticalCommands.groundTargets)next=next.copy(tacticalCommands=next.tacticalCommands.copy(groundTargets=orders))
         return if(next==stocks && clocks==stocks.groundBattles)stocks else next.copy(groundBattles=clocks)
     }
