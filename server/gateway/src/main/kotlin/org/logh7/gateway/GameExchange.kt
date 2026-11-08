@@ -451,7 +451,9 @@ class GameExchange(
                     result.rejection == org.logh7.engine.NavigationRejection.CRUISE) }) { "CP refresh lost its authenticated session" }
             val previous = deliveredPlayer ?: result.previous
             if (player != previous) publication = Publication(character, player, false)
-            val changed = previous?.let { it.pcp != player.pcp || it.mcp != player.mcp } == true
+            val changed = previous?.let {
+                it.pcp != player.pcp || it.mcp != player.mcp || it.returnBase != player.returnBase
+            } == true
             val relocated = previous?.let { it.grid != player.grid || it.baseId != player.baseId ||
                 it.mode != player.mode || it.spotId != player.spotId || it.spotOwner != player.spotOwner } == true
             if (!worldInitialized) reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()).singleOrNull()?.let {

@@ -227,6 +227,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if(style.value !in setOf("empire","alliance"))return reject(NavigationRejection.UNIT)
         var initial = existing ?: Navigator(request.generation, request.characterId, request.country,
             start, policy.initialCp, policy.initialCp, policy.initialCruise,shipStyle=style)
+        if (stocks != null && initial.returnBase != 0 && returnBaseRejection(initial, initial.returnBase, stocks) != null)
+            initial = initial.copy(returnBase = 0)
         if (initial.offlineWarpCancellation != null && initial.offlineWarpCancellation == request.acknowledgedOfflineWarpCancellation)
             initial = initial.copy(offlineWarpCancellation = null)
         val now = session.gameMillis / 1000
@@ -405,16 +407,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             return NavigationResult(after, before)
         }
         request.returnBase?.let { target ->
-            if (target != 0) {
-                val condition = galaxy.conditions[target] ?: return reject(NavigationRejection.BASE)
-                if (condition.habitability == 0) return reject(NavigationRejection.BASE)
-                val stock = stocks?.bases?.get(target)
-                if (stocks != null && stock == null) return reject(NavigationRejection.BASE)
-                val owner = stock?.owner ?: galaxy.initialOwners.getValue(target)
-                val camp = stock?.camp ?: condition.camp
-                if (!ownBase(before,owner,camp))
-                    return reject(NavigationRejection.ACCESS)
-            }
+            if (target != 0) returnBaseRejection(before, target, stocks)?.let { return reject(it) }
             val after = before.copy(returnBase = target)
             if (persist && after != before) commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
@@ -490,7 +483,16 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock,
             completedWarp = completedWarp, warpCancellation = warpCancellation)
     }
-    /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
+    private fun returnBaseRejection(player: Navigator, target: Int, stocks: PlanetStocks?): NavigationRejection? {
+        val condition = galaxy.conditions[target] ?: return NavigationRejection.BASE
+        if (condition.habitability == 0) return NavigationRejection.BASE
+        val stock = stocks?.bases?.get(target)
+        if (stocks != null && stock == null) return NavigationRejection.BASE
+        val owner = stock?.owner ?: galaxy.initialOwners.getValue(target)
+        val camp = stock?.camp ?: condition.camp
+        return NavigationRejection.ACCESS.takeUnless { ownBase(player, owner, camp) }
+    }
+
     private fun ownBase(player:Navigator,owner:Allegiance,camp:Int)=camp==0 && when(owner) {
         is Allegiance.Country -> player.country==owner.id
         is Allegiance.Independent -> player.country==null && player.characterId==owner.characterId
@@ -501,6 +503,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val card=TacticalAuthority.captainCard(player,countries) ?: return false
         return request.captainCard==card
     }
+    /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
     private fun operationTarget(player: Navigator, destination: Int, stocks: PlanetStocks?): Boolean =
         stocks?.strategic?.operations.orEmpty().any { operation -> operation.live &&
             operation.country==player.country && operation.state != StrategicPlanState.PLANNED && player.characterId in operation.characters &&
