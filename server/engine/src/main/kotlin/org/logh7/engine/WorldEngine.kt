@@ -184,6 +184,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
             npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add,fortressSunk::add,
             settleOfficeRecovery = { old, updated, players -> settleOfficeRecovery(session.gameMillis / 1000, old, updated, players) })
+        // A later recapture must not restore a warehouse reservation from before occupation.
+        occupations.forEach {logistics.occupationCommitted(it.base)}
         // Publish this committed transaction before a later movement/retreat save can fail.
         publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
         // Reconcile durable capital/session endings before observers can start a native
