@@ -87,6 +87,17 @@ class TacticalManeuverWireTest {
             val clients=mutableListOf(join(0,true),join(1,true))
             clients[1].send(command(10001))
             assertEquals(1,ByteBuffer.wrap(through(clients[1],opcode)).int)
+            if(reverse) {
+                val beforePlayers=savedPlayers
+                val beforeStocks=savedStocks
+                val unsupported=command(10000).also {it[it.lastIndex]=2}
+                clients[0].send(unsupported)
+                val rejection=ByteBuffer.wrap(through(clients[0],opcode))
+                assertEquals(1,rejection.int)
+                assertEquals(0,rejection.getInt(10))
+                assertEquals(beforePlayers,savedPlayers)
+                assertEquals(beforeStocks,savedStocks)
+            }
             clients[0].send(command(10000))
             for(c in clients) {
                 val bytes=through(c,opcode);val packet=ByteBuffer.wrap(bytes)
