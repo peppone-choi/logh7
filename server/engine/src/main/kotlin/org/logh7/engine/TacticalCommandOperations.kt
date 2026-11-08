@@ -180,7 +180,16 @@ internal object TacticalCommandOperations {
                     if(c.kind!=2 && (if(id==p.unitId)p.supplies else ship(id,s)!!.let {OutfitSupplies.distribution(it.outfit).getValue(id)})<10)
                         return NavigationRejection.SUPPLY
                 }
-                if(c.kind==1 && TacticalCombat.target(c.target,p.grid,TacticalAuthority.camp(p,s),s,g,players)==null)return NavigationRejection.TARGET
+                if(c.kind==1) {
+                    val camp=TacticalAuthority.camp(p,s)
+                    if(TacticalCombat.target(c.target,p.grid,camp,s,g,players)==null)return NavigationRejection.TARGET
+                    val target=pose(c.target,p.grid,now,players,s,g)?.position ?: return NavigationRejection.TARGET
+                    for(id in c.units) {
+                        val at=pose(id,p.grid,now,players,s,g)?.position ?: return NavigationRejection.TARGET
+                        if(TacticalTerrain.sharedSensorBlocked(g,p.grid,camp,at,target,now,players.values,s))
+                            return NavigationRejection.RANGE
+                    }
+                }
                 if(c.kind==0 && c.target!=0 && players.values.none {it.unitId==c.target && it.grid==p.grid && TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) && it.cpPaused} &&
                     ship(c.target,s)?.let {TacticalAuthority.camp(it.outfit,s)==TacticalAuthority.camp(p,s) && it.outfit.positionIn(g)==OutfitPosition(p.grid) && it.unit.boats>0}!=true)
                     return NavigationRejection.TARGET
