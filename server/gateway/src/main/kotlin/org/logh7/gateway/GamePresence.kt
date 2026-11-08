@@ -137,8 +137,6 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         // added countries); no membership or a removed country holds no national office.
         fun cards(player:Navigator)=player.country?.takeIf {it.value in countries.countries}
             ?.let {offices(player.characterId,it.value,event.generation)}.orEmpty()
-        fun current(p:Navigator)=snapshot.navigators.values.singleOrNull {it.characterId==p.characterId &&
-            it.generation==event.generation} ?: p
         // Snapshot the audience before updating membership; room departures mutate visibility.
         val audience=members.values.filter {it.player.generation==event.generation &&
             event.recipients[it.character.id.toInt()]==it.connection}.toList()
@@ -165,9 +163,13 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 val display=countries.nativePower(org.logh7.engine.Allegiance.Country(event.country))
                 packets+=org.logh7.protocol.TacticalGroundMessages.occupationFinished(event.base,display,event.camp)
                 // Imported definitions and states retain real zero-boat identities; no fake weapon hit.
-                packets+=event.expelled.values.mapNotNull {p->characterById(p.characterId)?.let {c->
-                    BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,
-                        cards(current(p)))}}
+                packets+=event.expelled.mapNotNull {(account,displaced)->
+                    val current=snapshot.navigators[account]?.takeIf {it.characterId==displaced.characterId &&
+                        it.generation==event.generation && it.grid==event.grid && it.cpPaused && it.baseId==0}
+                        ?: return@mapNotNull null
+                    characterById(current.characterId)?.let {c->BootstrapMessages.character(
+                        c,current.pcp,current.mcp,current.spotId,current.spotOwner,current.returnBase,cards(current))}
+                }
                 packets+=org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)
                 packets+=org.logh7.protocol.TacticsMessages.corps(tactical.corps)
                 packets+=org.logh7.protocol.TacticsMessages.states(tactical.units)

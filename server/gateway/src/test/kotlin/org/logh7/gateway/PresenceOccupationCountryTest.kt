@@ -25,12 +25,13 @@ class PresenceOccupationCountryTest {
 
     private class Run(val calls:List<Pair<Int,Int>>,val winner:List<ByteArray>,val loser:List<ByteArray>)
     /** [expelledCountry] is the loser's country in the current snapshot; [eventCopy] is the stale expelled record. */
-    private fun run(expelledCountry:CountryId?,eventCopy:CountryId?=CountryId(43)):Run {
+    private fun run(expelledCountry:CountryId?,eventCopy:CountryId?=CountryId(43),
+        update:(Navigator)->Navigator={it}):Run {
         val expelled=loser.copy(baseId=0,mode=5,spotId=0,returnBase=0,cpPaused=true,
             posture=TacticalPosture(2487,TacticalShipMode.ANCHORED,1049))
         val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,Allegiance.Country(CountryId(42)),0,1000,1000,1000)))
         val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,250,0,0,emptyMap(),1,1,null),
-            navigators=mapOf("winner" to winner,"loser" to expelled.copy(country=expelledCountry)),planetStocks=stocks)
+            navigators=mapOf("winner" to winner,"loser" to update(expelled.copy(country=expelledCountry))),planetStocks=stocks)
         val packets=List(2){mutableListOf<List<ByteArray>>()};val presence=GamePresence()
         listOf(winner,loser).forEachIndexed {i,p->presence.update(GamePresence.Member("c$i",people[i],p,packets[i]::add,
             if(i==1)listOf(held) else emptyList()))}
@@ -67,4 +68,12 @@ class PresenceOccupationCountryTest {
         // A stale event copy without membership does not hide the current snapshot's country.
         assertEquals(setOf(10000 to 42,10001 to 43),run(CountryId(43),eventCopy=null).calls.toSet())
     }
+    @Test fun viewersReceiveOnlyCurrentExpelledCharactersAndTheirSavedValues() {
+        val updated=run(CountryId(43)) {it.copy(pcp=600,mcp=400,returnBase=1050)}
+        assertTrue(updated.winner.has(BootstrapMessages.character(people[1],600,400,0,0,1050,listOf(card(43)))))
+        assertFalse(updated.winner.has(expelledRecord(listOf(card(43)))))
+        val departed=run(CountryId(43)) {it.copy(grid=2488,cpPaused=false,posture=null)}
+        assertTrue(departed.winner.none {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0323})
+    }
+
 }
