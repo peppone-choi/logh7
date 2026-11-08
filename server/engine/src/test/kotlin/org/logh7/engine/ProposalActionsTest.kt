@@ -48,6 +48,21 @@ class ProposalActionsTest {
         assertEquals(b,players.getValue("b"))
         assertTrue(policy.held(state,b.characterId).any {it.card==19})
     }
+    @Test fun approvingAnAbdicationProposalPassesTheThroneToTheNextCandidate() {
+        val initial=policy.set(policy.set(stocks(),OfficeHolding(1,1049,a.characterId)),OfficeHolding(2,1049,b.characterId))
+        val opened=act("b",ProposalActions.OPEN,2,a.characterId,ProposalActions.RESIGNATION,1,initial)
+        assertNull(opened.rejection)
+        val pending=assertNotNull(opened.stocks)
+        val mail=pending.social.proposals.mails.single()
+        val approved=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,pending)
+        assertNull(approved.rejection)
+        assertEquals(960,approved.player?.mcp)
+        val resigned=assertNotNull(approved.stocks)
+        assertTrue(policy.held(resigned,a.characterId).none {it.card==1})
+        val candidates=listOf(a,b).map {StrategicIdentity(it.characterId,2,2,2,List(8){50})}
+        val settled=SuccessionActions.accede(galaxy,resigned,candidates,session.gameMillis/1000)
+        assertEquals(b.characterId,policy.holders(settled,1,CountryId(2)).single().character)
+    }
     @Test fun aProposalGoesUpAndARefusalBlocksTheSameRequestForADay() {
         val opened=act("b",ProposalActions.OPEN,19,10000,ProposalActions.RESIGNATION,17,stocks())
         assertNull(opened.rejection);val s=assertNotNull(opened.stocks)
