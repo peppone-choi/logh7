@@ -490,6 +490,12 @@ class GameExchangeTest {
                     assertNotNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
                     assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
                 }
+                if(outcome=="retreat" || outcome=="same-grid-return") {
+                    val queuedSupport=listOf(
+                        org.logh7.protocol.TacticalSupportMessages.supplied(1,player.unitId,100,200),
+                        TacticsMessages.definitions(2487,emptyList()))
+                    assertNull(game.notifyWorld(queuedSupport,tacticalGrid=2487))
+                }
                 sampled.complete(Unit)
                 val messages=operation.join();val position=ByteBuffer.wrap(messages.first())
                 assertEquals(0x0349,position.getShort(4).toInt())

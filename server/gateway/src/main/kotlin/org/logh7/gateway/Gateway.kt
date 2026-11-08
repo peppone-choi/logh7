@@ -296,6 +296,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,counters=counters,maintenance=maintenance,lobbyCountries=::lobbyCountries,countryEndings=::countryEndings,originalCandidates=originalCandidates,
                                 presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
+                                    }, onTacticalPresence = { grid, messages ->
+                                        if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages, grid)) }
                                     })
                                 val updateExchange = UpdateExchange()
                                 if (capture != null) ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
@@ -306,7 +308,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                     private var probeFinished = false
                                     private var waiting = false
                                     private var refreshRequested = false
-                                    private val notifications = ArrayDeque<List<ByteArray>>()
+                                    private val notifications = ArrayDeque<PresenceNotification>()
                                     private var notificationBytes = 0
                                     override fun userEventTriggered(ctx: ChannelHandlerContext, event: Any) {
                                         if (event !is PresenceNotification) { ctx.fireUserEventTriggered(event); return }
@@ -317,13 +319,13 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                 counters.notificationOverflow.incrementAndGet()
                                                 exchange.close(); ctx.close(); return
                                             }
-                                            notifications.addLast(event.messages); notificationBytes += size
+                                            notifications.addLast(event); notificationBytes += size
                                             counters.notificationsQueued.incrementAndGet()
-                                        } else sendNotification(ctx, event.messages)
+                                        } else sendNotification(ctx, event)
                                     }
-                                    private fun sendNotification(ctx: ChannelHandlerContext, messages: List<ByteArray>) {
+                                    private fun sendNotification(ctx: ChannelHandlerContext, event: PresenceNotification) {
                                         if (exchange.accountRecovered()) { exchange.close(); ctx.close(); return }
-                                        try { exchange.notifyWorld(messages)?.let { SecureWriter.write(ctx, exchange, it) } }
+                                        try { exchange.notifyWorld(event.messages, event.tacticalGrid)?.let { SecureWriter.write(ctx, exchange, it) } }
                                         catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
                                     }
                                     private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null
@@ -405,9 +407,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                                     finish()?.let { response -> SecureWriter.write(ctx, exchange, response) }
                                                     waiting = false
                                                     while (notifications.isNotEmpty() && ctx.channel().isActive) {
-                                                        val messages = notifications.removeFirst(); notificationBytes -= messages.sumOf { it.size }
+                                                        val event = notifications.removeFirst(); notificationBytes -= event.messages.sumOf { it.size }
                                                         counters.notificationsQueued.decrementAndGet()
-                                                        sendNotification(ctx, messages)
+                                                        sendNotification(ctx, event)
                                                     }
                                                     while (!waiting && waitingFrames.isNotEmpty() && ctx.channel().isActive) process(ctx, waitingFrames.removeFirst())
                                                     if(!waiting && ctx.channel().isActive)exchange.finishSession()?.let {SecureWriter.write(ctx,exchange,it)}

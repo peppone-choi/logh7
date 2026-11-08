@@ -17,7 +17,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
     private val npcProfiles:PublishedNpcFleetDialogue=PublishedNpcFleetDialogue()) {
     data class Member(val connection: String, val character: CharacterMessages.Generate,
         val player: Navigator, val send: (List<ByteArray>) -> Unit,
-        val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
+        val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0,
+        val sendTactical: ((Int, List<ByteArray>) -> Unit)? = null)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
     private class CombatHail(val player:Navigator, val outfit:Int, val revision:Long?, val seconds:Long,
@@ -445,7 +446,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 val current=tacticalViewer(snapshot,viewer,event.grid) ?: return@forEach
                 // 0325 replaces the complete native definition cache, including unrelated combatants.
                 val tactical=TacticalBootstrap(snapshot,galaxy,current,characterById)
-                send(viewer,if(event.cancelled)listOf(packet) else listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)))
+                send(viewer,if(event.cancelled)listOf(packet) else listOf(packet,org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)),event.grid)
             }
     }
     @Synchronized fun strategicMovement(event:org.logh7.engine.NpcStrategicMovement,
@@ -609,9 +610,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             ?: profile?.dialogue?.fallback?.takeIf {it.isNotEmpty()} ?: NpcFleetDialogue.DEFAULT_LINE
         send(current,listOf(ChatMessages.grid(ChatMessages.Grid(current.player.characterId,1,"[NPC 교신] $line"),hail.seconds)))
     }
-    private fun send(viewer: Member, messages: List<ByteArray>) {
+    private fun send(viewer: Member, messages: List<ByteArray>, tacticalGrid: Int? = null) {
         try {
-            viewer.send(messages)
+            val sendTactical=viewer.sendTactical
+            if(tacticalGrid!=null && sendTactical!=null)sendTactical(tacticalGrid,messages) else viewer.send(messages)
             observeMotions(viewer.connection,messages)
         } catch (_: Exception) { /* A closed peer cannot fail another player's command. */ }
     }
@@ -822,4 +824,4 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
     }
 }
 
-internal data class PresenceNotification(val messages: List<ByteArray>)
+internal data class PresenceNotification(val messages: List<ByteArray>, val tacticalGrid: Int? = null)

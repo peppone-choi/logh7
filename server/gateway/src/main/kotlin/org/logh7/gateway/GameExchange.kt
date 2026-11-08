@@ -83,6 +83,7 @@ class GameExchange(
     private val lobbyCountries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>)?=null,
     private val countryEndings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>)?=null,
     private val originalCandidates:org.logh7.engine.PublishedOriginalCandidates?=null,
+    private val onTacticalPresence: ((Int, List<ByteArray>) -> Unit)? = null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -604,7 +605,7 @@ class GameExchange(
                 tacticalInitializationPending = update.player.cpPaused && (update.stage != 0x0f02 || repeatTactical)
                 if(!tacticalInitializationPending)pendingTacticalRevision=-1
             }
-            val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0), gameSeconds()) }
+            val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0, onTacticalPresence), gameSeconds()) }
             val output = if (update?.initialize == true && shared != null) {
                 val index = messages.indexOfFirst { java.nio.ByteBuffer.wrap(it).getShort(4).toInt() == 0x0325 }
                 check(index >= 0)
@@ -621,7 +622,11 @@ class GameExchange(
             }
         }
     }
-    internal fun notifyWorld(messages: List<ByteArray>): OutboundBatch? = prepared {
+    internal fun notifyWorld(messages: List<ByteArray>, tacticalGrid: Int? = null): OutboundBatch? = prepared {
+        if(tacticalGrid!=null) {
+            val player=navigation?.snapshot()?.navigators?.get(ticket?.account)
+            if(player==null || player.grid!=tacticalGrid || player.baseId!=0 || !player.cpPaused)return@prepared null
+        }
         if (state == State.CLOSED || !gameStarted || obsolete() || sessionEndingAvailable()) null else {
             val current=deduplicateSameGridExit(tacticalPresence(messages))
             fun entering(message:ByteArray)=message.size>=7 &&
