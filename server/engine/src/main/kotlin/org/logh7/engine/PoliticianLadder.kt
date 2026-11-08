@@ -19,22 +19,25 @@ object PoliticianLadder {
     const val EMPEROR_CARD=1
     const val CHAIRMAN_CARD=132
     fun monthly(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>,month:Long,catalog:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
-        var people=stocks.strategic.people
+        var next=stocks
         for(identity in identities.sortedBy {it.id}) {
             val country=identity.country ?: continue
             val definition=catalog.countries[country.value] ?: continue
             val ranks=catalog.families.getValue(definition.family).ranks
             if(ranks !in setOf("empire","alliance") || OrganizationOffices.system(country,catalog)==null)continue
-            val person=people[identity.id] ?: StrategicPerson()
+            val person=next.strategic.people[identity.id] ?: StrategicPerson()
             if((person.rank ?: identity.rank)!=POLITICIAN || person.merit!=0L || person.deceasedAt!=0L)continue
-            people=people+(identity.id to if(ranks=="alliance")person.copy(rank=CONVERTED_RANK,militaryRank=0) else {
+            val updated=if(ranks=="alliance") {
+                next=StrategyActions.clearOffices(next,identity.id)
+                person.copy(rank=CONVERTED_RANK,militaryRank=0)
+            } else {
                 val abilities=(person.abilities ?: identity.abilities).toMutableList()
                 val index=java.util.Random(month*1_000_003L+identity.id).nextInt(abilities.size)
                 abilities[index]=maxOf(0,abilities[index]-1)
                 person.copy(abilities=abilities)
-            })
+            }
+            next=next.copy(strategic=next.strategic.copy(people=next.strategic.people+(identity.id to updated)))
         }
-        var next=stocks.copy(strategic=stocks.strategic.copy(people=people))
         val policy=OrganizationalOfficePolicy(galaxy,catalog)
         for(id in catalog.countries.keys.sorted()) {
             val country=CountryId(id)

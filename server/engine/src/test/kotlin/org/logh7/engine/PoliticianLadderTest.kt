@@ -52,6 +52,15 @@ class PoliticianLadderTest {
         assertEquals(listOf(11),OrganizationalOfficePolicy(galaxy).holders(ladder,132).map {it.character},"no support: the ladder top")
         assertSame(ladder,PoliticianLadder.election(galaxy,ladder,ids),"a filled seat stays")
     }
+    @Test fun forcedMilitaryConversionVacatesTheChairAndElectsAnEligiblePolitician() {
+        val policy=OrganizationalOfficePolicy(galaxy)
+        val before=stocks.copy(strategic=StrategicState(people=mapOf(11 to StrategicPerson(rank=1),
+            12 to StrategicPerson(rank=1,merit=10))))
+        val seated=policy.set(before,OfficeHolding(132,1177,11))
+        val result=PoliticianLadder.monthly(galaxy,seated,listOf(id(11,3),id(12,3)),1)
+        assertEquals(10,result.strategic.people.getValue(11).rank)
+        assertEquals(listOf(12),policy.holders(result,132).map {it.character})
+    }
     @Test fun aLostConfidenceVoteRemovesTheChairmanAndElectsAnother() {
         val people=mapOf(11 to StrategicPerson(merit=90),12 to StrategicPerson(merit=10))
         val ids=listOf(id(11,3),id(12,3))
