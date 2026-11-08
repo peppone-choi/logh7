@@ -34,10 +34,19 @@ internal object FlagshipRecovery {
                 owner==(country?.let {Allegiance.Country(it)} ?: Allegiance.Independent(player.characterId))
         }
         // Manual P04: a return system that is in tactics sends the flagship to another system.
-        val busy=GridForces.collect(galaxy,stocks.generation,
+        val forces=GridForces.collect(galaxy,stocks.generation,
             players.filter {it.characterId!=player.characterId && it.generation==stocks.generation},stocks)
-            .filterValues {TacticalContact.contested(it)}.keys
-        val bases=owned.filter {it.grid !in busy}.ifEmpty {owned}
+        val busy=forces.filterValues {TacticalContact.contested(it)}.keys
+        val safeBases=owned.filter {it.grid !in busy}
+        val safeSystem=if (safeBases.isEmpty() && owned.isNotEmpty()) {
+            val camp=Camp.of(player,CoupActions.rebel(stocks,player.characterId,player.country))
+            val candidates=galaxy.systems.map {it.grid}.filter {grid ->
+                grid !in busy && forces[grid].orEmpty().none {it.camp!=camp && (it.units>0 || it.base)}
+            }
+            // No dock is available. Prefer the configured start, then a stable safe system.
+            start?.takeIf {it in candidates} ?: candidates.minOrNull()
+        } else null
+        val bases=if (safeSystem==null && safeBases.isEmpty()) owned else safeBases
         val home=bases.singleOrNull {it.id==player.returnBase}
             ?: bases.singleOrNull {it.id==player.originBase}
             ?: bases.singleOrNull {it.grid==start && Capital.of(it)?.power==country?.value}
@@ -46,7 +55,7 @@ internal object FlagshipRecovery {
             ?: bases.minByOrNull {it.id}
         val until=minOf(0xffffffffL,seconds+86400)
         val kind=Flagships.forType(player.shipStyle.nativePower,3).kind
-        return player.copy(grid=home?.grid ?: start ?: player.grid,baseId=home?.id ?: 0,
+        return player.copy(grid=home?.grid ?: safeSystem ?: start ?: player.grid,baseId=home?.id ?: 0,
             mode=if(home==null)5 else 4,spotId=0,spotOwner=0,cpPaused=false,cpRecoveryAt=seconds,
             motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null,energy=TacticalEnergy.ZERO,
             fuelReadyAt=null,strategy=null,dockTarget=null,warpTarget=null,supplies=0,
