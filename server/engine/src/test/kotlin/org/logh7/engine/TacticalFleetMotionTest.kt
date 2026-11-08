@@ -4,6 +4,15 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalFleetMotionTest {
+    @Test fun deceasedCommanderCannotMoveAFlagshipOrItsFleet() {
+        val s=state()
+        s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now) {_,_->true}
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        val players=s.players;val stocks=s.stocks
+        assertEquals(NavigationRejection.IDENTITY,move(s,nav,p,request(listOf(1,1010000))).rejection)
+        assertEquals(NavigationRejection.IDENTITY,nav.apply(request(listOf(1010000)),session,p.snapshot(1)!!).rejection)
+        assertEquals(players,s.players);assertEquals(stocks,s.stocks)
+    }
     @Test fun aCommandersDifferentStyleFlagshipMovesWithItsOwnCountrysFleet() {
         val s=state()
         s.players=s.players.mapValues {(_,p)->p.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(89,now,hp=40))}
