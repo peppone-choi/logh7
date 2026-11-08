@@ -513,7 +513,7 @@ class GameExchange(
                 !player.cpPaused && !battleDeathNotified &&
                 org.logh7.engine.BattleDeath.deceased(navigation?.snapshot()?.planetStocks, player.characterId)) {
                 battleDeathNotified = true
-                ChatMessages.spot(ChatMessages.Spot(player.characterId, "[전사] 다음 로그인 때 새 인물 생성"), gameSeconds())
+                ChatMessages.spot(ChatMessages.Spot(player.characterId, "[전사] 재접속 후 생성"), gameSeconds())
             } else null
             val guide = if (readyForNotice && !relocated && character.generated && player.spotId == 0 &&
                 !player.cpPaused && !player.navigationPending && player.hull?.let { it.woundedUntil <= gameSeconds() } == true &&

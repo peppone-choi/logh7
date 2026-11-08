@@ -310,7 +310,7 @@ class GameExchangeTest {
             mapOf(character.id.toInt() to org.logh7.engine.StrategicPerson(deceasedAt = 1))))
         assertTrue(notices(request("0300", 6)).isEmpty())
         val packet = notices(request("0300", 7)).single()
-        assertEquals("[전사] 다음 로그인 때 새 인물 생성", org.logh7.protocol.ChatMessages.spot(packet.drop(4).toByteArray()).text)
+        assertEquals("[전사] 재접속 후 생성", org.logh7.protocol.ChatMessages.spot(packet.drop(4).toByteArray()).text)
         assertTrue(notices(request("0300", 8)).isEmpty())
         game.close()
     }
