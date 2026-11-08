@@ -116,7 +116,7 @@ internal object BaseOccupationOperations {
                 var next=p
                 if(p.returnBase==base.id)next=next.copy(returnBase=0)
                 if(p.baseId==base.id && p.grid==base.grid) {
-                    val centre=TacticalBasePosition.at(base,now)
+                    val centre=TacticalBasePosition.at(base,now,stocks)
                     val point=TacticalPoint(centre.x+base.diameter+2f+offset++*2f,centre.y)
                     val pose=TacticalPose(point,0f)
                     next=next.copy(baseId=0,mode=5,spotId=0,spotOwner=0,cpPaused=true,cpRecoveryAt=now,
