@@ -1077,7 +1077,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             TacticalCombat.accept(command.request,session,galaxy,navigation,
                                 checkNotNull(production.snapshot(session.generation)),worldStateCommitter,rules.speed)
                         else FleetNavigation.apply(command.request, session, galaxy, navigation, production,
-                            checkNotNull(production.snapshot(session.generation)), worldStateCommitter) { outfit ->
+                            checkNotNull(production.snapshot(session.generation)), worldStateCommitter,profiles[command.request.account]) { outfit ->
                             logistics.blocksMovement(session, outfit)
                         } else NavigationResult(null, rejection = NavigationRejection.DISABLED)
                     // Revalidate local duties immediately after committed movement, including spot

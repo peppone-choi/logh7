@@ -2,7 +2,7 @@ package org.logh7.engine
 
 /** Editable starting data for a lottery candidate. Its ID and creation side are stable. */
 data class OriginalCandidateProfile(
-    val surname:String,val givenName:String,val face:Int,val rank:Int,val abilities:List<Int>
+    val surname:String,val givenName:String,val face:Int,val rank:Int,val abilities:List<Int>,val peerage:Peerage?=null
 ) {
     init {
         require(listOf(surname,givenName).all { name ->
@@ -24,12 +24,12 @@ data class OriginalCandidateDefinition(val id:Long,val creationPower:Int,val pro
 data class OriginalCandidateEdit(val id:Long,val revision:Long,val profile:OriginalCandidateProfile,val country:CountryId?=null)
 
 interface OriginalCandidateStore {
-    val supportsCountryBinding:Boolean get()=true
+    val supportsEditing:Boolean get()=true
     fun load():List<OriginalCandidateEdit>
     fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?=null):OriginalCandidateEdit?
 }
 
-class PublishedOriginalCandidates(definitions:List<OriginalCandidateDefinition> = emptyList()) {
+class PublishedOriginalCandidates(definitions:List<OriginalCandidateDefinition> = emptyList(),val canGrantPeerage:Boolean=true) {
     val defaults=definitions.associateBy {it.id}
     @Volatile private var edits=emptyMap<Long,OriginalCandidateEdit>()
 
@@ -37,6 +37,7 @@ class PublishedOriginalCandidates(definitions:List<OriginalCandidateDefinition> 
     fun accepts(id:Long,profile:OriginalCandidateProfile,country:CountryId?=null):Boolean {
         val side=defaults[id]?.creationPower ?: edits[id]?.profile?.creationPower
         if(id !in defaults && (id !in NEW_IDS || country==null))return false
+        if(profile.peerage!=null && country==null)return false
         return profile.matchesCreationPower(side ?: profile.creationPower)
     }
 
@@ -51,3 +52,7 @@ class PublishedOriginalCandidates(definitions:List<OriginalCandidateDefinition> 
         const val SCOPED_LIMIT=94
     }
 }
+
+/** The native peerage cards use the imperial display bank. The actual country's family must also support them. */
+fun CountryCatalog.supportsNativePeerage(country:CountryId):Boolean =
+    countries[country.value]?.let {it.nativePower==2 && families.getValue(it.family).peerage=="empire"}==true

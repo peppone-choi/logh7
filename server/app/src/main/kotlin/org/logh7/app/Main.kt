@@ -229,7 +229,8 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
                 System.err.println("NPC fleet dialogue unavailable; using built-in lines")
             }
         }
-        val originalCandidates=org.logh7.engine.PublishedOriginalCandidates(org.logh7.gateway.CharacterCreation.originalDefinitions())
+        val originalCandidates=org.logh7.engine.PublishedOriginalCandidates(
+            org.logh7.gateway.CharacterCreation.originalDefinitions(),canGrantPeerage=worldState!=null)
         val originalCandidateStore=if(worldIdentity!=null && definitionsConnect!=null)
             org.logh7.persistence.PostgresOriginalCandidates(definitionsConnect,java.util.UUID.fromString(worldIdentity)) else null
         if(originalCandidateStore!=null)try {

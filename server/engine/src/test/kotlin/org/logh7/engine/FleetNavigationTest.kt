@@ -93,6 +93,34 @@ class FleetNavigationTest {
             assertEquals(EngineHealth.STORAGE_FAILED,engine.health())
         } finally {engine.drainAndClose()}
     }
+    @Test fun startingPeerageCommitsWithTheFirstNavigatorAndNeverOverwritesExistingPersonnel() {
+        val state=state()
+        state.players=emptyMap()
+        val imperial=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,true,"c")}.exportState()
+        val request=NavigationRequest("pilot",1001,Power.EMPIRE,"c",1,shipKind=3)
+        val titled=StrategicPerson(rank=10,peerage=Peerage.COUNT)
+        val navigation=Navigation(galaxy,state.nav,NavigationPolicy())
+        val production=PlanetProduction(galaxy,state.inventory,SessionRules.load().startSeconds,PlanetProductionPolicy())
+        val inventory=production.settle(1,imperial.gameMillis/1000)
+        state.fail=true
+        assertFailsWith<java.io.IOException> {
+            FleetNavigation.apply(request,imperial,galaxy,navigation,production,inventory,state.commit,titled) {false}
+        }
+        assertTrue(navigation.snapshot(1).isEmpty())
+        assertNull(production.snapshot(1)?.strategic?.people?.get(1001))
+        state.fail=false
+        assertNull(FleetNavigation.apply(request,imperial,galaxy,navigation,production,inventory,state.commit,titled) {false}.rejection)
+        assertEquals(titled,state.stocks.strategic.people[1001])
+        assertEquals(1,state.commits)
+        val cleared=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(1001 to titled.copy(peerage=null))))
+        val reopened=PlanetProduction(galaxy,object:PlanetStockStore {
+            override fun load()=cleared
+            override fun save(stocks:PlanetStocks)=Unit
+        },SessionRules.load().startSeconds,PlanetProductionPolicy())
+        FleetNavigation.apply(request,imperial,galaxy,navigation,reopened,cleared,state.commit,titled) {false}
+        assertNull(reopened.snapshot(1)?.strategic?.people?.get(1001)?.peerage)
+        assertEquals(1,state.commits)
+    }
     @Test fun reservationOrMissingAtomicWriterCannotSplitDepartureState() {
         for (locked in listOf(false,true)) {
             val state=state();val before=state.players.toMap()

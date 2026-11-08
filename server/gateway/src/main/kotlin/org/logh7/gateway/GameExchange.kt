@@ -2471,15 +2471,16 @@ class GameExchange(
                             pendingWorld = stocks().thenCompose { stored -> navigate(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 val captured=navigation.snapshot()
-                                publication = Publication(character, player, true,opcode,captured?.revision)
+                                val entered=WorldCharacters.view(character,captured)
+                                publication = Publication(entered, player, true,opcode,captured?.revision)
                                 val tactical=if(player.cpPaused && world!=null)TacticalBootstrap(checkNotNull(captured),
                                     world.galaxy,player,::currentCharacterById) else null
                                 tacticalResumeGrid=tactical?.grid
                                 reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()).singleOrNull()?.let { startupWarpNotice = it }
                                 if (opcode == 0x0f02) startupGridReady = true
-                                listOf(BootstrapMessages.characterId(character),
-                                    characterMessage(character, player),
-                                    unitMessage(character, player),
+                                listOf(BootstrapMessages.characterId(entered),
+                                    characterMessage(entered, player),
+                                    unitMessage(entered, player),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused)) +
                                     world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = stored).orEmpty() +
                                     tactical?.initialize(::offices).orEmpty() +

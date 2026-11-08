@@ -10,6 +10,7 @@ import org.logh7.engine.OriginalCandidateEdit
 import org.logh7.engine.OriginalCandidateProfile
 import org.logh7.engine.PublishedOriginalCandidates
 import org.logh7.engine.ShipStyleId
+import org.logh7.engine.supportsNativePeerage
 import java.text.Normalizer
 import java.nio.file.Files
 import java.nio.file.Path
@@ -103,7 +104,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         fun OriginalCharacterMessages.Candidate.edited(id:Long=character.id):OriginalCharacterMessages.Candidate {
             val edit=edits[id]?.profile ?: return this
             return copy(character=character.copy(id=id,surname=edit.surname,givenName=edit.givenName,
-                face=edit.face,rank=edit.rank,abilities=edit.abilities,
+                face=edit.face,rank=edit.rank,abilities=edit.abilities,title=edit.peerage?.let {it.ordinal+1} ?: 0,
                 shipName=if(id==character.id)character.shipName else "Local $id"))
         }
         val added=edits.values.filter {it.id !in originalIds}.sortedBy {it.id}.map {row->
@@ -140,7 +141,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         val style=committedStyle ?: configuredStyles?.get(country.value) ?: catalog.shipStyle(country)
         if(definition.nativePower !in 2..3 || style.value !in setOf("empire","alliance"))return false
         val data=current.character
-        val next = registered + (account to CharacterProfile(data.copy(power=definition.nativePower,
+        val next = registered + (account to CharacterProfile(data.copy(power=definition.nativePower,title=0,
             shipKind=Flagships.forType(style.nativePower,data.shipType).kind),country,style))
         save(next); registered[account] = next.getValue(account); return true
     }
@@ -215,6 +216,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         if (applications.isEmpty() || clock.millis() < deadline) return
         val winners = registered.toMutableMap()
         val roster=originalPool(publishedOriginals.current()).associateBy {it.character.id}
+        val countries=CountryCatalogLoader.current()
         val accounts = applications.keys.toMutableList().also { java.util.Collections.shuffle(it, random) }
         for (account in accounts) {
             if (account in winners) continue
@@ -224,7 +226,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             val style=selection?.shipStyle ?: styles.getValue(character.power)
             // The hero keeps its own model unless the chosen style differs; then the same-type model of that style.
             val kind=if(style==ShipStyleId.fromLegacy(character.power))character.shipKind else Flagships.forType(style.nativePower,character.shipType).kind
-            val won=character.copy(generated = false,shipKind=kind,power=selection?.nativePower ?: character.power)
+            val country=selection?.country ?: CountryId(character.power)
+            val title=character.title.takeIf {publishedOriginals.canGrantPeerage && countries.supportsNativePeerage(country)} ?: 0
+            val won=character.copy(generated = false,shipKind=kind,power=selection?.nativePower ?: character.power,title=title)
             winners[account] = if(selection==null)profile(won) else CharacterProfile(won,selection.country,selection.shipStyle)
         }
         save(winners, emptyMap(), 0, emptyMap())

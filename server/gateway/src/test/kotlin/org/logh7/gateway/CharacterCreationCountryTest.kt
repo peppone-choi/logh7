@@ -149,6 +149,31 @@ class CharacterCreationCountryTest {
         assertEquals(custom.surname,won.character.surname)
     }
 
+    @Test fun startingPeerageRequiresTheActualAwardCountryAndLeavesWithDefection() {
+        val definitions=CharacterCreation.originalDefinitions()
+        val profile=definitions.first().profile.copy(peerage=Peerage.COUNT)
+        val start=Clock.fixed(Instant.ofEpochMilli(1000),ZoneOffset.UTC)
+        val end=Clock.offset(start,Duration.ofMillis(20))
+        for(power in 2..3) {
+            val country=CountryId(power)
+            val selection=CharacterCreation.CountrySelection(country,power,ShipStyleId.fromLegacy(power),creationPower=2)
+            val published=PublishedOriginalCandidates(definitions)
+            assertFalse(published.accepts(1001,profile))
+            published.publish(listOf(OriginalCandidateEdit(1001,1,profile,country)))
+            val file=dir.resolve("peerage-$power.properties")
+            CharacterCreation(file,clock=start,lotteryWindowMillis=10,publishedOriginals=published)
+                .apply("hero",listOf(1001),selection)
+            val settled=CharacterCreation(file,clock=end,publishedOriginals=published)
+            val title=if(power==2)Peerage.COUNT.ordinal+1 else 0
+            assertEquals(title,settled.profiles().getValue("hero").character.title)
+            assertEquals(title,CharacterCreation(file,clock=end).profiles().getValue("hero").character.title)
+            if(power==2) {
+                assertTrue(settled.defect("hero",1001,CountryId(3)))
+                assertEquals(0,CharacterCreation(file,clock=end).profiles().getValue("hero").character.title)
+            }
+        }
+    }
+
     @Test fun cancelRemovesOnlyTheOwnersUnfinishedCreationAndAllowsAFreshStart() {
         val store=CharacterCreation()
         store.accept("x",request(3,"Owner"),s42,"conn1")
