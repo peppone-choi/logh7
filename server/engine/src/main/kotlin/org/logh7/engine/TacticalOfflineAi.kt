@@ -68,7 +68,7 @@ internal object TacticalOfflineAi {
             val hull=checkNotNull(p.hull)
             val energy=allocation(hull.kind,kind==5)
             val nextPose=if(goal==null)pose else TacticalPose(pose.position,atan2(goal.x-pose.position.x,goal.y-pose.position.y))
-            val stop=if(kind==4)10f else if(kind in 1..2)3f else if(kind==5)0f else 2f
+            val stop=if(kind==4)(TacticalMissionRules.RECONNAISSANCE_RANGE_TACTICAL/2).toFloat() else if(kind in 1..2)3f else if(kind==5)0f else 2f
             // 占領 (mission 2): carriers with troops close in to anchor at the target base and land them (U-01).
             val occupied=if(kind==2)g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid} else null
             val motion=path(p.grid,now,nextPose,goal,stop,energy.values[0]/100f)

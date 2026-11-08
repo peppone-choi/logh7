@@ -524,7 +524,11 @@ internal object TacticalCommandOperations {
                         val from=pose(p.unitId,p.grid,now,players,stocks,g)
                         val to=TacticalCombat.target(m.target,p.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)
                             ?.let {TacticalFleetAttack.pose(it,now,players,stocks,g)}
-                        if(active && from!=null && to!=null && hypot((from.position.x-to.position.x).toDouble(),(from.position.y-to.position.y).toDouble())<=12.0)reward=checks
+                        if(active && from!=null && to!=null) {
+                            val distance=hypot((from.position.x-to.position.x).toDouble(),(from.position.y-to.position.y).toDouble())
+                            if(TacticalMissionRules.reconnaissanceInRange(distance*TacticalMissionRules.KM_PER_TACTICAL_UNIT))
+                                reward=checks
+                        }
                     }
                     5 -> when {
                         id in defeated -> completed=true

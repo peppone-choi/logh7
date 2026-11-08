@@ -21,6 +21,8 @@ object TacticalMissionRules {
     const val CHECK_INTERVAL_GAME_SECONDS: Long = 24L * 60
     const val WITHDRAWAL_LIMIT_GAME_SECONDS: Long = 4L * 60 * 60
     const val RECONNAISSANCE_RANGE_KM: Double = 12_000_000.0
+    const val KM_PER_TACTICAL_UNIT = TacticalTerrain.KM_PER_UNIT * 10_000
+    const val RECONNAISSANCE_RANGE_TACTICAL = RECONNAISSANCE_RANGE_KM / KM_PER_TACTICAL_UNIT
     const val INTERCEPTION_MERIT_MULTIPLIER: Long = 3L
 
     /** 자기 행성/요새 → 防衛, 타 세력 행성/요새 → 占領, 타 세력 전대 → 迎撃. */

@@ -228,10 +228,10 @@ class TacticalOfflineAiTest {
         val before=p.toMap();TacticalOfflineAi.advance(offline,galaxy,p,stocks(),1,mutableListOf())
         assertEquals(before,p)
     }
-    @Test fun reconnaissanceKeepsTenUnitsAndWithdrawalStartsTheExistingWarpPreparation() {
+    @Test fun reconnaissanceApproachesWithinMeritRangeAndWithdrawalStartsWarpPreparation() {
         val scouts=players();TacticalOfflineAi.advance(offline,galaxy,scouts,stocks(4),1,mutableListOf())
         assertNull(scouts.getValue("pilot").attack)
-        assertEquals(TacticalPoint(0f,20f),scouts.getValue("pilot").motion!!.waypoints.single())
+        assertEquals(TacticalPoint(0f,29.8f),scouts.getValue("pilot").motion!!.waypoints.single())
         val p=players();p["pilot"]=p.getValue("pilot").copy(motion=motion(0f,260f))
         TacticalOfflineAi.advance(offline,galaxy,p,stocks(5),1,mutableListOf())
         val withdrawn=p.getValue("pilot")
