@@ -44,6 +44,14 @@ class GroundPresenceTest {
             assertTrue(packets[1].isNotEmpty())
             packets[1].clear()
         }
+        for((action,survivor) in listOf(TacticalGroundAction.DEPLOY to 3,TacticalGroundAction.WITHDRAW to 2)) {
+            hub.ground(landed.copy(order=order.copy(action=action),troops=listOf(2,3,999)),snapshot,galaxy){null}
+            for(batches in packets) {
+                val moved=batches.flatten().single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0429}
+                assertContentEquals(TacticalGroundMessages.movedTroop(250,action==TacticalGroundAction.WITHDRAW,1,survivor,1049),moved)
+                batches.clear()
+            }
+        }
         hub.groundRefresh(1,2487,1049,250,snapshot,galaxy){id->people.singleOrNull {it.id==id.toLong()}}
         checkDefinitions()
         val movedPilot=viewers[0].copy(grid=2991)

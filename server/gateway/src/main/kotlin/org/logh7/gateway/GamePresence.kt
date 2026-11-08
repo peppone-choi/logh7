@@ -278,8 +278,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
                     org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(event.seconds,order.base,
                         tactical.baseInformation.single {it.position.id==order.base}.stamina))+
-                    event.troops.map {troop->org.logh7.protocol.TacticalGroundMessages.movedTroop(event.seconds,
-                        order.action==org.logh7.engine.TacticalGroundAction.WITHDRAW,order.carrier,troop,order.base)}
+                    tactical.groundDefinitions.filter {troop->troop.id in event.troops &&
+                        if(deploy)troop.base==order.base else troop.carrier==order.carrier
+                    }.map {troop->org.logh7.protocol.TacticalGroundMessages.movedTroop(event.seconds,
+                        !deploy,order.carrier,troop.id,order.base)}
             }
             val notice=if(viewer.character.id.toInt()==order.character)listOf(org.logh7.protocol.ChatMessages.spot(
                 org.logh7.protocol.ChatMessages.Spot(order.character,TacticalGroundNotices.finished(deploy,event.cancelled,event.troops.size)),
