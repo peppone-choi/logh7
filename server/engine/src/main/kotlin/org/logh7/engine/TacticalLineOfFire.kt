@@ -21,8 +21,8 @@ internal object TacticalLineOfFire {
             if(intersects(at,.25))return true
         }
         for(o in stocks.outfits.values.filter {TacticalAuthority.camp(it,stocks)==camp && it.positionIn(galaxy)==OutfitPosition(grid)})
-            for(u in o.activeShips?.values.orEmpty().filter {it.id!=source && it.boats>0 && it.posture?.mode!=TacticalShipMode.STATIONED}) {
-                val at=u.tactical?.motion?.pose(now,u.posture,galaxy,stocks)?.position ?:
+            for(u in o.activeShips?.values.orEmpty().filter {it.id!=source && it.boats>0 && it.posture?.takeIf {p->p.grid==grid}?.mode!=TacticalShipMode.STATIONED}) {
+                val at=u.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,u.posture,galaxy,stocks)?.position ?:
                     TacticalDeployment.initial(u.id,grid,players,stocks,galaxy).position
                 if(intersects(at,.25))return true
             }
