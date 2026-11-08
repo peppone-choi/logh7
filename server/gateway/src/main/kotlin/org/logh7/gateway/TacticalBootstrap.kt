@@ -184,11 +184,15 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 TacticalAttackMessages.reply(TacticalAttackMessages.Shoot(shot.commander,listOf(u.id),shot.weapon.wire,1,shot.target),
                     now,(shot.firesAt-now).coerceAtLeast(0))
             }} }
-    private fun emergencySupplies():List<ByteArray> {
+    fun emergencySupply(base:Int):PlanetStock? {
         val stocks=checkNotNull(snapshot.planetStocks)
-        val country=viewer.country ?: return emptyList()
-        return bases.filter {stocks.tacticalCommands.emergencySupplies[it.id]==country.value}.map {
-            org.logh7.protocol.TacticalBaseMessages.emergency(it.id,0,stocks.bases.getValue(it.id).supplies,0)}
+        val openCountry=stocks.tacticalCommands.emergencySupplies[base] ?: return null
+        return stocks.bases[base]?.takeIf {
+            it.country?.value==openCountry && it.camp==0 && TacticalAuthority.camp(it)==TacticalAuthority.camp(viewer,stocks)
+        }
+    }
+    private fun emergencySupplies():List<ByteArray> = bases.mapNotNull {base->
+        emergencySupply(base.id)?.let {TacticalBaseMessages.emergency(base.id,0,it.supplies,0)}
     }
     fun initialize(offices:(CharacterMessages.Generate,Navigator)->List<BootstrapMessages.OfficeCard> = {_,_->emptyList()}): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
         BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,offices(c,p))
