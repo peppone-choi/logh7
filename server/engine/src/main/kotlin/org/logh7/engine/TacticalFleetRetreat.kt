@@ -25,7 +25,7 @@ internal object TacticalFleetRetreat {
             val pair=s.outfits.values.mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id}?.let {o to it}}.singleOrNull()
                 ?: return reject(NavigationRejection.UNIT)
             val(o,u)=pair
-            if(TacticalAuthority.commander(o,u,s)!=p.characterId || o.country!=p.country ||
+            if(TacticalAuthority.commander(o,u,s)!=p.characterId || TacticalAuthority.camp(o,s)!=TacticalAuthority.camp(p,s) ||
                 o.positionIn(g)!=OutfitPosition(p.grid))return reject(NavigationRejection.CARD)
             if(u.boats==0 || u.support!=null || u.posture?.order!=null || u.tactical?.retreat!=null)return reject(NavigationRejection.BUSY)
             val at=u.tactical?.motion?.pose(now,u.posture,g,s) ?: TacticalDeployment.initial(id,p.grid,players.values,s,g)
@@ -60,16 +60,18 @@ internal object TacticalFleetRetreat {
             var outfit=stocks.outfits[outfitId] ?: continue
             val position=outfit.positionIn(g)
             val grid=position.grid
+            val outfitCamp=TacticalAuthority.camp(outfit,stocks)
             val checked=outfit.activeShips?.values.orEmpty().map {u->
                 val state=u.tactical ?: return@map u;val retreat=state.retreat ?: return@map u
                 if(u.motionCommander==0)return@map u
+                val commander=players.values.singleOrNull {it.characterId==u.motionCommander}
                 if(position.baseId!=0 || state.motion.grid!=grid ||
                     BattleDeath.deceased(stocks,u.motionCommander) ||
-                    TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander)
+                    TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander ||
+                    commander?.let {TacticalAuthority.camp(it,stocks)!=outfitCamp}==true)
                     return@map u.copy(tactical=state.copy(retreat=null))
                 if(retreat.membershipChecked || now<retreat.startsAt)return@map u
-                val commander=players.values.singleOrNull {it.characterId==u.motionCommander && it.grid==grid && it.baseId==0 && it.cpPaused}
-                val from=commander?.let {it.motion?.pose(retreat.startsAt,it.posture,g,stocks) ?:
+                val from=commander?.takeIf {it.grid==grid && it.baseId==0 && it.cpPaused}?.let {it.motion?.pose(retreat.startsAt,it.posture,g,stocks) ?:
                     TacticalDeployment.initial(it.unitId,grid,players.values,stocks,g)}
                 val at=state.motion.pose(retreat.startsAt,u.posture,g,stocks)
                 val admitted=from!=null && hypot((from.position.x-at.position.x).toDouble(),(from.position.y-at.position.y).toDouble())<=TacticalCommandRange.MAXIMUM
@@ -83,7 +85,8 @@ internal object TacticalFleetRetreat {
             for(group in due.groupBy {it.tactical!!.retreat!!.destination}.values) {
                 val current=stocks.outfits.getValue(outfitId);val target=group.first().tactical!!.retreat!!.destination
                 val forces=GridForces.collect(g,session.generation,players.values,stocks)
-                if(GridEntryRules.evaluate(GridForces.state(g,target,forces),GridEntry(Camp(current.country,false),group.size,false))!=GridEntryVerdict.ALLOWED)continue
+                val camp=TacticalAuthority.camp(current,stocks)
+                if(GridEntryRules.evaluate(GridForces.state(g,target,forces),GridEntry(camp,group.size,false))!=GridEntryVerdict.ALLOWED)continue
                 val ids=group.map {it.id}.toSet();val original=current.activeShips!!.values
                 val balances=OutfitSupplies.distribution(current)
                 val moving=ActiveShipUnits(original.filter {it.id in ids}.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null,support=null,posture=null)})
@@ -106,12 +109,16 @@ internal object TacticalFleetRetreat {
                     val warehouseId=if(shared)current.warehouseId else sequence.nextWarehouse
                     if(stocks.outfits.size>=1000 || !shared && stocks.warehouses.size>=1000 || newId==Int.MAX_VALUE || warehouseId==Int.MAX_VALUE)continue
                     val detachment=OutfitStock(newId,current.country,current.kind,current.baseId,warehouseId,
+                        commanderId=if(camp.insurgent)current.commanderId else 0,
                         units=UnitInventory(moving.quantities(),movedGround.quantities()+movedCrew),supplies=movedSupplies,activeShips=moving,
                         position=OutfitPosition(target),activeGround=if(current.activeGround==null)null else movedGround,shipStyle=current.shipStyle)
                     val left=current.copy(activeShips=remaining,activeGround=if(current.activeGround==null)null else leftGround,
                         units=UnitInventory(remaining.quantities(),leftGround.quantities()+leftCrew),supplies=current.supplies-movedSupplies)
+                    val coup=stocks.social.coup
                     stocks=stocks.copy(outfits=stocks.outfits+(outfitId to left)+(newId to detachment),warehouses=if(shared)stocks.warehouses else stocks.warehouses+
                         (warehouseId to OutfitWarehouse(warehouseId,current.country,current.kind,current.baseId,newId,shipStyle=current.shipStyle)),
+                        social=if(camp.insurgent)stocks.social.copy(coup=coup.copy(
+                            loyalty=coup.loyalty+(newId to coup.loyalty.getValue(current.id)))) else stocks.social,
                         outfitSequence=OutfitSequence(newId+1,if(shared)sequence.nextWarehouse else warehouseId+1),
                         tacticalCommands=stocks.tacticalCommands.copy(authority=stocks.tacticalCommands.authority+
                             group.associate {it.id to TacticalAuthority.commander(current,it,stocks)}))

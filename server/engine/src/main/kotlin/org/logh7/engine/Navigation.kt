@@ -552,7 +552,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val pose = player.motion?.pose(now,player.posture,galaxy) ?: continue
             if (!RetreatRules.outside(pose)) continue
             val forces = GridForces.collect(galaxy, session.generation, next.values, stocks)
-            if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces)) continue
+            if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces, stocks)) continue
             val moved = player.copy(grid = retreat.destination, motion = null, retreat = null, charge = null,commandRange=null,
                 attack=null,fire=player.fire?.copy(pending=null),
                 cpRecoveryAt = now, moves = Math.addExact(player.moves, 1))

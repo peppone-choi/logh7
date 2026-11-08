@@ -26,10 +26,10 @@ internal object RetreatRules {
         } }.sortedWith(compareByDescending<Triple<Int, Int, Int>> {
             (it.second * pose.position.x + it.third * pose.position.y) / hypot(it.second.toDouble(), it.third.toDouble())
         }.thenBy { it.first }).firstOrNull {
-            allowed(galaxy, player, it.first, forces)
+            allowed(galaxy, player, it.first, forces, stocks)
         }?.first
     }
-    fun allowed(galaxy: Galaxy, player: Navigator, destination: Int, forces: Map<Int, List<GridForces.Force>>): Boolean =
+    fun allowed(galaxy: Galaxy, player: Navigator, destination: Int, forces: Map<Int, List<GridForces.Force>>, stocks:PlanetStocks?): Boolean =
         GridEntryRules.evaluate(GridForces.state(galaxy, destination, forces),
-            GridEntry(Camp.of(player), 1, true)) == GridEntryVerdict.ALLOWED
+            GridEntry(stocks?.let {TacticalAuthority.camp(player,it)} ?: Camp.of(player), 1, true)) == GridEntryVerdict.ALLOWED
 }
