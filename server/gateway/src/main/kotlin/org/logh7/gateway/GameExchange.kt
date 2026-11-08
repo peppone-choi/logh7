@@ -2321,12 +2321,14 @@ class GameExchange(
                                             val outfit=if(query.command==65)inventory.outfits[query.outfit]?.takeIf {
                                                 country!=null && it.country==country && it.commanderId==character.id.toInt()} else null
                                             val here=outfit?.positionIn(world.galaxy)?.baseId ?: 0
+                                            val boats=outfit?.let(org.logh7.engine.TransportActions::boats) ?: 0
                                             val rows=inventory.strategic.transports.filter {it.country==country && it.id>query.target &&
                                                 (if(query.command==29)it.carrier==0 else outfit!=null &&
                                                     (it.carrier==outfit.id || it.carrier==0 && it.source==here && here!=0))}
                                                 .sortedBy {it.id}.take(200).map {p ->
-                                                    org.logh7.protocol.StrategyActionMessages.Selection(p.id,("${p.destination}/${p.supplies}"+
-                                                        (if(p.units.ships.isEmpty() && p.units.troops.isEmpty())"" else "+")+
+                                                    val (supplies,units)=org.logh7.engine.TransportActions.delivered(p,boats)
+                                                    org.logh7.protocol.StrategyActionMessages.Selection(p.id,("${p.destination}/$supplies"+
+                                                        (if(units.ships.isEmpty() && units.troops.isEmpty())"" else "+")+
                                                         (if(p.carrier!=0)"*" else "")).take(12))}
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
                                         }

@@ -106,6 +106,20 @@ class TransportActionsTest {
         assertEquals(StrategyActionRejection.TARGET,act(load(1),reinforced).rejection)
     }
 
+    @Test fun lostCargoReleasesMaterialAndUnitSlotsForTheNextLoad() {
+        val initial=stocks()
+        val outfit=initial.outfits.getValue(200)
+        val capacity=OutfitSupplies.capacity(outfit)-outfit.supplies
+        val slots=TransportActions.unitSlots(outfit)
+        val existing=TransportPackage(1,CountryId(2),1049,1050,capacity,
+            UnitInventory(ships=mapOf(cargo to slots)),carrier=200,carrierBoats=boats)
+        val pending=TransportPackage(2,CountryId(2),1049,1050,1,UnitInventory(ships=mapOf(cargo to 1)))
+        fun state(carried:TransportPackage)=initial.copy(strategic=StrategicState(transports=listOf(carried,pending)))
+        assertEquals(StrategyActionRejection.TROOPS,act(load(2),state(existing)).rejection)
+        val loaded=assertNotNull(act(load(2),state(existing.copy(survivingBoats=boats/2))).stocks)
+        assertEquals(200,loaded.strategic.transports.single {it.id==2}.carrier)
+    }
+
     @Test fun deliveredScalesByTheSurvivingShare() {
         val p=TransportPackage(1,CountryId(2),1049,1050,1000,UnitInventory(mapOf(cargo to 3)),carrier=200,carrierBoats=100)
         assertEquals(1000 to p.units,TransportActions.delivered(p,100))

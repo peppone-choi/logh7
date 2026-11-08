@@ -104,10 +104,10 @@ object TransportActions {
                 if(o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
                 next=if(pack.carrier==0) {
                     if(pack.source!=base.baseId)return reject(StrategyActionRejection.LOCATION)
-                    val carried=packages.filter {it.carrier==o.id}
-                    val room=OutfitSupplies.capacity(o)-o.supplies-carried.sumOf {it.supplies}
-                    val slots=unitSlots(o)-(o.activeGround?.values.orEmpty().count {it.carrier>0})-carried.sumOf {unitCount(it.units)}
                     val alive=boats(o)
+                    val carried=packages.filter {it.carrier==o.id}.map {delivered(it,alive)}
+                    val room=OutfitSupplies.capacity(o)-o.supplies-carried.sumOf {it.first}
+                    val slots=unitSlots(o)-(o.activeGround?.values.orEmpty().count {it.carrier>0})-carried.sumOf {unitCount(it.second)}
                     if(alive<=0 || pack.supplies>room || unitCount(pack.units)>slots)return reject(StrategyActionRejection.TROOPS)
                     stocks.copy(strategic=stocks.strategic.copy(transports=packages.map {if(it.id==pack.id)it.copy(carrier=o.id,carrierBoats=alive,survivingBoats=alive) else it}))
                 } else {
