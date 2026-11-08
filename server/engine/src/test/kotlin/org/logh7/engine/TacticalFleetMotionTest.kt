@@ -122,6 +122,50 @@ class TacticalFleetMotionTest {
             assertEquals(before,denied.stocks)
         }
     }
+    @Test fun stoppingTheAnchorAndReplacingAnotherShipKeepsTheRemainingTurn() {
+        val s=state()
+        var nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        var p=production(s)
+        fun at(offset:Long)=session.copy(gameMillis=(now+offset)*1000)
+        fun maneuver(ids:List<Int>,kind:TacticalManeuver)=request(ids).copy(tacticalMove=
+            TacticalMove(ids,0f,1f,listOf(TacticalPoint(0f,0f)),maneuver=kind))
+
+        val flagship=1010000
+        val original=TacticalFleetMotion.move(maneuver(listOf(flagship,1,2),TacticalManeuver.TURN),
+            session,galaxy,nav,p,p.snapshot(1)!!,s.commit,24).tacticalMotions
+        val stop=request().copy(tacticalMove=null,tacticalStop=TacticalStop(listOf(flagship)))
+        val stopped=TacticalSupportOperations.stop(stop,at(24),galaxy,nav,p,p.snapshot(1)!!,s.commit)
+        assertEquals(original.getValue(flagship).origin,stopped.tacticalMotions.getValue(flagship).origin)
+
+        val replaced=TacticalFleetMotion.move(maneuver(listOf(1),TacticalManeuver.REVERSE),
+            at(48),galaxy,nav,p,p.snapshot(1)!!,s.commit,24).tacticalMotions.getValue(1)
+        assertEquals(original.getValue(1).origin,replaced.origin)
+
+        nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        p=production(s)
+        val events=mutableListOf<TacticalMovement>()
+        fun settle(offset:Long)=TacticalCombat.settle(at(offset),galaxy,nav,p,s.commit,onMovement=events::add)
+        settle(119)
+        assertTrue(events.isEmpty())
+        settle(120)
+        val turn=events.single()
+        assertEquals(2,turn.unit)
+        assertEquals(original.getValue(2).pose(now+120),turn.motion!!.origin)
+        assertFalse(turn.turned)
+        settle(287)
+        assertEquals(1,events.size)
+        settle(288)
+        val reverse=events.last()
+        assertEquals(1,reverse.unit)
+        assertTrue(reverse.turned)
+        assertEquals(replaced.pose(now+288),reverse.motion!!.origin)
+        settle(300)
+        assertEquals(listOf(2,1),events.map {it.unit})
+        val stationary=s.players.getValue("pilot").motion!!
+        assertNull(stationary.rotation)
+        assertEquals(original.getValue(flagship).origin,stationary.origin)
+    }
+
     @Test fun waypointProgressAndCompletionCommitBeforeNotificationAndSurviveReloadWithoutRepeating() {
         val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
         val command=TacticalMove(listOf(1,1010000),1f,1.2f,listOf(TacticalPoint(0f,2f),TacticalPoint(3f,2f)))

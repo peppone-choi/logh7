@@ -25,7 +25,7 @@ data class TacticalMovement(val generation:Long,val unit:Int,val grid:Int,val se
     val character:Int=0,val stopped:Boolean=false,val waypoint:Int?=null,
     val formation:Map<Int,TacticalMotion> = emptyMap(),val turned:Boolean=false) {
     init { require(character>=0 && (waypoint==null || waypoint in -1..31) && (!stopped || character>0 && motion?.velocity==0f) && generation>0 &&
-        (unit in 1..999999 || (waypoint!=null || formation.isNotEmpty()) && unit>=1000000) && grid in 0..4999 && seconds in 0..0xffffffffL &&
+        (unit in 1..999999 || (stopped || waypoint!=null || formation.isNotEmpty()) && unit>=1000000) && grid in 0..4999 && seconds in 0..0xffffffffL &&
         (formation.isEmpty() || character>0 && formation.size in 1..32 && unit in formation && formation.values.all {it.grid==grid && it.rotation!=null}) &&
         (!turned || waypoint==-1 && motion!=null && formation.isEmpty()) &&
         recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()} &&
