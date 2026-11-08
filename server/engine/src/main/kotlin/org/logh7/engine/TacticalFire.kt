@@ -28,8 +28,9 @@ internal fun validCombatTarget(id:Int) = id in 1..999999 || id in 1_000_001..Int
 /** Committed impact and its authenticated audience at execution time. No wire or gateway state. Author: Peppone Choi. */
 data class TacticalImpact(val generation: Long, val source: Int, val weapon: TacticalWeapon, val hit: TacticalHit,
     val recipients: Map<Int,String>, val departed: Navigator? = null,val airBattle:Boolean=false,val boarding:Boolean=false,val fortress:Boolean=false,
-    val autonomous:Boolean=false) {
-    init { require(generation > 0 && source > 0 && recipients.keys.all { it > 0 } && recipients.values.all { it.isNotBlank() }) }
+    val npcOutfit:Int?=null) {
+    init { require(generation > 0 && source > 0 && (npcOutfit==null || npcOutfit>0) &&
+        recipients.keys.all { it > 0 } && recipients.values.all { it.isNotBlank() }) }
 }
 data class TacticalFire(val sequence: Long, val pending: TacticalPendingFire? = null, val last: TacticalHit? = null) {
     init { require(sequence > 0 && (pending == null || pending.sequence == sequence) &&

@@ -76,7 +76,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val sessionId:Int=LobbyMessages.LOCAL_SESSION_ID,
     private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,
     private val accountFame:FameLedger?=null,
-    private val npcDialogue:NpcCombatDialogue?=null) : AutoCloseable {
+    private val npcDialogue:NpcCombatDialogue?=null,
+    private val npcProfiles:org.logh7.engine.PublishedNpcFleetDialogue=org.logh7.engine.PublishedNpcFleetDialogue()) : AutoCloseable {
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
@@ -137,7 +138,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         require(listOf(gamePort, updatePort, sessionPort).all { it in 1..65535 } && setOf(gamePort, updatePort, sessionPort).size == 3)
         require(sessionDirectory!=null || sessionId==LobbyMessages.LOCAL_SESSION_ID && sessionName==LobbyMessages.LOCAL_SESSION_NAME)
         val tickets = sessionDirectory?.tickets ?: SessionTickets()
-        val presence = if (world != null && navigation != null) GamePresence(npcDialogue) else null
+        val presence = if (world != null && navigation != null) GamePresence(npcDialogue,npcProfiles) else null
         livePresence = presence
         presence?.disguise ={ id -> navigation?.snapshot()?.let {snapshot->
             val stocks=snapshot.planetStocks

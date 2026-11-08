@@ -2,6 +2,8 @@ package org.logh7.gateway
 
 import org.logh7.engine.Navigator
 import org.logh7.engine.TacticalWeapon
+import org.logh7.engine.NpcFleetDialogue
+import org.logh7.engine.PublishedNpcFleetDialogue
 import org.logh7.engine.positionIn
 import org.logh7.engine.members
 import org.logh7.protocol.BootstrapMessages
@@ -11,13 +13,15 @@ import org.logh7.protocol.LoginMessages
 import java.nio.ByteBuffer
 
 /** Friendly grid presence plus people physically sharing a non-ship room. */
-class GamePresence(private val npcDialogue:NpcCombatDialogue?=null) {
+class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
+    private val npcProfiles:PublishedNpcFleetDialogue=PublishedNpcFleetDialogue()) {
     data class Member(val connection: String, val character: CharacterMessages.Generate,
         val player: Navigator, val send: (List<ByteArray>) -> Unit,
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
-    private class CombatHail(val player:Navigator, val seconds:Long, val at:Long, var delivered:Boolean=false)
+    private class CombatHail(val player:Navigator, val outfit:Int, val revision:Long?, val seconds:Long,
+        val at:Long, var delivered:Boolean=false)
     private val combatHails = mutableMapOf<String,CombatHail>()
     @Synchronized internal fun communicationMember(connection:String):Member? = members[connection]
     @Synchronized internal fun communicationMembers(generation:Long):List<Member> =
@@ -478,6 +482,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null) {
     @Synchronized fun combat(impact: org.logh7.engine.TacticalImpact,
         snapshot:org.logh7.engine.WorldSnapshot?=null,galaxy:org.logh7.engine.Galaxy?=null,
         characterById:((Int)->CharacterMessages.Generate?)?=null) {
+        val npcOutfit=impact.npcOutfit
         val packet = if(impact.boarding)org.logh7.protocol.TacticalCommandMessages.fought(impact.hit.seconds,impact.source,impact.hit.target)
             else if(impact.airBattle)org.logh7.protocol.TacticalCommandMessages.airBattle(impact.hit.seconds,impact.source,impact.hit.target,
                 impact.hit.damaged,impact.hit.destroyed,impact.hit.shieldFace,impact.hit.shieldDamage,
@@ -522,20 +527,21 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null) {
                         org.logh7.protocol.TacticalStatusMessages.morale(impact.hit.seconds,impact.hit.target,morale),
                         org.logh7.protocol.TacticalStatusMessages.confusion(impact.hit.seconds,impact.hit.target,morale<=20))
                     send(viewer,listOf(packet)+status+leave+cargo)
-                    if(impact.autonomous && viewer.player.unitId==impact.hit.target && viewer.player.cpPaused &&
-                        viewer.player.baseId==0)combatHail(viewer,impact.weapon,impact.hit.seconds)
+                    if(npcOutfit!=null && viewer.player.unitId==impact.hit.target && viewer.player.cpPaused &&
+                        viewer.player.baseId==0)combatHail(viewer,npcOutfit,impact.weapon,impact.hit.seconds)
                 }
             }
     }
-    private fun combatHail(viewer:Member, weapon:TacticalWeapon, seconds:Long) {
+    private fun combatHail(viewer:Member, outfit:Int, weapon:TacticalWeapon, seconds:Long) {
         val now=System.nanoTime()
         val last=combatHails[viewer.connection]
         if(last!=null && sameBattlefield(last.player,viewer.player) && now-last.at<120_000_000_000L)return
-        val hail=CombatHail(viewer.player,seconds,now)
+        val profile=npcProfiles.current(viewer.player.generation,outfit)
+        val hail=CombatHail(viewer.player,outfit,profile?.revision,seconds,now)
         combatHails[viewer.connection]=hail
         val generator=npcDialogue
         if(generator==null)deliverCombatHail(viewer.connection,hail,null)
-        else try {generator.request(weapon) {line->deliverCombatHail(viewer.connection,hail,line)}}
+        else try {generator.request(weapon,profile?.dialogue ?: NpcFleetDialogue()) {line->deliverCombatHail(viewer.connection,hail,line)}}
         catch(_:Exception){deliverCombatHail(viewer.connection,hail,null)}
     }
     private fun sameBattlefield(before:Navigator, after:Navigator) = before.generation==after.generation &&
@@ -545,9 +551,9 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null) {
         val current=members[connection] ?: return
         if(combatHails[connection]!==hail || hail.delivered || !sameBattlefield(hail.player,current.player))return
         hail.delivered=true
-        val line=generated?.trim()?.takeIf { text -> text.length in 5..16 && text.any {it in '가'..'힣'} &&
-            text.all {it in '가'..'힣' || it in " ,.!?"} }
-            ?: "이곳에서 물러나라."
+        val profile=npcProfiles.current(current.player.generation,hail.outfit)
+        val line=generated?.trim()?.takeIf { profile?.revision==hail.revision && NpcFleetDialogue.validLine(it) }
+            ?: profile?.dialogue?.fallback?.takeIf {it.isNotEmpty()} ?: NpcFleetDialogue.DEFAULT_LINE
         send(current,listOf(ChatMessages.grid(ChatMessages.Grid(current.player.characterId,1,"[NPC 교신] $line"),hail.seconds)))
     }
     private fun send(viewer: Member, messages: List<ByteArray>) {

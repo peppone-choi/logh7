@@ -2,6 +2,7 @@ package org.logh7.app
 
 import kotlinx.serialization.json.*
 import org.logh7.engine.TacticalWeapon
+import org.logh7.engine.NpcFleetDialogue
 import org.logh7.gateway.NpcCombatDialogue
 import java.net.URI
 import java.net.http.HttpClient
@@ -30,12 +31,12 @@ internal class CompatibleNpcDialogue private constructor(
 
     @Synchronized private fun release() { inFlight-- }
 
-    override fun request(weapon:TacticalWeapon, complete:(String?)->Unit) {
+    override fun request(weapon:TacticalWeapon, profile:NpcFleetDialogue, complete:(String?)->Unit) {
         if(!reserve()) { complete(null); return }
         val response=try {
             val request=HttpRequest.newBuilder(endpoint).timeout(timeout)
                 .header("Authorization","Bearer $key").header("Content-Type","application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(requestBody(weapon))).build()
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody(weapon,profile))).build()
             client.sendAsync(request,HttpResponse.BodyHandlers.limiting(HttpResponse.BodyHandlers.ofString(Charsets.UTF_8),16_384))
         } catch(_:RuntimeException) {
             release(); complete(null); return
@@ -52,7 +53,7 @@ internal class CompatibleNpcDialogue private constructor(
         }
     }
 
-    private fun requestBody(weapon:TacticalWeapon)=buildJsonObject {
+    private fun requestBody(weapon:TacticalWeapon,profile:NpcFleetDialogue)=buildJsonObject {
         put("model",model)
         put("stream",false)
         put("max_tokens",80)
@@ -64,7 +65,11 @@ internal class CompatibleNpcDialogue private constructor(
             }
             addJsonObject {
                 put("role","user")
-                put("content","The fleet has just landed a ${weapon.name.lowercase()} shot. Warn the opposing captain to withdraw.")
+                put("content",buildString {
+                    append("The fleet has just landed a ${weapon.name.lowercase()} shot. Warn the opposing captain to withdraw.")
+                    if(profile.style.isNotEmpty())append("\nVoice style: ${profile.style}")
+                    if(profile.prompt.isNotEmpty())append("\nCharacter direction: ${profile.prompt}")
+                })
             }
         }
     }.toString()

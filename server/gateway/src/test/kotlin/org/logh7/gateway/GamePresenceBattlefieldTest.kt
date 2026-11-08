@@ -62,8 +62,8 @@ class GamePresenceBattlefieldTest {
         hub.update(GamePresence.Member("witness",character.copy(id=10001),player.copy(characterId=10001),witness::addAll))
         target.clear(); witness.clear()
         val impact=TacticalImpact(1,1,TacticalWeapon.BEAM,TacticalHit(1,2487,100,player.unitId,0,shieldFace=1,shieldDamage=1),
-            recipients+(10001 to "witness"),autonomous=true)
-        hub.combat(impact.copy(autonomous=false))
+            recipients+(10001 to "witness"),npcOutfit=7)
+        hub.combat(impact.copy(npcOutfit=null))
         hub.combat(impact)
         hub.combat(impact)
         assertEquals(listOf(0x0426,0x0426,0x0f1c,0x0426),target.map(::opcode))
@@ -73,11 +73,11 @@ class GamePresenceBattlefieldTest {
 
     @Test fun delayedHailRejectsStaleBattlefieldAndInvalidModelOutput() {
         var pending:((String?)->Unit)?=null
-        val hub=GamePresence {_,complete->pending=complete}
+        val hub=GamePresence(NpcCombatDialogue {_,_,complete->pending=complete})
         val received=mutableListOf<ByteArray>()
         val viewer=GamePresence.Member("viewer",character,player,received::addAll)
         val impact=TacticalImpact(1,1,TacticalWeapon.GUN,TacticalHit(1,2487,100,player.unitId,0,shieldFace=1,shieldDamage=1),
-            recipients,autonomous=true)
+            recipients,npcOutfit=7)
         hub.update(viewer)
         hub.combat(impact)
         assertEquals(listOf(0x0426),received.map(::opcode))
@@ -95,6 +95,29 @@ class GamePresenceBattlefieldTest {
         hub.combat(impact)
         checkNotNull(pending)("지금 이곳에서 물러나라.")
         assertEquals("[NPC 교신] 지금 이곳에서 물러나라.",ChatMessages.grid(received.last().drop(4).toByteArray()).text)
+    }
+
+    @Test fun fleetSpecificProfileUpdatesFallbackAndInvalidatesOldModelReply() {
+        val published=PublishedNpcFleetDialogue()
+        val prior=NpcFleetDialogue("우리 진로를 비켜라.","차분함","짧게 경고한다.")
+        val newer=NpcFleetDialogue("더 접근하지 마라.","단호함","물러나라고 한다.")
+        published.publish(1,listOf(NpcFleetDialogueRow(1,7,1,prior)))
+        var completion:((String?)->Unit)?=null
+        val hub=GamePresence(NpcCombatDialogue {_,profile,complete->assertEquals(prior,profile);completion=complete},published)
+        val received=mutableListOf<ByteArray>()
+        val viewer=GamePresence.Member("viewer",character,player,received::addAll)
+        hub.update(viewer)
+        val hit=TacticalImpact(1,1,TacticalWeapon.GUN,TacticalHit(1,2487,100,player.unitId,0,shieldFace=1,shieldDamage=1),
+            recipients,npcOutfit=7)
+        hub.combat(hit)
+        published.publish(1,listOf(NpcFleetDialogueRow(1,7,2,newer)))
+        published.publish(1,listOf(NpcFleetDialogueRow(1,7,1,prior)))
+        checkNotNull(completion)("우리 진로를 비켜라.")
+        assertEquals("[NPC 교신] 더 접근하지 마라.",ChatMessages.grid(received.last().drop(4).toByteArray()).text)
+        val keyless=GamePresence(npcProfiles=published)
+        keyless.update(viewer)
+        keyless.combat(hit.copy(npcOutfit=8))
+        assertEquals("[NPC 교신] 이곳에서 물러나라.",ChatMessages.grid(received.last().drop(4).toByteArray()).text)
     }
 
     @Test fun delayedSupportCompletionAndCancellationDoNotReachAViewerInAnotherGrid() {

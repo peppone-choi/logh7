@@ -81,7 +81,7 @@ internal object NpcTactics {
             var outfit=stocks.outfits.getValue(outfitId)
             val position=outfit.positionIn(galaxy)
             // A player taking command must never compete with autonomous orders.
-            if(position.baseId!=0 || outfit.members().isNotEmpty() || outfit.activeShips?.values.orEmpty().any {TacticalAuthority.commander(outfit,it,stocks)>0}) {
+            if(position.baseId!=0 || !TacticalAuthority.uncommanded(outfit,stocks)) {
                 for(unit in outfit.activeShips?.values.orEmpty()) {
                     val state=unit.tactical ?: continue
                     if(position.baseId==0 && state.motion.grid==position.grid && unit.motionCommander!=0 &&
@@ -173,7 +173,7 @@ internal object NpcTactics {
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
                         weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),victim.effectiveness,pose,
                         checkNotNull(TacticalCombat.target(victim.id,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)))
-                    stocks=resolved.first;impacts+=resolved.second.copy(autonomous=true);forceCache=null
+                    stocks=resolved.first;impacts+=resolved.second.copy(npcOutfit=outfitId);forceCache=null
                     outfit=stocks.outfits.getValue(outfitId)
                     firing=firing.copy(nextFireAt=now+5*scale,sequence=firing.sequence+1)
                     // Debit this firing unit, not whichever unit bulk ID-order storage fills last.
