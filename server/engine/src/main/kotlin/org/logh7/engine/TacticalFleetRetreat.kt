@@ -12,6 +12,7 @@ internal object TacticalFleetRetreat {
         var p=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(BattleDeath.deceased(s,p.characterId))return reject(NavigationRejection.IDENTITY)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(!n.captainCard(r,p))return reject(NavigationRejection.CARD)
         val now=session.gameMillis/1000;val units=checkNotNull(r.tacticalRetreat)
@@ -57,6 +58,7 @@ internal object TacticalFleetRetreat {
             var outfit=stocks.outfits[outfitId] ?: continue;val grid=outfit.positionIn(g).grid
             val checked=outfit.activeShips?.values.orEmpty().map {u->
                 val state=u.tactical ?: return@map u;val retreat=state.retreat ?: return@map u
+                if(BattleDeath.deceased(stocks,u.motionCommander))return@map u.copy(tactical=state.copy(retreat=null))
                 if(u.motionCommander==0 || retreat.membershipChecked || now<retreat.startsAt)return@map u
                 val commander=players.values.singleOrNull {it.characterId==u.motionCommander && it.grid==grid && it.baseId==0 && it.cpPaused}
                 val from=commander?.let {it.motion?.pose(retreat.startsAt,it.posture,g,stocks) ?:

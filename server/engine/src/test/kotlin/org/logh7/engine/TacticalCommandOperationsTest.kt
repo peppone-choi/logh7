@@ -515,6 +515,32 @@ class TacticalCommandOperationsTest {
         val r=run(s);assertNotNull(accept(r,TacticalCommand(0x41d,base=1000)).player);settle(r,now+5)
         assertEquals(70,s.stocks.tacticalCommands.morale[3])
     }
+    @Test fun deceasedCommanderCannotRetreatAndAdmittedReservationsAreClearedOnReload() {
+        val s=state()
+        val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=true)
+        val pilot=s.players.getValue("pilot").copy(retreat=retreat,motion=motion(260f),
+            energy=TacticalEnergy(List(11) {if(it==1)TacticalEnergy.WARP_MAX else 0}))
+        s.players=s.players+("pilot" to pilot)
+        val fleet=s.stocks.outfits.getValue(1)
+        val ships=fleet.activeShips!!.values.map {u->if(u.id!=1)u else
+            u.copy(motionCommander=10000,tactical=NpcTacticalState(motion(260f,.4f),now,now,retreat=retreat))}
+        s.stocks=BattleDeath.apply(s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ActiveShipUnits(ships)))),
+            listOf(10000),now) {_,_->true}
+        val r=run(s)
+        val request=request(TacticalCommand(0x40d,listOf(1))).copy(tacticalCommand=null,tacticalRetreat=listOf(1))
+        val due=session.copy(gameMillis=(now+155)*1000)
+        assertEquals(NavigationRejection.IDENTITY,TacticalFleetRetreat.accept(request,due,galaxy,r.navigation,
+            r.production,r.production.snapshot(1)!!,s.commit,1).rejection)
+        assertEquals(NavigationRejection.IDENTITY,r.navigation.apply(request.copy(tacticalRetreat=listOf(pilot.unitId)),
+            due,r.production.snapshot(1)!!).rejection)
+        r.navigation.settleRetreats(due,r.production.snapshot(1))
+        settle(r,now+155)
+        assertEquals(pilot.grid,s.players.getValue("pilot").grid)
+        assertNull(s.players.getValue("pilot").retreat)
+        assertEquals(fleet.position,s.stocks.outfits.getValue(1).position)
+        assertEquals(listOf(1,2),s.stocks.outfits.getValue(1).activeShips!!.values.map {it.id})
+        assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.retreat)
+    }
     @Test fun regularRetreatMovesOnlySelectedStableIdsAndLeavesLandedTroopsBehind() {
         val s=state();s.players=s.players.mapValues {(account,p)->if(account=="pilot")p.copy(motion=motion(260f)) else p}
         val o=s.stocks.outfits.getValue(1)
