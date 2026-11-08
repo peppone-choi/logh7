@@ -388,7 +388,7 @@ class GameExchangeTest {
     }
 
     @Test fun tacticalPositionsWaitForCurrentTimeAndRecheckRetreatBeforeReplaying() {
-        for(outcome in listOf("moving","failure","retreat","malformed")) {
+        for(outcome in listOf("moving","failure","retreat","same-grid-return","malformed")) {
             var now=java.time.Instant.EPOCH
             val clock=object:java.time.Clock() {
                 override fun getZone()=java.time.ZoneOffset.UTC
@@ -440,10 +440,15 @@ class GameExchangeTest {
             } else {
                 seconds=10
                 if(outcome=="retreat") player=player.copy(grid=2488,cpPaused=false,motion=null)
+                if(outcome=="same-grid-return") {
+                    player=player.copy(baseId=1000,mode=4,cpPaused=false,motion=null)
+                    assertNotNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
+                    assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
+                }
                 sampled.complete(Unit)
                 val messages=operation.join();val position=ByteBuffer.wrap(messages.first())
                 assertEquals(0x0349,position.getShort(4).toInt())
-                if(outcome=="retreat") {
+                if(outcome=="retreat" || outcome=="same-grid-return") {
                     assertEquals(0,position.getShort(6).toInt());assertEquals(2,recoveries)
                     assertTrue(messages.any {ByteBuffer.wrap(it).getShort(4).toInt()==0x0356})
                     val bytes=assertNotNull(game.finishWorld(messages)).bytes
@@ -453,7 +458,7 @@ class GameExchangeTest {
                         val body=Envelope.decode(LegacyBlowfish(b).decrypt(bytes.copyOfRange(offset+8,end)),-1).second
                         opcodes+=ByteBuffer.wrap(body).getShort(4).toInt() and 65535;offset=end
                     }
-                    assertTrue(0x0f1f in opcodes)
+                    assertEquals(outcome=="retreat",0x0f1f in opcodes)
                     assertFalse(0x0b09 in opcodes || 0x0b0a in opcodes,"A retiring battlefield must not rebuild live native models")
                     val queuedPresence=listOf(LoginMessages.sessionMessage(0x0b09,byteArrayOf(0)),
                         LoginMessages.sessionMessage(0x0b0a,byteArrayOf(0)))
