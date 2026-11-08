@@ -127,7 +127,11 @@ class TacticalOfflineAiTest {
         for(mission in listOf(3,4,5)) assertExistingFleetAttackIsSuppressed(mission)
     }
 
-    private fun assertExistingFleetAttackIsSuppressed(mission:Int) {
+    @Test fun commanderConfusionSuppressesExistingOfflineFireBeforeTheNextAiDecision() {
+        assertExistingFleetAttackIsSuppressed(3,confused=true)
+    }
+
+    private fun assertExistingFleetAttackIsSuppressed(mission:Int,confused:Boolean=false) {
         val plain=stocks(mission)
         val own=plain.outfits.getValue(1)
         val enemy=plain.outfits.getValue(2)
@@ -135,15 +139,20 @@ class TacticalOfflineAiTest {
             attack=TacticalUnitAttack(10000,TacticalAttackOrder(2,now,now,now)))
         val nearby=enemy.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,3f),now,now))
         val command=plain.tacticalCommands
-        val assigned=command.missions.getValue(10000).let {if(mission==3)it.copy(target=98) else it}
+        val assigned=command.missions.getValue(10000).let {if(mission==3 && !confused)it.copy(target=98) else it}
+        val pilot=players().getValue("pilot")
+        val morale=if(confused)mapOf(pilot.unitId to 20) else emptyMap()
         val stock=plain.copy(outfits=mapOf(1 to own.copy(activeShips=ActiveShipUnits(listOf(shooting))),
             2 to enemy.copy(activeShips=ActiveShipUnits(listOf(nearby)))),
-            tacticalCommands=command.copy(missions=mapOf(10000 to assigned)))
+            tacticalCommands=command.copy(missions=mapOf(10000 to assigned),morale=morale,
+                aiNextAt=mapOf(10000 to now+5)))
+        assertTrue(TacticalOfflineAi.automaticTargets(offline,"pilot",pilot,stock,listOf(99))
+            .none {it==99})
         val impacts=mutableListOf<TacticalImpact>()
         TacticalFleetAttack.advance(offline,galaxy,players(),stock,1,impacts)
         assertTrue(impacts.isEmpty())
         TacticalFleetAttack.advance(baseSession,galaxy,players(),stock,1,impacts)
-        assertTrue(impacts.any {it.hit.target==99},"the unrelated enemy is otherwise a valid target")
+        assertTrue(impacts.any {it.hit.target==99},"the enemy is a valid target while the commander is online")
     }
 
     @Test fun occupationAnchorsTroopCarriersAtTheEnemyBaseAndThenLandsTheirTroops() {
