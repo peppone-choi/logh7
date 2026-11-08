@@ -85,7 +85,7 @@ internal object TacticalCommandOperations {
         return p.characterId==best.characterId
     }
     private fun validate(c:TacticalCommand,p:Navigator,now:Long,players:Map<String,Navigator>,s:PlanetStocks,g:Galaxy,
-        checkRange:Boolean,sessionOnline:Map<String,Boolean> = emptyMap()):NavigationRejection? {
+        checkRange:Boolean,sessionOnline:Map<String,Boolean> = emptyMap(),fortressStartAt:Long=now):NavigationRejection? {
         if(BattleDeath.deceased(s,p.characterId))return NavigationRejection.IDENTITY
         if(p.hull?.woundedUntil?.let {it>now}==true)return NavigationRejection.WOUNDED
         val baseOnly=c.opcode in setOf(0x419,0x41d,0x41e,0x41f,0x422)
@@ -212,7 +212,7 @@ internal object TacticalCommandOperations {
             0x41f -> {
                 if(base?.kind!=1 || !base.mobile || c.points.isEmpty() || !FortressArmor.propulsion(s,base.id))
                     return NavigationRejection.BASE
-                if(TacticalTerrain.pathBlocked(g,p.grid,centre,c.points))return NavigationRejection.RANGE
+                if(TacticalTerrain.pathBlocked(g,p.grid,basePoint(base,fortressStartAt,s),c.points))return NavigationRejection.RANGE
             }
             0x408,0x421 -> {
                 if(c.kind !in 0..5)return NavigationRejection.TARGET
@@ -615,7 +615,8 @@ internal object TacticalCommandOperations {
         val battle=Battle(session,g,players,initial,scale,events,impacts)
         for(o in initial.tacticalCommands.orders.sortedWith(compareBy({it.readyAt},{it.character}))) {
             val p=players.values.singleOrNull {it.characterId==o.character && it.grid==o.grid}
-            val valid=session.ended==null && p!=null && validate(o.command,p,battle.now,players,battle.stocks,g,false,session.participants.mapValues {it.value.online})==null
+            val valid=session.ended==null && p!=null && validate(o.command,p,battle.now,players,battle.stocks,g,false,
+                session.participants.mapValues {it.value.online},fortressStartAt=minOf(o.readyAt,battle.now))==null
             if(valid && o.readyAt>battle.now)continue
             battle.stocks=battle.stocks.copy(tacticalCommands=battle.stocks.tacticalCommands.copy(orders=battle.stocks.tacticalCommands.orders-o))
             val before=impacts.size
