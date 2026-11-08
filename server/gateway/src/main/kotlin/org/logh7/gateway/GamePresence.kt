@@ -494,10 +494,14 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             }
     }
 
-    @Synchronized fun tacticalEnd(event:org.logh7.engine.TacticalEnd) {
+    @Synchronized fun tacticalEnd(event:org.logh7.engine.TacticalEnd,snapshot:org.logh7.engine.WorldSnapshot) {
         val viewer=members[event.connection] ?: return
         if(viewer.character.id!=event.character.toLong() || viewer.player.generation!=event.generation ||
             viewer.player.grid!=event.grid || !viewer.player.cpPaused)return
+        val current=snapshot.navigators.values.singleOrNull {
+            it.characterId==event.character && it.generation==event.generation
+        } ?: return
+        if(current.grid!=event.grid || current.cpPaused)return
         send(viewer,listOf(org.logh7.protocol.TacticsMessages.notify(event.grid,false)))
     }
 
