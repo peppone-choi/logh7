@@ -471,8 +471,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
-                // Warp delivery uses the origin audience, which can include the moving commander.
-                if(event.destination==null && snapshot!=null && tacticalViewer(snapshot,viewer,event.grid)==null)return@forEach
+                if(snapshot!=null && tacticalViewer(snapshot,viewer,event.grid)==null)return@forEach
                 if(event.formation.isNotEmpty()) {
                     send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character))
                     return@forEach
