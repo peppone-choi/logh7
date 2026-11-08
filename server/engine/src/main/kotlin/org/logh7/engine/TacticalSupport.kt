@@ -51,6 +51,7 @@ internal object TacticalSupportOperations {
         players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy,commandRadius:Float?=null): Boolean {
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5 || player.grid!=order.grid ||
             player.hull?.woundedUntil?.let {now<it}==true || source.unit.boats==0 || source.unit.id==order.target ||
+            stocks.tacticalCommands.confused(source.unit.id) ||
             TacticalAuthority.commander(source.outfit,source.unit,stocks)!=player.characterId || TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(player,stocks) ||
             source.outfit.positionIn(galaxy)!=OutfitPosition(order.grid))return false
         val spec=UnitSpecifications.ships.single {it.kind==source.unit.stack.kind}
