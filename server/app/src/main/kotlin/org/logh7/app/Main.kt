@@ -235,6 +235,7 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             org.logh7.persistence.PostgresOriginalCandidates(definitionsConnect,java.util.UUID.fromString(worldIdentity)) else null
         if(originalCandidateStore!=null)try {
             originalCandidates.publish(originalCandidateStore.load())
+            originalCandidates.publishPortraits(originalCandidateStore.loadPortraits())
         } catch(_:java.sql.SQLException) {
             System.err.println("Original candidate editor unavailable; using built-in candidates")
         }
@@ -302,7 +303,11 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             var failed=false
             while(isActive) {
                 delay(5000)
-                try {imageStore.snapshot();failed=false}
+                try {
+                    imageStore.snapshot()
+                    originalCandidateStore?.let {originalCandidates.publishPortraits(it.loadPortraits())}
+                    failed=false
+                }
                 catch(_:Exception) {if(!failed)System.err.println("Image definitions unavailable; retaining the last image snapshot");failed=true}
             }
         }

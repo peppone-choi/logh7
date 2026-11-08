@@ -7,6 +7,7 @@
 #include "outfit_affiliation.h"
 #include "tactical_camp.h"
 static constexpr unsigned fuelStatusMode=19;
+static constexpr unsigned ownPortraitMode=20;
 static constexpr unsigned ownCountryExtensionOffset=0x4598; // First native cargo word, unused in mode 11.
 struct FuelProgress {unsigned startsAt=0,deadline=0;};
 static bool readFuelProgress(const BYTE* record,unsigned character,unsigned nonce,FuelProgress& output) {
@@ -28,14 +29,22 @@ static SRWLOCK countryPaintLock=SRWLOCK_INIT;
 static struct CountryPaintInbox {
     void* world;unsigned pending,mode,nonce,cursor,count,session,character,power,ownCountry;bool ownRegistered;
     ULONGLONG sentAt,pollAt,identityAt,basesAt;
-    bool identityReceived,fuelSupported,productionQuotesSupported,repairQuotesSupported,supplyQuotesSupported;
-    ULONGLONG fuelAt;
+    bool identityReceived,fuelSupported,productionQuotesSupported,repairQuotesSupported,supplyQuotesSupported,portraitSupported;
+    ULONGLONG fuelAt,portraitAt;
     FuelProgress fuel;
     unsigned imageCountry;std::uint64_t imageRevision;
     logh::CountryImageDraft image;
     logh::BaseAffiliationDraft bases;
     logh::CountryPaint rows[350];
 } countryPaintInbox={};
+// Guarded by countryPaintLock. The render thread consumes only completed transfers.
+static unsigned ownPortraitSerial=0;
+static bool ownPortraitPresent=false;
+static unsigned char ownPortraitPixels[4096];
+
+static void clearOwnPortrait() {
+    if(ownPortraitPresent){ownPortraitPresent=false;++ownPortraitSerial;}
+}
 
 static unsigned countryPaintRgb(unsigned country,unsigned field,unsigned fallback) {
     if(field>3)return fallback;
@@ -47,7 +56,8 @@ static unsigned countryPaintRgb(unsigned country,unsigned field,unsigned fallbac
     ReleaseSRWLockShared(&countryPaintLock);return result;
 }
 static bool receiveCountryPaint(const BYTE* record) {
-    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12 && record[8]!=16 && record[8]!=17 && record[8]!=fuelStatusMode)return false;
+    if(record[8]!=4 && record[8]!=5 && record[8]!=11 && record[8]!=12 && record[8]!=16 && record[8]!=17 &&
+        record[8]!=fuelStatusMode && record[8]!=ownPortraitMode)return false;
     AcquireSRWLockExclusive(&countryPaintLock);
     auto& inbox=countryPaintInbox;logh::CountryPaint paint;
     if(inbox.pending && inbox.mode==12 && inbox.bases.accept(record,24+10*36)==2) {
@@ -62,6 +72,8 @@ static bool receiveCountryPaint(const BYTE* record) {
         inbox.productionQuotesSupported=logh::paintWord(record+ownCountryExtensionOffset+4)==1;
         inbox.repairQuotesSupported=(record[10]&1)!=0;
         inbox.supplyQuotesSupported=(record[10]&2)!=0;
+        inbox.portraitSupported=(record[10]&4)!=0;
+        if(!inbox.portraitSupported)clearOwnPortrait();
     }
     if(inbox.pending && inbox.mode==fuelStatusMode && readFuelProgress(record,inbox.character,inbox.nonce,inbox.fuel)) {
         inbox.pending=0;
@@ -82,13 +94,21 @@ static bool receiveCountryPaint(const BYTE* record) {
     if(inbox.pending && inbox.mode==17 && inbox.image.accept(record,24+10*36)==2) {
         publishCountryImages(inbox.image.value);inbox.pending=0;inbox.imageCountry=0;
     }
+    if(inbox.pending && inbox.mode==ownPortraitMode && inbox.image.accept(record,24+10*36)==2) {
+        if(const auto pixels=inbox.image.value.pixels(false)) {
+            if(!ownPortraitPresent || memcmp(ownPortraitPixels,pixels,sizeof(ownPortraitPixels))) {
+                memcpy(ownPortraitPixels,pixels,sizeof(ownPortraitPixels));ownPortraitPresent=true;++ownPortraitSerial;
+            }
+        } else clearOwnPortrait();
+        inbox.pending=0;
+    }
     ReleaseSRWLockExclusive(&countryPaintLock);return true;
 }
 static void pollCountryPaint(void* world) {
     auto own=world ? at<BYTE*>(world,8) : nullptr;
     if(!own || !at<BYTE>(own,0) || (!at<BYTE>(world,0x2a58f8) && !at<BYTE>(world,0x126718))) {
         AcquireSRWLockExclusive(&countryPaintLock);
-        if(countryPaintInbox.world) {countryPaintInbox.world=nullptr;countryPaintInbox.pending=0;resetCountryMetadata();resetBaseAffiliations();}
+        if(countryPaintInbox.world) {countryPaintInbox.world=nullptr;countryPaintInbox.pending=0;clearOwnPortrait();resetCountryMetadata();resetBaseAffiliations();}
         ReleaseSRWLockExclusive(&countryPaintLock);return;
     }
     unsigned query[3]={};auto now=GetTickCount64();
@@ -98,7 +118,7 @@ static void pollCountryPaint(void* world) {
     if(!character || (power!=2 && power!=3)) {ReleaseSRWLockExclusive(&countryPaintLock);return;}
     if(inbox.world!=world || inbox.session!=session || inbox.character!=character || inbox.power!=power) {
         const unsigned nonce=inbox.nonce;inbox={};inbox.world=world;inbox.session=session;inbox.character=character;inbox.power=power;inbox.nonce=nonce;
-        resetCountryMetadata();resetBaseAffiliations();
+        clearOwnPortrait();resetCountryMetadata();resetBaseAffiliations();
     }
     if(inbox.pending && now-inbox.sentAt>=5000) {if(inbox.mode==17)inbox.imageCountry=0;inbox.pending=0;}
     if(!inbox.pending && now>=inbox.pollAt) {
@@ -106,6 +126,9 @@ static void pollCountryPaint(void* world) {
             inbox.pending=character;inbox.mode=fuelStatusMode;inbox.fuelAt=now+5000;
         } else if(inbox.imageCountry) {inbox.pending=inbox.imageCountry;inbox.mode=17;}
         else if(now>=inbox.identityAt) {inbox.pending=character;inbox.mode=11;inbox.identityAt=now+5000;}
+        else if(inbox.portraitSupported && now>=inbox.portraitAt) {
+            inbox.pending=character;inbox.mode=ownPortraitMode;inbox.portraitAt=now+15000;
+        }
         else if(now>=inbox.basesAt) {inbox.pending=1;inbox.mode=12;inbox.basesAt=now+5000;}
         else if(inbox.ownRegistered) {
             unsigned ids[353]={inbox.ownCountry},count=1;
@@ -133,6 +156,7 @@ static void pollCountryPaint(void* world) {
             query[0]=inbox.pending;query[1]=inbox.nonce;query[2]=inbox.mode;
             if(inbox.mode==12) {query[0]=0;inbox.bases.begin(inbox.nonce);}
             if(inbox.mode==17)inbox.image.begin(inbox.pending,inbox.nonce,inbox.imageRevision);
+            if(inbox.mode==ownPortraitMode)inbox.image.begin(character,inbox.nonce,0,ownPortraitMode);
         }
     }
     ReleaseSRWLockExclusive(&countryPaintLock);
