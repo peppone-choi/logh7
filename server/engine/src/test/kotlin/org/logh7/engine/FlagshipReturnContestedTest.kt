@@ -18,6 +18,14 @@ class FlagshipReturnContestedTest {
         val moved=FlagshipRecovery.defeated(victim,100,galaxy,stocks,listOf(victim,enemy))
         assertEquals(1060,moved.baseId);assertEquals(2490,moved.grid)
     }
+    @Test fun lostReturnAndOriginPlanetsDoNotSendTheFlagshipToTheEnemyStart() {
+        val captured=stocks.copy(bases=listOf(1048,1060).associateWith {PlanetStock(it,3,0,0,0,0)})
+        val moved=FlagshipRecovery.defeated(victim.copy(originBase=1060),100,galaxy,captured)
+        assertEquals(2015,moved.grid)
+        assertEquals(0,moved.baseId)
+        assertEquals(0,moved.returnBase)
+        assertEquals(1060,moved.originBase)
+    }
     @Test fun everyOwnSystemInTacticsKeepsTheDesignationAndReturnsToSafeSpace() {
         val other=enemy.copy(characterId=10002,grid=2490)
         val moved=FlagshipRecovery.defeated(victim,100,galaxy,stocks,listOf(victim,enemy,other))

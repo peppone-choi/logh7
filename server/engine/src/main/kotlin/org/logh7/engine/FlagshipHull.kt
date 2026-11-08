@@ -38,7 +38,7 @@ internal object FlagshipRecovery {
             players.filter {it.characterId!=player.characterId && it.generation==stocks.generation},stocks)
         val busy=forces.filterValues {TacticalContact.contested(it)}.keys
         val safeBases=owned.filter {it.grid !in busy}
-        val safeSystem=if (safeBases.isEmpty() && owned.isNotEmpty()) {
+        val safeSystem=if (safeBases.isEmpty()) {
             val camp=Camp.of(player,CoupActions.rebel(stocks,player.characterId,player.country))
             val candidates=galaxy.systems.map {it.grid}.filter {grid ->
                 grid !in busy && forces[grid].orEmpty().none {it.camp!=camp && (it.units>0 || it.base)}
