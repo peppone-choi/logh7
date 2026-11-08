@@ -7,6 +7,15 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class FileNavigationStoreTest {
+    @Test fun originPlanetSurvivesReopenAlongsideLegacyPlayers() {
+        val path = directory.resolve("origin")
+        val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 920, 1000)
+        val players = mapOf("pilot" to player.copy(originBase = 1049), "legacy" to player.copy(characterId = 10001))
+        FileNavigationStore(path).use { it.save(players) }
+        assertEquals("LOGH7-NAV-22", java.nio.file.Files.readAllLines(path).first())
+        FileNavigationStore(path).use { assertEquals(players, it.load()) }
+    }
+
     @Test fun onlyUnreadOfflineWarpCancellationNeedsNav21() {
         val path = directory.resolve("offline-warp")
         val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 920, 1000).copy(

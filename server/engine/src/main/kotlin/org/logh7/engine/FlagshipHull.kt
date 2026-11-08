@@ -39,6 +39,7 @@ internal object FlagshipRecovery {
             .filterValues {TacticalContact.contested(it)}.keys
         val bases=owned.filter {it.grid !in busy}.ifEmpty {owned}
         val home=bases.singleOrNull {it.id==player.returnBase}
+            ?: bases.singleOrNull {it.id==player.originBase}
             ?: bases.singleOrNull {it.grid==start && Capital.of(it)?.power==country?.value}
             ?: bases.filter {it.grid==start}.minByOrNull {it.id}
             ?: stocks.strategic.capitals[country]?.let {capital->bases.singleOrNull {it.id==capital}}
