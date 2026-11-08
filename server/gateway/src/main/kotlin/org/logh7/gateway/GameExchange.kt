@@ -2350,7 +2350,9 @@ class GameExchange(
                                                 .filter {it.id>query.target}.sortedBy {it.id}.take(200))
                                         }
                                         val peers=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
-                                            .filter {country!=null && it.country==country}.map {it.id}.toSet()
+                                            .filter {country!=null && it.country==country &&
+                                                (query.command !in setOf(0,1,2,3,4,8) || !org.logh7.engine.BattleDeath.deceased(inventory,it.id))}
+                                            .map {it.id}.toSet()
                                         val candidates=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
                                             .filter {it.id.toInt() in peers && it.id>query.target && it.id!=character.id}.sortedBy {it.id}.take(200)
                                         org.logh7.protocol.StrategyActionMessages.candidates(query,candidates.map {target ->

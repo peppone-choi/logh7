@@ -33,6 +33,19 @@ class PersonnelActionsTest {
             assertNull(act(request(0,10002).copy(identities=ids),s).rejection,"foreign merit must not top our ladder")
         }
     }
+    @Test fun deceasedTargetsAreRejectedAndDoNotLeadThePromotionLadder() {
+        val original=stocks()
+        val people=original.strategic.people
+        val state=original.copy(strategic=original.strategic.copy(people=people+
+            (10001 to people.getValue(10001).copy(deceasedAt=1))))
+        val denied=act(request(0),state)
+        assertEquals(StrategyActionRejection.IDENTITY,denied.rejection)
+        assertEquals(state,denied.stocks)
+        assertEquals(p,denied.player)
+        val promoted=act(request(0,10002),state)
+        assertNull(promoted.rejection)
+        assertEquals(8,promoted.stocks?.strategic?.people?.get(10002)?.rank)
+    }
     @Test fun promotionPreservesAnImperialCharactersAllianceShipStyle() {
         val target=Navigator(1,10001,CountryId(2),2487,1000,1000,1000,
             hull=FlagshipHull(93,0),shipStyle=ShipStyleId("alliance"))
@@ -78,6 +91,8 @@ class PersonnelActionsTest {
         val s=stocks(17)
         val denied=act(request(0,card=17).copy(identities=ids),s)
         assertEquals(StrategyActionRejection.MAXIMUM,denied.rejection);assertEquals(p,denied.player)
+        val vacancy=s.copy(strategic=s.strategic.copy(people=s.strategic.people+(20000 to StrategicPerson(deceasedAt=1))))
+        assertNull(act(request(0,card=17).copy(identities=ids),vacancy).rejection)
     }
     @Test fun sixPeeragesAreOrderedAndBaronOrHigherReceivesAnActualEstateCardOwner() {
         assertEquals(6,Peerage.entries.size)
