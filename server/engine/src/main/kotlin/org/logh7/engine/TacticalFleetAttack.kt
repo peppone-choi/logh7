@@ -18,6 +18,7 @@ internal object TacticalFleetAttack {
         val player=preview.player ?: return preview
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
+        if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(!navigation.captainCard(request,player))return reject(NavigationRejection.CARD)
         val command=checkNotNull(request.tacticalAttack)
@@ -76,7 +77,8 @@ internal object TacticalFleetAttack {
             val commanderEntry=players.entries.singleOrNull {it.value.characterId==command.commander &&
                 it.value.country==outfit.country}
             val commander=commanderEntry?.value
-            if(TacticalAuthority.commander(outfit,unit,stocks)!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
+            if(BattleDeath.deceased(stocks,command.commander) ||
+                TacticalAuthority.commander(outfit,unit,stocks)!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null ||
                 commander==null || commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid) {
                 stocks=replace(stocks,outfit,unit.copy(attack=null));continue

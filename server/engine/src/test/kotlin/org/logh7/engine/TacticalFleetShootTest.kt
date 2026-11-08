@@ -62,6 +62,29 @@ class TacticalFleetShootTest {
     private fun advance(s:State,nav:Navigation,p:PlanetProduction,at:Long)=
         TacticalCombat.settle(session.copy(gameMillis=at*1000),galaxy,nav,p,s.commit)
 
+    @Test fun deceasedCommanderCannotFireManualOrAutomaticFleetOrdersFromAnOlderSave() {
+        for(automatic in listOf(false,true)) {
+            val s=state()
+            var nav=Navigation(galaxy,s.nav,NavigationPolicy())
+            var stock=production(s)
+            val command=request(listOf(2)).copy(tacticalMove=null,tacticalAttack=TacticalAttack(listOf(2),2))
+            fun attack()=TacticalFleetAttack.accept(command,session,galaxy,nav,stock,stock.snapshot(1)!!,s.commit,24)
+            fun unit()=s.stocks.outfits.getValue(1).activeShips!!.values.single {it.id==2}
+            assertNotNull((if(automatic)attack() else shoot(s,nav,stock)).player)
+            val saved=unit()
+            if(automatic)assertNotNull(saved.attack) else assertNotNull(saved.shot)
+            val target=s.stocks.outfits.getValue(2)
+            s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+            nav=Navigation(galaxy,s.nav,NavigationPolicy())
+            stock=production(s)
+            assertEquals(NavigationRejection.IDENTITY,shoot(s,nav,stock).rejection)
+            assertEquals(NavigationRejection.IDENTITY,attack().rejection)
+            assertTrue(advance(s,nav,stock,now+120).isEmpty())
+            assertEquals(saved.copy(attack=null,shot=null),unit())
+            assertEquals(target,s.stocks.outfits.getValue(2))
+        }
+    }
+
     @Test fun oneShotResumesPendingAndFiresExactlyOnceEvenOutsideRegrownCrc() {
         val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
         assertNotNull(shoot(s,nav,p).player)
