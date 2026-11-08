@@ -270,7 +270,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         groundSubscription=presence?.let {p->navigation!!.observeGround {event->
             navigation.snapshot()?.let {snapshot->p.ground(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
         }}
-        postureSubscription=presence?.let {p->navigation!!.observePostures {event->p.posture(event)}}
+        postureSubscription=presence?.let {p->navigation!!.observePostures {event->
+            navigation.snapshot()?.let {snapshot->p.posture(event,snapshot)}
+        }}
         tacticalCommandSubscription=presence?.let {p->navigation!!.observeTacticalCommands {event->
             navigation.snapshot()?.let {snapshot->p.tacticalCommand(event,snapshot,world!!.galaxy,currentCharacters()::characterById)}
         }}
