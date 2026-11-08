@@ -471,7 +471,15 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         members.values.filter {it.player.generation==event.generation && it.player.grid==event.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}
             .forEach { viewer ->
-                if(snapshot!=null && tacticalViewer(snapshot,viewer,event.grid)==null)return@forEach
+                if(snapshot!=null && tacticalViewer(snapshot,viewer,event.grid)==null) {
+                    // The last hostile warp can end tactics in the same committed tick.
+                    val finalWarp=event.destination!=null && viewer.player.cpPaused && snapshot.navigators.values.any {
+                        it.characterId==viewer.character.id.toInt() && it.generation==event.generation &&
+                            it.grid==event.grid && it.baseId==0 && !it.cpPaused && it.cpRecoveryAt==event.seconds &&
+                            (it.hull?.woundedUntil ?: 0)<=event.seconds
+                    }
+                    if(!finalWarp)return@forEach
+                }
                 if(event.formation.isNotEmpty()) {
                     send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character))
                     return@forEach
