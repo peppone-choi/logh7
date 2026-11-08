@@ -23,7 +23,11 @@ class OutfitWarehouseWireTest {
         mapOf(40000 to LogisticsOffice.EMPIRE_FIRST))
     @Test fun realEncryptedQueryReturnsOwnedOutfitWarehouseIdentityAndNeverPlanetBalances() = runBlocking<Unit> {
         val store = object : PlanetStockStore {
-            var stocks = snapshot()
+            var stocks = snapshot().let { before ->
+                val ground = OutfitStock(4,2,OutfitKind.GROUND,1049,102,number=4,supplies=1000,
+                    activeShips=ActiveShipUnits(emptyList()),activeGround=ActiveGroundUnits(emptyList()))
+                before.copy(outfits=before.outfits+(4 to ground))
+            }
             override fun load() = stocks
             override fun save(stocks: PlanetStocks) { this.stocks = stocks }
         }
@@ -33,6 +37,11 @@ class OutfitWarehouseWireTest {
             for (ignored in 0..300) if (ByteBuffer.wrap(client.receive()).getShort(4).toInt() == 0x0f01) break
             fun query(base:Int=1049,outfit:Int=1) = client.request(
                 ByteBuffer.allocate(10).putShort(0x0326).putInt(base).putInt(outfit).array(),0x0327,"outfitWarehouse")
+            val depleted = client.request(ByteBuffer.allocate(11).putShort(0x032e).putInt(4).putInt(1049).put(0).array(),
+                0x032f,"depletedGroundOutfit")
+            assertContentEquals(org.logh7.protocol.LoginMessages.sessionMessage(0x032f,
+                org.logh7.protocol.OutfitPartyMessages.party(org.logh7.protocol.OutfitPartyMessages.Query(4,1049,0),
+                    2,OutfitKind.GROUND.wire,4,emptyList(),emptyList(),1000,1000)),depleted)
             val response = query()
             val input = ByteBuffer.wrap(response); input.position(6)
             assertEquals(1049,input.int); assertEquals(1,input.int); assertEquals(0,input.int)

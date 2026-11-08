@@ -13,10 +13,7 @@ object OutfitSupplies {
     } ?: capacity(outfit.units)
 
     /** Native directories encode carried plus free room; legacy overload has zero free room. */
-    fun visibleCapacity(outfit:OutfitStock):Int {
-        require(outfit.supplies<=capacity(outfit.units))
-        return maxOf(capacity(outfit),outfit.supplies)
-    }
+    fun visibleCapacity(outfit:OutfitStock):Int = maxOf(capacity(outfit),outfit.supplies)
 
     /** Preserve explicit unit allocations. Legacy/bulk changes fill in ID order and withdraw in
      * reverse ID order. The outfit total remains authoritative for strategic logistics; unit balances
