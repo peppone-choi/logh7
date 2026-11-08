@@ -58,9 +58,12 @@ internal object TacticalOfflineAi {
             val enemy=enemies.singleOrNull {kind in 3..4 && it.first==mission?.target}
                 ?: if(kind==0)enemies.minWithOrNull(compareBy<Pair<Int,TacticalPose>> {
                     distance(pose.position,it.second.position)}.thenBy {it.first}) else null
+            val missionBase=g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid}
+            // An occupation mission may outlive its target's capture until this tick is settled.
+            if(kind==2 && (missionBase==null || stocks.bases[missionBase.id]?.let(TacticalAuthority::camp)==camp))continue
+            val occupied=missionBase?.takeIf {kind==2}
             val goal=when(kind) {
-                1,2->(defended ?: g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid})?.let {
-                    TacticalCommandOperations.basePoint(it,now,stocks)}
+                1,2->(defended ?: missionBase)?.let {TacticalCommandOperations.basePoint(it,now,stocks)}
                 5->{val length=distance(TacticalPoint(0f,0f),pose.position)
                     if(length<1)TacticalPoint(0f,260f) else TacticalPoint(pose.position.x/length*260f,pose.position.y/length*260f)}
                 else->enemy?.second?.position
@@ -69,8 +72,6 @@ internal object TacticalOfflineAi {
             val energy=allocation(hull.kind,kind==5)
             val nextPose=if(goal==null)pose else TacticalPose(pose.position,atan2(goal.x-pose.position.x,goal.y-pose.position.y))
             val stop=if(kind==4)(TacticalMissionRules.RECONNAISSANCE_RANGE_TACTICAL/2).toFloat() else if(kind in 1..2)3f else if(kind==5)0f else 2f
-            // 占領 (mission 2): carriers with troops close in to anchor at the target base and land them (U-01).
-            val occupied=if(kind==2)g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid} else null
             val motion=path(g,p.grid,now,nextPose,goal,stop,energy.values[0]/100f)
             val retreat=if(kind==5 && RetreatRules.outside(pose))RetreatRules.destination(g,p,players.values,stocks,pose)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
@@ -84,7 +85,7 @@ internal object TacticalOfflineAi {
             var commanded=false
             // Every regular ship remains subject to ownership, CRC, confusion and pending-job guards.
             for((outfitId,original) in stocks.outfits.toSortedMap()) {
-                if(original.country!=p.country || original.positionIn(g)!=OutfitPosition(p.grid))continue
+                if(TacticalAuthority.camp(original,stocks)!=camp || original.positionIn(g)!=OutfitPosition(p.grid))continue
                 val commandable=original.activeShips?.values.orEmpty().filter {unit->
                     TacticalAuthority.commander(original,unit,stocks)==p.characterId && unit.boats>unit.damaged &&
                         !stocks.tacticalCommands.confused(unit.id) && unit.support==null && unit.shot==null &&
