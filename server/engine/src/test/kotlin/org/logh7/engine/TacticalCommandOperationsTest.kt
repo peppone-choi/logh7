@@ -401,6 +401,28 @@ class TacticalCommandOperationsTest {
         assertTrue(TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,mutableListOf(),another,emptySet())
             .tacticalCommands.merits.isEmpty())
     }
+    @Test fun pirateTargetsEarnReconnaissanceAndInterceptionMeritOnTheSameTerms() {
+        val s=state()
+        val target=900001
+        val interval=TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS
+        val at=session.copy(gameMillis=(now+interval)*1000)
+        fun settle(kind:Int,grid:Int,boats:Int,impact:Boolean):Long {
+            val fleet=PirateFleet(1,grid,now,listOf(PirateUnit(target,boats)))
+            val stock=s.stocks.copy(
+                social=s.stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2)),
+                tacticalCommands=TacticalCommandState(missions=mapOf(10000 to TacticalMissionState(10000,kind,1,target,now,grid=2488))))
+            val hits=mutableListOf<TacticalImpact>()
+            if(impact)hits+=TacticalImpact(1,1010000,TacticalWeapon.BEAM,TacticalHit(1,2488,now+interval,target,1),emptyMap(),pirateSunk=boats==0)
+            return TacticalCommandOperations.finishMissions(at,galaxy,s.players.toMutableMap(),stock,1,mutableListOf(),hits,emptySet())
+                .tacticalCommands.merits[10000] ?: 0L
+        }
+        assertEquals(1L,settle(4,2488,1,false))
+        assertEquals(0L,settle(4,2487,1,false))
+        assertEquals(0L,settle(4,2488,0,false))
+        assertEquals(0L,settle(3,2488,1,true))
+        assertEquals(30L,settle(3,2488,0,true))
+    }
+
     @Test fun offlineMissionRequiresAiOnAndStrategicPersonnelDecidesTheSupremeCommander() {
         val s=state();val disconnected=session.copy(participants=session.participants.mapValues {(a,p)->
             if(a=="ally")p.copy(online=false,connection=null) else p})
