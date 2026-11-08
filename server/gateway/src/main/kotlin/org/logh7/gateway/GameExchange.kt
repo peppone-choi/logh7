@@ -2421,9 +2421,10 @@ class GameExchange(
                                     }
                                     return null
                                 }
-                                if(query.command==org.logh7.engine.ProposalActions.OPEN) {
+                                if(query.command in org.logh7.engine.ProposalActions.commands) {
+                                    val opening=query.command==org.logh7.engine.ProposalActions.OPEN
                                     // The compatibility window may leave both cards 0: use the target's pair.
-                                    val pair=if(query.card!=0 && query.argument!=0)Triple(query.target,query.card,query.argument) else
+                                    val pair=if(!opening || query.card!=0 && query.argument!=0)Triple(query.target,query.card,query.argument) else
                                         navigation?.snapshot()?.let {s->proposalPairs(checkNotNull(s.planetStocks),checkNotNull(s.navigators[identity.account]))}
                                             ?.firstOrNull {it.first==query.target} ?: Triple(query.target,0,0)
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
@@ -2436,7 +2437,7 @@ class GameExchange(
                                         refreshPaid(result.navigators)
                                         // The CD has no closed-mailbox alert for office rows (only opening re-queries them):
                                         // tell an online recipient in the chat log (design-proposals-orders.md, evidence:guess).
-                                        if(result.rejection==null && result.changed)presence?.toCharacter(query.target,checkNotNull(generation),
+                                        if(opening && result.rejection==null && result.changed)presence?.toCharacter(query.target,checkNotNull(generation),
                                             listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(query.target,
                                                 ProposalNotice.arrived(character.surname)),gameSeconds())))
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
