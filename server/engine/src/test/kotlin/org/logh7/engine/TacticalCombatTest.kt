@@ -349,8 +349,12 @@ class TacticalCombatTest {
         state.stocks=state.stocks.copy(social=state.stocks.social.copy(pirates=PirateState(mapOf(1 to PirateFleet(1,2488,now,
             listOf(PirateUnit(900003,300),PirateUnit(900004,300),PirateUnit(900005,300)))),2,now+86400)))
         assertTrue(GridForces.collect(galaxy,1,state.players.values,state.stocks).getValue(2488).any {it.camp==Camp.PIRATES})
-        val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
+        var nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state)
         val shot=request.copy(tacticalShoot=request.tacticalShoot!!.copy(target=900004))
+        assertEquals(NavigationRejection.RANGE,TacticalCombat.accept(shot,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24).rejection)
+        val inside=TacticalPoint(0f,-0.2f)
+        state.players=state.players.mapValues {(_,p)->p.copy(motion=TacticalMotion(2488,now,TacticalPose(inside,0f),0f,0f,listOf(inside)))}
+        nav=Navigation(galaxy,state.nav,NavigationPolicy())
         val accepted=TacticalCombat.accept(shot,session,galaxy,nav,stock.snapshot(1)!!,state.commit,24)
         assertNotNull(accepted.player,"${accepted.rejection}")
         val hit=TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),galaxy,nav,stock,state.commit).single {it.hit.target==900004}

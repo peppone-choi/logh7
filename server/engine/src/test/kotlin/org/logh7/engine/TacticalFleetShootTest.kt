@@ -77,6 +77,40 @@ class TacticalFleetShootTest {
         assertTrue(advance(s,nav,p,now+120).isEmpty());assertTrue(advance(s,nav,p,now+500).isEmpty())
         assertEquals(saved,s.stocks)
     }
+    @Test fun aManualShotCannotTargetStarCoverAndCancelsIfTheEnemyEntersItDuringTheDelay() {
+        val world=Galaxy(galaxy.systems.map {if(it.grid==2488)it.copy(star=0) else it},galaxy.bases,galaxy.starts)
+        val s=state()
+        s.players=s.players.mapValues {(_,p)->p.copy(motion=ai(-21f).motion)}
+        val own=s.stocks.outfits.getValue(1)
+        val shooter=own.activeShips!!.values.last().copy(tactical=ai(-21f),supplies=5000)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(supplies=15000,
+            activeShips=ActiveShipUnits(listOf(own.activeShips.values.first(),shooter)))))
+        fun targetAt(y:Float) {
+            val enemy=s.stocks.outfits.getValue(2)
+            val unit=enemy.activeShips!!.values.single().copy(tactical=ai(y))
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(unit)))))
+        }
+        val ids=listOf(2)
+        val command=request(ids).copy(tacticalMove=null,tacticalShoot=TacticalShoot(ids,TacticalWeapon.MISSILE.wire,1,99))
+        fun accept():NavigationResult {
+            val nav=Navigation(world,s.nav,NavigationPolicy())
+            val p=production(s)
+            return TacticalFleetShoot.accept(command,session,world,nav,p,p.snapshot(1)!!,s.commit,24)
+        }
+        targetAt(-19f)
+        assertEquals(NavigationRejection.RANGE,accept().rejection)
+        assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.last().shot)
+        targetAt(-20f)
+        assertNotNull(accept().player)
+        targetAt(-19f)
+        val nav=Navigation(world,s.nav,NavigationPolicy())
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),world,nav,production(s),s.commit).isEmpty())
+        val saved=s.stocks.outfits.getValue(1).activeShips!!.values.last()
+        assertNull(saved.shot)
+        assertNull(saved.reload)
+        assertEquals(5000,saved.supplies)
+    }
+
     @Test fun everyWeaponDebitsOnlyFiringUnitsHealthyBoatsAndRejectsInsufficientSupply() {
         for(weapon in TacticalWeapon.entries) {
             val s=state();val own=s.stocks.outfits.getValue(1)
