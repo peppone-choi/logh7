@@ -140,6 +140,37 @@ class TacticalCombatTest {
     private fun production(state:State) = PlanetProduction(galaxy,state.inventory,rules.startSeconds,PlanetProductionPolicy()).also {
         it.settle(1,now)
     }
+    @Test fun flagshipBeamIsRejectedInStarCoverAndCancelledWithoutChargeLossWhenCoverReturns() {
+        val world=Galaxy(galaxy.systems.map {if(it.grid==2488)it.copy(star=0) else it},galaxy.bases,galaxy.starts)
+        val state=state()
+        fun stationary(y:Float):TacticalMotion {
+            val point=TacticalPoint(0f,y)
+            return TacticalMotion(2488,now,TacticalPose(point,0f),0f,0f,listOf(point))
+        }
+        state.players=state.players.mapValues {(_,p)->p.copy(motion=stationary(-21f))}
+        val nav=Navigation(world,state.nav,NavigationPolicy())
+        val production=production(state)
+        fun targetAt(y:Float) {
+            val old=production.snapshot(1)!!
+            val outfit=old.outfits.getValue(1)
+            val unit=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(stationary(y),now,now))
+            production.replace(old,old.copy(outfits=old.outfits+(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(unit))))))
+        }
+        fun accept()=TacticalCombat.accept(request,session,world,nav,production.snapshot(1)!!,state.commit,24)
+        targetAt(-19f)
+        assertEquals(NavigationRejection.RANGE,accept().rejection)
+        assertNull(state.players.getValue("pilot").fire)
+        targetAt(-20f)
+        assertNotNull(accept().player?.fire?.pending)
+        targetAt(-19f)
+        assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+120)*1000),world,nav,production,state.commit).isEmpty())
+        val saved=state.players.getValue("pilot")
+        assertNull(saved.fire?.pending)
+        assertNull(saved.fire?.last)
+        assertEquals(24000,saved.charge!!.beam)
+        assertEquals(300,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+    }
+
     @Test fun pendingBeamSurvivesReloadAndSettlesOnceWithChargeAndActualLossInOneCommit() {
         val state = state()
         var nav = Navigation(galaxy,state.nav,NavigationPolicy())
