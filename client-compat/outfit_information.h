@@ -393,6 +393,10 @@ static void renderOutfitInformation() {
         return;
     }
     auto w=state.warehouse;
+    if (logh::infoWord(w,8)==1) {
+        outfitCell(3,1,0,L"이 거점에서는 부대 창고를 조회할 수 없습니다.");
+        return;
+    }
     for (unsigned i=0;i<unsigned(w[12])+w[0x260];++i) {
         bool ship=i<w[12];auto row=w+(ship ? 14+i*6 : 0x262+(i-w[12])*6);
         outfitItemName(ship,logh::infoShort(row,0)-(ship ? 0 : 1000),name);outfitCell(3,i+1,0,name);
@@ -582,6 +586,14 @@ static void outfitWarehouseResponse(void*,const BYTE* record) {
     }
     ReleaseSRWLockExclusive(&outfitReplyLock);
 }
+static unsigned __stdcall decodedOutfitWarehouse(void* record,void* reader) {
+    unsigned result=reinterpret_cast<unsigned(__stdcall*)(void*,void*)>(0x41a870)(record,reader);
+    const auto reply=static_cast<const BYTE*>(record);
+    // Refusals can bypass the normal warehouse UI callback.
+    if(!result && logh::infoWord(reply,4) && logh::infoWord(reply,8)==1)
+        outfitWarehouseResponse(nullptr,reply);
+    return result;
+}
 static void updateOutfitInformation(void* manager) {
     auto& state=outfitInformation;if (!state.world) return;
     auto world=*reinterpret_cast<void**>(0x7ccffc);auto own=world ? at<void*>(world,8) : nullptr;
@@ -637,7 +649,8 @@ static bool installOutfitInformation() {
     const unsigned addresses[]={0x54bcac,0x54bcde,0x54bd2f,0x4bcc68,0x4bcc9f,0x4b8a78};
     const BYTE expected[][5]={{0xe8,0xff,7,0,0},{0xe8,0xcd,7,0,0},{0xe8,0xac,1,0,0},{0xe8,0x53,0x34,0,0},{0xe8,0x8c,0x34,0,0},{0xe8,0x33,0x18,0,0}};
     const void* functions[]={&buildOutfitInformation,&buildOutfitInformation,&selectOutfitInformation,&receivedOutfitUnload,&receivedOutfitLoad,&receivedOutfitPagePacket};
-    const unsigned decoder=0x41cba0,groundDecoder=0x41f3d0;
+    const unsigned decoder=0x41cba0,groundDecoder=0x41f3d0,warehouseDecoder=0x41a870;
+    if (memcmp(reinterpret_cast<void*>(0x66c4f0),&warehouseDecoder,4)) return false;
     if(memcmp(reinterpret_cast<void*>(0x66c48c),&groundDecoder,4))return false;
     if (memcmp(reinterpret_cast<void*>(0x66c4a0),&decoder,4)) return false;
     for (unsigned i=0;i<_countof(addresses);++i) if (memcmp(reinterpret_cast<void*>(addresses[i]),expected[i],5)) return false;
@@ -647,6 +660,8 @@ static bool installOutfitInformation() {
     }
     const auto replacement=reinterpret_cast<unsigned>(&decodedOutfitInformation);
     const auto groundReplacement=reinterpret_cast<unsigned>(&decodedOutfitGround);
+    const auto warehouseReplacement=reinterpret_cast<unsigned>(&decodedOutfitWarehouse);
     return patchBytes(reinterpret_cast<void*>(0x66c4a0),&decoder,&replacement,4) &&
-        patchBytes(reinterpret_cast<void*>(0x66c48c),&groundDecoder,&groundReplacement,4);
+        patchBytes(reinterpret_cast<void*>(0x66c48c),&groundDecoder,&groundReplacement,4) &&
+        patchBytes(reinterpret_cast<void*>(0x66c4f0),&warehouseDecoder,&warehouseReplacement,4);
 }

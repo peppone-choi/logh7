@@ -31,7 +31,8 @@ class OutfitWarehouseWireTest {
             val client = fixture.join(fixture.account(0),true,false).client
             client.send(SyntheticClient.opcode(0x0f00))
             for (ignored in 0..300) if (ByteBuffer.wrap(client.receive()).getShort(4).toInt() == 0x0f01) break
-            fun query() = client.request(ByteBuffer.allocate(10).putShort(0x0326).putInt(1049).putInt(1).array(),0x0327,"outfitWarehouse")
+            fun query(base:Int=1049,outfit:Int=1) = client.request(
+                ByteBuffer.allocate(10).putShort(0x0326).putInt(base).putInt(outfit).array(),0x0327,"outfitWarehouse")
             val response = query()
             val input = ByteBuffer.wrap(response); input.position(6)
             assertEquals(1049,input.int); assertEquals(1,input.int); assertEquals(0,input.int)
@@ -41,6 +42,13 @@ class OutfitWarehouseWireTest {
             assertEquals(35,input.short.toInt())
             assertEquals(500,input.int); assertEquals(600,input.int); assertEquals(700,input.int)
             assertFalse(input.hasRemaining())
+            for ((base,outfit) in listOf(1048 to 1,1049 to 2,1049 to 99)) {
+                val unavailable=ByteBuffer.wrap(query(base,outfit));unavailable.position(6)
+                assertEquals(base,unavailable.int)
+                assertEquals(outfit,unavailable.int)
+                assertEquals(1,unavailable.int)
+                assertContentEquals(ByteArray(14),ByteArray(unavailable.remaining()).also {unavailable.get(it)})
+            }
             assertContentEquals(response,query())
             assertEquals(7,store.stocks.warehouses.getValue(101).units.ships[UnitStack(32,1)])
         }
