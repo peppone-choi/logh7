@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import org.logh7.protocol.CountryImageMessages
+import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.protocol.OutfitPartyMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
@@ -48,6 +49,38 @@ class LobbyCountryWireTest {
         client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(country).putInt(base).put(18).array())
         for (frame in CountryImageMessages.lobbyReply(request, revision, slot, null)) {
             assertContentEquals(frame, client.expect(0x032f))
+        }
+    }
+
+    @Test fun portraitTransferUsesTheAuthenticatedOriginalAndCurrentBoundImage() {
+        val candidate=OriginalCharacterMessages.localCandidates.first().character.copy(generated=false)
+        val definitions=CharacterCreation.originalDefinitions()
+        val published=PublishedOriginalCandidates(definitions)
+        val profile=definitions.first().profile
+        published.publish(listOf(OriginalCandidateEdit(candidate.id,1,profile.copy(portraitKey="face"))))
+        val first=ByteArray(4096){it.toByte()}
+        val replacement=ByteArray(4096){(it ushr 4).toByte()}
+        published.publishPortraits(mapOf("face" to CandidatePortrait(1,first)))
+        java.nio.file.Files.newOutputStream(directory.resolve("characters.properties")).use {out->
+            java.util.Properties().apply {setProperty("load-000",CharacterProfile.legacy(candidate).encoded())}.store(out,null)
+        }
+        LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false,originalCandidates=published).use {f->
+            val mode=CountryImageMessages.PORTRAIT_MODE
+            fun expect(account:Int,id:Int,nonce:Int,revision:Long,bytes:ByteArray?) {
+                f.game(f.account(account),create=false).use {client->
+                    val query=OutfitPartyMessages.Query(id,nonce,mode)
+                    client.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(id).putInt(nonce).put(mode.toByte()).array())
+                    for(frame in CountryImageMessages.portraitReply(query,revision,bytes))
+                        assertContentEquals(frame,client.expect(0x032f))
+                }
+            }
+            expect(0,1001,52,1,first)
+            expect(1,1001,53,0,null)
+            expect(0,1002,54,0,null)
+            published.publishPortraits(mapOf("face" to CandidatePortrait(2,replacement)))
+            expect(0,1001,55,2,replacement)
+            published.publish(listOf(OriginalCandidateEdit(candidate.id,2,profile)))
+            expect(0,1001,56,0,null)
         }
     }
 

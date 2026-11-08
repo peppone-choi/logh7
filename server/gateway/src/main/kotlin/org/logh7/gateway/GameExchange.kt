@@ -76,6 +76,7 @@ class GameExchange(
     /** This world's lobby country catalogue (mode 7); null answers an empty catalogue. */
     private val lobbyCountries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>)?=null,
     private val countryEndings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>)?=null,
+    private val originalCandidates:org.logh7.engine.PublishedOriginalCandidates?=null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -85,6 +86,7 @@ class GameExchange(
     private var lobbyLoggedIn = false
     private var gameLoggedIn = false
     private var gameStarted = false
+    private var lastPortraitReply:Long?=null
     internal fun joinedAccount(): String? = ticket?.account?.takeIf { gameStarted && state == State.AUTHENTICATED }
     private var countrySelection:CharacterCreation.CountrySelection?=null
     private var countrySelectionMode=0
@@ -1258,6 +1260,16 @@ class GameExchange(
                             val frames = if (request.sessionId == sessionId && admission?.running != false) world?.lobbyCountryEmblem(request) else null
                             return handshake.stageAll(frames ?: CountryImageMessages.lobbyReply(request, 0, 0, null), clearHeader = 0)
                         }
+                        if(opcode==0x032e && body.size==11 && (body[10].toInt() and 255)==CountryImageMessages.PORTRAIT_MODE) {
+                            val query=org.logh7.protocol.OutfitPartyMessages.query(body)
+                            val now=System.nanoTime()
+                            if(lastPortraitReply?.let {now-it<1_000_000_000L}==true)return null
+                            lastPortraitReply=now
+                            val own=currentCharacter(identity.account)
+                            val portrait=if(admission?.running!=false && own?.id==query.outfit.toLong() && !own.generated)
+                                originalCandidates?.portrait(own.id) else null
+                            return handshake.stageAll(CountryImageMessages.portraitReply(query,portrait?.revision ?: 0,portrait?.rgba),clearHeader=0)
+                        }
                         check(gameStarted && world != null && stock != null)
                         val character = checkNotNull(currentCharacter(identity.account))
                         val party = if (opcode == 0x032e) org.logh7.protocol.OutfitPartyMessages.query(body) else null
@@ -1293,7 +1305,8 @@ class GameExchange(
                         if(party?.mode==org.logh7.protocol.CountryIdentityMessages.MODE) {
                             check(worldInitialized);require(party.outfit==character.id.toInt()) {"Own country identity only"}
                             return handshake.stageAll(listOf(world.countryIdentity(party,
-                                currentProfile(identity.account,character.id.toInt()).country?.value,character.power)),clearHeader=0)
+                                currentProfile(identity.account,character.id.toInt()).country?.value,character.power,
+                                originalCandidates!=null && !character.generated)),clearHeader=0)
                         }
                         if(party?.mode==org.logh7.protocol.FuelMessages.STATUS_MODE) {
                             check(worldInitialized)

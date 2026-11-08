@@ -6,6 +6,7 @@ import java.util.Base64
 object CountryImageMessages {
     const val MODE=17
     const val LOBBY_MODE=18
+    const val PORTRAIT_MODE=20
 
     data class LobbyRequest(val query:OutfitPartyMessages.Query) {
         val sessionId: Int get() = query.base and 0xffff
@@ -20,6 +21,12 @@ object CountryImageMessages {
     fun replies(query:OutfitPartyMessages.Query,revision:Long,emblem:ByteArray?,mapIcon:ByteArray?):List<ByteArray> {
         require(query.mode == MODE && query.outfit > 0 && query.base in 1..65535)
         return encode(query, revision, emblem, mapIcon, "")
+    }
+
+    fun portraitReply(query:OutfitPartyMessages.Query,revision:Long,rgba:ByteArray?):List<ByteArray> {
+        require(query.mode==PORTRAIT_MODE && query.outfit>0 && query.base in 1..65535)
+        require((revision>0)==(rgba!=null))
+        return encode(query,revision,rgba,null,"")
     }
 
     private fun encode(query: OutfitPartyMessages.Query, revision: Long, emblem: ByteArray?, mapIcon: ByteArray?, nativeEmblem: String): List<ByteArray> {

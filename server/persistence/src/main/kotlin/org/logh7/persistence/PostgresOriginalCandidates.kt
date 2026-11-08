@@ -3,6 +3,7 @@ package org.logh7.persistence
 import org.logh7.engine.OriginalCandidateEdit
 import org.logh7.engine.OriginalCandidateProfile
 import org.logh7.engine.OriginalCandidateStore
+import org.logh7.engine.CandidatePortrait
 import org.logh7.engine.CountryId
 import org.logh7.engine.Peerage
 import org.logh7.engine.PublishedOriginalCandidates
@@ -49,6 +50,26 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                 supportsEditing=peerageColumn
                 supportsPortraits=portraitColumn
             } }
+        }
+    }
+
+    override fun loadPortraits():Map<String,CandidatePortrait> {
+        if(!supportsPortraits)return emptyMap()
+        return connect().use {db->
+            db.prepareStatement("""
+                SELECT c.asset_key,c.revision,v.rgba32 FROM (
+                    SELECT DISTINCT portrait_asset FROM original_candidate_profile
+                    WHERE world_identity=? AND portrait_asset IS NOT NULL
+                ) bindings JOIN nation_image_current c ON c.asset_key=bindings.portrait_asset
+                JOIN nation_image_version v USING(asset_key,revision)
+                JOIN nation_asset a USING(asset_key) WHERE a.asset_kind='portrait'
+            """).use {query->
+                query.queryTimeout=5
+                query.setObject(1,world)
+                query.executeQuery().use {rows->buildMap {
+                    while(rows.next())put(rows.getString(1),CandidatePortrait(rows.getLong(2),rows.getBytes(3)))
+                }}
+            }
         }
     }
 

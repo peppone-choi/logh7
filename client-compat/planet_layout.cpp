@@ -154,6 +154,7 @@ static void resetCountryEndings();
 #include "country_colors.h"
 #include "country_icon.h"
 #include "country_uploaded_sprite.h"
+#include "own_portrait.h"
 #include "tactical_country_icon.h"
 #include "fleet_country_color.h"
 #include "lobby_country_transport.h"
@@ -676,6 +677,7 @@ static void install() {
     if (!installTacticalLabels()) { status = -3; return; }
     if (!installHudRecovery()) { status = -3; return; }
     if (!installHudText()) { status = -3; return; }
+    if (!installOwnPortrait()) { status = -3; return; }
     if (!installFacilityLabels()) { status = -3; return; }
     if (!installTacticalCommandRange()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};

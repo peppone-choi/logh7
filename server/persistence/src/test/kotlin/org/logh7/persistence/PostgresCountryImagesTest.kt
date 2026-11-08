@@ -127,6 +127,10 @@ class PostgresCountryImagesTest {
         val saved=reopened.load().first()
         assertEquals(assigned,saved.profile)
         assertContentEquals(replacement.png,images.read(checkNotNull(saved.profile.portraitKey))?.png)
+        val thumbnails=reopened.loadPortraits()
+        assertEquals(setOf("face"),thumbnails.keys)
+        assertEquals(2L,thumbnails.getValue("face").revision)
+        assertContentEquals(replacement.rgba,thumbnails.getValue("face").rgba)
         assertTrue(PostgresOriginalCandidates(connect,UUID.randomUUID()).load().isEmpty())
         assertEquals(fallback,reopened.save(1001,2,fallback,CountryId(2))?.profile)
     }

@@ -38,20 +38,27 @@ data class OriginalCandidateProfile(
 
 data class OriginalCandidateDefinition(val id:Long,val creationPower:Int,val profile:OriginalCandidateProfile)
 data class OriginalCandidateEdit(val id:Long,val revision:Long,val profile:OriginalCandidateProfile,val country:CountryId?=null)
+data class CandidatePortrait(val revision:Long,val rgba:ByteArray) {
+    init { require(revision>0 && rgba.size==4096) }
+}
 
 interface OriginalCandidateStore {
     val supportsEditing:Boolean get()=true
     val supportsFemaleFaces:Boolean get()=true
     val supportsPortraits:Boolean get()=false
     fun load():List<OriginalCandidateEdit>
+    fun loadPortraits():Map<String,CandidatePortrait> = emptyMap()
     fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?=null):OriginalCandidateEdit?
 }
 
 class PublishedOriginalCandidates(definitions:List<OriginalCandidateDefinition> = emptyList(),val canGrantPeerage:Boolean=true) {
     val defaults=definitions.associateBy {it.id}
     @Volatile private var edits=emptyMap<Long,OriginalCandidateEdit>()
+    @Volatile private var portraits=emptyMap<String,CandidatePortrait>()
 
     fun current()=edits
+    fun portrait(id:Long)=edits[id]?.profile?.portraitKey?.let {portraits[it]}
+    fun publishPortraits(values:Map<String,CandidatePortrait>) { portraits=values.toMap() }
     fun accepts(id:Long,profile:OriginalCandidateProfile,country:CountryId?=null):Boolean {
         val side=defaults[id]?.creationPower ?: edits[id]?.profile?.creationPower
         if(id !in defaults && (id !in NEW_IDS || country==null))return false

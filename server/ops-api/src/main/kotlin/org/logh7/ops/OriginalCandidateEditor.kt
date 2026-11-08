@@ -156,7 +156,7 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
         for(image in portraits)
             append("<option value=\"${escape(image.key)}\" data-revision=\"${image.revision}\"${if(image==portrait)" selected" else ""}>${escape(image.title)} (${escape(image.key)})</option>")
         append("</select></label><img id=\"portrait-preview\" width=\"64\" height=\"80\" style=\"object-fit:contain\" alt=\"등록 초상 미리보기\" hidden>")
-        append("<p><a href=\"/admin/images\">NPC 초상 등록·교체</a> · 등록 초상은 운영 웹에서 미리 볼 수 있습니다. 게임 표시 연결은 준비 중입니다.</p>")
+        append("<p><a href=\"/admin/images\">NPC 초상 등록·교체</a> · 등록 초상은 해당 인물로 접속한 플레이어의 전략 HUD에 표시됩니다.</p>")
     }
     append("<label>시작 계급 <select name=\"rank\">")
     for((index,rank) in militaryRanks.withIndex()) {
