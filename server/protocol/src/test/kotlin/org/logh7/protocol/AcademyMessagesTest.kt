@@ -19,13 +19,15 @@ class AcademyMessagesTest {
     }
     @Test fun lectureUsesAndExperienceFitTheNativeRecord() {
         val q=AcademyMessages.query(request(94,0,5,1,4))
-        val result=AcademyMessages.response(q,0,true,AcademyMessages.View(5,1049,1,7000,3,5,51,23,0,5));assertEquals(3,result.size)
+        val result=AcademyMessages.response(q,0,true,AcademyMessages.View(5,1049,1,7000,3,5,51,23,0,5,20,2));assertEquals(4,result.size)
         val current=ByteBuffer.wrap(result[0]);assertEquals(10,current.get(22).toInt());assertEquals(5,current.getInt(18))
         assertEquals(7000,current.getInt(23));assertEquals(2*256+3,current.getShort(27).toInt());assertEquals(1049,current.getInt(29))
         assertEquals(37,current.getShort(33).toInt())
-        val last=ByteBuffer.wrap(result[1]);assertEquals(12,last.get(22).toInt());assertEquals(5,last.getInt(18))
+        val payment=ByteBuffer.wrap(result[1]);assertEquals(13,payment.get(22).toInt());assertEquals(20,payment.getInt(18))
+        assertEquals(2,payment.getShort(27).toInt())
+        val last=ByteBuffer.wrap(result[2]);assertEquals(12,last.get(22).toInt());assertEquals(5,last.getInt(18))
         assertEquals(51*128+23,last.getShort(27).toInt());assertEquals(5,last.getInt(29))
-        assertEquals(11,AcademyMessages.response(q,0,false,null)[1][22].toInt())
-        assertEquals(9,ByteBuffer.wrap(AcademyMessages.response(q,9,false,null)[1]).getShort(16).toInt())
+        assertEquals(11,AcademyMessages.response(q,0,false,null)[2][22].toInt())
+        assertEquals(9,ByteBuffer.wrap(AcademyMessages.response(q,9,false,null)[2]).getShort(16).toInt())
     }
 }
