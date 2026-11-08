@@ -173,5 +173,17 @@ class TacticalBaseDeliveryTest {
         hub.tacticalCommand(TacticalCommandResult(1,supply,120,mapOf(10000 to "one")),snapshot(state,200,121),galaxy,::character)
         val transferred=ByteBuffer.wrap(received.flatten().single {opcode(it)==0x438})
         assertEquals(1,transferred.getInt(10));assertEquals(200,transferred.getInt(14));assertEquals(121,transferred.getInt(18))
+
+        val stocks=checkNotNull(s.planetStocks)
+        val coup=CoupState(mapOf(10000 to Plot(10000,Power.EMPIRE.country,0,revolt=5)))
+        val rebelViewer=stocks.copy(social=stocks.social.copy(coup=coup))
+        val capturedBase=stocks.copy(bases=stocks.bases.mapValues {(_,base)->base.copy(camp=1)})
+        for(currentStocks in listOf(rebelViewer,capturedBase)) {
+            val current=s.copy(planetStocks=currentStocks)
+            received.clear()
+            hub.tacticalCommand(TacticalCommandResult(1,order,120,mapOf(10000 to "one")),current,galaxy,::character)
+            assertFalse(received.flatten().any {opcode(it)==0x438})
+            assertFalse(TacticalBootstrap(current,galaxy,player,::character).initialize().any {opcode(it)==0x438})
+        }
     }
 }

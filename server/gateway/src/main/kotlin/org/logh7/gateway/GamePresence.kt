@@ -387,14 +387,14 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             if(!event.cancelled && event.order.command.opcode in setOf(0x422,0x41c)) {
                 val stocks=checkNotNull(snapshot.planetStocks)
                 val base=event.order.command.base
-                val country=current.country
-                if(country!=null && stocks.tacticalCommands.emergencySupplies[base]==country.value) {
+                val supply=tactical.emergencySupply(base)
+                if(supply!=null) {
                     val targets=if(event.order.command.opcode==0x422)listOf(0) else event.order.command.units
                     for(id in targets) {
                         val balance=if(id==0)0 else snapshot.navigators.values.singleOrNull {it.unitId==id}?.supplies ?:
                             stocks.outfits.values.singleOrNull {o->o.activeShips?.values?.any {it.id==id}==true}
                                 ?.let {org.logh7.engine.OutfitSupplies.distribution(it)[id]} ?: 0
-                        packets+=org.logh7.protocol.TacticalBaseMessages.emergency(base,id,stocks.bases.getValue(base).supplies,balance)
+                        packets+=org.logh7.protocol.TacticalBaseMessages.emergency(base,id,supply.supplies,balance)
                     }
                 }
             }
