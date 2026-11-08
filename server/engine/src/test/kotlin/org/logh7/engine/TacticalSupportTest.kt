@@ -249,6 +249,32 @@ class TacticalSupportTest {
         assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().support)
     }
 
+    @Test fun stopChecksTheCurrentCampEvenWhenTheOutfitStillNamesTheCommander() {
+        for(followsRevolt in listOf(false,true)) {
+            val s=state()
+            val command=request(TacticalSupportAction.SUPPLY,2)
+            assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+            val plot=Plot(10000,Power.EMPIRE.country,0,revolt=5)
+            val coup=CoupState(mapOf(10000 to plot),loyalty=if(followsRevolt)mapOf(1 to 100) else emptyMap())
+            s.stocks=s.stocks.copy(social=s.stocks.social.copy(coup=coup))
+            val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+            val p=production(s)
+            val stocks=s.stocks
+            val players=s.players
+            val stop=command.copy(tacticalSupport=null,tacticalStop=TacticalStop(listOf(1)))
+            val result=TacticalSupportOperations.stop(stop,session.copy(gameMillis=(now+8)*1000),
+                galaxy,nav,p,p.snapshot(1)!!,s.commit)
+            if(followsRevolt) {
+                assertNotNull(result.player)
+                assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().support)
+            } else {
+                assertEquals(NavigationRejection.CARD,result.rejection)
+                assertEquals(stocks,s.stocks)
+                assertEquals(players,s.players)
+            }
+        }
+    }
+
     @Test fun supplyAcrossFriendlyFleetsConservesCombinedCargoAndLeavesEnemyStockAlone() {
         val s=state();val source=s.stocks.outfits.getValue(1)
         val receiver=source.activeShips!!.values.last()

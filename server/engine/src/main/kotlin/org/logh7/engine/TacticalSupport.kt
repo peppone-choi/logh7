@@ -90,7 +90,7 @@ internal object TacticalSupportOperations {
         if(command.units.isNotEmpty() && (!player.cpPaused || player.baseId!=0 || player.mode!=5))return reject(NavigationRejection.TACTICAL)
         val sources=command.units.filter {it!=player.unitId}.map {ship(it,stocks) ?: return reject(NavigationRejection.UNIT)}
         if(sources.any {TacticalAuthority.commander(it.outfit,it.unit,stocks)!=player.characterId ||
-            it.outfit.country!=player.country ||
+            TacticalAuthority.camp(it.outfit,stocks)!=TacticalAuthority.camp(player,stocks) ||
             it.outfit.positionIn(galaxy)!=OutfitPosition(player.grid)})return reject(NavigationRejection.CARD)
         var next=stocks
         val now=session.gameMillis/1000
