@@ -137,6 +137,8 @@ static bool strategyActionCommand(unsigned command);
 static BYTE openStrategyAction(void* manager,int command,unsigned card);
 static bool updateStrategyAction(void* gui);
 static void proposalWindowTick();
+static bool readProposalApproval(void* record);
+static void proposalApprovalTick(void* context);
 static void taxConditions(void* world);
 static void updateOutfitInformation(void* manager);
 static void updateOutfitListColumns(void* manager);

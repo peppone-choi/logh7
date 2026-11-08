@@ -108,6 +108,7 @@ static void __fastcall mailEditorTick(void* context,void*,void* input) {
         // Force the original same-mode refresh, including its native queries,
         // row allocation and normal completion. Never reset an active draft.
         reinterpret_cast<void(__thiscall*)(void*,unsigned,unsigned)>(0x53a670)(context,1,1);
+    proposalApprovalTick(context);
     reinterpret_cast<void(__thiscall*)(void*,void*)>(0x539ce0)(context,input);
     if (mailDelivery.pending && mailDelivery.context==context && mailDelivery.draftOpen)
         mailDraftEnabled(context,false);
