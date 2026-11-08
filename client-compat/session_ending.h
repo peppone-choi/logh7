@@ -176,6 +176,7 @@ static void __cdecl sessionEndingFrame(void* gui) {
 static unsigned __fastcall lobbyEndingFrame(void* controller,void*) {
     recoverLobbySelection(controller);
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);auto gui=at<void*>(controller,12);
+    pollLobbyPortraits(world,at<unsigned>(controller,4)==0x2a);
     if(sessionEnding.active && sessionEnding.lobby) {
         if(at<unsigned>(controller,4)==0x2a && updateSessionEnding(gui))return 0;
         if(sessionEnding.root)reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(sessionEnding.root,0);

@@ -77,6 +77,6 @@ object LobbyCountryMessages {
 
     fun emblemCapability(request: Request): ByteArray {
         require(request.query.base == EMBLEM_PROBE)
-        return frame(request, 0, 0, listOf("NC2", "0", "350", "0", "0", "", "0", "0", "", "0"))
+        return frame(request, 0, 0, listOf("NC2", "0", "350", "1", "0", "", "0", "0", "", "0"))
     }
 }

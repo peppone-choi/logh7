@@ -7,6 +7,14 @@ object CountryImageMessages {
     const val MODE=17
     const val LOBBY_MODE=18
     const val PORTRAIT_MODE=20
+    const val LOBBY_PORTRAIT_MODE=21
+
+    data class LobbyPortraitRequest(val query:OutfitPartyMessages.Query) {
+        val sessionId:Int get()=query.base and 0xffff
+        init {
+            require(query.mode==LOBBY_PORTRAIT_MODE && query.outfit>0 && sessionId>0 && query.base ushr 16 in 1..32767)
+        }
+    }
 
     data class LobbyRequest(val query:OutfitPartyMessages.Query) {
         val sessionId: Int get() = query.base and 0xffff
@@ -24,7 +32,8 @@ object CountryImageMessages {
     }
 
     fun portraitReply(query:OutfitPartyMessages.Query,revision:Long,rgba:ByteArray?):List<ByteArray> {
-        require(query.mode==PORTRAIT_MODE && query.outfit>0 && query.base in 1..65535)
+        if(query.mode==LOBBY_PORTRAIT_MODE)LobbyPortraitRequest(query)
+        else require(query.mode==PORTRAIT_MODE && query.outfit>0 && query.base in 1..65535)
         require((revision>0)==(rgba!=null))
         return encode(query,revision,rgba,null,"")
     }

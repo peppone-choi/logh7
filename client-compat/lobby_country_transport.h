@@ -21,6 +21,7 @@ static struct LobbyEmblemInbox {
 static constexpr unsigned lobbyEmblemProbe=127*512+logh::lobbyCountryMaximum;
 static unsigned lobbyEmblemProbeSession=0;
 static bool lobbyEmblemSupported=false;
+#include "lobby_portrait_transport.h"
 
 static void resetLobbyEmblems() {
     auto& images=lobbyEmblemInbox;
@@ -65,6 +66,12 @@ static unsigned __stdcall decodedLobbyCountrySessions(void* record,void* reader)
     return result;
 }
 static bool receiveLobbyCountries(const BYTE* record) {
+    if(record[8]==7 || record[8]==lobbyPortraitMode) {
+        AcquireSRWLockExclusive(&lobbyCountryLock);
+        const bool consumed=receiveLobbyPortrait(record);
+        ReleaseSRWLockExclusive(&lobbyCountryLock);
+        if(consumed)return true;
+    }
     if(record[8]==18) {
         AcquireSRWLockExclusive(&lobbyCountryLock);
         auto& images=lobbyEmblemInbox;

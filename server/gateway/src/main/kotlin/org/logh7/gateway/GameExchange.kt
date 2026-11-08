@@ -2563,6 +2563,19 @@ class GameExchange(
                             LoginMessages.sessionMessage(0x032f,it)},clearHeader=0)
                     }
                     check(lobbyLoggedIn)
+                    if(body.size==11 && (body[10].toInt() and 255)==CountryImageMessages.LOBBY_PORTRAIT_MODE) {
+                        val query=org.logh7.protocol.OutfitPartyMessages.query(body)
+                        val request=CountryImageMessages.LobbyPortraitRequest(query)
+                        val now=System.nanoTime()
+                        if(lastPortraitReply?.let {now-it<1_000_000_000L}==true)return null
+                        lastPortraitReply=now
+                        val portrait=if(sessionDirectory!=null)sessionDirectory.portrait(request,identity.account)
+                            else if(request.sessionId==sessionId && admission?.running!=false)
+                                characterProvider().character(identity.account)?.takeIf {it.id==query.outfit.toLong() && !it.generated}
+                                    ?.let {originalCandidates?.portrait(it.id)}
+                            else null
+                        return handshake.stageAll(CountryImageMessages.portraitReply(query,portrait?.revision ?: 0,portrait?.rgba),clearHeader=0)
+                    }
                     if (body.size == 11 && (body[10].toInt() and 255) == CountryImageMessages.LOBBY_MODE) {
                         val request = CountryImageMessages.LobbyRequest(org.logh7.protocol.OutfitPartyMessages.query(body))
                         val frames = if (sessionDirectory != null) sessionDirectory.countryEmblem(request)
