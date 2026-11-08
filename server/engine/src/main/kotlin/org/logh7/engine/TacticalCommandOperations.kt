@@ -451,32 +451,42 @@ internal object TacticalCommandOperations {
                 }
             }
         }
+        private fun wingCommander(wing:TacticalAirWing):Navigator? {
+            val p=players.values.singleOrNull {it.characterId==wing.character} ?: return null
+            if(session.ended!=null || BattleDeath.deceased(stocks,wing.character) ||
+                p.grid!=wing.grid || !p.cpPaused || pose(wing.source,wing.grid,now,players,stocks,g)==null)return null
+            if(wing.source!=p.unitId) {
+                val source=ship(wing.source,stocks) ?: return null
+                if(TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(p,stocks) ||
+                    TacticalAuthority.commander(source.outfit,source.unit,stocks)!=p.characterId)return null
+            }
+            return p
+        }
+
         fun advanceWings() {
+            val invalid=stocks.tacticalCommands.air.values.filter {wing->
+                val commander=wingCommander(wing)
+                commander==null || wing.mode==1 &&
+                    TacticalCombat.target(wing.target,wing.grid,TacticalAuthority.camp(commander,stocks),stocks,g,players)==null
+            }
+            for(wing in invalid)removeWing(wing.source)
             for(id in stocks.tacticalCommands.air.keys.sorted()) {
                 var wing=stocks.tacticalCommands.air[id] ?: continue
-                val p=players.values.singleOrNull {it.characterId==wing.character}
-                val at=pose(id,wing.grid,now,players,stocks,g)
-                if(session.ended!=null || p==null || BattleDeath.deceased(stocks,wing.character) ||
-                    p.grid!=wing.grid || !p.cpPaused || at==null) {removeWing(id);continue}
-                if(id!=p.unitId) {
-                    val source=ship(id,stocks)
-                    if(source==null || TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(p,stocks) ||
-                        TacticalAuthority.commander(source.outfit,source.unit,stocks)!=p.characterId) {
-                        removeWing(id)
-                        continue
-                    }
-                }
+                val p=wingCommander(wing)
+                if(p==null) {removeWing(id);continue}
+                val at=pose(id,wing.grid,now,players,stocks,g) ?: continue
                 if(wing.nextAt>now)continue
                 if(wing.mode==0) {
-                    val hostiles=stocks.tacticalCommands.air.filterValues {other->other.grid==wing.grid && other.character!=wing.character &&
-                        players.values.any {it.characterId==other.character && TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(p,stocks)} && other.target==(wing.target.takeIf {it>0} ?: id)}
+                    val hostiles=stocks.tacticalCommands.air.filterValues {other->other.grid==wing.grid && other.mode==1 && other.character!=wing.character &&
+                        wingCommander(other)?.let {TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(p,stocks)}==true && other.target==(wing.target.takeIf {it>0} ?: id)}
                     for(enemy in hostiles.keys)removeWing(enemy)
                 } else {
                     val victim=TacticalCombat.target(wing.target,wing.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)
                     val target=pose(wing.target,wing.grid,now,players,stocks,g)
                     if(victim==null || target==null) {removeWing(id);continue}
                     if(hypot((at.position.x-target.position.x).toDouble(),(at.position.y-target.position.y).toDouble())<=8.0) {
-                        val opposing=stocks.tacticalCommands.air.filterValues {it.grid==wing.grid && it.target==id && it.mode==1}.keys
+                        val opposing=stocks.tacticalCommands.air.filterValues {it.grid==wing.grid && it.target==id && it.mode==1 &&
+                            wingCommander(it)?.let {enemy->TacticalAuthority.camp(enemy,stocks)!=TacticalAuthority.camp(p,stocks)}==true}.keys
                         for(enemy in opposing)removeWing(enemy)
                         val result=TacticalCombat.strike(session,g,players,stocks,id,wing.grid,now+1,now,wing.target,TacticalWeapon.GUN,
                             TacticalWeaponMount(TacticalArmaments.GUN_PROFILE,63,1,0),100,at,victim)
