@@ -103,7 +103,29 @@ class CountryLogisticsRoutingTest {
         val commit=request().copy(phase=LogisticsPhase.COMMIT,reservation=assertNotNull(prepared.reservation))
         assertEquals(LogisticsRejection.ACCESS,logistics.apply(commit,state,player(),retaken).rejection)
         assertEquals(initial.warehouses,retaken.snapshot(1)!!.warehouses)
-        assertNull(logistics.apply(commit,state,player(),allied).rejection)
+        assertEquals(LogisticsRejection.PREPARATION,logistics.apply(commit,state,player(),allied).rejection)
+    }
+
+    @Test fun aCampChangeReleasesReservationsEvenWhenAllPartiesSwitchTogether() {
+        val initial=stock()
+        val coup=CoupState(mapOf(10000 to Plot(10000,country,0,revolt=5,bases=setOf(1049))),loyalty=mapOf(1 to 100))
+        val rebel=initial.copy(bases=initial.bases.mapValues {(_,base)->base.copy(camp=1)},social=initial.social.copy(coup=coup))
+        val state=session()
+        for(check in listOf("commit","movement","supply")) {
+            val logistics=OutfitLogistics({0},galaxy)
+            val prepared=logistics.apply(request(),state,player(),production(initial))
+            val old=assertNotNull(prepared.reservation)
+            val changed=production(rebel)
+            when(check) {
+                "movement" -> assertFalse(logistics.blocksMovement(state,1,rebel))
+                "supply" -> assertFalse(logistics.blocksSupply(state,rebel,setOf(1)))
+            }
+            assertEquals(LogisticsRejection.PREPARATION,
+                logistics.apply(request().copy(phase=LogisticsPhase.COMMIT,reservation=old),state,player(),changed).rejection)
+            assertEquals(rebel.warehouses,changed.snapshot(1)!!.warehouses)
+            val fresh=assertNotNull(logistics.apply(request(),state,player(),changed).reservation)
+            assertNotEquals(old,fresh)
+        }
     }
 
     @Test fun pendingReservationsExpireOnCountryChangeAndCannotBeReusedByAnotherCharacter() {
