@@ -81,6 +81,28 @@ class TacticalFleetMotionTest {
             assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.tactical!!.motion.rotation==null})
         }
     }
+    @Test fun reloadedRotationCancelsOnlyTheShipWhoseCommanderChanged() {
+        for (kind in TacticalManeuver.entries) {
+            val s=state()
+            val r=request().copy(tacticalMove=TacticalMove(listOf(1,2),0f,1f,
+                listOf(TacticalPoint(0f,0f)),maneuver=kind))
+            val accepted=move(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),r)
+            assertEquals(2,accepted.tacticalMotions.size)
+            s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(authority=mapOf(1 to 10001)))
+            val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+            val p=production(s)
+            val events=mutableListOf<TacticalMovement>()
+            val deadline=accepted.tacticalMotions.getValue(1).startsAt
+            TacticalCombat.settle(session.copy(gameMillis=deadline*1000),galaxy,nav,p,s.commit,onMovement=events::add)
+            val cancelled=events.single {it.unit==1}
+            assertFalse(cancelled.turned)
+            assertEquals(accepted.tacticalMotions.getValue(1).origin,cancelled.motion!!.pose(deadline))
+            val completed=events.single {it.unit==2}
+            assertEquals(accepted.tacticalMotions.getValue(2).pose(deadline),completed.motion!!.pose(deadline))
+            assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.tactical!!.motion.rotation==null})
+        }
+    }
+
     @Test fun pendingRotationsCanBeStoppedAndOutOfRangeCommandsDoNotCommit() {
         for(kind in TacticalManeuver.entries) {
             val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
