@@ -196,7 +196,9 @@ class TacticalBaseDeliveryTest {
             val pose=TacticalPose(TacticalPoint(3f,4f),0f)
             val motion=TacticalMotion(2487,120,pose,speed,0f,listOf(TacticalPoint(30f,40f)),waitSeconds=0)
             val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one"),motions=mapOf(player.unitId to motion),stateOnly=true)
-            hub.tacticalCommand(event,snapshot(TacticalCommandState()),galaxy,::character)
+            val original=snapshot(TacticalCommandState())
+            val saved=original.copy(navigators=original.navigators+("pilot" to player.copy(motion=motion,energy=TacticalEnergy(listOf(50)+List(10){0}))))
+            hub.tacticalCommand(event,saved,galaxy,::character)
             val packets=received.flatten()
             val packet=packets.single {opcode(it)==0x0400}
             val move=TacticalMoveMessages.move(packet.copyOfRange(4,packet.size))
@@ -205,6 +207,21 @@ class TacticalBaseDeliveryTest {
             assertEquals(listOf(TacticalMoveMessages.Point(30f,40f,0f)),move.waypoints)
             assertFalse(packets.any {opcode(it)==0x40e})
             received.clear()
+            hub.tacticalCommand(event,original,galaxy,::character)
+            assertFalse(received.flatten().any {opcode(it)==0x0400})
+            received.clear()
+
+            val stock=checkNotNull(saved.planetStocks)
+            val outfit=stock.outfits.getValue(1)
+            val ship=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion,120,120))
+            val shipEvent=event.copy(motions=mapOf(1 to motion))
+            for(boats in listOf(ship.boats,0)) {
+                val fleet=outfit.copy(activeShips=ActiveShipUnits(listOf(ship.copy(boats=boats))))
+                val latest=saved.copy(planetStocks=stock.copy(outfits=mapOf(1 to fleet)))
+                hub.tacticalCommand(shipEvent,latest,galaxy,::character)
+                assertEquals(boats>0,received.flatten().any {opcode(it)==0x0400})
+                received.clear()
+            }
         }
     }
 

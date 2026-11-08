@@ -191,6 +191,15 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             it.country?.value==openCountry && it.camp==0 && TacticalAuthority.camp(it)==TacticalAuthority.camp(viewer,stocks)
         }
     }
+    fun committedMotion(unit:Int):TacticalMotion? {
+        if(unit>1_000_000)return people.singleOrNull {it.unitId==unit && it.cpPaused}?.motion
+        return snapshot.planetStocks?.outfits?.values.orEmpty()
+            .filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}
+            .firstNotNullOfOrNull {outfit->
+                outfit.activeShips?.values?.singleOrNull {it.id==unit && it.boats>0}?.tactical?.motion
+            }
+    }
+
     private fun emergencySupplies():List<ByteArray> = bases.mapNotNull {base->
         emergencySupply(base.id)?.let {TacticalBaseMessages.emergency(base.id,0,it.supplies,0)}
     }
