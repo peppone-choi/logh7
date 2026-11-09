@@ -64,10 +64,13 @@ class OriginalCharacterLotteryTest {
         val clock=TestClock()
         val file=directory.resolve("portraits.properties")
         val service=CharacterCreation(file,clock,10,Random(5))
+        assertEquals(listOf(10,20),service.candidates("empire").map {it.character.rank})
+        assertEquals(10,CharacterCreation.originalDefinitions().single {it.id==1001L}.profile.rank)
         service.apply("empire",listOf(1001));service.apply("alliance",listOf(1002));clock.time+=10
         val awarded=listOf("empire","alliance").map {checkNotNull(service.character(it))}
         assertEquals(listOf(26,100074),awarded.map {it.face}) // reviewed npc-face-matches.json slots
         assertEquals(listOf(3,93),awarded.map {it.shipKind}) // native faction destroyer kinds
+        assertEquals(listOf(10,20),awarded.map {it.rank}) // manual p.60 confirms Kircheis only
         for(character in awarded) {
             assertFalse(character.generated)
             assertEquals(character.power,Flagships.find(character.shipKind)?.power)
@@ -79,7 +82,7 @@ class OriginalCharacterLotteryTest {
     @Test fun oldOriginalPlaceholdersAreDisplayedConsistentlyWithoutRewritingTheArchive() {
         val file=directory.resolve("legacy-originals.properties")
         val properties=Properties()
-        val legacy=OriginalCharacterMessages.localCandidates.map {it.character.copy(face=1000001,shipKind=0,generated=false)}
+        val legacy=OriginalCharacterMessages.localCandidates.map {it.character.copy(face=1000001,shipKind=0,rank=20,generated=false)}
         legacy.forEachIndexed {i,c->
             val encoded=CharacterMessages.generateReply(c)
             properties.setProperty("legacy$i","original:"+java.util.HexFormat.of().formatHex(encoded.copyOfRange(4,encoded.size)))
