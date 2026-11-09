@@ -68,6 +68,8 @@ object SocialActions {
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
         navigators:Collection<Navigator> = emptyList(),accounts:Map<String,Navigator> = emptyMap(),
         countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
+        if(p?.characterId==r.identity.characterId && BattleDeath.deceased(s,p.characterId))
+            return SocialResult(p,s,SocialRejection.IDENTITY)
         if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(g,r,session,p,s,accounts,countries)
         if(r.identity.command in Justice.commands)return JusticeActions.evaluate(g,r,session,p,s,accounts,countries)
         if(r.identity.command in EspionageActions.commands)return EspionageActions.evaluate(g,r,session,p,s,accounts,countries)

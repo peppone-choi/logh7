@@ -159,7 +159,15 @@ class JusticeActionsTest {
             mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
         val r=SocialRequest(StrategyActionRequest("c","c",10002,Power.EMPIRE,1,Justice.DEFECT,0,8,value=0,identities=ids))
         val owned=stocks().let {it.copy(bases=it.bases+(1177 to PlanetStock(1177,3,0,0,0,0)))}
-        val result=SocialActions.evaluate(twoCapitals,r,session,c,owned,accounts.values,accounts)
+        val now=session.gameMillis/1000
+        val recovered=c.copy(spotId=0,hull=FlagshipHull(0,now,woundedUntil=now+86400))
+        val dead=BattleDeath.apply(owned,listOf(c.characterId),now) {_,_->true}
+        val rejected=SocialActions.evaluate(twoCapitals,r,session,recovered,dead,accounts.values,accounts)
+        assertEquals(SocialRejection.IDENTITY,rejected.rejection)
+        assertFalse(rejected.changed);assertNull(rejected.defected)
+        assertEquals(recovered,rejected.player);assertSame(dead,rejected.stocks)
+
+        val result=SocialActions.evaluate(twoCapitals,r,session,recovered,owned,accounts.values,accounts)
         assertNull(result.rejection);assertEquals(CountryId(3),result.defected)
         val p=assertNotNull(result.player);assertEquals(Power.ALLIANCE,p.power);assertEquals(680,p.pcp,"PCP 320");assertNull(p.hull)
         assertEquals(11770019,p.spotId,"the alliance capital holding room")
