@@ -1561,7 +1561,7 @@ class GameExchange(
                                 world.outfitBattle(party,country,snapshot?.planetStocks ?: checkNotNull(stored),
                                     snapshot?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid,
                                     characterCountryById={countries[it]},characterById=::currentCharacterById,nativePower=character.power,
-                                    eliminated=snapshot?.session?.eliminated.orEmpty().keys)
+                                    eliminated=snapshot?.session?.eliminated.orEmpty().keys,viewerCharacter=character.id.toInt())
                             } else if(country==null) {
                                 val emptyUnits=LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(emptyList()))
                                 if(party==null)listOf(emptyUnits) else listOf(LoginMessages.sessionMessage(0x032f,

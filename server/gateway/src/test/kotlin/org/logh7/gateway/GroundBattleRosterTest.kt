@@ -43,6 +43,26 @@ class GroundBattleRosterTest {
         assertEquals(mapOf(11 to 21),stocks.tacticalCommands.groundTargets)
     }
 
+    @Test fun regularAndRebelTroopsOfTheSameCountryAreOpponentsInTheWireRoster() {
+        val country=Power.EMPIRE.country
+        val rebel=10002
+        val s=stocks.copy(outfits=stocks.outfits.mapValues {(id,o)->o.copy(country=country,commanderId=10000+id)},
+            warehouses=stocks.warehouses.mapValues {(_,w)->w.copy(country=country)},
+            social=stocks.social.copy(coup=CoupState(mapOf(rebel to Plot(rebel,country,0,revolt=5)),loyalty=mapOf(2 to 100))))
+        for(viewer in listOf(10001,rebel)) {
+            val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),country.value,s,2487,
+                viewerCharacter=viewer,characterCountryById={country})
+            assertEquals(3,ByteBuffer.wrap(packets[0]).getInt(21))
+            val units=ByteBuffer.wrap(packets[1])
+            for(index in 0..1) {
+                val start=7+42*index
+                val commander=10001+index
+                assertEquals(if(commander==viewer)1 else 2,units.get(start+25).toInt())
+                assertEquals(if(commander==viewer)commander else 0,units.getInt(start+34))
+            }
+        }
+    }
+
     @Test fun troopsBeyondThirtyPerSideAreMarkedAsReserve() {
         val many=ActiveGroundUnits((1..75).map {ActiveGroundUnit(100+it,UnitStack(1),base=1049)})
         val foes=ActiveGroundUnits(listOf(ActiveGroundUnit(200,UnitStack(5),base=1049)))
