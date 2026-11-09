@@ -237,6 +237,16 @@ class TacticalOfflineAiTest {
         }
     }
 
+    @Test fun reconnectAndAiOffReturnAutomaticTargetSelectionToTheNormalOrder() {
+        val pilot=players().getValue("pilot")
+        val stock=stocks(3)
+        val candidates=listOf(99,12,99,42)
+        assertEquals(listOf(99),TacticalOfflineAi.automaticTargets(offline,"pilot",pilot,stock,candidates))
+        assertEquals(listOf(12,42,99),TacticalOfflineAi.automaticTargets(baseSession,"pilot",pilot,stock,candidates))
+        val disabled=stock.copy(tacticalCommands=stock.tacticalCommands.copy(aiSwitches=emptyMap()))
+        assertEquals(listOf(12,42,99),TacticalOfflineAi.automaticTargets(offline,"pilot",pilot,disabled,candidates))
+    }
+
     @Test fun anExistingFleetAttackHonorsTheOfflineMissionBeforeTheNextAiDecision() {
         for(mission in listOf(3,4,5)) assertExistingFleetAttackIsSuppressed(mission)
     }
