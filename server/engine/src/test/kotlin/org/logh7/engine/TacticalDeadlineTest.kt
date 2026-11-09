@@ -10,6 +10,21 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun blockedPersonalRetreatKeepsItsReservationAndLetsTheClockAdvance() = runTest {
+        val rig=Rig(this,testScheduler,retreatDeadline=true,blockedRetreat=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            val prepared=rig.players.getValue("pilot").retreat
+            assertNotNull(prepared)
+            advanceTimeBy(625);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(prepared,rig.players.getValue("pilot").retreat)
+            advanceTimeBy(375);runCurrent()
+            assertEquals(rig.start+24,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(prepared,rig.players.getValue("pilot").retreat)
+            assertEquals(2488,rig.players.getValue("pilot").grid)
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun restoredPersonalRetreatCompletesBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,retreatDeadline=true)
         try {
@@ -107,7 +122,7 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
-        retreatDeadline:Boolean=false) {
+        retreatDeadline:Boolean=false,blockedRetreat:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -126,6 +141,13 @@ class TacticalDeadlineTest {
                 val enemy=Navigator(1,10001,Power.ALLIANCE,2488,1000,1000,1000,
                     cpPaused=true,hull=FlagshipHull(89,start))
                 players=mapOf("pilot" to pilot,"enemy" to enemy)
+                if(blockedRetreat) {
+                    val stack=UnitStack(119)
+                    val blocker=OutfitStock(1,3,OutfitKind.FLEET,1000,10,units=UnitInventory(mapOf(stack to 1)),
+                        activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack))),position=OutfitPosition(2487))
+                    stocks=stocks.copy(outfits=mapOf(1 to blocker),nextShipId=2,
+                        warehouses=mapOf(10 to OutfitWarehouse(10,3,OutfitKind.FLEET,1000,1)))
+                }
             }
         }
         private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
