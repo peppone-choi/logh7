@@ -549,12 +549,15 @@ internal object TacticalCommandOperations {
                         stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true)
                         reward=checks else completed=true
                     2 -> if(stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true){reward=10;completed=true}
-                    3 -> if(impacts.lastOrNull {it.hit.target==m.target}?.let {impact->impact.hit.destroyed>0 &&
-                            (impact.departed!=null || ship(m.target,stocks)?.unit?.boats==0 ||
-                                impact.pirateSunk) &&
-                            (impact.source==p.unitId || ship(impact.source,stocks)?.let {
-                                TacticalAuthority.commander(it.outfit,it.unit,stocks)==id}==true)}==true) {
-                        reward=TacticalMissionRules.interceptionMerit(10,true);completed=true
+                    3 -> {
+                        val finalHit=impacts.lastOrNull {it.hit.target==m.target}
+                        if(finalHit!=null && finalHit.hit.destroyed>0 &&
+                            (finalHit.departed!=null || ship(m.target,stocks)?.unit?.boats==0 || finalHit.pirateSunk)) {
+                            completed=true
+                            if(finalHit.source==p.unitId || ship(finalHit.source,stocks)?.let {
+                                    TacticalAuthority.commander(it.outfit,it.unit,stocks)==id}==true)
+                                reward=TacticalMissionRules.interceptionMerit(10,true)
+                        }
                     }
                     4 -> {
                         val from=pose(p.unitId,p.grid,now,players,stocks,g)
