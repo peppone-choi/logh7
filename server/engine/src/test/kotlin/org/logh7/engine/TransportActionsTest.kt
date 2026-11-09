@@ -147,19 +147,41 @@ class TransportActionsTest {
         assertEquals(StrategyActionRejection.MAXIMUM,act(plan(),exhausted).rejection)
     }
 
-    @Test fun cardsStockCapacityAndThePerBaseLimitAreChecked() {
+    @Test fun cardsStockAndCapacityAreChecked() {
         assertEquals(StrategyActionRejection.CARD,act(plan().copy(card=24),stocks()).rejection)
         assertEquals(StrategyActionRejection.RESOURCE,act(plan(supplies=6000),stocks()).rejection)
         assertEquals(StrategyActionRejection.RESOURCE,act(plan(count=5),stocks()).rejection)
         assertEquals(StrategyActionRejection.TARGET,act(plan().copy(target=1049),stocks()).rejection)
-        var s=stocks().let {it.copy(bases=it.bases+(1049 to it.bases.getValue(1049).copy(supplies=100000)))}
-        repeat(TransportActions.PER_BASE) {s=assertNotNull(act(plan(supplies=1,kind=TransportActions.NO_UNIT,count=0),s).stocks)}
-        assertEquals(StrategyActionRejection.MAXIMUM,act(plan(supplies=1,kind=TransportActions.NO_UNIT,count=0),s).rejection)
         val big=assertNotNull(act(plan(supplies=4000,kind=TransportActions.NO_UNIT,count=0),stocks()).stocks)
         val room=OutfitSupplies.capacity(big.outfits.getValue(200))
         if(room<4000)assertEquals(StrategyActionRejection.TROOPS,act(load(big.strategic.transports.single().id),big).rejection)
         assertEquals(StrategyActionRejection.CARD,act(load(1).copy(card=39),big).rejection)
     }
+    @Test fun onlyTheCurrentSourceOwnersPlansCountTowardItsQuota() {
+        val historical=List(TransportActions.PER_BASE) {
+            TransportPackage(it+1,Power.ALLIANCE.country,1049,1050,1)
+        }
+        val current=List(TransportActions.PER_BASE-1) {
+            TransportPackage(historical.size+it+1,Power.EMPIRE.country,1049,1050,1)
+        }
+        val initial=stocks()
+        val before=initial.copy(strategic=initial.strategic.copy(transports=historical+current,
+            lastTransportId=historical.size+current.size))
+        val request=plan(supplies=1,kind=TransportActions.NO_UNIT,count=0)
+        val accepted=act(request,before)
+        assertNull(accepted.rejection)
+        assertEquals(officer.mcp-80,accepted.player?.mcp)
+        val atLimit=assertNotNull(accepted.stocks)
+        assertEquals(before.bases.getValue(1049).supplies-1,atLimit.bases.getValue(1049).supplies)
+        assertEquals(historical,atLimit.strategic.transports.filter {it.country==Power.ALLIANCE.country})
+        assertEquals(TransportActions.PER_BASE,atLimit.strategic.transports.count {it.country==Power.EMPIRE.country})
+
+        val rejected=act(request,atLimit)
+        assertEquals(StrategyActionRejection.MAXIMUM,rejected.rejection)
+        assertEquals(atLimit,rejected.stocks)
+        assertEquals(officer,rejected.player)
+    }
+
     @Test fun shipLossIsCommittedBeforeReinforcementAndWipedCargoCannotReturn() {
         val planned=assertNotNull(act(plan(),stocks()).stocks)
         val loaded=assertNotNull(act(load(1),planned).stocks)

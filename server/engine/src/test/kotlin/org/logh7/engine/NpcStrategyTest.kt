@@ -300,6 +300,32 @@ class NpcStrategyTest {
         assertEquals(2700,blockedRoute.outfits.getValue(1).supplies)
         assertTrue(events.isEmpty())
     }
+    @Test fun blockedOffensiveRouteFallsBackToFriendlyDepotButAnEnemyHereKeepsTheFleetEngaged() {
+        val storm=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,terrain=List(50) {y->
+            CharArray(100) {x->if(x==89 && y in 23..25)'~' else '.'}.concatToString()
+        })
+        val initial=stocks()
+        val fleet=OutfitSupplies.withBalances(initial.outfits.getValue(1).copy(position=OutfitPosition(2488)),mapOf(1 to 2700))
+        val stock=initial.copy(outfits=mapOf(1 to fleet))
+        val pilots=players()
+        val events=mutableListOf<NpcStrategicMovement>()
+        val engaged=NpcStrategy.advance(simulation.copy(gameMillis=0),storm,pilots,stock,events)
+        assertEquals(NpcStrategicState(21600),engaged.outfits.getValue(1).strategy)
+        assertEquals(fleet.position,engaged.outfits.getValue(1).position)
+        assertTrue(events.isEmpty())
+
+        pilots["pilot"]=pilots.getValue("pilot").copy(grid=2490)
+        val returning=NpcStrategy.advance(simulation.copy(gameMillis=0),storm,pilots,stock,events)
+        assertEquals(NpcStrategicState(21600,2487,3600),returning.outfits.getValue(1).strategy)
+        assertEquals(stock.bases,returning.bases)
+        assertTrue(events.isEmpty())
+        val docked=NpcStrategy.advance(simulation.copy(gameMillis=3600000),storm,pilots,returning,events)
+        assertEquals(OutfitPosition(2487,1000),docked.outfits.getValue(1).position)
+        assertEquals(3000,docked.outfits.getValue(1).supplies)
+        assertEquals(99400,docked.bases.getValue(1000).supplies)
+        assertEquals(2487,events.single().destination)
+    }
+
     @Test fun fleetReservesFuelForEveryJumpAroundAStormAndDocks() {
         val blocked=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,terrain=List(50) {y->
             CharArray(100) {x->if(x==89 && y in 22..26)'~' else '.'}.concatToString()
