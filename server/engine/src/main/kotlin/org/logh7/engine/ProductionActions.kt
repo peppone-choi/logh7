@@ -170,7 +170,8 @@ object ProductionActions {
         for((base,order) in due)bases[base]?.let {stock->val key=UnitStack(order.kind)
             val held=stock.units.ships[key] ?: 0
             // A full stack (or a full kind list) keeps the order waiting, as automatic production stops at the cap.
-            if(held>=65535 || held==0 && stock.units.ships.size>=99)return@let
+            if(warehouseShipProductionRoom(order.kind,stock.units.ships,stock.spareShips)==0 ||
+                held==0 && stock.units.ships.size>=99)return@let
             bases=bases+(base to stock.copy(units=UnitInventory(stock.units.ships+(key to held+1),stock.units.troops,stock.units.work)))
             done+=base}
         if(done.isEmpty())return s

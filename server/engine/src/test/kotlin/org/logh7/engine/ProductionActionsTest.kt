@@ -72,6 +72,24 @@ class ProductionActionsTest {
         assertSame(full,ProductionActions.settle(full,now+1),"no out-of-range stack; the order waits")
         assertEquals(SocialRejection.MAXIMUM,act(ProductionActions.RECRUIT,full,troop.kind).rejection)
     }
+    @Test fun shipDeliveryWaitsForSpaceAcrossGradesAndSpareBoats() {
+        val key=UnitStack(32)
+        val veteran=UnitStack(32,1)
+        val base=stocks.bases.getValue(1049).copy(units=UnitInventory(ships=mapOf(key to 216,veteran to 1)),
+            spareShips=SpareShipBoats(mapOf(veteran to 136)))
+        val pending=stocks.copy(bases=mapOf(1049 to base),
+            social=stocks.social.copy(production=ProductionState(orders=mapOf(1049 to ShipOrder(key.kind,now)))))
+        assertSame(pending,ProductionActions.settle(pending,now))
+
+        val spare=SpareShipBoats(mapOf(veteran to 135))
+        val room=pending.copy(bases=mapOf(1049 to base.copy(spareShips=spare)))
+        val delivered=ProductionActions.settle(room,now)
+        val stock=delivered.bases.getValue(1049)
+        assertEquals(mapOf(key to 217,veteran to 1),stock.units.ships)
+        assertEquals(spare,stock.spareShips)
+        assertTrue(delivered.social.production.orders.isEmpty())
+        assertSame(delivered,ProductionActions.settle(delivered,now))
+    }
     @Test fun quotesShareTheCommittedCostsAndNeverSpendOrOrder() {
         val policy=UnitProductionPolicy(peoplePerUnit=888,foodPerTroop=110,suppliesPerTroop=21,mineralPerShipHour=12)
         val player=a.copy(mcp=0)

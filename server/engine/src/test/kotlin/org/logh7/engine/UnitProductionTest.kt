@@ -35,6 +35,21 @@ class UnitProductionTest {
         assertTrue(stock.units.troops.keys.all { it.level == 0 })
         assertFailsWith<UnsupportedOperationException> { (stock.units.ships as MutableMap).clear() }
     }
+    @Test fun automaticProductionPreservesWorkAndMaterialsAtTheNativeShipLimit() {
+        val producer=producer()
+        val key=UnitStack(32)
+        val full=initial().copy(units=UnitInventory(ships=mapOf(key to 218),work=mapOf("S32" to 90)))
+        val blocked=producer.advance(full,full)
+        assertEquals(full.units.ships,blocked.units.ships)
+        assertEquals(90,blocked.units.work["S32"])
+        assertEquals(full.mineral,blocked.mineral)
+        assertEquals(full.supplies,blocked.supplies)
+
+        val room=blocked.copy(units=UnitInventory(ships=mapOf(key to 217),work=blocked.units.work))
+        val delivered=producer.advance(room,room)
+        assertEquals(218,delivered.units.ships[key])
+        assertTrue(delivered.mineral<room.mineral && delivered.supplies<room.supplies)
+    }
     @Test fun allianceRecipesProduceTheirOwnKindsAndNeverEnemyShips() {
         val alliance = Galaxy(listOf(GalaxySystem(3, 2487, 4, "バーラト", 3)),
             listOf(GalaxyBase(2015, 2487, 80, 0, "ハイネセン", 0, 20f, 86400, 0, 0f, 2f)),

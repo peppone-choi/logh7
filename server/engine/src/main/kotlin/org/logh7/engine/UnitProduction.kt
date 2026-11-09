@@ -3,6 +3,17 @@ package org.logh7.engine
 import org.logh7.engine.worldseed.AutomaticProductionSeedLoader
 import org.logh7.engine.worldseed.SeedFaction
 
+/** Full units that fit in one native warehouse row, including existing boats of every grade. */
+internal fun warehouseShipProductionRoom(kind:Int,ships:Map<UnitStack,Int>,spare:SpareShipBoats):Int {
+    val boatsPerUnit=UnitSpecifications.ships.singleOrNull {it.kind==kind}?.number ?: return 0
+    val maxBoats=minOf(65535,255*boatsPerUnit)
+    val fullUnits=ships.entries.sumOf {if(it.key.kind==kind)it.value.toLong() else 0L}
+    val spareBoats=spare.values.entries.sumOf {if(it.key.kind==kind)it.value.toLong() else 0L}
+    if(fullUnits==0L && spareBoats==0L && (ships.keys+spare.values.keys).distinctBy {it.kind}.size>=99)return 0
+    val freeBoats=(maxBoats-fullUnits*boatsPerUnit-spareBoats).coerceAtLeast(0)
+    return (freeBoats/boatsPerUnit).toInt()
+}
+
 data class UnitProductionPolicy(val peoplePerUnit: Int = 1000, val foodPerTroop: Int = 100,
     val suppliesPerTroop: Int = 20, val mineralPerTroop: Int = 10,
     val mineralPerShipHour: Int = 10, val suppliesPerShipHour: Int = 5) {
@@ -87,7 +98,9 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
             val target = if (unit.ship) ships else troops
             val key = UnitStack(unit.kind)
             while (hours >= unit.hours) {
-                val count = minOf(line.batch, 65535 - (target[key] ?: 0))
+                val room = if (unit.ship) warehouseShipProductionRoom(unit.kind, ships, stock.spareShips)
+                    else 65535 - (target[key] ?: 0)
+                val count = minOf(line.batch, room)
                 val mineralCost = count.toLong() * if (unit.ship) unit.hours.toLong() * policy.mineralPerShipHour else policy.mineralPerTroop.toLong()
                 val supplyCost = count.toLong() * if (unit.ship) unit.hours.toLong() * policy.suppliesPerShipHour else policy.suppliesPerTroop.toLong()
                 val foodCost = if (unit.ship) 0 else count.toLong() * policy.foodPerTroop
