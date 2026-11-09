@@ -71,18 +71,21 @@ class CountryNavigationRoutingTest {
         val state=session().let {it.copy(gameMillis=it.gameMillis+1000)};val now=state.gameMillis/1000
         val plan=StrategicOperation(1,10001,26,CountryId(42),2490,StrategicForce.SOLO,StrategicPurpose.SWEEP,1,now,
             StrategicPlanState.ISSUED,now,characters=setOf(pilot.characterId),issuer=10002)
-        fun warp(country:CountryId,revolt:Long=0):Navigator {
+        fun warp(country:CountryId,revolt:Long=0,elapsedSeconds:Long=0):Navigator {
             val plot=Plot(pilot.characterId,CountryId(42),now,revolt=revolt)
             val s=stocks.copy(strategic=StrategicState(operations=listOf(plan.copy(country=country))),
                 social=stocks.social.copy(coup=CoupState(plots=mapOf(pilot.characterId to plot))))
             val result=navigation(Store(mapOf("pilot" to pilot.copy(grid=2486)))).apply(request().copy(destination=2489,
-                unitId=pilot.unitId,captainCard=59),state,s)
+                unitId=pilot.unitId,captainCard=59),state.copy(gameMillis=state.gameMillis+elapsedSeconds*1000),s)
             assertNull(result.rejection)
             return assertNotNull(result.player)
         }
         assertEquals(960,warp(CountryId(42)).mcp)
         assertEquals(880,warp(CountryId(43)).mcp)
         assertEquals(880,warp(CountryId(42),revolt=now).mcp)
+        val duration=OperationPlanRules.DURATION_GAME_SECONDS
+        assertEquals(960,warp(CountryId(42),elapsedSeconds=duration-1).mcp)
+        assertEquals(880,warp(CountryId(42),elapsedSeconds=duration).mcp)
     }
     @Test fun aCountryCaptainCanWarpAndSettleFuelWithoutChangingCountryOrShipStyle() {
         val store=Store(mapOf("pilot" to pilot));val nav=navigation(store);val initial=session()

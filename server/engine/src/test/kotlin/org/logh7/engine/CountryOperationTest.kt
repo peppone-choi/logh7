@@ -38,6 +38,25 @@ class CountryOperationTest {
     private fun act(r:StrategyActionRequest,s:PlanetStocks,family:String="empire")=
         StrategyActions.evaluate(galaxy,r,session,if(r.command==24)issuer else planner,s,catalog(family))
 
+    @Test fun rebelFleetCannotCountJoinOrStartARegularOperation() {
+        val regular=stock()
+        val rebellion=CoupState(plots=mapOf(10002 to Plot(10002,country,0,revolt=1)),loyalty=mapOf(200 to CoupActions.LOYAL))
+        fun rebel(s:PlanetStocks)=s.copy(social=s.social.copy(coup=rebellion))
+        assertEquals(StrategyActionRejection.MAXIMUM,act(request(22),rebel(regular)).rejection)
+        val planned=assertNotNull(act(request(22),regular).stocks)
+        val denied=act(request(24),rebel(planned))
+        assertEquals(StrategyActionRejection.AUTHORITY,denied.rejection)
+        assertEquals(issuer,denied.player)
+        assertEquals(rebel(planned),denied.stocks)
+        val assigned=assertNotNull(act(request(24),planned).stocks)
+        val arrived=assigned.copy(outfits=assigned.outfits.mapValues {(_,outfit)->outfit.copy(position=OutfitPosition(2490))})
+        assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,rebel(arrived),now+1).strategic.operations.single().state)
+        assertEquals(StrategicPlanState.STARTED,StrategicOperations.settle(galaxy,arrived,now+1).strategic.operations.single().state)
+        val sunk=arrived.copy(outfits=arrived.outfits.mapValues {(_,outfit)->
+            outfit.copy(activeShips=ActiveShipUnits(outfit.activeShips!!.values.map {it.copy(boats=0)}))})
+        assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,sunk,now+1).strategic.operations.single().state)
+    }
+
     @Test fun sameDisplayAndOfficeNumberDoNotSharePlanLimitsOrdersOrRewards() {
         for(family in listOf("empire","alliance")) {
             val s=stock(family);val foreign=StrategicOperation(50,10000,cards(family).first,other,2490,
@@ -64,6 +83,27 @@ class CountryOperationTest {
             assertEquals(StrategicPlanState.WITHDRAWN,withdrawn.stocks?.strategic?.operations?.single {it.id==51}?.state)
             assertEquals(foreign,withdrawn.stocks?.strategic?.operations?.single {it.id==50})
         }
+    }
+
+    @Test fun expiredOperationsCannotBeWithdrawnOrAssignedBeforeSettlement() {
+        val initial=stock()
+        val plan=StrategicOperation(1,10000,24,country,2490,StrategicForce.FLEET,StrategicPurpose.OCCUPY,1,now,
+            StrategicPlanState.ISSUED,now,issuer=10001)
+        val pending=initial.copy(strategic=initial.strategic.copy(operations=listOf(plan)))
+        val deadline=OperationPlanRules.endGameSeconds(now)
+        for(command in listOf(23,24)) {
+            val player=if(command==24)issuer else planner
+            fun attempt(seconds:Long)=StrategyActions.evaluate(galaxy,request(command),
+                session.copy(gameMillis=seconds*1000),player,pending,catalog("empire"))
+            assertTrue(attempt(deadline-1).changed)
+            val rejected=attempt(deadline)
+            assertFalse(rejected.changed)
+            assertNotNull(rejected.rejection)
+            assertEquals(player,rejected.player)
+            assertEquals(pending,rejected.stocks)
+        }
+        val settled=StrategicOperations.settle(galaxy,pending,deadline)
+        assertEquals(StrategicPlanState.ENDED,settled.strategic.operations.single().state)
     }
 
     @Test fun foreignSeatsArmiesAndInvalidTargetsCannotAuthorizeAPlanOrAnOrder() {
@@ -102,8 +142,10 @@ class CountryOperationTest {
         assertEquals(op,StrategicOperations.settle(galaxy,s,now+OperationPlanRules.DURATION_GAME_SECONDS).strategic.operations.single(),
             "startup without restored navigation must defer rather than discard the arrival reward")
         assertEquals(StrategicPlanState.STARTED,StrategicOperations.settle(galaxy,s,now+1,listOf(participant)).strategic.operations.single().state)
-        for(p in listOf(participant.copy(country=other),participant.copy(generation=2)))
+        for(p in listOf(participant.copy(country=other),participant.copy(generation=2),participant.copy(hull=null)))
             assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,s,now+1,listOf(p)).strategic.operations.single().state)
+        val deceased=s.copy(strategic=s.strategic.copy(people=mapOf(10003 to StrategicPerson(deceasedAt=now+1))))
+        assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,deceased,now+1,listOf(participant)).strategic.operations.single().state)
     }
 
     @Test fun ordinaryProductionTicksSettleSoloDefenseWithoutACombatEvent() {

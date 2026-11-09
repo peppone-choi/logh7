@@ -63,6 +63,14 @@ class TacticalFleetShootTest {
         TacticalCombat.settle(session.copy(gameMillis=at*1000),galaxy,nav,p,s.commit)
 
     @Test fun deceasedCommanderCannotFireManualOrAutomaticFleetOrdersFromAnOlderSave() {
+        assertSavedFleetOrdersCancelled(deceased=true)
+    }
+
+    @Test fun eliminatedCountryCannotFireManualOrAutomaticFleetOrdersFromAnOlderSave() {
+        assertSavedFleetOrdersCancelled(deceased=false)
+    }
+
+    private fun assertSavedFleetOrdersCancelled(deceased:Boolean) {
         for(automatic in listOf(false,true)) {
             val s=state()
             var nav=Navigation(galaxy,s.nav,NavigationPolicy())
@@ -74,12 +82,16 @@ class TacticalFleetShootTest {
             val saved=unit()
             if(automatic)assertNotNull(saved.attack) else assertNotNull(saved.shot)
             val target=s.stocks.outfits.getValue(2)
-            s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+            if(deceased)s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
             nav=Navigation(galaxy,s.nav,NavigationPolicy())
             stock=production(s)
-            assertEquals(NavigationRejection.IDENTITY,shoot(s,nav,stock).rejection)
-            assertEquals(NavigationRejection.IDENTITY,attack().rejection)
-            assertTrue(advance(s,nav,stock,now+120).isEmpty())
+            if(deceased) {
+                assertEquals(NavigationRejection.IDENTITY,shoot(s,nav,stock).rejection)
+                assertEquals(NavigationRejection.IDENTITY,attack().rejection)
+            }
+            val tick=session.copy(gameMillis=(now+120)*1000,eliminated=if(deceased)emptyMap() else
+                mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.ALLIANCE.country)))
+            assertTrue(TacticalCombat.settle(tick,galaxy,nav,stock,s.commit).isEmpty())
             assertEquals(saved.copy(attack=null,shot=null),unit())
             assertEquals(target,s.stocks.outfits.getValue(2))
         }

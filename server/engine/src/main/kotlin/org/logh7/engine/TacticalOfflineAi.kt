@@ -6,7 +6,8 @@ import kotlin.math.*
  * decisions below are replacement policy. Uses the normal motion, reload and damage models. Author: Peppone Choi. */
 internal object TacticalOfflineAi {
     fun eligible(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks)=session.ended==null &&
-        session.participants[account]?.online==false && p.generation==session.generation && p.cpPaused &&
+        session.participants[account]?.let {!it.online && it.country !in session.eliminated}==true &&
+        p.generation==session.generation && p.cpPaused &&
         p.baseId==0 && p.mode==5 && p.hull!=null && p.hull.woundedUntil<=session.gameMillis/1000 &&
         !BattleDeath.deceased(stocks,p.characterId) && stocks.tacticalCommands.tacticalAi(p.characterId)
 
@@ -23,6 +24,7 @@ internal object TacticalOfflineAi {
     }
 
     fun automaticTargets(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks,ids:List<Int>):List<Int> {
+        if(session.participants[account]?.country in session.eliminated)return emptyList()
         val mission=currentMission(p,stocks)
         val preferred=mission?.takeIf {it.mission==3}?.target
         if(eligible(session,account,p,stocks)) {

@@ -526,6 +526,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}+
             snapshot.planetStocks?.strategic?.suppressions.orEmpty().mapNotNull {it.readyAt.takeIf {at->at>nowSeconds}}
         // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
+        val mailDeadlines=snapshot.planetStocks?.social?.proposals?.mails.orEmpty().filter {it.pending}.flatMap {mail->
+            val approvalAt=mail.createdAt+ProposalActions.ABSENT_ORDER_SECONDS
+            listOfNotNull(mail.expiresAt,approvalAt.takeIf {mail.order && it<mail.expiresAt})
+        }.filter {it>nowSeconds}
         // A ready retreat blocked by position or destination is retried by ordinary ticks.
         val retreatDeadlines=snapshot.navigators.values.mapNotNull {it.retreat?.completesAt?.takeIf {at->at>nowSeconds}}
         // The registry can attach after startup scheduling; execution still checks warp abilities.
@@ -548,7 +552,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             .filter {it>nowSeconds}.minOrNull()
         val exchangeDeadline=snapshot.planetStocks?.flagshipMarket?.offers.orEmpty().asSequence()
             .map {it.expiresAt}.filter {it>nowSeconds}.minOrNull()
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline,operationDeadline,exchangeDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+mailDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline,operationDeadline,exchangeDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
