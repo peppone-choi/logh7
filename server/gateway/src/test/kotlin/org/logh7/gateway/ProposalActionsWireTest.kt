@@ -41,6 +41,55 @@ class ProposalActionsWireTest {
         repeat(200){val p=client.receive();if(ByteBuffer.wrap(p).getShort(4).toInt()==opcode)return p};error("Missing $opcode")
     }
     private fun query(client:SyntheticClient,id:Int,card:Int)=client.send(body(Wire.begin(Wire.Query(Wire.Peer(id,extra=listOf(0,0,card)),true,true))))
+    @Test fun offlineOfficeSummaryOnlyCountsCurrentPendingMailAfterTheFirstReadyClock() {
+        val state = State()
+        fun row(id: Int, recipient: Int = 10001, card: Int = 19, order: Boolean = false,
+            country: CountryId = Power.EMPIRE.country, reply: Int = -1, expiresAt: Long = now + 86400) =
+            ProposalMail(id, 10002, recipient, 17, card, ProposalActions.RESIGNATION, order,
+                now, expiresAt, reply = reply, country = country)
+        val rows = listOf(row(1), row(2, order = true), row(3, card = 17), row(4, recipient = 10000, card = 17),
+            row(5, country = Power.ALLIANCE.country), row(6, reply = Proposals.APPROVE), row(7, expiresAt = now))
+        state.stocks = state.stocks.copy(
+            social = state.stocks.social.copy(nextId = 8, proposals = ProposalState(rows)),
+            tacticalCommands = state.stocks.tacticalCommands.copy(aiSwitches = mapOf(10000 to 23, 10001 to 8)))
+        seed(directory)
+        LoadFixture(directory, 2, LoadMetrics(), galaxy, ticking = false, navigationStore = state.navigation,
+            stockStore = state.inventory, worldStateCommitter = state).use { fixture ->
+            fun summaryUntil(client: SyntheticClient, end: Int): List<org.logh7.protocol.ChatMessages.Spot> {
+                val notices = mutableListOf<org.logh7.protocol.ChatMessages.Spot>()
+                repeat(200) {
+                    val message = client.receive()
+                    when (ByteBuffer.wrap(message).getShort(4).toInt()) {
+                        end -> return notices
+                        0x0f1d -> {
+                            val notice = org.logh7.protocol.ChatMessages.spot(body(message))
+                            if (notice.text.startsWith("[직무 편지] 미처리")) notices += notice
+                        }
+                    }
+                }
+                error("Missing $end")
+            }
+            fun clock(client: SyntheticClient) = client.send(SyntheticClient.opcode(0x0300))
+            for (i in listOf(1, 0)) {
+                val client = fixture.join(fixture.account(i), false, false).client
+                client.send(SyntheticClient.opcode(0x0f00)); next(client, 0x0f01)
+                clock(client); assertTrue(summaryUntil(client, 0x0301).isEmpty())
+                client.send(SyntheticClient.opcode(0x0f02)); assertTrue(summaryUntil(client, 0x0f03).isEmpty())
+                val previousMail = state.stocks.social.proposals
+                val previousOffices = state.stocks.strategic.offices
+                val previousBalance = state.players.getValue("load-%03d".format(i)).mcp
+                clock(client); assertTrue(summaryUntil(client, 0x0301).isEmpty())
+                clock(client)
+                val expected = if (i == 1) listOf(org.logh7.protocol.ChatMessages.Spot(10001, ProposalNotice.pending(2))) else emptyList()
+                assertEquals(expected, summaryUntil(client, 0x0301))
+                clock(client); assertTrue(summaryUntil(client, 0x0301).isEmpty())
+                assertEquals(previousMail, state.stocks.social.proposals)
+                assertEquals(previousOffices, state.stocks.strategic.offices)
+                assertEquals(previousBalance, state.players.getValue("load-%03d".format(i)).mcp)
+            }
+        }
+    }
+
     @Test fun nativeResignationApprovalRefreshesTheOpenBattlefield() = officeRefresh(0x0f14)
     @Test fun compatibilityResignationApprovalRefreshesTheOpenBattlefield() = officeRefresh(0x1200)
     @Test fun absentResignationApprovalRefreshesTheOpenBattlefield() = officeRefresh(null)

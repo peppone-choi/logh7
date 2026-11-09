@@ -126,6 +126,7 @@ class GameExchange(
     private var officeCpPenalty = 0
     private var startupGroundOrders = emptySet<TacticalGroundOrder>()
     private var startupGridReady = false
+    private var startupOfficeMailChecked = false
     private var battleDeathNotified = false
     private enum class NavigationGuide(val text: String) {
         WARP("직무카드→함장→워프"), DOCK("아군 성계에서 함장→기항"), FACILITY("직무카드→개인→원거리 이동")
@@ -471,6 +472,19 @@ class GameExchange(
         }
         return ChatMessages.invalidCommand(0x0e00, "[시설 이동] $reason")
     }
+    /** evidence:guess: offline announcement handling shows one login-time summary, without changing mail. */
+    private fun startupOfficeMailNotice(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator): ByteArray? {
+        if (startupOfficeMailChecked) return null
+        startupOfficeMailChecked = true
+        val stocks = navigation?.snapshot()?.planetStocks?.takeIf { it.generation == player.generation } ?: return null
+        if (stocks.tacticalCommands.ai(player.characterId)[3] == 0) return null
+        val seconds = gameSeconds()
+        val count = communication?.pendingOfficeMailCount(stocks.social.proposals, player,
+            offices(character, player).map { it.kind }, seconds) ?: return null
+        return if (count > 0) ChatMessages.spot(ChatMessages.Spot(player.characterId, ProposalNotice.pending(count)), seconds)
+            else null
+    }
+
     internal fun refreshWorld(): CompletableFuture<List<ByteArray>>? {
         if (!worldInitialized || state != State.AUTHENTICATED || obsolete() || sessionEndingAvailable() || navigation == null) return null
         val now = gameSeconds()
@@ -533,9 +547,12 @@ class GameExchange(
                 battleDeathNotified = true
                 ChatMessages.spot(ChatMessages.Spot(player.characterId, "[전사] 재접속 후 생성"), gameSeconds())
             } else null
+            val officeMailNotice = if (readyForNotice && !relocated && !tacticalInitializationPending && !tacticalExitPending)
+                startupOfficeMailNotice(character, player) else null
             val guide = if (readyForNotice && !relocated && character.generated && player.spotId == 0 &&
                 !player.cpPaused && !player.navigationPending && player.hull?.let { it.woundedUntil <= gameSeconds() } == true &&
-                startupNotice.isEmpty() && offlineNotice.isEmpty() && groundResult.isEmpty() && result.warpCancellation == null) {
+                startupNotice.isEmpty() && offlineNotice.isEmpty() && groundResult.isEmpty() && result.warpCancellation == null &&
+                officeMailNotice == null) {
                 when {
                     player.mode == 4 && player.baseId != 0 -> NavigationGuide.FACILITY
                     player.mode == 5 && player.moves == 1L && player.country!=null -> NavigationGuide.DOCK
@@ -590,7 +607,7 @@ class GameExchange(
                 tacticalRefresh +
                 (world?.let { map -> navigation?.snapshot()?.let { GridForceReport.message(it, map.galaxy, player, gameSeconds()) } }
                     ?.let(::listOf).orEmpty()) + offlineNotice + startupNotice + navigationGuide + listOfNotNull(groundStatus) +
-                groundResult + listOfNotNull(if (readyForNotice) officeCpNotice(character, player) else null, deathNotice)
+                groundResult + listOfNotNull(if (readyForNotice) officeCpNotice(character, player) else null, deathNotice, officeMailNotice)
         }
     }
     fun takePendingWorld() = pendingWorld.also { pendingWorld = null }
