@@ -79,7 +79,8 @@ data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,v
     val changed:Boolean=false,val recovery:NavigationResult?=null,val readyAt:Long=0,
     val navigators:Map<String,Navigator> = emptyMap(),val civic:CivicOrder?=null,
     /** Warehouse whose cargo changed; it can differ from the officer's current base. */
-    val warehouseBase:Int=0,val repairQuote:CompleteRepairQuote?=null)
+    val warehouseBase:Int=0,val repairQuote:CompleteRepairQuote?=null,
+    val tacticalOfficeOutfits: Set<Int> = emptySet())
 
 internal object StrategyActions {
     val supported=setOf(46,47,48,49,50,51,53,84,85)+PersonnelActions.supported+StrategicOperations.supported+

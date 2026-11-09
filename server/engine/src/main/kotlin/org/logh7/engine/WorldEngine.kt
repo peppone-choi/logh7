@@ -750,8 +750,22 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             }
                             navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
+                            val formerMember = when (request.command) {
+                                0, 1, 2 -> request.target
+                                84, 85 -> request.characterId
+                                else -> 0
+                            }
+                            val tacticalOfficeOutfits = if (formerMember == 0) emptySet() else
+                                inventory.outfits.values.filter { outfit ->
+                                    if (formerMember !in outfit.members()) return@filter false
+                                    val updated = prepared.outfits.getValue(outfit.id)
+                                    outfit.activeShips?.values.orEmpty().any {
+                                        TacticalAuthority.commander(outfit, it, inventory) != TacticalAuthority.commander(updated, it, prepared)
+                                    }
+                                }.map { it.id }.toSet()
                             result=result.copy(player=next.getValue(request.account),stocks=prepared,
-                                navigators=result.navigators.mapValues { (account, _) -> next.getValue(account) })
+                                navigators=result.navigators.mapValues { (account, _) -> next.getValue(account) },
+                                tacticalOfficeOutfits = tacticalOfficeOutfits)
                             if(isFounding)reconcileTerritory()
                         }
                     }
