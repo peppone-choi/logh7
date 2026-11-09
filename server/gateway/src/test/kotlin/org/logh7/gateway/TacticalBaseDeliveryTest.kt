@@ -39,16 +39,24 @@ class TacticalBaseDeliveryTest {
     @Test fun committedBaseSupportPublishesAbsoluteResultsToBothObserversButCancellationDoesNot() {
         for(command in listOf(0x41b,0x41c)) {
             val hub=GamePresence();val own=mutableListOf<List<ByteArray>>();val peer=mutableListOf<List<ByteArray>>()
-            hub.update(GamePresence.Member("one",person,player,own::add))
-            hub.update(GamePresence.Member("two",enemy,opposing,peer::add));own.clear();peer.clear()
+            val tacticalGrids=mutableListOf<Int>()
+            hub.update(GamePresence.Member("one",person,player,{error("Expected battlefield-scoped delivery")}) {grid,packets->
+                tacticalGrids+=grid
+                own+=packets
+            })
+            val docked=opposing.copy(baseId=1000,mode=4,cpPaused=false)
+            hub.update(GamePresence.Member("two",enemy,docked,peer::add) {_,_->error("Expected docked delivery")})
+            own.clear();peer.clear()
             val order=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(command,listOf(1),base=1000))
             val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one",10001 to "two"))
-            val state=snapshot(TacticalCommandState(),200,121,4)
+            val initial=snapshot(TacticalCommandState(),200,121,4)
+            val state=initial.copy(navigators=initial.navigators+("enemy" to docked))
             hub.tacticalCommand(event,state,galaxy,::character)
             val code=if(command==0x41b)0x433 else 0x434
             val expected=if(command==0x41b)TacticalBaseMessages.repaired(1000,1,200,4)
                 else TacticalBaseMessages.supplied(1000,1,200,121)
             for(packets in listOf(own,peer))assertContentEquals(expected,packets.flatten().single {opcode(it)==code})
+            assertEquals(listOf(2487),tacticalGrids)
             own.clear();peer.clear();hub.tacticalCommand(event.copy(cancelled=true),state,galaxy,::character)
             assertTrue((own+peer).flatten().none {opcode(it) in setOf(0x433,0x434)})
         }
