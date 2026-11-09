@@ -91,8 +91,11 @@ object ProposalActions {
         // card passes to the card's single current holder; a vacant or shared post keeps it until it expires.
         val moved=settled.social.proposals.mails.map {mail ->
             val country=mail.originCountry
+            // Keep the original recipient when a death invalidates the command, so a successor cannot execute it.
+            if(!mail.pending || country==null || BattleDeath.deceased(settled,mail.sender) ||
+                BattleDeath.deceased(settled,mail.recipient) || BattleDeath.deceased(settled,mail.target))return@map mail
             fun currentHolder(id:Int)=!BattleDeath.deceased(settled,id) && (keyOf(id)?.let {players.getValue(it).country==country} ?: true)
-            if(!mail.pending || country==null || currentHolder(mail.recipient) &&
+            if(currentHolder(mail.recipient) &&
                 policy.holders(settled,mail.card,country).any {it.character==mail.recipient})mail
             else policy.holders(settled,mail.card,country).map {it.character}.filter(::currentHolder).distinct().singleOrNull()
                 ?.takeIf {it!=mail.sender}?.let {mail.copy(recipient=it)} ?: mail
