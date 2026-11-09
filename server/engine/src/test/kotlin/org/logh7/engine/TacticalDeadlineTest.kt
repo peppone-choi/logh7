@@ -425,7 +425,8 @@ class TacticalDeadlineTest {
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         private val homeGrid=if(orderDeadline)2487 else 2488
-        val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(orderDeadline)2 else 3)),
+        val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(orderDeadline)2 else 3))+
+            listOfNotNull(GalaxySystem(4,2490,4,"Frontier").takeIf {pirateStrategyDeadline}),
             listOf(GalaxyBase(if(orderDeadline)1049 else 1000,homeGrid,80,if(fortressDeadline)1 else 0,
                 if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),
             Power.entries.associateWith {homeGrid})
@@ -569,9 +570,6 @@ class TacticalDeadlineTest {
                     warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
             }
         }
-        private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3))+
-            listOfNotNull(GalaxySystem(4,2490,4,"Frontier").takeIf {pirateStrategyDeadline}),
-            listOf(GalaxyBase(1000,2488,80,if(fortressDeadline)1 else 0,"Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),Power.entries.associateWith {2488})
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
             private var saved=DurableWorldState(SessionSimulation(rules).apply {
                 if(orderDeadline) {
