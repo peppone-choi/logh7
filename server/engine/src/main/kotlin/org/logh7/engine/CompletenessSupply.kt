@@ -51,7 +51,7 @@ object CompletenessSupply {
         stocks: PlanetStocks): CompletenessSupplyResult {
         fun reject(reason: LogisticsRejection) = CompletenessSupplyResult(player, stocks, reason)
         val member = session.participants[r.account]
-        if (session.ended != null || session.generation != r.generation || stocks.generation != r.generation ||
+        if (session.ended != null || r.country in session.eliminated || session.generation != r.generation || stocks.generation != r.generation ||
             member == null || !member.online || member.connection != r.connection) return reject(LogisticsRejection.SESSION)
         if (player == null || player.generation != r.generation || player.characterId != r.characterId ||
             player.country != r.country || member.country != r.country) return reject(LogisticsRejection.IDENTITY)

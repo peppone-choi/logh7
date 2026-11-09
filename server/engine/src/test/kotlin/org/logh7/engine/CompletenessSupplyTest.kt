@@ -18,6 +18,20 @@ class CompletenessSupplyTest {
         mapOf(101 to OutfitWarehouse(101, 2, OutfitKind.TRANSPORT, 1049, 1),
             102 to OutfitWarehouse(102, 2, OutfitKind.FLEET, 1049, 2)), deploymentInitialized = true))
 
+    @Test fun defeatAfterQuotePreventsCompletenessSupplyWithoutChargingOrMovingCargo() {
+        val before=stocks()
+        val cost=assertNotNull(CompletenessSupply.quote(player,before.outfits.getValue(1),before.outfits.getValue(2),before).cost)
+        val confirm=request.copy(expected=cost)
+        assertTrue(CompletenessSupply.evaluate(confirm,session,player,before).changed)
+        val defeated=session.copy(eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,session.gameMillis/1000,Power.ALLIANCE.country)))
+        val result=CompletenessSupply.evaluate(confirm,defeated,player,before)
+        assertEquals(LogisticsRejection.SESSION,result.rejection)
+        assertFalse(result.changed)
+        assertSame(player,result.player)
+        assertSame(before,result.stocks)
+    }
+
     @Test fun rebelSupplyCannotCrossCampOrContinueAfterThePortIsRetaken() {
         val initial=stocks()
         val country=Power.EMPIRE.country
