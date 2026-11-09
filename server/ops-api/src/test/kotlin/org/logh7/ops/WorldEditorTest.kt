@@ -1,5 +1,6 @@
 package org.logh7.ops
 
+import java.net.BindException
 import java.net.ServerSocket
 import java.net.URI
 import java.net.http.HttpClient
@@ -27,11 +28,13 @@ class WorldEditorTest {
         val engine=WorldEngine(scope,ticking=false,galaxy=galaxy,navigationStore=navigation,stockStore=stockStore,
             worldStateCommitter=WorldStateCommitter {nav,stock->if(fail)throw IOException("fixture disk failure");commits++;players=nav;stored=checkNotNull(stock)},
             npcPolicy=NpcTacticalPolicy(enabled=false))
-        val port=ServerSocket(0).use {it.localPort};val token="fixture-world-token"
+        val token="fixture-world-token"
         val file=directory.resolve("audit.jsonl")
         try {
             engine.synchronizeTime();commits=0
-            OpsAudit.open(file).use {audit->startOpsApi(engine,engine,port,audit,token,galaxy=galaxy).use {HttpClient.newHttpClient().use {client->
+            OpsAudit.open(file).use {audit->
+            val (port, api)=startOnAvailablePort {port->startOpsApi(engine,engine,port,audit,token,galaxy=galaxy)}
+            api.use {HttpClient.newHttpClient().use {client->
             fun request(path:String,body:String?=null,authorized:Boolean=true,origin:String="http://127.0.0.1:$port"):HttpResponse<String> {
                 val builder=HttpRequest.newBuilder(URI("http://127.0.0.1:$port$path"))
                 if(authorized)builder.header("Authorization","Bearer $token")
@@ -82,5 +85,18 @@ class WorldEditorTest {
             assertTrue(log.contains("population=12345,adults=6789,approval=73,peace=81"))
             for(outcome in listOf("CHANGED","CONFLICT","INVALID","UNCHANGED","FAILED","UNAVAILABLE"))assertTrue(log.contains("\"outcome\":\"$outcome\""),outcome)
         }}}} finally {withTimeout(5000){engine.drainAndClose()};scope.cancel()}
+    }
+
+    private fun startOnAvailablePort(start: (Int) -> AutoCloseable): Pair<Int, AutoCloseable> {
+        repeat(3) { attempt ->
+            val port = ServerSocket(0).use { it.localPort }
+            try {
+                return port to start(port)
+            } catch (failure: BindException) {
+                // A parallel test can claim the port after the probe socket closes.
+                if (attempt == 2) throw failure
+            }
+        }
+        error("Unreachable")
     }
 }
