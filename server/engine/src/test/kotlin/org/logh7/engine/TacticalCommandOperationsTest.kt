@@ -342,6 +342,34 @@ class TacticalCommandOperationsTest {
         }
     }
 
+    @Test fun deployedWingStopsWhenItsCommanderCanNoLongerActInBattle() {
+        for(reason in listOf("eliminated","wounded","docked")) {
+            val s=state()
+            val r=run(s)
+            assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=1,target=99)).player)
+            settle(r,now+5)
+            val wing=s.stocks.tacticalCommands.air.getValue(1)
+            val pilot=s.players.getValue("pilot")
+            val due=session.copy(gameMillis=wing.nextAt*1000)
+            val current=when(reason) {
+                "eliminated" -> due.copy(eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now+5)))
+                "wounded" -> {
+                    s.players=s.players+("pilot" to pilot.copy(hull=pilot.hull!!.copy(woundedUntil=wing.nextAt+1)))
+                    due
+                }
+                else -> {
+                    s.players=s.players+("pilot" to pilot.copy(baseId=1000,mode=4,cpPaused=false,motion=null,commandRange=null))
+                    due
+                }
+            }
+            val restored=run(s)
+            val hits=TacticalCombat.settle(current,galaxy,restored.navigation,restored.production,s.commit,scale=1)
+            assertTrue(hits.none {it.airBattle},reason)
+            assertTrue(s.stocks.tacticalCommands.air.isEmpty(),reason)
+            assertEquals(90,s.stocks.outfits.getValue(1).supplies,reason)
+        }
+    }
+
     @Test fun wingStopsSlowingATargetThatBecomesFriendlyBeforeTheNextAttack() {
         val s=state()
         val foe=s.stocks.outfits.getValue(2)

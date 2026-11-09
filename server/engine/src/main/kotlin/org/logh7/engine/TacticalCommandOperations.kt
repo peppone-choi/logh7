@@ -466,9 +466,12 @@ internal object TacticalCommandOperations {
             }
         }
         private fun wingCommander(wing:TacticalAirWing):Navigator? {
-            val p=players.values.singleOrNull {it.characterId==wing.character} ?: return null
-            if(session.ended!=null || BattleDeath.deceased(stocks,wing.character) ||
-                p.grid!=wing.grid || !p.cpPaused || pose(wing.source,wing.grid,now,players,stocks,g)==null)return null
+            val (account,p)=players.entries.singleOrNull {it.value.characterId==wing.character} ?: return null
+            if(session.ended!=null || p.generation!=session.generation ||
+                p.country in session.eliminated || session.participants[account]?.country in session.eliminated ||
+                BattleDeath.deceased(stocks,wing.character) || (p.hull?.woundedUntil ?: 0)>now ||
+                p.grid!=wing.grid || !p.cpPaused || p.baseId!=0 || p.mode!=5 ||
+                pose(wing.source,wing.grid,now,players,stocks,g)==null)return null
             if(wing.source!=p.unitId) {
                 val source=ship(wing.source,stocks) ?: return null
                 if(TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(p,stocks) ||

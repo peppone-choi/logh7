@@ -54,6 +54,9 @@ class TacticalPostureBootstrapTest {
             assertEquals(140,java.nio.ByteBuffer.wrap(replay).getInt(10))
             val restored=TacticalGroundMessages.posture(replay.copyOfRange(4,replay.size))
             assertEquals(setOf(1010000,1),restored.units.toSet());assertEquals(4,restored.kind);assertEquals(1049,restored.base)
+            val wounded=viewer.copy(hull=FlagshipHull(0,200,woundedUntil=201))
+            val woundedBootstrap=TacticalBootstrap(snapshot.copy(navigators=mapOf("pilot" to wounded)),galaxy,wounded){person}
+            assertTrue(woundedBootstrap.resume().none {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0411})
             if(mode==TacticalShipMode.STATIONED) {
                 val leaving=posture.copy(order=pending.copy(mode=TacticalShipMode.ANCHORED))
                 val leavingStock=stock.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(

@@ -15,6 +15,11 @@ data class TacticalPostureOrder(val character:Int,val mode:TacticalShipMode,val 
     val acceptedAt:Long,val readyAt:Long) {
     init {require(character>0 && validPosture(mode,base) &&
         acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL)}
+
+    fun canBeExecutedBy(actor:Navigator,grid:Int,now:Long,stocks:PlanetStocks):Boolean =
+        actor.characterId==character && actor.generation==stocks.generation && actor.grid==grid &&
+            actor.cpPaused && actor.baseId==0 && actor.mode==5 &&
+            !BattleDeath.deceased(stocks,character) && (actor.hull?.woundedUntil ?: 0)<=now
 }
 
 /** Grid-scoped state shared by personal flagships and commissioned ship units. */

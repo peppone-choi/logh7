@@ -16,8 +16,8 @@ data class TacticalGroundOrder(val action:TacticalGroundAction,val character:Int
         const val PREPARATION_SECONDS=25
 
         fun pending(stocks:PlanetStocks?,grid:Int,players:Collection<Navigator>,galaxy:Galaxy,
-            eliminated:Set<CountryId>):Set<TacticalGroundOrder> =
-            TacticalGroundOperations.pending(stocks,grid,players,galaxy,eliminated)
+            eliminated:Set<CountryId>,now:Long):Set<TacticalGroundOrder> =
+            TacticalGroundOperations.pending(stocks,grid,players,galaxy,eliminated,now)
     }
     init {require(character>0 && grid in 0..4999 && carrier in 1..999999 && base in 1..65535 &&
         acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL)}
@@ -45,11 +45,12 @@ internal object TacticalGroundOperations {
     private fun hasRoom(o:OutfitStock,ship:ActiveShipUnit,returning:Int)=
         o.activeGround?.values.orEmpty().count {it.carrier==ship.id}+returning<=GroundTransfer.capacity(ship.stack.kind)
     private fun validOrder(o:OutfitStock,order:TacticalGroundOrder,units:List<ActiveGroundUnit>,base:GalaxyBase,
-        players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):Boolean {
+        players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy,now:Long):Boolean {
         val p=players.singleOrNull {it.characterId==order.character} ?: return false
         val carrier=o.activeShips?.values?.singleOrNull {it.id==order.carrier} ?: return false
         return operational(carrier,stocks) && !BattleDeath.deceased(stocks,p.characterId) &&
-            p.cpPaused && p.baseId==0 && p.grid==order.grid && owned(o,carrier.id,p,galaxy,stocks) &&
+            p.generation==stocks.generation && (p.hull?.woundedUntil ?: 0)<=now &&
+            p.cpPaused && p.baseId==0 && p.mode==5 && p.grid==order.grid && owned(o,carrier.id,p,galaxy,stocks) &&
             berth(o,carrier.id,order.grid,stocks)?.base==order.base && when(order.action) {
                 TacticalGroundAction.DEPLOY -> admits(base,units)
                 TacticalGroundAction.WITHDRAW -> hasRoom(o,carrier,units.size)
@@ -58,7 +59,7 @@ internal object TacticalGroundOperations {
     }
 
     fun pending(stocks:PlanetStocks?,grid:Int,players:Collection<Navigator>,galaxy:Galaxy,
-        eliminated:Set<CountryId>):Set<TacticalGroundOrder> {
+        eliminated:Set<CountryId>,now:Long):Set<TacticalGroundOrder> {
         if(stocks==null)return emptySet()
         val bases=galaxy.bases.filter {it.grid==grid}.associateBy {it.id}
         return buildSet {
@@ -67,20 +68,20 @@ internal object TacticalGroundOperations {
                 val reserved=outfit.activeGround?.values.orEmpty().filter {it.order?.grid==grid}.groupBy {checkNotNull(it.order)}
                 for((order,units) in reserved) {
                     val base=bases[order.base] ?: continue
-                    if(validOrder(outfit,order,units,base,players,stocks,galaxy))add(order)
+                    if(validOrder(outfit,order,units,base,players,stocks,galaxy,now))add(order)
                 }
             }
         }
     }
 
-    internal fun landingSlotsUsed(base:GalaxyBase,camp:Camp,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
+    internal fun landingSlotsUsed(base:GalaxyBase,camp:Camp,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy,now:Long)=
         stocks.outfits.values.filter {TacticalAuthority.camp(it,stocks)==camp}.sumOf {outfit->
             val troops=outfit.activeGround?.values.orEmpty()
             val pending=troops.filter {it.order?.let {order->
                 order.action==TacticalGroundAction.DEPLOY && order.base==base.id && order.grid==base.grid
             }==true}.groupBy {checkNotNull(it.order)}
             troops.count {it.base==base.id}+pending.entries.sumOf {(order,units)->
-                if(validOrder(outfit,order,units,base,players,stocks,galaxy))units.size else 0
+                if(validOrder(outfit,order,units,base,players,stocks,galaxy,now))units.size else 0
             }
         }
 
@@ -167,7 +168,7 @@ internal object TacticalGroundOperations {
             if(command.action==TacticalGroundAction.DEPLOY) {
                 // p.51: fortresses and special (gas etc.) planets refuse 装甲兵 (U-09).
                 if(!admits(base,troops))return reject(NavigationRejection.CREW)
-                val occupied=landingSlotsUsed(base,TacticalAuthority.camp(o,next),players.values,next,galaxy)
+                val occupied=landingSlotsUsed(base,TacticalAuthority.camp(o,next),players.values,next,galaxy,now)
                 if(occupied+troops.size>GroundBattleRules.BOX_CAPACITY_PER_FACTION)return reject(NavigationRejection.GRID)
             } else if(!hasRoom(o,ship,troops.size))return reject(NavigationRejection.UNIT)
             val order=TacticalGroundOrder(command.action,p.characterId,p.grid,id,state.base,now,readyAt)
@@ -191,7 +192,7 @@ internal object TacticalGroundOperations {
             val units=o.activeGround!!.values.filter {it.order==order}
             val base=galaxy.bases.singleOrNull {it.id==order.base && it.grid==order.grid}
             val valid=session.ended==null && o.country !in session.eliminated &&
-                base!=null && validOrder(o,order,units,base,players.values,next,galaxy)
+                base!=null && validOrder(o,order,units,base,players.values,next,galaxy,now)
             if(valid && now<order.readyAt)continue
             val completed=valid && (order.action!=TacticalGroundAction.DEPLOY ||
                 next.outfits.values.filter {TacticalAuthority.camp(it,next)==TacticalAuthority.camp(o,next)}.sumOf {other->

@@ -392,6 +392,21 @@ class TacticalGroundOperationsTest {
             result.outfits.getValue(1).activeGround!!.values)
     }
 
+    @Test fun woundedCommanderLosesTheLandingReservationWithoutMovingTroops() {
+        val s=state()
+        val readyAt=assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).groundReadyAt)
+        val commander=s.players.getValue("pilot")
+        val wounded=commander.copy(hull=commander.hull!!.copy(woundedUntil=readyAt+1))
+        val players=s.players+("pilot" to wounded)
+        assertEquals(1,TacticalGroundOrder.pending(s.stocks,commander.grid,s.players.values,galaxy,emptySet(),readyAt).size)
+        assertTrue(TacticalGroundOrder.pending(s.stocks,commander.grid,players.values,galaxy,emptySet(),readyAt).isEmpty())
+        val events=mutableListOf<TacticalGroundResult>()
+        val result=TacticalGroundOperations.advance(session.copy(gameMillis=readyAt*1000),galaxy,players,s.stocks,events)
+        assertTrue(events.single().cancelled)
+        val troops=s.stocks.outfits.getValue(1).activeGround!!.values
+        assertEquals(troops.map {it.copy(order=null)},result.outfits.getValue(1).activeGround!!.values)
+    }
+
     @Test fun shipWithoutMotionUsesItsBerthForCommandRange() {
         for (mode in listOf(TacticalShipMode.STATIONED, TacticalShipMode.ANCHORED)) {
             val s=state();val old=s.stocks.outfits.getValue(1)
