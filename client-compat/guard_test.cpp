@@ -54,6 +54,7 @@
 #include "tactical_motion_data.h"
 #include "tactical_weapon_data.h"
 #include "tactical_charge_data.h"
+#include "tactical_energy_data.h"
 #include "tactical_base_data.h"
 #include "tactical_notice_data.h"
 #include "flagship_weapon_data.h"
@@ -445,6 +446,34 @@ static bool tacticalChargeDataTest() {
         unit[offset]=offset==9 ? 0 : 1;
     }
     return !logh::applyTacticalFlagshipCharge(nullptr,row) && !logh::applyTacticalFlagshipCharge(unit,nullptr);
+}
+// Observed refusal: BEAM 20 dragged to 95, the detained 040c reply keeps 20.
+static bool tacticalEnergyDataTest() {
+    if (logh::tacticalEnergyRecord+logh::tacticalEnergyField!=0x30a ||
+        logh::tacticalEnergyRecord+logh::tacticalEnergyField+logh::tacticalEnergyCount-1!=0x314) return false;
+    BYTE before[0x20]={},after[0x20]={},reply[0x20]={};
+    unsigned character=10000,flagship=1010000,seconds=500,other=10001;
+    memcpy(before+8,&character,4);memcpy(before+12,&flagship,4);
+    before[0x12]=20;before[0x1a]=40; // beam, engine
+    memcpy(reply,before,sizeof(reply));memcpy(reply,&seconds,4);
+    memcpy(after,reply,sizeof(after)); // 004c1700 copied this reply to the own corps.
+    if (!logh::tacticalEnergyKept(before,after,reply)) return false;
+    int hold=0x78;
+    if (logh::releaseTacticalEnergyHold(hold,1) || hold!=0x78) return false; // Newer slider change queued.
+    if (!logh::releaseTacticalEnergyHold(hold,0) || hold) return false;
+    reply[0x12]=after[0x12]=95; // Accepted: the native hold stays untouched.
+    if (logh::tacticalEnergyKept(before,after,reply)) return false;
+    reply[0x12]=after[0x12]=20;
+    for (unsigned field=0x12;field<0x1d;++field) { // Every slider byte counts.
+        reply[field]^=1;after[field]^=1;
+        if (logh::tacticalEnergyKept(before,after,reply)) return false;
+        reply[field]^=1;after[field]^=1;
+    }
+    memcpy(after+8,&other,4); // Another flagship's reply leaves the own copy alone.
+    if (logh::tacticalEnergyKept(before,after,reply)) return false;
+    memcpy(after+8,&character,4);
+    return logh::tacticalEnergyKept(before,after,reply) && !logh::tacticalEnergyKept(nullptr,after,reply) &&
+        !logh::tacticalEnergyKept(before,nullptr,reply) && !logh::tacticalEnergyKept(before,after,nullptr);
 }
 static bool tacticalBaseDataTest() {
     BYTE stopRecord[16]={};unsigned stopCharacter=10000,stopBase=1000,wait=1;
@@ -1587,6 +1616,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if (!tacticalWeaponSelectionTest()) return 87;
     if (!tacticalBaseDataTest()) return 88;
     if (!tacticalChargeDataTest()) return 89;
+    if (!tacticalEnergyDataTest()) return 816;
     if (!stationaryTacticalPoseTest()) return 83;
     if (!tacticalWaypointOrderTest()) return 84;
     BYTE profile[logh::characterProfileBytes]={},snapshot[0x370]={};
