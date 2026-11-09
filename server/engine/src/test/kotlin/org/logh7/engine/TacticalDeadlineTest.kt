@@ -37,6 +37,20 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
 
+    @Test fun restoredMovingFortressStopsAtItsFinalWaypointBetweenRegularTicks() = runTest {
+        val rig=Rig(this,testScheduler,fortressDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun fortress()=rig.engine.snapshot().planetStocks!!.tacticalCommands.fortresses.getValue(1000)
+            advanceTimeBy(624);runCurrent()
+            assertEquals(.5f,fortress().motion.velocity)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,fortress().reportedAt)
+            assertEquals(0f,fortress().motion.velocity)
+            assertEquals(TacticalPoint(7.5f,0f),fortress().motion.origin.position)
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredShipOrderEntersStockAtItsDeadlineWithoutCombat() = runTest {
         val rig=Rig(this,testScheduler,shipOrder=true)
         try {
@@ -297,7 +311,7 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,mailDeadline:Boolean=false,orderDeadline:Boolean=false,shipOrder:Boolean=false) {
+        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,mailDeadline:Boolean=false,orderDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -309,8 +323,8 @@ class TacticalDeadlineTest {
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         private val homeGrid=if(orderDeadline)2487 else 2488
         val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(orderDeadline)2 else 3)),
-            listOf(GalaxyBase(if(orderDeadline)1049 else 1000,homeGrid,80,0,
-                if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f)),
+            listOf(GalaxyBase(if(orderDeadline)1049 else 1000,homeGrid,80,if(fortressDeadline)1 else 0,
+                if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),
             Power.entries.associateWith {homeGrid})
         init {
             if(mailDeadline) {
@@ -384,6 +398,14 @@ class TacticalDeadlineTest {
                     stocks=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
                         warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
                 }
+            }
+            if(fortressDeadline) {
+                players=emptyMap()
+                val motion=TacticalMotion(2488,start,TacticalPose(TacticalPoint(0f,0f),0f),.5f,0f,
+                    listOf(TacticalPoint(2f,0f),TacticalPoint(7.5f,0f)),waitSeconds=0)
+                stocks=stocks.copy(bases=mapOf(1000 to PlanetStock(1000,2,0,0,0,0)),
+                    strategic=StrategicState(offices=listOf(OfficeHolding(51,1000,10000))),
+                    tacticalCommands=TacticalCommandState(fortresses=mapOf(1000 to TacticalFortressMotion(2488,motion))))
             }
             if(supportDeadline) {
                 val pilot=players.getValue("pilot")
