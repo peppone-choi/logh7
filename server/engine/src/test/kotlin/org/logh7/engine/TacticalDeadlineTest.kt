@@ -10,6 +10,25 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredCapitalOccupationTransfersPowerAtItsDeadline() = runTest {
+        val hold=CoupActions.CAPITAL_DAYS*Justice.DAY
+        val rig=Rig(this,testScheduler,resumedAt=hold*1000/SessionRules.load().speed,coupDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(624);runCurrent()
+            val before=rig.engine.snapshot().planetStocks!!
+            assertEquals(1,before.bases.getValue(1049).camp)
+            assertEquals(rig.start+15,before.social.coup.plots.getValue(10000).capitalSince)
+            advanceTimeBy(1);runCurrent()
+            val snapshot=rig.engine.snapshot()
+            assertEquals(rig.start+hold+15,snapshot.session!!.gameSeconds)
+            val after=snapshot.planetStocks!!
+            assertEquals(0,after.bases.getValue(1049).camp)
+            assertTrue(after.social.coup.plots.isEmpty())
+            assertTrue(after.strategic.offices.any {it.card==1 && it.character==10000 && it.seat==1049})
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun absentOrderExecutesBetweenPeriodicTicksAfterRestart() = runTest {
         val rig=Rig(this,testScheduler,resumedAt=149375,orderDeadline=true)
         try {
@@ -357,7 +376,7 @@ class TacticalDeadlineTest {
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
         uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
         mailDeadline:Boolean=false,orderDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
-        operationDeadline:Boolean=false,exchangeOffer:Boolean=false) {
+        operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -367,10 +386,11 @@ class TacticalDeadlineTest {
                 listOf(TacticalPoint(0f,10f)),turnRate=1f).let {if(postureDeadline)it.copy(velocity=0f) else it},
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
-        private val homeGrid=if(orderDeadline)2487 else 2488
-        val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(orderDeadline)2 else 3)),
-            listOf(GalaxyBase(if(orderDeadline)1049 else 1000,homeGrid,80,if(fortressDeadline)1 else 0,
-                if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),
+        private val imperialCapital=orderDeadline || coupDeadline
+        private val homeGrid=if(imperialCapital)2487 else 2488
+        val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(imperialCapital)2 else 3)),
+            listOf(GalaxyBase(if(imperialCapital)1049 else 1000,homeGrid,80,if(fortressDeadline)1 else 0,
+                if(imperialCapital)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),
             Power.entries.associateWith {homeGrid})
         init {
             if(mailDeadline) {
@@ -390,6 +410,12 @@ class TacticalDeadlineTest {
             }
         }
         init {
+            if(coupDeadline) {
+                players=emptyMap()
+                val plot=Plot(10000,Power.EMPIRE.country,start,revolt=start+10,bases=setOf(1049),capitalSince=start+15,capitalBase=1049)
+                stocks=stocks.copy(bases=mapOf(1049 to PlanetStock(1049,2,1,0,0,0)),
+                    social=stocks.social.copy(coup=CoupState(plots=mapOf(10000 to plot))))
+            }
             if(operationDeadline) {
                 players=emptyMap()
                 val plan=StrategicOperation(1,10000,147,CountryId(3),2488,StrategicForce.FLEET,StrategicPurpose.DEFEND,1,
