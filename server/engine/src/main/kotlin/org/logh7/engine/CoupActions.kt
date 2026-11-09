@@ -219,8 +219,8 @@ object CoupActions {
 
     /** A revolt that has held its side's capital for [CAPITAL_DAYS] changes the regime: rebel cards turn back into the
      * regular offices they alias (where a seat is free), the leader takes the head-of-state card from its holder, and
-     * the rebel bases return to the regular camp. Other plots end when the leader is detained or every rebel base is
-     * lost (the rebels lose their rebel cards). */
+     * the rebel bases return to the regular camp. Other plots end when the leader is detained or dies, or every rebel
+     * base is lost (the rebels lose their rebel cards). */
     fun settle(g:Galaxy,s:PlanetStocks,now:Long,countries:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
         var current=s
         for(plot in s.social.coup.plots.values.filter {it.revolt>0}) {
@@ -228,7 +228,7 @@ object CoupActions {
             val held=current.bases[seat]?.let {it.camp==1 && it.belongsTo(plot.country)}==true
             val previousCapital=plot.capitalBase.takeIf {it>0} ?: legacyCapital(g,plot.country)
             val since=if(!held)0L else if(plot.capitalSince==0L || previousCapital!=seat)now else plot.capitalSince
-            if(held && now-since>=CAPITAL_DAYS*Justice.DAY && !s.social.justice.detained(plot.leader)) {
+            if(held && now-since>=CAPITAL_DAYS*Justice.DAY && !leaderUnavailable(current,plot.leader)) {
                 current=succeed(g,current,plot,checkNotNull(seat),countries,now);continue
             }
             val capitalBase=if(since>0)checkNotNull(seat) else 0
@@ -257,9 +257,12 @@ object CoupActions {
             ThroneState(emperor=plot.leader,at=maxOf(now,1L)))))
         return next.copy(social=next.social.copy(coup=next.social.coup.copy(plots=next.social.coup.plots-plot.leader)))
     }
+    private fun leaderUnavailable(stocks:PlanetStocks,leader:Int)=
+        stocks.social.justice.detained(leader) || BattleDeath.deceased(stocks,leader)
+
     private fun suppress(s:PlanetStocks,countries:CountryCatalog):PlanetStocks {
         val c=s.social.coup
-        val ended=c.plots.values.filter {plot->s.social.justice.detained(plot.leader) ||
+        val ended=c.plots.values.filter {plot->leaderUnavailable(s,plot.leader) ||
             plot.revolt>0 && plot.bases.none {s.bases[it]?.let {b->b.camp==1 && b.belongsTo(plot.country)}==true}}
         if(ended.isEmpty())return s
         var next=s
