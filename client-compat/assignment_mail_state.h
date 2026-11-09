@@ -135,6 +135,45 @@ struct AssignmentMail {
         finish();return true;
     }
 };
+/** The editor's own queries (005321a0 -> 00568500, run one after another by 00568a80): base 0326, warehouse 0326 and
+ * party 032e, each sent by 0056af70 through the native request queue (004b78a0 flag 1). A query counts as answered when
+ * 0x2213e90 is set (0056afb0, 0056b000), i.e. when that queue is empty (004fef90 -> 004b8950), and the shared buffer is
+ * then copied into the editor (0056af90 stock world+0x3e098c, 0056afe0 party world+0x35f35c -> editor+0x12e8, which
+ * 005329c0 draws every frame). The queue drops the first entry that waits for the dispatched opcode (004bdd91): any
+ * 0327/032f, also the reply to a direct query (flag 0, e.g. client-compat's 032e). In reverse-mail run 01 the 032f
+ * replies to three direct 032e (modes 0x0b, 0x0d) were dispatched between the editor's party 032e and its own 032f, so
+ * the editor copied the buffer before that reply (header 제0함대, 0/60, 0(0)); run 08 had none in between.
+ * While this draft's editor is open, each of its queries is answered only after a reply that echoes it has been
+ * dispatched: 0327 +0 base, +4 outfit (0326 query +8 base, +12 outfit); 032f +0 outfit, +4 base, +8 mode (032e query
+ * +8 outfit, +12 base, +16 mode). Native readiness is still required. */
+struct AssignmentEditorReplies {
+    struct Query {const void* object;unsigned reply,first,second,mode;};
+    Query pending[4]={};
+    /** A query object sent again replaces its earlier wait; the oldest wait goes when all four are taken. */
+    void sent(const void* object,unsigned reply,unsigned first,unsigned second,unsigned mode) {
+        unsigned slot=_countof(pending);
+        for(unsigned i=0;i<_countof(pending);++i)if(pending[i].object==object)slot=i;
+        for(unsigned i=0;i<_countof(pending) && slot==_countof(pending);++i)if(!pending[i].object)slot=i;
+        if(slot==_countof(pending)) {
+            for(unsigned i=1;i<_countof(pending);++i)pending[i-1]=pending[i];
+            slot=_countof(pending)-1;
+        }
+        pending[slot]=Query{object,reply,first,second,mode};
+    }
+    void received(unsigned opcode,unsigned first,unsigned second,unsigned mode) {
+        for(auto& query:pending)
+            if(query.object && query.reply==opcode && query.first==first && query.second==second && query.mode==mode)query=Query{};
+    }
+    bool any()const {
+        for(const auto& query:pending)if(query.object)return true;
+        return false;
+    }
+    bool waiting(const void* object)const {
+        for(const auto& query:pending)if(object && query.object==object)return true;
+        return false;
+    }
+    void clear() {*this=AssignmentEditorReplies{};}
+};
 /** SocialRejection ordinal+1. */
 inline const wchar_t* assignmentMailFailure(unsigned code) {
     switch(code) {

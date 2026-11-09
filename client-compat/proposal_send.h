@@ -208,9 +208,52 @@ static bool installAssignmentEditorLookups() {
     }
     return true;
 }
+// The editor's query replies (logh::AssignmentEditorReplies). Four vtable slots of the two query classes the editor
+// uses (party 00674ad8, stock 00674b18): +8 send (0056af70, both) and +0x10 readiness. Other instances and other
+// commands keep the native behaviour; nothing waits once this draft's editor is no longer the open command.
+static logh::AssignmentEditorReplies assignmentEditorReplies;
+static constexpr unsigned assignmentQuerySend=0x56af70,assignmentPartyReady=0x56b000,assignmentStockReady=0x56afb0;
+static constexpr unsigned assignmentQuerySlots[][2]={
+    {0x674ae0,assignmentQuerySend},{0x674b20,assignmentQuerySend},{0x674ae8,assignmentPartyReady},{0x674b28,assignmentStockReady}};
+static bool assignmentQueryWaiting(const void* query) {
+    if(!assignmentEditorActive()) {assignmentEditorReplies.clear();return false;}
+    return assignmentEditorReplies.waiting(query);
+}
+static BYTE __fastcall assignmentQuerySent(void* query,void*) {
+    if(!assignmentEditorActive())assignmentEditorReplies.clear();
+    else {
+        const auto kind=at<unsigned short>(query,6);
+        if(kind==0x10)assignmentEditorReplies.sent(query,0x032f,at<unsigned>(query,8),at<unsigned>(query,12),at<BYTE>(query,16));
+        else if(kind==0x17)assignmentEditorReplies.sent(query,0x0327,at<unsigned>(query,8),at<unsigned>(query,12),0);
+    }
+    return reinterpret_cast<BYTE(__thiscall*)(void*)>(assignmentQuerySend)(query);
+}
+static BYTE __fastcall assignmentPartyAnswered(void* query,void*) {
+    return reinterpret_cast<BYTE(__thiscall*)(void*)>(assignmentPartyReady)(query) && !assignmentQueryWaiting(query);
+}
+static BYTE __fastcall assignmentStockAnswered(void* query,void*) {
+    return reinterpret_cast<BYTE(__thiscall*)(void*)>(assignmentStockReady)(query) && !assignmentQueryWaiting(query);
+}
+/** Every dispatched record (receivedOutfitPagePacket, before the native handler fills the shared buffer). */
+static void receivedAssignmentEditorReply(unsigned opcode,const BYTE* record) {
+    if(!record || !assignmentEditorReplies.any())return;
+    const auto word=[record](unsigned offset) {return *reinterpret_cast<const unsigned*>(record+offset);};
+    if((opcode&65535)==0x032f)assignmentEditorReplies.received(0x032f,word(0),word(4),record[8]);
+    else if((opcode&65535)==0x0327)assignmentEditorReplies.received(0x0327,word(0),word(4),0);
+}
+static bool installAssignmentEditorReplies() {
+    const void* hooks[]={&assignmentQuerySent,&assignmentQuerySent,&assignmentPartyAnswered,&assignmentStockAnswered};
+    for(const auto& slot:assignmentQuerySlots)
+        if(memcmp(reinterpret_cast<void*>(slot[0]),&slot[1],4))return false;
+    for(unsigned i=0;i<_countof(assignmentQuerySlots);++i) {
+        const auto replacement=reinterpret_cast<unsigned>(hooks[i]);
+        if(!patchBytes(reinterpret_cast<void*>(assignmentQuerySlots[i][0]),&assignmentQuerySlots[i][1],&replacement,4))return false;
+    }
+    return true;
+}
 static bool installAssignmentMail() {
     auto call=reinterpret_cast<BYTE*>(assignmentSendCall);
-    if(memcmp(call,assignmentSendExpected,5) || !installAssignmentEditorLookups())return false;
+    if(memcmp(call,assignmentSendExpected,5) || !installAssignmentEditorLookups() || !installAssignmentEditorReplies())return false;
     BYTE replacement[5]={0xe8};
     at<LONG>(replacement,1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&assignmentSend)-call-5);
     return patchBytes(call,assignmentSendExpected,replacement,5);

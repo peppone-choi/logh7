@@ -6,6 +6,7 @@
 #include "ground_info_data.h"
 static void renderOutfitInformation();
 static void receivedMailOutcome(void* world,unsigned opcode,const BYTE* record);
+static void receivedAssignmentEditorReply(unsigned opcode,const BYTE* record);
 static void receivedTacticalSupportStop(void* world,const BYTE* record);
 static bool tacticalEnergySnapshot(void* world,BYTE* before);
 static void receivedTacticalEnergy(void* world,const BYTE* before,const BYTE* reply);
@@ -136,6 +137,7 @@ static void publishOutfitGround(void* world,void* record,unsigned action,unsigne
 // Extension pages are view-only records. Keep them out of the native party/unit
 // editor caches, including when a delayed page arrives after the view is closed.
 static void __fastcall receivedOutfitPagePacket(void* world,void*,unsigned opcode,void* record) {
+    receivedAssignmentEditorReply(opcode,static_cast<const BYTE*>(record)); // proposal_send.h: the 割当 mail editor's queries
     if((opcode&65535)==0x1200 && at<unsigned short>(record,4)==0x7f00 && at<unsigned short>(record,6)==62)return;
     // A marked outcome may stop short of the native 0b04/0b05 call, so report it from
     // this verified dispatch call too. Publishing the same value twice is harmless, and

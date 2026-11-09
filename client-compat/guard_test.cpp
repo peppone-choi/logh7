@@ -442,6 +442,31 @@ static bool assignmentMailTest() {
     if(!mail.begin(&world,10001,10002,24,0) || mail.receive(&world,10001,10002,2,24,0,44,0)!=Mail::Grant ||
         !mail.attach(&editor) || mail.tick(&world,10001,&editor,logh::assignmentDraftLife)!=Mail::Expired ||
         mail.editsAssignment(&world,&editor) || mail.stale!=&editor)return false;                            // stale editor
+    // The editor's queries wait for their own echo (reverse-mail run 01: a direct 032e's 032f emptied the native queue).
+    logh::AssignmentEditorReplies replies;
+    int base=0,warehouse=0,party=0,spare=0,late=0;
+    if(replies.any() || replies.waiting(&party) || replies.waiting(nullptr))return false;
+    replies.sent(&base,0x0327,1177,0,0);replies.sent(&warehouse,0x0327,1177,134,0);replies.sent(&party,0x032f,134,1177,1);
+    if(!replies.any() || !replies.waiting(&base) || !replies.waiting(&warehouse) || !replies.waiting(&party) ||
+        replies.waiting(&spare))return false;
+    replies.received(0x032f,0x2711,0x31,0x0b);replies.received(0x032f,0x19,0,0x0d);    // other panels' direct queries
+    replies.received(0x032f,134,1177,3);replies.received(0x032f,134,0,1);               // another mode, another base
+    replies.received(0x0327,134,1177,0);replies.received(0x032f,1177,134,1);            // fields swapped
+    if(!replies.waiting(&base) || !replies.waiting(&warehouse) || !replies.waiting(&party))return false;
+    replies.received(0x0327,1177,0,0);
+    if(replies.waiting(&base) || !replies.waiting(&warehouse) || !replies.waiting(&party))return false;
+    replies.received(0x0327,1177,134,0);replies.received(0x032f,134,1177,1);
+    if(replies.waiting(&warehouse) || replies.waiting(&party) || replies.any())return false;
+    replies.sent(&party,0x032f,134,1177,1);replies.sent(&party,0x032f,135,1177,1);    // resent: only the new query counts
+    replies.received(0x032f,134,1177,1);
+    if(!replies.waiting(&party))return false;
+    replies.received(0x032f,135,1177,1);
+    if(replies.waiting(&party))return false;
+    replies.sent(&base,0x0327,1,0,0);replies.sent(&warehouse,0x0327,2,0,0);replies.sent(&party,0x032f,3,0,1);
+    replies.sent(&spare,0x0327,4,0,0);replies.sent(&late,0x0327,5,0,0);                // full: the oldest wait goes
+    if(replies.waiting(&base) || !replies.waiting(&warehouse) || !replies.waiting(&late))return false;
+    replies.clear();
+    if(replies.any() || replies.waiting(&late))return false;
     return wcscmp(logh::assignmentMailFailure(4),logh::assignmentMailFailure(99)) &&
         wcscmp(logh::assignmentMailFailure(8),logh::assignmentMailFailure(13));
 }
