@@ -10,6 +10,24 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredShipOrderEntersStockAtItsDeadlineWithoutCombat() = runTest {
+        val rig=Rig(this,testScheduler,shipOrder=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun stock()=rig.engine.snapshot().planetStocks!!
+            val stack=UnitStack(119)
+            advanceTimeBy(624);runCurrent()
+            assertEquals(ShipOrder(stack.kind,rig.start+15),stock().social.production.orders[1000])
+            assertNull(stock().bases.getValue(1000).units.ships[stack])
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertTrue(stock().social.production.orders.isEmpty())
+            assertEquals(1,stock().bases.getValue(1000).units.ships[stack])
+            assertEquals(0L,rig.engine.snapshot().session!!.strategyTicks)
+            advanceTimeBy(375);runCurrent()
+            assertEquals(1,stock().bases.getValue(1000).units.ships[stack])
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun restoredPostureAloneSchedulesCompletionBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,postureDeadline=true)
         val events=mutableListOf<TacticalPostureResult>();rig.engine.observePostures(events::add)
@@ -91,7 +109,7 @@ class TacticalDeadlineTest {
             assertFailsWith<IllegalStateException>{rig.engine.synchronizeTime()}
         } finally {rig.engine.drainAndClose()}
     }
-    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false) {
+    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,shipOrder:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -101,6 +119,13 @@ class TacticalDeadlineTest {
                 listOf(TacticalPoint(0f,10f)),turnRate=1f).let {if(postureDeadline)it.copy(velocity=0f) else it},
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
+        init {
+            if(shipOrder) {
+                players=emptyMap()
+                stocks=stocks.copy(social=stocks.social.copy(
+                    production=stocks.social.production.copy(orders=mapOf(1000 to ShipOrder(119,start+15)))))
+            }
+        }
         private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
             listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2488})
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
