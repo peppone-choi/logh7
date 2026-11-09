@@ -202,8 +202,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     fun resume() = commandOrders.mapNotNull {order->
         TacticalCommandWire.command(order)?.let {org.logh7.protocol.TacticalCommandMessages.reply(it,snapshot.session?.gameSeconds ?: 0,
             (order.readyAt-(snapshot.session?.gameSeconds ?: 0)).coerceAtLeast(0))}}+
-        groundOrderReplies()+postureOrders()+rotations()+people.filter {it.motion?.rotation==null && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
-        snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
+        groundOrderReplies()+postureOrders()+rotations()+people.filter {it.country !in eliminated && it.motion?.rotation==null && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
+        snapshot.planetStocks!!.outfits.values.filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {u -> u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation==null}
                 ?.let {TacticalMotionMessages.npc(u.id,it,snapshot.session?.gameSeconds ?: 0)}}} +
         snapshot.planetStocks!!.outfits.values.filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
@@ -239,9 +239,9 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         }
     }
     fun committedMotion(unit:Int):TacticalMotion? {
-        if(unit>1_000_000)return people.singleOrNull {it.unitId==unit && it.cpPaused}?.motion
+        if(unit>1_000_000)return people.singleOrNull {it.unitId==unit && it.cpPaused && it.country !in eliminated}?.motion
         return snapshot.planetStocks?.outfits?.values.orEmpty()
-            .filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}
+            .filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}
             .firstNotNullOfOrNull {outfit->
                 outfit.activeShips?.values?.singleOrNull {it.id==unit && it.boats>0}?.tactical?.motion
             }

@@ -58,6 +58,38 @@ class TacticalCommandDeliveryTest {
         assertFalse(replays(active.copy(planetStocks=stocks.copy(
             strategic=StrategicState(people=mapOf(player.characterId to StrategicPerson(deceasedAt=105)))))))
     }
+    @Test fun reconnectOmitsStraightMovementFromDefeatedFlagshipsAndFleets() {
+        val before=snapshot(TacticalCommandState())
+        val stocks=checkNotNull(before.planetStocks)
+        val session=checkNotNull(before.session)
+        val third=CountryId(43)
+        val motion=TacticalMotion(2487,100,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
+            listOf(TacticalPoint(0f,100f)))
+        val living=player.copy(motion=motion,energy=TacticalEnergy(listOf(100)+List(10){0}))
+        val defeated=living.copy(characterId=10001,country=third)
+        val fleet=stocks.outfits.getValue(1)
+        val ship=fleet.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion,100,100))
+        val other=fleet.copy(id=2,country=third,warehouseId=20,commanderId=defeated.characterId,
+            activeShips=ActiveShipUnits(listOf(ship.copy(id=2))))
+        val field=before.copy(navigators=mapOf("pilot" to living,"defeated" to defeated),planetStocks=stocks.copy(
+            outfits=mapOf(1 to fleet.copy(activeShips=ActiveShipUnits(listOf(ship))),2 to other),
+            warehouses=stocks.warehouses+(20 to stocks.warehouses.getValue(10).copy(id=20,country=third)),
+            nextShipId=3))
+        fun moving(boot:TacticalBootstrap)=boot.resume().filter {opcode(it)==0x0400}.map {
+            assertEquals(1,it[18].toInt())
+            ByteBuffer.wrap(it).getInt(19)
+        }.toSet()
+        assertEquals(setOf(living.unitId,defeated.unitId,1,2),moving(TacticalBootstrap(field,galaxy,living){null}))
+        val after=field.copy(session=session.copy(eliminated=mapOf(third to CountryDefeat(
+            EndReason.CAPITAL_CAPTURED,105,Power.ALLIANCE.country))))
+        val boot=TacticalBootstrap(after,galaxy,living){null}
+        assertEquals(setOf(living.unitId,1),moving(boot))
+        assertEquals(motion,boot.committedMotion(1))
+        assertEquals(motion,boot.committedMotion(living.unitId))
+        assertNull(boot.committedMotion(2))
+        assertNull(boot.committedMotion(defeated.unitId))
+    }
+
     @Test fun reconnectDoesNotReplayFleetFireAfterTheCommanderReturnsFromBattle() {
         val original=snapshot(TacticalCommandState())
         val stocks=checkNotNull(original.planetStocks)
