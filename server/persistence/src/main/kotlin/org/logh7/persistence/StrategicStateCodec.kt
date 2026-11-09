@@ -21,7 +21,8 @@ internal object StrategicStateCodec {
             p.purpose.ordinal,p.units,p.activatesAt,p.state.ordinal,p.issuedAt ?: "-",
             p.outfits.sorted().joinToString(",").ifEmpty {"-"},p.characters.sorted().joinToString(",").ifEmpty {"-"},
             p.defended.sorted().joinToString(",").ifEmpty {"-"},p.outcome?.ordinal ?: "-",p.issuer).joinToString(":")}.ifEmpty {"-"}
-    ).plus(if(state.transports.isEmpty() && !countryOffices)emptyList() else listOf(state.transports.joinToString(";") {t->
+    ).plus(if(state.transports.isEmpty() && state.lastTransportId==0 && !countryOffices)emptyList() else listOf(
+        (if(state.lastTransportId>0)"@${state.lastTransportId};" else "")+state.transports.joinToString(";") {t->
         fun stacks(m:Map<UnitStack,Int>)=m.entries.joinToString(",") {"${it.key.kind}.${it.key.level}.${it.value}"}.ifEmpty {"-"}
         (listOf(t.id,t.country.value,t.source,t.destination,t.supplies,stacks(t.units.ships),stacks(t.units.troops),t.carrier,t.carrierBoats)+
             listOf(t.survivingBoats).filter {it!=t.carrierBoats}).joinToString(":")}.ifEmpty {"-"}))
@@ -64,7 +65,10 @@ internal object StrategicStateCodec {
         }
         fun stacks(value:String)=if(value=="-")emptyMap() else value.split(',').associate {s->
             val f=s.split('.');require(f.size==3);UnitStack(f[0].toInt(),f[1].toInt()) to f[2].toInt()}
-        val transports=if(sections.size==5 || sections[5]=="-")emptyList() else sections[5].split(';').map {row->
+        val transportSection=sections.getOrElse(5) {"-"}
+        val lastTransportId=if(transportSection.startsWith("@"))transportSection.substringBefore(';').drop(1).toInt() else 0
+        val packageRows=if(lastTransportId>0)transportSection.substringAfter(';') else transportSection
+        val transports=if(packageRows=="-")emptyList() else packageRows.split(';').map {row->
             val f=row.split(':');require(f.size in 9..10)
             TransportPackage(f[0].toInt(),CountryId(f[1].toInt()),f[2].toInt(),f[3].toInt(),f[4].toInt(),UnitInventory(stacks(f[5]),stacks(f[6])),
                 f[7].toInt(),f[8].toInt(),f.getOrNull(9)?.toInt() ?: f[8].toInt())
@@ -73,6 +77,6 @@ internal object StrategicStateCodec {
         if(countryOffices && sections[6]!="-")for(row in sections[6].split(';')) {
             val f=row.split(':');require(f.size==2 && capitals.put(CountryId(f[0].toInt()),f[1].toInt())==null)
         }
-        return StrategicState(people,orders,offices,fiefs,operations,transports,capitals).also {require(encode(it)==text) {"Noncanonical strategic state"}}
+        return StrategicState(people,orders,offices,fiefs,operations,transports,capitals,lastTransportId).also {require(encode(it)==text) {"Noncanonical strategic state"}}
     }
 }
