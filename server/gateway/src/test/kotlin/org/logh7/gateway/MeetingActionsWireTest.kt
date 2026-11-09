@@ -18,7 +18,7 @@ class MeetingActionsWireTest {
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
     private val square=galaxy.facilities.getValue(1049).single {it.kind==2}.spots.single().id
     private inner class State:WorldStateCommitter {
-        var players=(0..2).associate {i->"load-%03d".format(i) to Navigator(1,10000+i,Power.EMPIRE,2487,1000,1000,1000,
+        var players=(0..3).associate {i->"load-%03d".format(i) to Navigator(1,10000+i,Power.EMPIRE,2487,1000,1000,1000,
             baseId=1049,mode=1,spotId=if(i==2)square+1 else square,cpRecoveryAt=now)}
         var stocks=PlanetStocks(1,0,galaxy.bases.associate {it.id to PlanetStock(it.id,if(it.id==1049)2 else 3,0,
             2000,200,300,PlanetEconomy(1000,600,70,80),treasury=200)},deploymentInitialized=true)
@@ -39,12 +39,14 @@ class MeetingActionsWireTest {
         for(b in listOf(current,last))assertEquals(status,ByteBuffer.wrap(b).getShort(16).toInt())
         next(client,0x1201);next(client,0x0356);return ByteBuffer.wrap(current) to ByteBuffer.wrap(last)
     }
-    @Test fun theDirectoryListsOnlyTheSameSpotAndAMeetingStoresFriendship() {
+    @Test fun theDirectoryListsOnlyLivingPeopleAtTheSameSpotAndAMeetingStoresFriendship() {
         val state=State()
+        state.stocks=BattleDeath.apply(state.stocks,listOf(10003),now) {_,_->true}
         LoadFixture(directory.resolve("meeting"),3,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
             stockStore=state.inventory,worldStateCommitter=state).use {server ->
             val me=server.join(server.account(0),true,false).client;me.send(SyntheticClient.opcode(0x0f00));next(me,0x0f01)
             for(i in 1..2)server.join(server.account(i),true,false).client.let {it.send(SyntheticClient.opcode(0x0f00));next(it,0x0f01)}
+            server.game(server.account(3),true).close() // Profile exists, but the dead pilot never enters the game.
             me.send(directory());val header=ByteBuffer.wrap(next(me,0x1200));assertEquals(1,header.get(22).toInt())
             val people=ByteBuffer.wrap(next(me,0x1202));assertEquals(1,people.get(6).toInt());assertEquals(10001,people.getInt(7));next(me,0x1201)
             val ticket=action(me,meeting(10001)).first.let {assertEquals(50,it.getShort(27).toInt());it.getInt(18)}
@@ -52,6 +54,7 @@ class MeetingActionsWireTest {
             assertEquals(53,state.stocks.social.meeting.friendship(10000,10001));assertEquals(990,state.players.getValue("load-000").mcp)
             assertEquals(9,action(me,meeting(10001,1,ticket+1,39),9).second.getShort(16).toInt())
             assertEquals(6,action(me,meeting(10002,1,ticket+1,40),6).second.getShort(16).toInt())
+            assertEquals(13,action(me,meeting(10003,1,ticket+1,41),13).second.getShort(16).toInt())
         }
     }
 }

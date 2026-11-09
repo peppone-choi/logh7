@@ -33,6 +33,18 @@ class MeetingActionsTest {
         val tomorrow=session.copy(gameMillis=(now+86400)*1000)
         assertEquals(56,act(request(ticket=2),s,assertNotNull(r.player),clock=tomorrow).meeting?.friendship)
     }
+    @Test fun aDeceasedPartnerAtTheSameSavedSpotCannotBePreviewedOrMet() {
+        val dead=BattleDeath.apply(stocks(),listOf(peer.characterId),now) {_,_->true}
+        for(request in listOf(request(phase=0,ticket=0),request())) {
+            val result=act(request,s=dead)
+            assertEquals(SocialRejection.TARGET,result.rejection)
+            assertEquals(me,result.player)
+            assertSame(dead,result.stocks)
+            assertNull(result.meeting)
+            assertFalse(result.changed)
+        }
+    }
+
     @Test fun otherSpotsSelfMissingPartnersCapAndCpRejectWithoutChangingState() {
         val s=stocks()
         assertEquals(SocialRejection.LOCATION,act(others=listOf(peer.copy(spotId=spot+1))).rejection)
