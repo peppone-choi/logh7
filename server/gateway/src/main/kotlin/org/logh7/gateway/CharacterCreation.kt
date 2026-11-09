@@ -237,6 +237,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private fun resolveLottery() {
         if (applications.isEmpty() || clock.millis() < deadline) return
         val winners = registered.toMutableMap()
+        val shipNames = (registered.values.map { it.character } + pending.values)
+            .mapTo(mutableSetOf()) { normalized(it.shipName) }
         val unavailable = unavailableOriginals().toMutableSet()
         val roster=originalPool(publishedOriginals.current()).associateBy {it.character.id}
         val countries=CountryCatalogLoader.current()
@@ -251,7 +253,15 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             val kind=if(style==ShipStyleId.fromLegacy(character.power))character.shipKind else Flagships.forType(style.nativePower,character.shipType).kind
             val country=selection?.country ?: CountryId(character.power)
             val title=character.title.takeIf {publishedOriginals.canGrantPeerage && countries.supportsNativePeerage(country)} ?: 0
-            val won=character.copy(generated = false,shipKind=kind,power=selection?.nativePower ?: character.power,title=title)
+            var shipName = character.shipName
+            if (shipName.isNotEmpty() && !shipNames.add(normalized(shipName))) {
+                var suffix = 1
+                do {
+                    shipName = "Local ${id}-${suffix++}"
+                } while (!shipNames.add(normalized(shipName)))
+            }
+            val won=character.copy(generated = false,shipKind=kind,power=selection?.nativePower ?: character.power,
+                title=title,shipName=shipName)
             winners[account] = if(selection==null)profile(won) else CharacterProfile(won,selection.country,selection.shipStyle)
             unavailable.add(id)
         }
