@@ -1,8 +1,25 @@
 // Verified native logistics captions and compact formats. Author: Peppone Choi.
 #pragma once
 #include <string>
+#include "outfit_info_data.h"
+// Display only: the native editor, its queries and the server's 0c02 decision stay unchanged.
+static void showReorganizationWithoutOutfit(void* editor) {
+    const auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    const auto own=world ? at<BYTE*>(world,8) : nullptr;
+    const unsigned slot=*reinterpret_cast<unsigned*>(0xc9eabc);
+    if(!own || !own[0] || !at<BYTE>(world,0x3416d8) || slot>0x17)return;
+    // Same card table lookup that 005313f0 uses to choose the reorganization request.
+    const unsigned card=*reinterpret_cast<unsigned*>(0xc9eac0);
+    const unsigned command=at<unsigned short>(world,0x3416d8+card*0x46+0x20+slot*2);
+    if(!logh::reorganizationWithoutOutfit(command,at<unsigned>(own,0x324),static_cast<const BYTE*>(editor)+0x12e8))return;
+    void* element=at<void*>(editor,8+7*4);
+    if(element && at<BYTE>(element,8))
+        reinterpret_cast<void(__cdecl*)(void*,const wchar_t*,int)>(0x4ea8b0)(
+            reinterpret_cast<BYTE*>(element)+0xb04,L"재편성 대상 부대를 확인할 수 없습니다",-1);
+}
 static void __fastcall outfitTroopSummary(void* editor,void*) {
     reinterpret_cast<void(__thiscall*)(void*)>(0x533500)(editor);
+    showReorganizationWithoutOutfit(editor);
     // Tab 1 already renders all troop values in element 12. Element 11 shares
     // its origin and otherwise draws the passenger/infantry text a second time.
     if(at<int>(editor,0x2d4)!=1)return;
