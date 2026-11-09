@@ -160,7 +160,9 @@ object TransportActions {
                 val base=stocks.bases[position.baseId]?.takeIf {it.belongsTo(country) && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
                 warehouseBase=base.baseId
                 val pack=packages.singleOrNull {it.id==r.target && it.country==country} ?: return reject(StrategyActionRejection.TARGET)
-                if(o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
+                // Docking can retain a past tactical pose until the next tactical tick.
+                if(o.activeShips?.values.orEmpty().any {it.support!=null || it.tactical?.retreat!=null ||
+                    it.attack!=null || it.shot!=null})return reject(StrategyActionRejection.BUSY)
                 val currentIntent=if(pack.carrier==0)1 else 2
                 if(r.value!=0 && r.value!=currentIntent)return reject(StrategyActionRejection.QUOTE_CHANGED)
                 next=if(pack.carrier==0) {
