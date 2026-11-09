@@ -58,7 +58,8 @@ internal object TacticalSupportOperations {
     }
     private fun eligibleTarget(source:Ship,player:Navigator,order:TacticalSupportOrder,now:Long,
         players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy,commandRadius:Float?=null):TacticalPoint? {
-        if(!player.cpPaused || player.baseId!=0 || player.mode!=5 || player.grid!=order.grid ||
+        if(stocks.social.justice.detained(player.characterId) || !player.cpPaused || player.baseId!=0 ||
+            player.mode!=5 || player.grid!=order.grid ||
             player.hull?.woundedUntil?.let {now<it}==true || source.unit.boats<=source.unit.damaged || source.unit.id==order.target ||
             stocks.tacticalCommands.confused(source.unit.id) || movingOrder(source.unit,order.grid) ||
             TacticalAuthority.commander(source.outfit,source.unit,stocks)!=player.characterId || TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(player,stocks) ||
@@ -147,6 +148,7 @@ internal object TacticalSupportOperations {
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
+        if(stocks.social.justice.detained(player.characterId))return reject(NavigationRejection.BUSY)
         val command=checkNotNull(request.tacticalSupport)
         if(!validCombatTarget(command.target))return reject(NavigationRejection.TARGET)
         val source=ship(command.unit,stocks) ?: return reject(NavigationRejection.UNIT)

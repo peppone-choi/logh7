@@ -89,12 +89,22 @@ class TacticalPostureOperationsTest {
         assertSavedStationingCancelled(session.participants.mapValues {(_,member)->member.copy(country=Power.ALLIANCE.country)})
     }
 
-    private fun assertSavedStationingCancelled(participants:Map<String,Participant>) {
+    @Test fun detainedCommanderCancelsSavedStationingForFlagshipAndFleet() {
+        assertSavedStationingCancelled(session.participants,detained=true)
+    }
+
+    private fun assertSavedStationingCancelled(participants:Map<String,Participant>,detained:Boolean=false) {
         val s=state()
         val command=request(TacticalShipMode.STATIONED,1000)
         val readyAt=assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).postureReadyAt)
+        if(detained) {
+            val pilot=s.players.getValue("pilot")
+            val detention=Detention(pilot.characterId,Power.EMPIRE.country,now,readyAt+1)
+            s.stocks=s.stocks.copy(social=s.stocks.social.copy(justice=JusticeState(detentions=mapOf(pilot.characterId to detention))))
+            assertEquals(NavigationRejection.BUSY,accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).rejection)
+        }
         val defeated=session.copy(gameMillis=readyAt*1000,participants=participants,
-            eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+            eliminated=if(detained)emptyMap() else mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
         val out=mutableListOf<TacticalPostureResult>()
         TacticalCombat.settle(defeated,galaxy,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),
             s.commit,onPosture=out::add)

@@ -428,6 +428,21 @@ class TacticalGroundOperationsTest {
             result.outfits.getValue(1).activeGround!!.values)
     }
 
+    @Test fun detainedCommanderCancelsSavedLandingWithoutMovingTroops() {
+        val s=state()
+        val readyAt=assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).groundReadyAt)
+        val commander=s.players.getValue("pilot")
+        val detention=Detention(commander.characterId,checkNotNull(commander.country),now,readyAt+1)
+        s.stocks=s.stocks.copy(social=s.stocks.social.copy(justice=JusticeState(detentions=mapOf(commander.characterId to detention))))
+        assertEquals(NavigationRejection.BUSY,accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).rejection)
+        assertTrue(TacticalGroundOrder.pending(s.stocks,commander.grid,s.players.values,galaxy,emptySet(),readyAt).isEmpty())
+        val events=mutableListOf<TacticalGroundResult>()
+        val result=TacticalGroundOperations.advance(session.copy(gameMillis=readyAt*1000),galaxy,s.players,s.stocks,events)
+        assertTrue(events.single().cancelled)
+        val troops=s.stocks.outfits.getValue(1).activeGround!!.values
+        assertEquals(troops.map {it.copy(order=null)},result.outfits.getValue(1).activeGround!!.values)
+    }
+
     @Test fun woundedCommanderLosesTheLandingReservationWithoutMovingTroops() {
         val s=state()
         val readyAt=assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s)).groundReadyAt)
