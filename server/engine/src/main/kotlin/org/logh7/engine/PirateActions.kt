@@ -75,6 +75,7 @@ object PirateActions {
         for(fleet in start.social.pirates.fleets.values.filter {it.alive && now-it.firedAt>=FIRE_SECONDS}.sortedBy {it.id}) {
             val engaged=players.values.any {it.cpPaused && it.grid==fleet.grid && it.baseId==0}
             if(!engaged)continue
+            val observers=fleet.units.filter {it.boats>0}.mapNotNull {pose(s,it.id)?.position}
             for(unit in fleet.units.filter {it.boats>0}) {
                 val origin=pose(s,unit.id) ?: continue
                 val candidates=players.values.filter {it.cpPaused && it.grid==fleet.grid && it.baseId==0 && it.hull!=null}.map {it.unitId} +
@@ -86,7 +87,8 @@ object PirateActions {
                             TacticalDeployment.initial(p.unitId,p.grid,players.values,s,g).position} ?:
                             t.regular?.second?.tactical?.motion?.pose(now,t.regular.second.posture,g,s)?.position ?:
                             TacticalDeployment.initial(id,fleet.grid,players.values,s,g).position
-                        if(TacticalLineOfFire.blocked(unit.id,fleet.grid,Camp.PIRATES,origin.position,at,now,players.values,s,g))null
+                        if(observers.all {TacticalTerrain.sensorBlocked(g,fleet.grid,it,at)} ||
+                            TacticalLineOfFire.blocked(unit.id,fleet.grid,Camp.PIRATES,origin.position,at,now,players.values,s,g))null
                         else Triple(id,t,at)}}
                     .minByOrNull {(_,_,at)->kotlin.math.hypot((at.x-origin.position.x).toDouble(),(at.y-origin.position.y).toDouble())} ?: continue
                 val (id,target,at)=victim

@@ -69,23 +69,33 @@ class PirateActionsTest {
         assertEquals(4L,TradeActions.routeProfit(at(2687),route,galaxy),"two cells away is out of reach")
     }
     @Test fun counterattackCannotFireThroughAStar() {
-        val simulation=SessionSimulation(SessionRules.load())
-        val session=simulation.exportState()
-        val now=session.gameMillis/1000+PirateActions.FIRE_SECONDS
-        val battlefield=Galaxy(galaxy.systems.map {if(it.grid==2490)it.copy(star=0) else it},galaxy.bases,galaxy.starts)
-        val fleet=PirateFleet(1,2490,now,listOf(PirateUnit(900_001,300)))
-        val start=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2)))
-        fun fireAt(point:TacticalPoint):List<TacticalImpact> {
-            val motion=TacticalMotion(2490,now,TacticalPose(point,0f),0f,0f,listOf(point))
-            val pilot=Navigator(1,10000,Power.EMPIRE,2490,1000,1000,1000,
-                cpPaused=true,hull=FlagshipHull(0,now),motion=motion)
-            val impacts=mutableListOf<TacticalImpact>()
-            PirateActions.counter(session,battlefield,mutableMapOf("pilot" to pilot),start,now,impacts)
-            return impacts
-        }
-        assertTrue(fireAt(TacticalPoint(5f,-8f)).isEmpty())
-        assertEquals(1,fireAt(TacticalPoint(5f,-12f)).size)
+        assertTrue(counterattack(star=0,TacticalPoint(5f,-8f)).isEmpty())
+        assertEquals(1,counterattack(star=0,TacticalPoint(5f,-12f)).size)
     }
+
+    @Test fun counterattackRequiresDetectionByAtLeastOneLivingPirate() {
+        val hidden=TacticalPoint(0f,-5f)
+        assertTrue(counterattack(star=1,hidden).isEmpty())
+        assertEquals(900_001,counterattack(star=1,TacticalPoint(0f,-7f)).single().source)
+        assertTrue(counterattack(star=1,hidden,scoutBoats=0).isEmpty())
+        assertTrue(counterattack(star=1,hidden,scoutBoats=300).any {it.source==900_001})
+    }
+
+    private fun counterattack(star:Int,point:TacticalPoint,scoutBoats:Int?=null):List<TacticalImpact> {
+        val session=SessionSimulation(SessionRules.load()).exportState()
+        val now=session.gameMillis/1000+PirateActions.FIRE_SECONDS
+        val battlefield=Galaxy(galaxy.systems.map {if(it.grid==2490)it.copy(star=star) else it},galaxy.bases,galaxy.starts)
+        val units=listOfNotNull(PirateUnit(900_001,300),scoutBoats?.let {PirateUnit(900_002,it)})
+        val fleet=PirateFleet(1,2490,now,units)
+        val start=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2)))
+        val motion=TacticalMotion(2490,now,TacticalPose(point,0f),0f,0f,listOf(point))
+        val pilot=Navigator(1,10000,Power.EMPIRE,2490,1000,1000,1000,
+            cpPaused=true,hull=FlagshipHull(0,now),motion=motion)
+        val impacts=mutableListOf<TacticalImpact>()
+        PirateActions.counter(session,battlefield,mutableMapOf("pilot" to pilot),start,now,impacts)
+        return impacts
+    }
+
     @Test fun theSharedFleetPoseResolverPlacesAPirateTarget() {
         val s=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to PirateFleet(1,2490,0,listOf(PirateUnit(900_001,300),PirateUnit(900_002,300)))),2)))
         val target=TacticalCombat.Target(pirate=900_002,spec=PirateActions.spec())
