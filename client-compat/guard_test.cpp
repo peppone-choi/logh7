@@ -663,6 +663,14 @@ static bool tacticalMotionOriginsTest() {
     return !origins.read(message);
 }
 static bool planetUnitRowsTest() {
+    // The empty roster reply keeps the queried base at +4; only number +16 and rows +20 decide.
+    unsigned char emptyRoster[24]={},numbered[24]={},withRows[24]={};
+    const unsigned queriedBase=1049,fleetNumber=1;
+    memcpy(emptyRoster+4,&queriedBase,4);memcpy(numbered+4,&queriedBase,4);memcpy(withRows+4,&queriedBase,4);
+    memcpy(numbered+16,&fleetNumber,4);withRows[20]=1;
+    if (!logh::reorganizationWithoutOutfit(63,0,emptyRoster) || logh::reorganizationWithoutOutfit(25,0,emptyRoster) ||
+        logh::reorganizationWithoutOutfit(64,0,emptyRoster) || logh::reorganizationWithoutOutfit(63,133,emptyRoster) ||
+        logh::reorganizationWithoutOutfit(63,0,numbered) || logh::reorganizationWithoutOutfit(63,0,withRows)) return false;
     unsigned char grid[4+300*12]={},party[logh::outfitPartyBytes]={};
     unsigned id=11,base=1049;grid[0]=1;
     memcpy(grid+4,&id,4);grid[8]=0;grid[9]=2;grid[11]=1;

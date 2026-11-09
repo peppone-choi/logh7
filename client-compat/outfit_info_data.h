@@ -5,6 +5,11 @@
 
 namespace logh {
 constexpr unsigned outfitPartyBytes = 0x45a0;
+// Native 005329c0 captions the editor's record (+0x12e8) through 004c9010 with number +16,
+// so an empty roster reads "0th fleet". Record +4 is the queried base and stays nonzero there.
+inline bool reorganizationWithoutOutfit(unsigned command,unsigned ownOutfit,const unsigned char* party) {
+    return command==63 && !ownOutfit && !infoWord(party,16) && !party[20];
+}
 // Mirrors the server's base check: the actual country in its regular camp. A shared
 // display code never grants access, and an unknown owner is left to the server's reply.
 inline bool outfitWarehouseBaseAllowed(const BaseAffiliation::Owner* owner,unsigned ownCountry) {
