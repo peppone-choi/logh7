@@ -104,6 +104,33 @@ class NpcStrategyTest {
         assertEquals(2,events.size)
     }
 
+    @Test fun depotFundsOnlyTheMissingCargoOfAPartiallySuppliedFleet() {
+        val initial=stocks()
+        val fleet=OutfitSupplies.withBalances(initial.outfits.getValue(1).copy(position=OutfitPosition(2488)),mapOf(1 to 125))
+        val depot=initial.bases.getValue(1000).copy(supplies=175)
+        val before=initial.copy(bases=mapOf(1000 to depot),outfits=mapOf(1 to fleet))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val pilots=mutableMapOf<String,Navigator>()
+        val reserved=advance(0,before,pilots,events)
+        assertEquals(NpcStrategicState(21600,2487,3600),reserved.outfits.getValue(1).strategy)
+        assertEquals(before.bases,reserved.bases)
+
+        val short=reserved.copy(bases=mapOf(1000 to depot.copy(supplies=174)))
+        val blocked=advance(3600,short,pilots,events)
+        assertEquals(fleet.position,blocked.outfits.getValue(1).position)
+        assertEquals(125,blocked.outfits.getValue(1).supplies)
+        assertEquals(short.bases,blocked.bases)
+        assertTrue(events.isEmpty())
+
+        val arrived=advance(3600,reserved,pilots,events)
+        assertEquals(OutfitPosition(2487,1000),arrived.outfits.getValue(1).position)
+        assertEquals(0,arrived.outfits.getValue(1).supplies)
+        assertEquals(0,arrived.bases.getValue(1000).supplies)
+        assertEquals(2487,events.single().destination)
+        assertEquals(arrived,advance(3600,arrived,pilots,events))
+        assertEquals(1,events.size)
+    }
+
     @Test fun blockedFirstReliefJumpReservesAnAlternateRouteWithoutChargingTheDepot() {
         val initial=stocks()
         val fleet=initial.outfits.getValue(1).copy(position=OutfitPosition(2489))

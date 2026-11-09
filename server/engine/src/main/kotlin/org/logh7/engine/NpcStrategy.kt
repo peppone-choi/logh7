@@ -67,9 +67,9 @@ internal object NpcStrategy {
         val balances=OutfitSupplies.distribution(outfit)
         val live=outfit.activeShips!!.values.filter {it.boats>0}
         val jumpCost=live.sumOf {it.boats}
-        val affordable=if(relief)minOf(live.minOf {OutfitSupplies.unitCapacity(it)/it.boats},
-            depots.values.maxOf {stocks.bases.getValue(it.id).supplies}/jumpCost)
-        else live.minOf {balances.getValue(it.id)/it.boats}-spentJumps
+        val affordable=if(relief)minOf(live.minOf {OutfitSupplies.unitCapacity(it)/it.boats}.toLong(),
+            (depots.values.maxOf {stocks.bases.getValue(it.id).supplies}.toLong()+live.sumOf {balances.getValue(it.id)})/jumpCost)
+        else (live.minOf {balances.getValue(it.id)/it.boats}-spentJumps).toLong()
         val camp=Camp(outfit.country,false)
         val entry=GridEntry(camp,strength.toInt(),false)
         fun remaining(grid:Int)=depots.keys.minOf {distance(grid,it)}
@@ -88,7 +88,7 @@ internal object NpcStrategy {
             depots[current.grid]?.let {
                 val route=DepotRoute(it,current.first,current.jumps)
                 if(relief) {
-                    if(stocks.bases.getValue(it.id).supplies>=jumpCost*current.jumps)return route
+                    if(stocks.bases.getValue(it.id).supplies>=jumpShortfall(live,balances,current.jumps))return route
                 } else {
                     if(stocked(it) && current.jumps<=affordable)return route
                     if(fallback==null)fallback=route
@@ -173,7 +173,7 @@ internal object NpcStrategy {
     private fun reliefRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
         stocks:PlanetStocks,destination:Int?=null):DepotRoute? {
         val position=outfit.positionIn(galaxy)
-        if(position.baseId!=0 || outfit.supplies!=0 || TacticalContact.contested(forces[position.grid].orEmpty()))return null
+        if(position.baseId!=0 || canDepart(stocks,outfit,galaxy) || TacticalContact.contested(forces[position.grid].orEmpty()))return null
         return home(galaxy,forces,outfit,stocks,relief=true,firstStep=destination)?.takeIf {it.jumps>0}
     }
 
@@ -236,7 +236,7 @@ internal object NpcStrategy {
                 }
                 // Re-evaluate source hostility as well as destination capacity after earlier arrivals.
                 if(distance(position.grid,destination)!=1 || planned?.grid!=destination || !allowed(galaxy,forces(),outfit,destination) ||
-                    position.baseId==0 && outfit.supplies==0 && relief==null) {
+                    position.baseId==0 && relief==null && !canDepart(stocks,outfit,galaxy)) {
                     val unavailableDepot=galaxy.bases.any {base->base.grid==destination &&
                         stocks.bases[base.id]?.let {it.country!=outfit.country || it.camp!=0 || it.supplies==0}==true}
                     val reroute=if(unavailableDepot && position.baseId==0 && planned!=null)
@@ -252,9 +252,10 @@ internal object NpcStrategy {
                 val provision=if(relief==null)supplied(stocks,outfit,galaxy) else {
                     val depot=stocks.bases.getValue(relief.base.id)
                     val ships=outfit.activeShips!!.values
-                    val cost=ships.sumOf {it.boats}*relief.jumps
-                    val cargo=ships.associate {it.id to it.boats*(relief.jumps-1)}
-                    stocks.copy(bases=stocks.bases+(depot.baseId to depot.copy(supplies=depot.supplies-cost))) to
+                    val balances=OutfitSupplies.distribution(outfit)
+                    val cost=jumpShortfall(ships,balances,relief.jumps)
+                    val cargo=ships.associate {it.id to max(balances.getValue(it.id),it.boats*relief.jumps)-it.boats}
+                    stocks.copy(bases=stocks.bases+(depot.baseId to depot.copy(supplies=depot.supplies-cost.toInt()))) to
                         OutfitSupplies.withBalances(outfit,cargo)
                 }
                 if(provision==null) {
