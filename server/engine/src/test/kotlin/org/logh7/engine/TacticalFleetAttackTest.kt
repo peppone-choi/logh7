@@ -42,6 +42,37 @@ class TacticalFleetAttackTest {
         TacticalFleetAttack.accept(request(ids).copy(tacticalMove=null,tacticalAttack=TacticalAttack(ids,mode)),
             session.copy(gameMillis=at*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit,24)
 
+    @Test fun commanderChangingCampCannotFireShipsThatStayedWithTheOtherCamp() {
+        val s=state()
+        val outfit=s.stocks.outfits.getValue(1)
+        val ship=outfit.activeShips!!.values.last()
+        val plot=Plot(10000,Power.EMPIRE.country,now,revolt=5)
+        val split=s.stocks.copy(social=s.stocks.social.copy(coup=CoupState(mapOf(10000 to plot))))
+        s.stocks=split
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        val stock=production(s)
+        val shot=TacticalShoot(listOf(ship.id),TacticalWeapon.BEAM.wire,1,99)
+        assertEquals(NavigationRejection.CARD,attack(s,nav,stock).rejection)
+        assertEquals(NavigationRejection.CARD,TacticalFleetShoot.accept(
+            request(shot.units).copy(tacticalMove=null,tacticalShoot=shot),
+            session,galaxy,nav,stock,stock.snapshot(1)!!,s.commit,24).rejection)
+
+        val automatic=TacticalUnitAttack(10000,TacticalAttackOrder(2,now,now+120,now+120))
+        val manual=TacticalUnitShot(10000,TacticalWeapon.BEAM,99,now,now+120)
+        for(pending in listOf(ship.copy(attack=automatic),ship.copy(shot=manual))) {
+            val saved=split.copy(outfits=split.outfits+(1 to outfit.copy(
+                activeShips=ActiveShipUnits(outfit.activeShips.values.dropLast(1)+pending))))
+            val impacts=mutableListOf<TacticalImpact>()
+            val players=s.players.toMutableMap()
+            val afterShot=TacticalFleetShoot.advance(session,galaxy,players,saved,impacts)
+            val afterAttack=TacticalFleetAttack.advance(session,galaxy,players,afterShot,24,impacts)
+            assertTrue(impacts.isEmpty())
+            assertEquals(outfit,afterAttack.outfits.getValue(1))
+            assertEquals(saved.outfits.getValue(2),afterAttack.outfits.getValue(2))
+            assertEquals(s.players,players)
+        }
+    }
+
     @Test fun commandedShipFiresPersistsAndStopsWithoutNpcPolicyOrRangeRechecks() {
         val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
         assertNotNull(attack(s,nav,p).player)
