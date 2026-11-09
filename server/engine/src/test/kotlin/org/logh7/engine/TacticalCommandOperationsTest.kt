@@ -695,6 +695,24 @@ class TacticalCommandOperationsTest {
         assertTrue(lostTarget.tacticalCommands.missions.getValue(10000).completed)
         assertEquals(mapOf(10000 to (3 to 0L)),otherEvents.single().finishedMissions)
     }
+
+    @Test fun reconnaissanceEndsWhenItsTargetSinksEvenIfAnotherEnemyRemains() {
+        val s=state()
+        val enemy=s.stocks.outfits.getValue(2)
+        val target=enemy.activeShips!!.values.single()
+        val stock=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(
+            units=UnitInventory(mapOf(target.stack to 2)),
+            activeShips=ActiveShipUnits(listOf(target.copy(boats=0),target.copy(id=98))))),
+            tacticalCommands=TacticalCommandState(missions=mapOf(10000 to TacticalMissionState(10000,4,1,99,now,grid=2488))))
+        val players=s.players.toMutableMap()
+        assertTrue(TacticalContact.contested(GridForces.collect(galaxy,session.generation,players.values,stock).getValue(2488)))
+        val events=mutableListOf<TacticalCommandResult>()
+        val hits=mutableListOf(TacticalImpact(1,1010001,TacticalWeapon.BEAM,TacticalHit(1,2488,now,99,target.boats),emptyMap()))
+        val settled=TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,events,hits,emptySet())
+        assertTrue(settled.tacticalCommands.missions.getValue(10000).completed)
+        assertTrue(settled.tacticalCommands.merits.isEmpty())
+        assertEquals(mapOf(10000 to (4 to 0L)),events.single().finishedMissions)
+    }
     @Test fun boardingReturnDoesNotCountAsDestroyingTheInterceptionTarget() {
         val s=state()
         val target=s.players.getValue("ally")

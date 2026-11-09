@@ -145,6 +145,22 @@ class ProposalActionsTest {
         }
     }
 
+    @Test fun anAbsentOrderWaitsForTheRecipientToBeReleasedFromDetention() {
+        val order=assertNotNull(act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,stocks()).stocks)
+        val due=session.copy(participants=session.participants+("b" to session.participants.getValue("b").copy(online=false)),
+            gameMillis=session.gameMillis+ProposalActions.ABSENT_ORDER_SECONDS*1000)
+        val players=mutableMapOf("a" to a,"b" to b)
+        val now=due.gameMillis/1000
+        val jail=JusticeState(detentions=mapOf(10001 to Detention(10001,CountryId(2),now,now+60)))
+        val detained=order.copy(social=order.social.copy(justice=jail))
+        assertEquals(detained,ProposalActions.settle(galaxy,due,players,detained))
+        assertEquals(b,players.getValue("b"))
+        val released=ProposalActions.settle(galaxy,due.copy(gameMillis=(now+60)*1000),players,order)
+        assertEquals(Proposals.APPROVE,released.social.proposals.mails.single().reply)
+        assertEquals(960,players.getValue("b").mcp)
+        assertTrue(policy.held(released,10001).none {it.card==19})
+    }
+
     @Test fun aDismissalNamesAThirdPersonTheRecipientMayDismissAndRunsOnApproval() {
         // 10001 proposes that the minister 10000 dismiss a seat 10000 may dismiss.
         val s=stocks();val seats=OfficeDismissalPolicy(galaxy).available(s,10000,2,2)
