@@ -52,7 +52,7 @@ internal object TacticalOfflineAi {
             val p=players.getValue(account)
             if(!eligible(session,account,p,stocks) || now<(stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0))continue
             stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(aiNextAt=stocks.tacticalCommands.aiNextAt+(p.characterId to now+5*scale)))
-            if(p.retreat!=null || p.posture?.let {it.mode.requiresBase || it.order!=null}==true ||
+            if(p.retreat!=null || p.posture?.let {it.grid==p.grid && (it.mode.requiresBase || it.order!=null)}==true ||
                 stocks.tacticalCommands.orders.any {p.unitId in it.command.units})continue
             val pose=p.motion?.pose(now,p.posture,g,stocks) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,stocks,g)
             val mission=currentMission(p,stocks)?.takeUnless {it.defaultDefense}
@@ -110,7 +110,7 @@ internal object TacticalOfflineAi {
                 val commandable=original.activeShips?.values.orEmpty().filter {unit->
                     TacticalAuthority.commander(original,unit,stocks)==p.characterId && unit.boats>unit.damaged &&
                         !stocks.tacticalCommands.confused(unit.id) && unit.support==null && unit.shot==null &&
-                        unit.tactical?.retreat==null && unit.posture?.order==null &&
+                        unit.tactical?.retreat==null && unit.posture?.takeIf {it.grid==p.grid}?.order==null &&
                         unit.tactical?.motion?.takeIf {it.grid==p.grid}?.rotation==null &&
                         stocks.tacticalCommands.orders.none {unit.id in it.command.units} &&
                         original.activeGround?.values.orEmpty().none {it.order?.carrier==unit.id}
@@ -124,7 +124,7 @@ internal object TacticalOfflineAi {
                     if(landed!==original) {stocks=stocks.copy(outfits=stocks.outfits+(outfitId to landed));commanded=true;continue}
                 }
                 val updated=original.activeShips?.values?.map {unit ->
-                    if(unit.id !in commandable || unit.posture?.mode?.requiresBase==true)return@map unit
+                    if(unit.id !in commandable || unit.posture?.let {it.grid==p.grid && it.mode.requiresBase}==true)return@map unit
                     val support=if(kind in 0..1)TacticalSupportOperations.offlineSupport(original,unit,p,now,scale,players,stocks,g,
                         alliedTargets,reserved,pose.position) else null
                     if(support!=null && support.approach==null) {

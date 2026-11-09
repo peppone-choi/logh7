@@ -119,7 +119,7 @@ internal object FleetNavigation {
             commandRange = if (after.cpPaused) TacticalCommandRange(now, command = player.commandRange?.command ?: 50) else null,
             moves = Math.addExact(player.moves, 1),
             motion = departureBase?.let { TacticalDeployment.departure(it, now, stocks, slot++) },
-            posture = if (departureBase == null) player.posture else null) }
+            posture = player.posture.takeIf { departureBase == null && player.grid == after.grid }) }
         val next = players + moved + (request.account to after)
         // A reserved warp whose error pulled the fleet into a black hole's gravity zone damages it on arrival.
         val pulled = preview.completedWarp && before.warpTarget != null && after.grid != before.warpTarget &&

@@ -390,6 +390,21 @@ class FleetNavigationTest {
         }
     }
 
+    @Test fun fleetWarpClearsPreviousTacticalPostureForCaptainAndFollowerOnlyOnMovement() {
+        val state = state()
+        addAide(state)
+        assertNull(apply(state, request.copy(place = PlaceMove.SwitchMode(5))).single().rejection)
+        val anchored = TacticalPosture(home.grid, TacticalShipMode.ANCHORED, home.id)
+        state.players = state.players.mapValues { (_, player) -> player.copy(posture = anchored) }
+        val warp = request.copy(destination = enemy.grid)
+
+        assertEquals(NavigationRejection.BUSY, apply(state, warp, blocked = true).single().rejection)
+        assertTrue(state.players.values.all { it.grid == home.grid && it.posture == anchored })
+        assertNull(apply(state, warp).single().rejection)
+        assertTrue(state.players.values.all { it.grid == enemy.grid && it.posture == null })
+        assertEquals(OutfitPosition(enemy.grid), state.stocks.outfits.getValue(1).position)
+    }
+
     @Test fun offlineAideFollowsDepartureWarpAndReloadWithoutPayingTheCommandersCp() {
         val state = state(); addAide(state)
         val cp = state.players.getValue("aide")
