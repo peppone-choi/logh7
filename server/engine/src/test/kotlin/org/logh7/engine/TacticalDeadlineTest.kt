@@ -10,6 +10,25 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredDetentionEndsInAQuietWorldAtItsDeadline() = runTest {
+        val rig=Rig(this,testScheduler,justiceDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun stock()=rig.engine.snapshot().planetStocks!!
+            advanceTimeBy(624);runCurrent()
+            assertTrue(stock().social.justice.detained(10000))
+            assertEquals(10000019,rig.players.getValue("pilot").spotId)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertFalse(stock().social.justice.detained(10000))
+            assertEquals(0,rig.players.getValue("pilot").spotId)
+            assertEquals(9,stock().strategic.people.getValue(10000).rank)
+            assertEquals(50L,stock().strategic.people.getValue(10000).merit)
+            advanceTimeBy(375);runCurrent()
+            assertEquals(9,stock().strategic.people.getValue(10000).rank)
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun blockedPersonalRetreatKeepsItsReservationAndLetsTheClockAdvance() = runTest {
         val rig=Rig(this,testScheduler,retreatDeadline=true,blockedRetreat=true)
         try {
@@ -234,7 +253,7 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false) {
+        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,justiceDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -245,6 +264,13 @@ class TacticalDeadlineTest {
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         init {
+            if(justiceDeadline) {
+                val pilot=players.getValue("pilot")
+                players=mapOf("pilot" to pilot.copy(baseId=1000,mode=4,spotId=10000019,cpPaused=false,motion=null,energy=null,hull=null))
+                val detention=Detention(10000,CountryId(2),start,start+15,base=1000)
+                stocks=stocks.copy(strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=8,merit=100))),
+                    social=stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
+            }
             if(retreatDeadline) {
                 val point=TacticalPoint(-300f,0f)
                 val motion=TacticalMotion(2488,start,TacticalPose(point,0f),0f,0f,listOf(point))
