@@ -194,7 +194,7 @@ internal object NpcTactics {
                         NpcFireDecision(session.generation,id,position.grid,weapon,eligible))
                     val victim=eligible.firstOrNull {it.id==advised} ?: first
                     val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,firing.sequence+1,now,victim.id,
-                        weapon,mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),victim.effectiveness,pose,
+                        weapon,TacticalArmaments.trainedMount(unit,mount,spec.number),victim.effectiveness,pose,
                         checkNotNull(TacticalCombat.target(victim.id,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)))
                     stocks=resolved.first;impacts+=resolved.second.copy(npcOutfit=outfitId);forceCache=null
                     outfit=stocks.outfits.getValue(outfitId)

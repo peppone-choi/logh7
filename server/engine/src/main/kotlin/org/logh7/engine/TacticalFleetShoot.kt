@@ -119,7 +119,7 @@ internal object TacticalFleetShoot {
             if(effect==0 || stocks.tacticalCommands.confused(id) || TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),origin.position,
                 targetPosition,now,players.values,stocks,galaxy) || mount.power==0 || !TacticalReload.canFire(unit,shot.weapon,now,scale) || state.sequence==Long.MAX_VALUE || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
             val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,now,shot.target,shot.weapon,
-                mount.copy(power=((mount.power.toLong()*(unit.boats-unit.damaged)+spec.number-1)/spec.number).toInt()),effect,origin,victim)
+                TacticalArmaments.trainedMount(unit,mount,spec.number),effect,origin,victim)
             stocks=resolved.first;impacts+=resolved.second
             outfit=stocks.outfits.getValue(outfitId)
             if(cost>0)outfit=OutfitSupplies.change(outfit,id,-cost)

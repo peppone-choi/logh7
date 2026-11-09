@@ -62,6 +62,20 @@ class TacticalFleetShootTest {
     private fun advance(s:State,nav:Navigation,p:PlanetProduction,at:Long)=
         TacticalCombat.settle(session.copy(gameMillis=at*1000),galaxy,nav,p,s.commit)
 
+    @Test fun fleetTrainingIncreasesPowerOfHealthyBoats() {
+        val unit=state().stocks.outfits.getValue(1).activeShips!!.values.last()
+        val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
+        val mount=TacticalArmaments.mount(spec,TacticalWeapon.BEAM).copy(power=10*spec.number)
+        val healthy=unit.boats-unit.damaged
+        for((level,powerPerBoat) in listOf(10,12,14,16).withIndex()) {
+            val trained=unit.copy(stack=unit.stack.copy(level=level))
+            val expected=healthy*powerPerBoat
+            assertEquals(mount.copy(power=expected),TacticalArmaments.trainedMount(trained,mount,spec.number))
+            assertEquals(TacticalFleetShoot.cost(unit,mount,TacticalWeapon.GUN),
+                TacticalFleetShoot.cost(trained,mount,TacticalWeapon.GUN))
+        }
+    }
+
     @Test fun deceasedCommanderCannotFireManualOrAutomaticFleetOrdersFromAnOlderSave() {
         assertSavedFleetOrdersCancelled(deceased=true)
     }

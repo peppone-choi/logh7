@@ -20,6 +20,13 @@ data class TacticalWeaponMount(val profile: Int, val angles: Int, val power: Int
  * Personal beam fire uses this evaluator; native range-preview equivalence is still unverified.
  */
 object TacticalArmaments {
+    /** Regular-unit training uses the ground training offensive bonus (server policy). */
+    fun trainedMount(unit:ActiveShipUnit,mount:TacticalWeaponMount,fullBoats:Int):TacticalWeaponMount {
+        val divisor=100L*fullBoats
+        val power=mount.power.toLong()*(unit.boats-unit.damaged)*(100+20*unit.stack.level)
+        return mount.copy(power=((power+divisor-1)/divisor).coerceAtMost(65535L).toInt())
+    }
+
     /** Profile IDs are also the weapon-name index of constmsg group 116 (0054d4e0 reads it for the
      * flagship sheet): 0 光子砲 (beam), 8 レールガン (gun), 12 レーザー水爆ミサイル (missile), 16 対空砲. */
     const val BEAM_PROFILE = 0
