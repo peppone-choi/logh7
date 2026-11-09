@@ -66,6 +66,31 @@ class TransportActionsTest {
         val after=assertNotNull(act(load(id),half).stocks)
         assertEquals(100+1000*(boats/2)/boats,after.bases.getValue(1050).supplies);assertEquals(1,after.bases.getValue(1050).units.ships[cargo])
     }
+    @Test fun fullWarehousesRejectCancellationAndUnloadingWithoutConsumingThePackageOrCp() {
+        val planned=assertNotNull(act(plan(),stocks()).stocks)
+        val pack=planned.strategic.transports.single()
+        val source=planned.bases.getValue(1049).copy(supplies=Int.MAX_VALUE)
+        val fullSource=planned.copy(bases=planned.bases+(1049 to source))
+        val cancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=pack.id)
+        val cancelled=act(cancel,fullSource)
+        assertEquals(StrategyActionRejection.MAXIMUM,cancelled.rejection)
+        assertEquals(fullSource,cancelled.stocks)
+        assertEquals(officer,cancelled.player)
+
+        val aboard=assertNotNull(act(load(pack.id),planned).stocks)
+        val destination=aboard.bases.getValue(1050).copy(units=UnitInventory(ships=mapOf(cargo to 65535)))
+        val moved=aboard.copy(bases=aboard.bases+(1050 to destination),outfits=aboard.outfits+
+            (200 to aboard.outfits.getValue(200).copy(position=OutfitPosition(2488,1050))))
+        val unloaded=act(load(pack.id),moved)
+        assertEquals(StrategyActionRejection.MAXIMUM,unloaded.rejection)
+        assertEquals(moved,unloaded.stocks)
+        assertEquals(captain.copy(grid=2488,baseId=1050),unloaded.player)
+        val free=destination.copy(units=UnitInventory(ships=mapOf(cargo to 65533)))
+        val retried=assertNotNull(act(load(pack.id),moved.copy(bases=moved.bases+(1050 to free))).stocks)
+        assertEquals(65535,retried.bases.getValue(1050).units.ships[cargo])
+        assertTrue(retried.strategic.transports.isEmpty())
+    }
+
     @Test fun cardsStockCapacityAndThePerBaseLimitAreChecked() {
         assertEquals(StrategyActionRejection.CARD,act(plan().copy(card=24),stocks()).rejection)
         assertEquals(StrategyActionRejection.RESOURCE,act(plan(supplies=6000),stocks()).rejection)

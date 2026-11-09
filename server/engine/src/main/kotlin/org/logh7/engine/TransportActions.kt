@@ -38,7 +38,14 @@ object TransportActions {
 
     private fun add(a:Map<UnitStack,Int>,b:Map<UnitStack,Int>,sign:Int)=(a.keys+b.keys).associateWith {
         (a[it] ?: 0)+sign*(b[it] ?: 0)}.filterValues {it!=0}
-    private fun plus(a:UnitInventory,b:UnitInventory)=UnitInventory(add(a.ships,b.ships,1),add(a.troops,b.troops,1),a.work)
+    private fun deposit(base: PlanetStock, supplies: Int, units: UnitInventory): PlanetStock? {
+        if (supplies > Int.MAX_VALUE - base.supplies) return null
+        val ships = add(base.units.ships, units.ships, 1)
+        val troops = add(base.units.troops, units.troops, 1)
+        if (ships.size > 99 || troops.size > 24 ||
+            ships.values.any { it > 65535 } || troops.values.any { it > 65535 }) return null
+        return base.copy(supplies = base.supplies + supplies, units = UnitInventory(ships, troops, base.units.work))
+    }
     private fun minus(a:UnitInventory,b:UnitInventory)=UnitInventory(add(a.ships,b.ships,-1),add(a.troops,b.troops,-1),a.work)
 
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
@@ -87,8 +94,8 @@ object TransportActions {
                 val pack=packages.singleOrNull {it.id==r.target && it.country==country} ?: return reject(StrategyActionRejection.TARGET)
                 if(pack.carrier!=0)return reject(StrategyActionRejection.BUSY)
                 val source=stocks.bases[pack.source]?.takeIf {it.belongsTo(country) && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
-                next=stocks.copy(bases=stocks.bases+(source.baseId to source.copy(supplies=Math.addExact(source.supplies,pack.supplies),
-                    units=plus(source.units,pack.units))),strategic=stocks.strategic.copy(transports=packages-pack))
+                val stocked=deposit(source,pack.supplies,pack.units) ?: return reject(StrategyActionRejection.MAXIMUM)
+                next=stocks.copy(bases=stocks.bases+(source.baseId to stocked),strategic=stocks.strategic.copy(transports=packages-pack))
                 warehouseBase=source.baseId
             }
             else -> {
@@ -118,8 +125,8 @@ object TransportActions {
                     if(pack.destination!=base.baseId && !lost)return reject(StrategyActionRejection.LOCATION)
                     // Boats lost since loading take the same share of the cargo (approved §2.3).
                     val (supplies,units)=delivered(pack,boats(o))
-                    stocks.copy(bases=stocks.bases+(base.baseId to base.copy(supplies=Math.addExact(base.supplies,supplies),
-                        units=plus(base.units,units))),strategic=stocks.strategic.copy(transports=packages-pack))
+                    val stocked=deposit(base,supplies,units) ?: return reject(StrategyActionRejection.MAXIMUM)
+                    stocks.copy(bases=stocks.bases+(base.baseId to stocked),strategic=stocks.strategic.copy(transports=packages-pack))
                 }
             }
         }
