@@ -8,6 +8,7 @@ import org.logh7.gateway.load.*
 import org.logh7.persistence.FileWorldStateStore
 import org.logh7.protocol.BudgetMessages
 import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.StrategyActionMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
@@ -29,13 +30,15 @@ class MultipleSessionsWireTest {
         lobby.send(ByteBuffer.allocate(4).putShort(0x2009).putShort(id.toShort()).array())
         return lobby.expect(0x200a)
     }
-    @Test fun financeOfficeAndBudgetStayInTheSelectedWorldAcrossRestart() {
+    @Test fun officesBudgetAndPrivateFundsStayInTheSelectedWorldAcrossRestart() {
         val country = CountryId(2)
         val capital = 1049
+        val province = 1050
         val characterId = 10000
         val account = "load-000"
         val financeGalaxy = Galaxy(galaxy.systems, listOf(
             galaxy.bases[0].copy(id = capital, name = Capital.EMPIRE.baseName), galaxy.bases[1],
+            galaxy.bases[0].copy(id = province, name = "Province"),
         ), mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015))
         val registry = GameSessionDirectory()
         fun next(client: SyntheticClient, opcode: Int): ByteBuffer {
@@ -45,7 +48,7 @@ class MultipleSessionsWireTest {
             }
             error("Missing opcode ${opcode.toString(16)}")
         }
-        fun enter(lobby: SyntheticClient, world: LoadFixture, id: Int, card: Int): SyntheticClient {
+        fun enter(lobby: SyntheticClient, world: LoadFixture, id: Int, vararg cards: Int): SyntheticClient {
             val redirect = ByteBuffer.wrap(selected(lobby, id))
             assertEquals(world.sessionPort, redirect.getShort(10).toInt() and 0xffff)
             return SyntheticClient(world.sessionPort, LoadMetrics()).also { client ->
@@ -56,7 +59,9 @@ class MultipleSessionsWireTest {
                 client.send(SyntheticClient.opcode(0x0f00))
                 val profile = next(client, 0x0323)
                 assertEquals(characterId, profile.getInt(6))
-                assertEquals(card, profile.getShort(profile.limit() - 7).toInt())
+                val start = profile.limit() - 1 - 6 * cards.size
+                assertEquals(cards.toList(), cards.indices.map { profile.getShort(start + 6 * it).toInt() })
+                assertEquals(cards.size + 1, profile.get(start - 7).toInt())
                 next(client, 0x0f01)
             }
         }
@@ -81,6 +86,26 @@ class MultipleSessionsWireTest {
             return records
         }
         fun amount(record: ByteBuffer) = (record.getInt(18).toLong() shl 32) or (record.getInt(23).toLong() and 0xffffffffL)
+        fun fundsRequest(preview: Boolean) = ByteBuffer.allocate(31).putShort(0x1200).putInt(characterId)
+            .putShort(StrategyActionMessages.SEARCH.toShort()).putShort(FundActions.FUNDS.toShort())
+            .putShort(0).putShort(FundActions.LOCAL.toShort()).putInt(if (preview) 0 else province)
+            .put(if (preview) 1 else 0).putInt(0).putShort(if (preview) 0 else 150).putInt(0).putShort(0).array()
+        fun fundsView(client: SyntheticClient, balance: Int, governed: Boolean) {
+            client.send(fundsRequest(preview = true))
+            assertEquals(balance, next(client, 0x1200).getInt(29))
+            val rows = next(client, 0x1202)
+            assertEquals(if (governed) 1 else 0, rows.get(6).toInt())
+            if (governed) assertEquals(province, rows.getInt(7))
+            next(client, 0x1201)
+        }
+        fun invest(client: SyntheticClient, balance: Int? = null) {
+            client.send(fundsRequest(preview = false))
+            val reply = next(client, 0x1200)
+            assertEquals(balance?.let { 0 } ?: (SocialRejection.TARGET.ordinal + 1), reply.getShort(16).toInt())
+            if (balance != null) assertEquals(balance, reply.getInt(29))
+            next(client, 0x1201)
+            next(client, 0x0356)
+        }
         fun world(id: Int, block: (LoadFixture, FileWorldStateStore) -> Unit) {
             val root = directory.resolve("finance-$id")
             val state = root.resolve("world")
@@ -93,11 +118,14 @@ class MultipleSessionsWireTest {
                     val pilot = Navigator(1, characterId, Power.EMPIRE, 2487, 1000, 1000, 1000,
                         baseId = capital, mode = 1, cpRecoveryAt = SessionRules.load().startSeconds)
                     val stocks = financeGalaxy.bases.associate { base ->
-                        base.id to PlanetStock(base.id, if (base.id == capital) 2 else 3, 0, 100, 200, 300, treasury = 100L * id)
+                        base.id to PlanetStock(base.id, if (base.id == 1001) 3 else 2, 0, 100, 200, 300, treasury = 100L * id)
                     }
                     store.saveWorld(mapOf(account to pilot), PlanetStocks(1, 0, stocks,
                         deploymentInitialized = true, nationalTreasuries = mapOf(country to 4000L * id),
-                        strategic = StrategicState(offices = if (id == 1) listOf(OfficeHolding(8, capital, characterId)) else emptyList())))
+                        strategic = StrategicState(
+                            people = mapOf(characterId to StrategicPerson(rank = 1, money = 1000L * id)),
+                            offices = if (id == 1) listOf(OfficeHolding(8, capital, characterId),
+                                OfficeHolding(54, province, characterId)) else emptyList())))
                 }
                 LoadFixture(root, 2, LoadMetrics(), financeGalaxy, ticking = false, navigationStore = store.navigationStore,
                     stockStore = store.stockStore, worldStateCommitter = store, sessionDirectory = registry,
@@ -106,7 +134,9 @@ class MultipleSessionsWireTest {
         }
         var quote = 0
         world(1) { alpha, _ -> world(2) { beta, _ -> lobby(alpha).use { lobby ->
-            enter(lobby, alpha, 1, 8).use { player ->
+            enter(lobby, alpha, 1, 59, 8, 54).use { player ->
+                fundsView(player, 1000, governed = true)
+                invest(player, balance = 850)
                 assertEquals(listOf(4000L, 100L, 0L), budget(player).map(::amount))
                 val prepared = budget(player, phase = 1).last()
                 assertEquals(1000L, amount(prepared))
@@ -114,22 +144,33 @@ class MultipleSessionsWireTest {
                 assertTrue(quote > 0)
             }
             enter(lobby, beta, 2, 59).use { player ->
+                fundsView(player, 2000, governed = false)
+                invest(player)
                 assertEquals(listOf(0L, 0L, 0L), budget(player, 2, quote, BudgetRejection.AUTHORITY).map(::amount))
             }
         } } }
         world(1) { alpha, a -> world(2) { beta, b -> lobby(alpha).use { lobby ->
             enter(lobby, beta, 2, 59).use { player ->
+                fundsView(player, 2000, governed = false)
                 assertEquals(listOf(0L, 0L, 0L), budget(player, rejection = BudgetRejection.AUTHORITY).map(::amount))
             }
-            enter(lobby, alpha, 1, 8).use { player ->
+            enter(lobby, alpha, 1, 59, 8, 54).use { player ->
+                fundsView(player, 850, governed = true)
                 assertEquals(quote, budget(player).last().getInt(29))
                 repeat(2) { assertEquals(listOf(3000L, 1100L, 1000L), budget(player, 2, quote).map(::amount)) }
             }
             assertEquals(680, a.loadNavigation().getValue(account).mcp)
+            assertEquals(920, a.loadNavigation().getValue(account).pcp)
             assertEquals(1000, b.loadNavigation().getValue(account).mcp)
+            assertEquals(1000, b.loadNavigation().getValue(account).pcp)
+            val alphaStocks = assertNotNull(a.loadStocks())
+            assertEquals(250L, alphaStocks.bases.getValue(province).treasury)
+            assertEquals(850L, alphaStocks.strategic.people.getValue(characterId).money)
             val betaStocks = assertNotNull(b.loadStocks())
             assertEquals(8000L, betaStocks.nationalTreasuries.getValue(country))
             assertEquals(200L, betaStocks.bases.getValue(capital).treasury)
+            assertEquals(200L, betaStocks.bases.getValue(province).treasury)
+            assertEquals(2000L, betaStocks.strategic.people.getValue(characterId).money)
             assertTrue(betaStocks.budget.quotes.isEmpty())
         } } }
     }
