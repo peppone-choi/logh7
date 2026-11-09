@@ -220,6 +220,17 @@ class TacticalCombatTest {
 
     @Test fun pendingBeamSurvivesReloadAndSettlesOnceWithChargeAndActualLossInOneCommit() {
         val state = state()
+        val sweep=StrategicOperation(1,10001,149,CountryId(3),2488,StrategicForce.SOLO,StrategicPurpose.SWEEP,1,now,
+            StrategicPlanState.ISSUED,now,characters=setOf(10000),issuer=10002)
+        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(operations=listOf(sweep)))
+        val shooter=state.players.getValue("pilot")
+        assertSame(state.stocks,StrategicOperations.awardSweep(state.stocks,shooter,2493,now,1))
+        assertSame(state.stocks,StrategicOperations.awardSweep(state.stocks,shooter,2488,OperationPlanRules.endGameSeconds(now),1))
+        assertEquals(1L,StrategicOperations.awardSweep(state.stocks,shooter,2492,now,1).strategic.people.getValue(10000).merit)
+        val attached=state.stocks.copy(outfits=state.stocks.outfits.mapValues {(_,outfit)->
+            outfit.copy(country=Power.ALLIANCE.country,commanderId=shooter.characterId)},
+            warehouses=state.stocks.warehouses.mapValues {(_,warehouse)->warehouse.copy(country=Power.ALLIANCE.country)})
+        assertSame(attached,StrategicOperations.awardSweep(attached,shooter,2488,now,1))
         var nav = Navigation(galaxy,state.nav,NavigationPolicy())
         var production = production(state)
         val accepted = TacticalCombat.accept(request,session,galaxy,nav,production.snapshot(1)!!,state.commit,24).player!!
@@ -241,6 +252,7 @@ class TacticalCombatTest {
         assertEquals(mapOf(10000 to "c"),impacts.single().recipients)
         assertTrue(losses > 0)
         assertEquals(300-losses,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
+        assertEquals(losses.toLong(),state.stocks.strategic.people.getValue(10000).merit)
         assertEquals(1000,fired.pcp);assertEquals(960,fired.mcp);assertEquals(900,fired.cruise)
         nav=Navigation(galaxy,state.nav,NavigationPolicy());production=production(state)
         val saved=state.stocks
