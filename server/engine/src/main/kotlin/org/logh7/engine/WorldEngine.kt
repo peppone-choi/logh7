@@ -1101,11 +1101,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             val next=if(inventory.social.coup!=prepared.social.coup)recoveredPlayers.mapValues {(_,player)->
                                 navigation.clearInvalidReturnBase(player,prepared)
                             } else recoveredPlayers
+                            val refreshed = next.filter { (account, player) ->
+                                account != i.account && (account in result.navigators ||
+                                    player.returnBase != recoveredPlayers.getValue(account).returnBase)
+                            }
                             worldStateCommitter.saveWorld(next,prepared)
                             navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
                             result=result.copy(player=next.getValue(i.account),stocks=prepared,
-                                navigators=result.navigators.mapValues { (account, _) -> next.getValue(account) })
+                                navigators=refreshed)
                             // U-25 defection: the session record follows the committed world (user decision 2026-11-01).
                             if(result.defected!=null) {
                                 val action=SessionAction.Defect(i.account,result.defected)

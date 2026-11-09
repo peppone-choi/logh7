@@ -178,14 +178,30 @@ class SocialActionsWireTest {
             assertEquals(0,server.engine.snapshot().planetStocks!!.bases.getValue(1049).camp)
         }
         state.failSave=false
+        state.players = state.players.mapValues { (account, player) ->
+            if (account == "load-000") player.copy(returnBase = 1049) else
+                player.copy(grid = 2488, baseId = 0, mode = 5, spotId = 0, returnBase = 1049, originBase = 1049)
+        }
         LoadFixture(directory.resolve("coup-after-failure"),2,LoadMetrics(),galaxy,ticking=false,
             navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {server->
             val actor=server.join(server.account(0),true,false).client
             actor.send(SyntheticClient.opcode(0x0f00));next(actor,0x0f01)
+            val loyal = server.join(server.account(1), true, false).client
+            loyal.send(SyntheticClient.opcode(0x0f00))
+            val original = ByteBuffer.wrap(next(loyal, 0x0323))
+            assertEquals(10001, original.getInt(6))
+            assertEquals(1049, original.getInt(26))
+            next(loyal, 0x0f01)
             perform(actor,CoupActions.REVOLT)
             assertEquals(360,state.players.getValue("load-000").pcp)
             assertEquals(1,state.stocks.bases.getValue(1049).camp)
             assertTrue(OfficeHolding(68,1049,10000) in state.stocks.strategic.offices)
+            val cleared = ByteBuffer.wrap(next(loyal, 0x0356))
+            assertEquals(10001, cleared.getInt(7))
+            assertEquals(0, cleared.getInt(27))
+            assertEquals(0, state.players.getValue("load-001").returnBase)
+            assertEquals(1049, state.players.getValue("load-001").originBase)
+            assertEquals(1049, state.players.getValue("load-000").returnBase)
         }
     }
     @Test fun encryptedDefectionCommitsNavigationSessionAndCharacterMembershipAcrossRestart() {
