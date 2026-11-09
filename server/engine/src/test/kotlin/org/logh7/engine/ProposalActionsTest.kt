@@ -213,6 +213,7 @@ class ProposalActionsTest {
         assertEquals(seat.target,mail.target);assertFalse(mail.order,"rank 9 proposes to rank 2");assertEquals(920,opened.player?.mcp,"half of 160")
         val approved=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,assertNotNull(opened.stocks))
         assertNull(approved.rejection);assertEquals(920,approved.player?.mcp)
+        assertEquals(mapOf("b" to b),approved.navigators)
         assertTrue(OrganizationalOfficePolicy(galaxy).held(assertNotNull(approved.stocks),seat.target).none {it.card==seat.card})
     }
     @Test fun aDismissalOfASeatTheRecipientCannotDismissIsRejected() {
@@ -232,7 +233,12 @@ class ProposalActionsTest {
         assertEquals(10001,mail.target);assertEquals(seat,mail.seat);assertEquals(920,opened.player?.mcp,"half of 160")
         val approved=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,assertNotNull(opened.stocks))
         assertNull(approved.rejection)
-        assertTrue(OrganizationalOfficePolicy(galaxy).held(assertNotNull(approved.stocks),10001).any {it.card==card && it.seat==seat})
+        assertEquals(mapOf("b" to b),approved.navigators)
+        val appointed=assertNotNull(approved.stocks)
+        assertTrue(OrganizationalOfficePolicy(galaxy).held(appointed,10001).any {it.card==card && it.seat==seat})
+        val duplicate=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,appointed)
+        assertEquals(SocialRejection.STALE,duplicate.rejection)
+        assertTrue(duplicate.navigators.isEmpty())
     }
     @Test fun anAppointmentToASeatTheRecipientCannotFillIsRejected() {
         val r=SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,ProposalActions.OPEN,17,9,target=10001,

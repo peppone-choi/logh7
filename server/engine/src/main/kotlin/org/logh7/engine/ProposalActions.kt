@@ -73,6 +73,13 @@ object ProposalActions {
     /** U-16 (user decision 2026-11-01): an order to an absent recipient is approved for it one game hour after
      * arrival; a proposal waits for the recipient. */
     const val ABSENT_ORDER_SECONDS=3600L
+
+    internal fun approvedOfficeTargets(before:ProposalState,after:ProposalState):Set<Int> {
+        if(before==after)return emptySet()
+        val pending=before.mails.filter {it.pending}.mapTo(hashSetOf()) {it.id}
+        return after.mails.filter {it.id in pending && it.reply==Proposals.APPROVE && it.target>0 &&
+            (it.command==APPOINTMENT || it.command==DISMISSAL)}.mapTo(hashSetOf()) {it.target}
+    }
     /** Expired rows refund the sender's half and absent recipients' due orders are approved (the recipient pays the
      * other half and the command runs). Runs in the periodic world tick and before each proposal action. */
     fun settle(g:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks,
@@ -125,10 +132,13 @@ object ProposalActions {
         val players=LinkedHashMap(accounts).also {it[r.identity.account]=p}
         val settled=settle(g,session,players,s,countries)
         val self=players.getValue(r.identity.account)
-        val changed=players.filter {(k,v)->k!=r.identity.account && accounts[k]!=v}
-        if(settled==s && self==p)return act(g,r,session,p,s,accounts,countries)
-        val result=act(g,r,session,self,settled,players,countries)
-        return if(result.rejection!=null)SocialResult(p,s,result.rejection) else result.copy(navigators=changed+result.navigators)
+        val unchanged=settled==s && self==p
+        val result=act(g,r,session,self,settled,if(unchanged)accounts else players,countries)
+        if(result.rejection!=null)return if(unchanged)result else SocialResult(p,s,result.rejection)
+        val targets=approvedOfficeTargets(s.social.proposals,checkNotNull(result.stocks).social.proposals)
+        val changed=players.filter { (account, player) -> account!=r.identity.account &&
+            (accounts[account]!=player || player.generation==s.generation && player.characterId in targets) }
+        return result.copy(navigators=changed+result.navigators)
     }
     private fun act(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>,
         countries:CountryCatalog):SocialResult {
