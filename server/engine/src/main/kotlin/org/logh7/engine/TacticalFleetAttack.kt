@@ -82,7 +82,8 @@ internal object TacticalFleetAttack {
                 TacticalAuthority.commander(outfit,unit,stocks)!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null ||
                 commander==null || commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid ||
-                TacticalAuthority.camp(commander,stocks)!=TacticalAuthority.camp(outfit,stocks)) {
+                TacticalAuthority.camp(commander,stocks)!=TacticalAuthority.camp(outfit,stocks) ||
+                command.order.issuedByOfflineAi && !TacticalOfflineAi.eligible(session,commanderEntry.key,commander,stocks)) {
                 stocks=replace(stocks,outfit,unit.copy(attack=null));continue
             }
             if(stocks.tacticalCommands.confused(id) || now<command.order.nextAt || now>0xffffffffL-5*scale || unit.tactical.sequence>Long.MAX_VALUE-3)continue

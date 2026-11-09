@@ -2314,8 +2314,11 @@ class GameExchange(
                                                 currentCharacterById(id)?.let {org.logh7.protocol.StrategyActionMessages.Selection(id,it.surname,it.rank)}})
                                         }
                                         val country=currentProfile(identity.account,query.character).country
-                                        require(query.command==96 && query.card==0 || policy.held(inventory,character.id.toInt()).any {
-                                            it.card==query.card && it.country==country}) {"Strategy directory requires a held office"}
+                                        val heldOffice=policy.held(inventory,query.character).any {it.card==query.card && it.country==country}
+                                        val transportDirectory=query.command in setOf(29,65)
+                                        require(transportDirectory || query.command==96 && query.card==0 || heldOffice) {
+                                            "Strategy directory requires a held office"
+                                        }
                                         if(query.command==96) {
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                             val points=inventory.strategic.people[me.characterId]?.evaluation ?: 0
@@ -2341,20 +2344,29 @@ class GameExchange(
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,candidates.map {
                                                 org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)})
                                         }
-                                        if(query.command in setOf(29,65)) {
+                                        if(transportDirectory) {
                                             // U-15 package rows: name "destination/supplies", "+" with units, "*" aboard.
-                                            val outfit=if(query.command==65)inventory.outfits[query.outfit]?.takeIf {
-                                                country!=null && it.country==country && it.commanderId==character.id.toInt()} else null
+                                            val countries=world.lobbyCountryDefinitions().first
+                                            val canCancel=query.command==29 && heldOffice && country!=null &&
+                                                org.logh7.engine.LogisticsOfficePolicy(world.galaxy,countries)
+                                                    .cards(inventory,query.character,country.value).any {it.first==query.card}
+                                            val outfit=if(query.command==65 && heldOffice && country!=null &&
+                                                org.logh7.engine.OrganizationOffices.of(query.card,country,countries)!=null)
+                                                inventory.outfits[query.outfit]?.takeIf {
+                                                    it.kind==org.logh7.engine.OutfitKind.TRANSPORT && it.country==country &&
+                                                        it.commanderId==query.character
+                                                } else null
                                             val here=outfit?.positionIn(world.galaxy)?.baseId ?: 0
                                             val boats=outfit?.let(org.logh7.engine.TransportActions::boats) ?: 0
                                             val rows=inventory.strategic.transports.filter {it.country==country && it.id>query.target &&
-                                                (if(query.command==29)it.carrier==0 else outfit!=null &&
+                                                (if(query.command==29)canCancel && it.carrier==0 else outfit!=null &&
                                                     (it.carrier==outfit.id || it.carrier==0 && it.source==here && here!=0))}
                                                 .sortedBy {it.id}.take(200).map {p ->
                                                     val (supplies,units)=org.logh7.engine.TransportActions.delivered(p,boats)
                                                     org.logh7.protocol.StrategyActionMessages.Selection(p.id,("${p.destination}/$supplies"+
                                                         (if(units.ships.isEmpty() && units.troops.isEmpty())"" else "+")+
-                                                        (if(p.carrier!=0)"*" else "")).take(12))}
+                                                        (if(p.carrier!=0)"*" else "")).take(12),
+                                                        rank=if(query.command!=65)0 else if(p.carrier==0)1 else 2)}
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
                                         }
                                         if(query.command==24) {

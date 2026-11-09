@@ -10,6 +10,9 @@ data class TacticalAttack(val units: List<Int>, val mode: Int, val target: Int =
 data class TacticalAttackOrder(val mode: Int, val acceptedAt: Long, val startsAt: Long, val nextAt: Long) {
     init { require(mode in 1..2 && acceptedAt in 0..0xffffffffL && startsAt in acceptedAt..0xffffffffL &&
         nextAt in startsAt..0xffffffffL) }
+
+    // Saved offline AI orders start immediately. Player-issued orders always have a startup delay.
+    internal val issuedByOfflineAi: Boolean get() = mode==2 && acceptedAt==startsAt
 }
 
 data class TacticalPendingFire(val sequence: Long, val grid: Int, val shipKind: Int, val target: Int,
@@ -273,6 +276,10 @@ internal object TacticalCombat {
         val due=players.mapNotNull { (account,p)->p.fire?.pending?.takeIf {it.firesAt<=now}?.let {Due(account,it)} }.toMutableList()
         if(session.ended==null) for((account,p) in players.toMap()) {
             val order=p.attack ?: continue
+            if(order.issuedByOfflineAi && !TacticalOfflineAi.eligible(session,account,p,inventory)) {
+                players[account]=p.copy(attack=null)
+                continue
+            }
             if(order.nextAt>now || p.hull==null || p.fire?.pending!=null ||
                 p.fire?.sequence==Long.MAX_VALUE || now>0xffffffffL-5*(p.charge?.clockScale ?: p.hull.clockScale))continue
             val spec=UnitSpecifications.ships.single {it.kind==p.hull.kind}
