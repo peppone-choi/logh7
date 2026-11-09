@@ -10,6 +10,23 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredPirateOccupationReducesPublicOrderOnceAtItsDailyDeadline() = runTest {
+        val day=Justice.DAY
+        val rig=Rig(this,testScheduler,resumedAt=day*1000/SessionRules.load().speed,pirateHarmDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun peace()=rig.engine.snapshot().planetStocks!!.bases.getValue(1000).economy!!.peace
+            advanceTimeBy(624);runCurrent()
+            val initialPeace=peace()
+            assertEquals(15L,rig.engine.snapshot().planetStocks!!.social.pirates.harmedThrough)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(day+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(initialPeace-PirateActions.HARM,peace())
+            advanceTimeBy(375);runCurrent()
+            assertEquals(initialPeace-PirateActions.HARM,peace())
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredPiratesSpawnAndMoveAtTheirStrategicDeadline() = runTest {
         val week=PirateActions.SPAWN_DAYS*Justice.DAY
         val rig=Rig(this,testScheduler,resumedAt=week*1000/SessionRules.load().speed,pirateStrategyDeadline=true)
@@ -241,7 +258,8 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,pirateDeadline:Boolean=false,pirateRegularTarget:Boolean=false,pirateStrategyDeadline:Boolean=false) {
+        uncharged:Boolean=false,pirateDeadline:Boolean=false,pirateRegularTarget:Boolean=false,pirateStrategyDeadline:Boolean=false,
+        pirateHarmDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -275,6 +293,13 @@ class TacticalDeadlineTest {
                     stocks=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
                         warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
                 }
+            }
+            if(pirateHarmDeadline) {
+                players=emptyMap()
+                val fleet=PirateFleet(1,2488,15,listOf(PirateUnit(900_001,300)))
+                stocks=stocks.copy(bases=mapOf(1000 to PlanetStock(1000,3,0,0,0,0,PlanetEconomy(1000,500,50,40))),
+                    social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2,
+                        nextSpawnAt=PirateActions.SPAWN_DAYS*Justice.DAY,harmedThrough=15)))
             }
             if(pirateStrategyDeadline) {
                 players=emptyMap()
