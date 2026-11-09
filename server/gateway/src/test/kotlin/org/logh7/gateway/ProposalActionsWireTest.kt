@@ -9,6 +9,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import org.logh7.protocol.CharacterMessages
+import org.logh7.protocol.LogisticsMessages
 import org.logh7.protocol.MailMessages as Wire
 import kotlin.test.*
 
@@ -94,6 +95,110 @@ class ProposalActionsWireTest {
     @Test fun compatibilityResignationApprovalRefreshesTheOpenBattlefield() = officeRefresh(0x1200)
     @Test fun absentResignationApprovalRefreshesTheOpenBattlefield() = officeRefresh(null)
     @Test fun transportAppointmentApprovalRefreshesTheOpenBattlefield() = officeRefresh(0x0f14, appointment = true)
+
+    @Test fun markedAssignmentOnlyMovesStockOnApprovalAndDeduplicatesRetries() {
+        val state=State()
+        val stack=UnitStack(32)
+        val stock=state.stocks.bases.getValue(1049).copy(units=UnitInventory(mapOf(stack to 1)))
+        state.players=state.players.mapValues {(_,player)->player.copy(mcp=1000)}
+        state.stocks=state.stocks.copy(bases=mapOf(1049 to stock),
+            outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1049,10,commanderId=10001,number=7)),
+            warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,1)),
+            strategic=state.stocks.strategic.copy(offices=listOf(OfficeHolding(25,1049,10000),OfficeHolding(24,1049,10001))))
+        seed(directory)
+        LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
+            stockStore=state.inventory,worldStateCommitter=state).use {fixture->
+            val sender=fixture.join(fixture.account(0),false,false).client
+            sender.send(SyntheticClient.opcode(0x0f00));next(sender,0x0f01)
+            val executor=fixture.join(fixture.account(1),false,false).client
+            executor.send(SyntheticClient.opcode(0x0f00));next(executor,0x0f01)
+            val baseBefore=state.stocks.bases.getValue(1049)
+            val warehouseBefore=state.stocks.warehouses.getValue(10)
+            val token=70001
+            fun draft(phase:Int,nonce:Int=token) = ByteBuffer.allocate(31).putShort(0x1200).putInt(10000)
+                .putShort(0x7f00).putShort(98).putShort(0).putShort(0x0c0b).putInt(10001).put(phase.toByte())
+                .putInt(nonce).putShort(0).putInt(0).putShort(71).array()
+            fun warehouseStatus():Int {
+                sender.send(ByteBuffer.allocate(10).putShort(0x0326).putInt(1049).putInt(1).array())
+                return ByteBuffer.wrap(next(sender,0x0327)).getInt(14)
+            }
+            fun outfits(card:Int):Int {
+                val wire=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(31).putShort(124)
+                    .putInt(25,1049).putShort(29,card.toShort()).array()
+                sender.send(wire)
+                return next(sender,0x1203)[6].toInt()
+            }
+            fun bases():ByteBuffer {
+                sender.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(32).putShort(80).array())
+                return ByteBuffer.wrap(next(sender,0x1204)).position(6)
+            }
+            fun partyNumber(base:Int):Int {
+                sender.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(1).putInt(base).put(1).array())
+                return ByteBuffer.wrap(next(sender,0x032f)).getInt(21)
+            }
+            assertEquals(1,warehouseStatus())
+            assertEquals(0,bases().get().toInt())
+            sender.send(draft(0))
+            val grant=ByteBuffer.wrap(next(sender,0x1200))
+            assertEquals(0,grant.getShort(16).toInt())
+            assertEquals(2,grant.get(22).toInt())
+            assertEquals(token,grant.getInt(23))
+            assertEquals(24,grant.getShort(27).toInt())
+            assertEquals(71,grant.getShort(33).toInt())
+            next(sender,0x1201)
+            val grantedBases=bases()
+            assertEquals(1,grantedBases.get().toInt())
+            assertEquals(1049,grantedBases.int)
+            assertEquals(1,outfits(24))
+            assertEquals(0,outfits(25))
+            assertEquals(7,partyNumber(1049))
+            assertEquals(0,partyNumber(1050))
+            sender.send(draft(1,token+1))
+            assertEquals(0,warehouseStatus())
+            sender.send(draft(1))
+            assertEquals(1,warehouseStatus())
+            assertEquals(0,outfits(24))
+            assertEquals(0,bases().get().toInt())
+            assertEquals(1000,state.players.getValue("load-000").mcp)
+            assertTrue(state.stocks.social.proposals.mails.isEmpty())
+            val offer=LogisticsMessages.AssignmentProposal(10000,10001,token,1049,1,0,
+                LogisticsMessages.Moves(listOf(LogisticsMessages.ShipMove(32,1,0)),emptyList()),100)
+            fun submit(value:LogisticsMessages.AssignmentProposal):Int {
+                sender.send(LogisticsMessages.encode(value))
+                val response=ByteBuffer.wrap(next(sender,0x1200))
+                assertEquals(value.token,response.getInt(23))
+                next(sender,0x1201);next(sender,0x0356)
+                return response.getShort(16).toInt()
+            }
+            assertEquals(0,submit(offer))
+            assertEquals(0,submit(offer))
+            assertNotEquals(0,submit(offer.copy(moveSupplies=99)))
+            val mail=state.stocks.social.proposals.mails.single()
+            val baseAfterSend=state.stocks.bases.getValue(1049)
+            assertEquals(baseBefore.units,baseAfterSend.units)
+            assertEquals(baseBefore.supplies,baseAfterSend.supplies)
+            assertEquals(warehouseBefore,state.stocks.warehouses.getValue(10))
+            assertEquals(920,state.players.getValue("load-000").mcp)
+            assertEquals(9,state.stocks.strategic.people.getValue(10000).influence)
+            query(executor,10001,24)
+            next(executor,0x0f13)
+            val pair=LogisticsMessages.assignment(body(next(executor,0x0c0b)))
+            assertEquals(0,pair.header.time)
+            assertEquals(offer.moves,pair.moves)
+            assertEquals(100,pair.moveSupplies)
+            next(executor,0x0f09)
+            val answer=body(Wire.reply(Wire.Reply(0,mail.id,0,Wire.Peer(10001),Wire.Peer(10000),0,0,0,Proposals.APPROVE)))
+            executor.send(answer);next(executor,0x0356)
+            repeat(2) {next(executor,0x0327)}
+            executor.send(answer);next(executor,0x0356)
+            assertEquals(920,state.players.getValue("load-001").mcp)
+            assertEquals(0,state.stocks.bases.getValue(1049).units.ships.size)
+            assertEquals(mapOf(stack to 1),state.stocks.warehouses.getValue(10).units.ships)
+            assertEquals(100,state.stocks.warehouses.getValue(10).supplies)
+            assertEquals(0,submit(offer))
+            assertEquals(920,state.players.getValue("load-000").mcp)
+        }
+    }
 
     private fun officeRefresh(replyOpcode: Int?, appointment: Boolean = false) {
         val state = State()

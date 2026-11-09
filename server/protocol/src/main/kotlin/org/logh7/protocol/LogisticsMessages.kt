@@ -4,6 +4,7 @@ import java.nio.ByteBuffer
 
 /** CD writers 00551a80/00553fc0, readers 00555eb0/00558b70. Author: Peppone Choi. */
 object LogisticsMessages {
+    private const val ASSIGNMENT_PROPOSAL = 0x80
     // Client clock, identity and balances are transport fields, never authority.
     data class Header(val time: Int, val characterId: Int, val pcp: Int, val mcp: Int)
     /** A ship move has a signed unit delta and a separate physical boat count, not a grade. */
@@ -34,6 +35,14 @@ object LogisticsMessages {
         val moveSupplies: Int, val resultBase: Inventory, val resultBaseSupplies: Int,
         val resultOutfit: Inventory, val resultOutfitSupplies: Int) {
         init { require(kind in 0..255) }
+    }
+
+    data class AssignmentProposal(val actor: Int, val recipient: Int, val token: Int, val base: Int,
+        val outfit: Int, val kind: Int, val moves: Moves, val moveSupplies: Int) {
+        init {
+            require(actor > 0 && recipient > 0 && token > 0)
+            require(base in 1..65535 && outfit > 0 && kind in 0..3 && moveSupplies != Int.MIN_VALUE)
+        }
     }
 
     private fun ByteBuffer.u8() = get().toInt() and 255
@@ -75,6 +84,13 @@ object LogisticsMessages {
         require(input.remaining() == 4) { "Invalid assignment tail" }
         return Assignment(header, base, outfit, kind, moves, moveSupplies, resultBase,
             resultBaseSupplies, resultOutfit, input.int)
+    }
+
+    /** Flagged packets are mail only. A malformed envelope must never reach direct assignment. */
+    fun assignmentProposal(query: Assignment): AssignmentProposal? {
+        if (query.kind and ASSIGNMENT_PROPOSAL == 0) return null
+        return AssignmentProposal(query.header.characterId, query.header.pcp, query.header.mcp,
+            query.base, query.outfit, query.kind and 0x7f, query.moves, query.moveSupplies)
     }
 
     private fun ByteBuffer.header(value: Header) {
@@ -149,5 +165,11 @@ object LogisticsMessages {
         out.putInt(value.resultBaseSupplies); out.inventory(value.resultOutfit)
         out.putInt(value.resultOutfitSupplies)
         return out.array()
+    }
+
+    fun encode(value: AssignmentProposal): ByteArray {
+        val empty = Inventory(emptyList(), emptyList())
+        return encode(Assignment(Header(0, value.actor, value.recipient, value.token), value.base,
+            value.outfit, value.kind or ASSIGNMENT_PROPOSAL, value.moves, value.moveSupplies, empty, 0, empty, 0))
     }
 }

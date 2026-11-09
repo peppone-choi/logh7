@@ -61,6 +61,7 @@ internal object SocialStateCodec {
         p.mails.sortedBy {it.id}.joinToString(",") {listOf(it.id,it.sender,it.recipient,it.senderCard,it.card,it.command,
             if(it.order)1 else 0,it.createdAt,it.expiresAt,it.reply,it.pcp,it.mcp)
             .plus(when {
+                it.assignment!=null -> listOf(it.target,it.targetCard,it.seat,checkNotNull(it.country).value,0,assignment(it))
                 it.rankChangeMailRank!=null -> listOf(it.target,it.targetCard,it.seat,it.country?.value ?: 0,it.rankChangeMailRank)
                 it.country!=null -> listOf(it.target,it.targetCard,it.seat,checkNotNull(it.country).value)
                 else -> (if(it.target>0)listOf(it.target,it.targetCard) else emptyList())+(if(it.seat>0)listOf(it.seat) else emptyList())
@@ -70,20 +71,47 @@ internal object SocialStateCodec {
             .joinToString(",") {"${it.key.first}:${it.key.second}:${it.key.third}:${it.value}"}.ifEmpty {"-"}).joinToString("/")
     private fun proposals(text:String):ProposalState {
         val f=text.split('/');require(f.size==2)
-        val mails=rows(f[0]).map {v->require((v.size==12 || v.size in 14..15 && v[12].toInt()>0 || v.size in 16..17) && v[6] in setOf("0","1"))
+        val mails=rows(f[0]).map {v->require((v.size==12 || v.size in 14..15 && v[12].toInt()>0 || v.size in 16..18) && v[6] in setOf("0","1"))
+            val transfer = if (v.size == 18) {
+                require(v[16] == "0")
+                assignment(v[17])
+            } else null
             ProposalMail(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toInt(),v[4].toInt(),v[5].toInt(),v[6]=="1",
                 v[7].toLong(),v[8].toLong(),v[9].toInt(),v[10].toInt(),v[11].toInt(),
                 if(v.size>=14)v[12].toInt() else 0,if(v.size>=14)v[13].toInt() else 0,
                 if(v.size>=15)v[14].toInt().also {require(it>=0 && (v.size!=15 || it>0))} else 0,
                 when(v.size) {
-                    16 -> CountryId(v[15].toInt())
+                    16,18 -> CountryId(v[15].toInt())
                     17 -> v[15].toInt().takeIf {it!=0}?.let(::CountryId)
                     else -> null
-                },if(v.size==17)v[16].toInt() else null)}
+                },if(v.size==17)v[16].toInt() else null,
+                transfer?.payload,transfer?.recipient ?: 0,transfer?.expired ?: false)}
         val blocked=linkedMapOf<Triple<Int,Int,Int>,Long>();for(v in rows(f[1])) {require(v.size==4)
             require(blocked.put(Triple(v[0].toInt(),v[1].toInt(),v[2].toInt()),v[3].toLong())==null)}
         return ProposalState(mails,blocked)
     }
+    private fun assignment(mail: ProposalMail): String {
+        val payload = checkNotNull(mail.assignment)
+        val ships = payload.ships.joinToString(";") { "${it.kind}.${it.units}.${it.boats}" }.ifEmpty { "-" }
+        val troops = payload.troops.joinToString(";") { "${it.kind}.${it.grade}.${it.units}" }.ifEmpty { "-" }
+        return listOf(payload.token, mail.assignmentOriginalRecipient, if (mail.assignmentExpired) 1 else 0,
+            payload.base, payload.outfit, payload.kind, payload.supplies, ships, troops).joinToString("~")
+    }
+
+    private data class StoredAssignment(val payload: StockAssignmentProposal, val recipient: Int, val expired: Boolean)
+
+    private fun assignment(text: String): StoredAssignment {
+        val fields = text.split('~')
+        require(fields.size == 9 && fields[2] in setOf("0", "1"))
+        fun rows(value: String): List<List<Int>> = if (value == "-") emptyList() else value.split(';').map { row ->
+            row.split('.').also { require(it.size == 3) }.map(String::toInt)
+        }
+        val ships = rows(fields[7]).map { ReorganizationShip(it[0], it[1], it[2]) }
+        val troops = rows(fields[8]).map { ReorganizationTroop(it[0], it[1], it[2]) }
+        return StoredAssignment(StockAssignmentProposal(fields[0].toInt(), fields[3].toInt(), fields[4].toInt(),
+            fields[5].toInt(), ships, troops, fields[6].toInt()), fields[1].toInt(), fields[2] == "1")
+    }
+
     /** Optional seventh field (会談/談話, 2026-10-31): invites "host:guest:command:base:spot:expires" / host limits / pair limits. */
     private fun gatherings(g:GatheringState)=listOf(
         g.invites.toSortedMap().values.joinToString(",") {listOf(it.host,it.guest,it.command,it.base,it.spot,it.expiresAt).joinToString(":")}.ifEmpty {"-"},

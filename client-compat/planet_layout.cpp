@@ -700,6 +700,7 @@ static void install() {
     if (!installReplyVariant()) { status = -3; return; }
     if (!installAppointmentInformation()) { status = -3; return; }
     if (!installSupplySelector()) { status = -3; return; }
+    if (!installAssignmentMail()) { status = -3; return; }
     if (!installUnitPresence()) { status = -3; return; }
     if (!installTacticalSupport()) { status = -3; return; }
     if (!installTacticalMotion()) { status = -3; return; }

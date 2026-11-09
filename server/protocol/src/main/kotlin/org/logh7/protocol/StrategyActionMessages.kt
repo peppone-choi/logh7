@@ -15,6 +15,7 @@ object StrategyActionMessages {
         val isTradeQuote get()=preview && hasTradeQuote && (if(command==40)amount>0 else argument==-1)
         val isProductionQuote get()=preview && command in 31..36 && argument==-1
         val isRepairQuote get()=preview && command==61
+        val isAssignmentDraft get()=command==98 && value==0x0c0b
         val spendsEvaluation get()=command==96 && (argument==0 || argument==4)
     }
     fun matches(message:ByteArray)=message.size>=8 && ByteBuffer.wrap(message).let {
@@ -86,6 +87,7 @@ object StrategyActionMessages {
         // Previews: value 0 lists recipients; value 0x0708 with base = the recipient lists the seats it may dismiss.
         // Appointment (0x0707): base = the seat and amount = the card; its preview lists the recipient's vacancies.
         // Special promotion (0x0705) and demotion (0x0706): base = affected person on commit or recipient on preview.
+        else if(proposal && value==0x0c0b)require(target>0 && argument>0 && card==0 && base==0 && amount==0)
         else if(proposal)require(card in 0..260 && argument in 0..260 && amount in 0..260 && base>=0 &&
             (if(preview)card==0 && argument==0 && amount==0 && (value==0 && base==0 || value in 0x0705..0x0708 && base>0)
              else target>0 && value in 1..0xffff && when(value) {

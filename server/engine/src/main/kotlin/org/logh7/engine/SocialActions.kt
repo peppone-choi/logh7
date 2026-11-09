@@ -42,7 +42,8 @@ data class SocialState(val nextId:Int=1,val speeches:Map<Int,SpeechReceipt> = em
         academy=academy.detached(),meeting=meeting.detached(),gatherings=gatherings.detached(),proposals=proposals.detached(),
         justice=justice.detached(),coup=coup.detached(),funds=funds.detached(),goals=goals.detached(),trade=trade.detached(),pirates=pirates.detached(),production=production.detached(),succession=succession.detached())
 }
-data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null)
+data class SocialRequest(val identity:StrategyActionRequest,val phase:Int=0,val ticket:Int=0,val profile:StrategicPerson?=null,
+    val assignment: StockAssignmentProposal? = null)
 enum class SocialRejection { SESSION, IDENTITY, COMMAND, CARD, RANK, LOCATION, BUSY, CP, COOLDOWN, STALE, MAXIMUM, STORAGE, TARGET, QUOTE_CHANGED }
 data class SocialView(val ticket:Int,val base:Int,val influence:Int,val approval:Int,val wait:Long,val last:SpeechReceipt?)
 data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:SocialRejection?=null,
@@ -58,7 +59,7 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
     val defected:CountryId?=null,
     /** 情報工作 report: approval*256+peace of the infiltrated base. */
     val report:Int=0,val tradeQuote:TradeActions.Quote?=null,val tradeReportCountry:CountryId?=null,
-    val productionQuote:ProductionActions.Quote?=null,val tacticalOfficeOutfits: Set<Int> = emptySet())
+    val productionQuote:ProductionActions.Quote?=null,val tacticalOfficeOutfits: Set<Int> = emptySet(),val proposalId:Int=0)
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,
@@ -67,7 +68,8 @@ object SocialActions {
     const val DAY=86400L
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
         navigators:Collection<Navigator> = emptyList(),accounts:Map<String,Navigator> = emptyMap(),
-        countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
+        countries:CountryCatalog=CountryCatalogLoader.current(),
+        assignmentBlocked:(PlanetStocks,StockAssignmentProposal)->Boolean = {_,_->false}):SocialResult {
         if(p?.characterId==r.identity.characterId && BattleDeath.deceased(s,p.characterId))
             return SocialResult(p,s,SocialRejection.IDENTITY)
         if(r.identity.command in GatheringActions.commands)return GatheringActions.evaluate(g,r,session,p,s,accounts,countries)
@@ -82,7 +84,7 @@ object SocialActions {
         if(r.identity.command in OrbitalStrikeActions.commands)return OrbitalStrikeActions.evaluate(g,r,session,p,s,navigators)
         // A detainee (U-25) cannot run social commands.
         if(p!=null && s.social.justice.detained(p.characterId))return SocialResult(p,s,SocialRejection.BUSY)
-        if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts,countries)
+        if(r.identity.command in ProposalActions.commands)return ProposalActions.evaluate(g,r,session,p,s,accounts,countries,assignmentBlocked)
         if(r.identity.command in AcademyActions.commands)return AcademyActions.evaluate(g,r,session,p,s,navigators,countries)
         if(r.identity.command==MeetingActions.MEETING)return MeetingActions.evaluate(r,session,p,s,navigators)
         val i=r.identity

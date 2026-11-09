@@ -16,17 +16,26 @@ data class ProposalMail(val id:Int,val sender:Int,val recipient:Int,val senderCa
     /** Null only in old records whose original 2/3 country is identified by the office card. */
     val country:CountryId?=null,
     /** Native mail rank: before demotion or after special promotion. Absent in earlier records. */
-    val rankChangeMailRank:Int?=null) {
+    val rankChangeMailRank:Int?=null,
+    val assignment: StockAssignmentProposal? = null,
+    val assignmentOriginalRecipient: Int = 0,
+    val assignmentExpired: Boolean = false) {
     init {require(id>0 && sender>0 && recipient>0 && sender!=recipient && senderCard in 0..260 && card in 1..260 &&
         command in 0..0xffff && createdAt in 0..expiresAt && expiresAt<=0xffffffffL && reply in -1..3 && pcp>=0 && mcp>=0 &&
         target>=0 && targetCard in 0..260 && (if(ProposalActions.rankChange(command)) target>0 && targetCard==0 else (target==0)==(targetCard==0)) && seat>=0 && (seat==0 || target>0) &&
-        (rankChangeMailRank==null || ProposalActions.rankChange(command) && reply==Proposals.APPROVE && rankChangeMailRank in 2..19))}
-    val pending get()=reply<0
+        (rankChangeMailRank==null || ProposalActions.rankChange(command) && reply==Proposals.APPROVE && rankChangeMailRank in 2..19) &&
+        (if (assignment == null) command != ProposalActions.ASSIGNMENT && assignmentOriginalRecipient == 0 && !assignmentExpired
+        else command == ProposalActions.ASSIGNMENT && assignmentOriginalRecipient > 0 && assignmentOriginalRecipient != sender &&
+            country != null && target == 0 && targetCard == 0 && seat == 0 && (!assignmentExpired || reply < 0)))}
+    val pending get()=reply<0 && !assignmentExpired
     val originCountry get()=country ?: OrganizationOffices.of(card)?.let {CountryId(it.power)}
 }
 /** [blocked] keys are (sender,recipient,command) refused with 拒絶, valued by the game second the refusal ends. */
 data class ProposalState(val mails:List<ProposalMail> = emptyList(),val blocked:Map<Triple<Int,Int,Int>,Long> = emptyMap()) {
-    init {require(mails.size<=4096 && mails.distinctBy {it.id}.size==mails.size && blocked.size<=4096 &&
+    init {
+        val assignmentTokens = mails.mapNotNull { mail -> mail.assignment?.let { mail.sender to it.token } }
+        require(assignmentTokens.distinct().size == assignmentTokens.size)
+        require(mails.size<=4096 && mails.distinctBy {it.id}.size==mails.size && blocked.size<=4096 &&
         blocked.values.all {it in 0..0xffffffffL})}
     fun detached()=copy(mails=java.util.Collections.unmodifiableList(ArrayList(mails)),
         blocked=java.util.Collections.unmodifiableMap(LinkedHashMap(blocked)))
@@ -40,12 +49,14 @@ object Proposals {
     const val REFUSE=1
     /** Creates a pending row; the caller has checked range, cards and paid the sender's half. */
     fun open(state:ProposalState,id:Int,sender:Int,recipient:Int,senderCard:Int,card:Int,command:Int,order:Boolean,
-        now:Long,pcp:Int,mcp:Int,target:Int=0,targetCard:Int=0,seat:Int=0,country:CountryId?=null):Pair<ProposalState,ProposalRejection?> {
+        now:Long,pcp:Int,mcp:Int,target:Int=0,targetCard:Int=0,seat:Int=0,country:CountryId?=null,
+        assignment: StockAssignmentProposal? = null):Pair<ProposalState,ProposalRejection?> {
         if((state.blocked[Triple(sender,recipient,command)] ?: 0)>now)return state to ProposalRejection.BLOCKED
         val live=state.mails.filter {it.expiresAt>now || !it.pending}
         if(live.size>=4096 || now>0xffffffffL-LIFETIME)return state to ProposalRejection.MAXIMUM
         val mail=ProposalMail(id,sender,recipient,senderCard,card,command,order,now,now+LIFETIME,pcp=pcp,mcp=mcp,
-            target=target,targetCard=targetCard,seat=seat,country=country)
+            target=target,targetCard=targetCard,seat=seat,country=country,assignment=assignment,
+            assignmentOriginalRecipient=if(assignment==null)0 else recipient)
         return state.copy(mails=live+mail,blocked=state.blocked.filterValues {it>now}) to null
     }
     /** The recipient answers a pending row once. 拒絶 also blocks the same command from the same sender for a day. */
@@ -60,5 +71,7 @@ object Proposals {
     }
     /** Pending rows past their lifetime; the caller refunds each sender's half and then drops them. */
     fun expired(state:ProposalState,now:Long)=state.mails.filter {it.pending && it.expiresAt<=now}
-    fun withoutExpired(state:ProposalState,now:Long)=state.copy(mails=state.mails.filterNot {it.pending && it.expiresAt<=now})
+    fun withoutExpired(state:ProposalState,now:Long)=state.copy(mails=state.mails.mapNotNull {
+        if(!it.pending || it.expiresAt>now)it else if(it.assignment==null)null else it.copy(assignmentExpired=true)
+    })
 }

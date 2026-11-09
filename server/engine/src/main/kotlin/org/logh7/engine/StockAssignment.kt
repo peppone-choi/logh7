@@ -18,11 +18,88 @@ class StockAssignmentRequest(val account: String, val connection: String, val ch
             troops.all { it.kind in 0..65535 && it.grade in 0..255 && it.units in -32768..32767 })
     }
 }
+class StockAssignmentProposal(val token: Int, val base: Int, val outfit: Int, val kind: Int,
+    ships: List<ReorganizationShip>, troops: List<ReorganizationTroop>, val supplies: Int) {
+    val ships: List<ReorganizationShip> = java.util.Collections.unmodifiableList(ArrayList(ships))
+    val troops: List<ReorganizationTroop> = java.util.Collections.unmodifiableList(ArrayList(troops))
+
+    init {
+        require(token > 0)
+        request("", "", 1, null, 1)
+    }
+
+    internal fun request(account: String, connection: String, character: Int, country: CountryId?, generation: Long) =
+        StockAssignmentRequest(account, connection, character, country, generation, base, outfit, kind, ships, troops, supplies)
+
+    override fun equals(other: Any?): Boolean = other is StockAssignmentProposal &&
+        token == other.token && base == other.base && outfit == other.outfit && kind == other.kind &&
+        ships == other.ships && troops == other.troops && supplies == other.supplies
+
+    override fun hashCode(): Int = listOf(token, base, outfit, kind, ships, troops, supplies).hashCode()
+}
+
 data class StockAssignmentResult(val player: Navigator?, val stocks: PlanetStocks?,
     val rejection: LogisticsRejection? = null, val changed: Boolean = false, val recovery: NavigationResult? = null)
 
 internal object StockAssignment {
     const val COST = 160 // Web manual, logistics command table: MCP 160, no wait.
+
+    fun preview(request: StockAssignmentRequest, actor: Navigator, stocks: PlanetStocks, galaxy: Galaxy,
+        requiredCard: Int? = null, countries: CountryCatalog = CountryCatalogLoader.current(),
+        blocked: () -> Boolean = { false }): StockAssignmentResult {
+        fun reject(reason: LogisticsRejection) = StockAssignmentResult(actor, stocks, reason)
+        if (request.generation != stocks.generation) return reject(LogisticsRejection.SESSION)
+        if (actor.generation != request.generation || actor.characterId != request.characterId ||
+            actor.country != request.country) return reject(LogisticsRejection.IDENTITY)
+        val country = actor.country ?: return reject(LogisticsRejection.ACCESS)
+        if (BattleDeath.deceased(stocks, actor.characterId) || stocks.social.justice.detained(actor.characterId))
+            return reject(LogisticsRejection.ACCESS)
+        val outfit = stocks.outfits[request.outfit] ?: return reject(LogisticsRejection.OUTFIT)
+        val transfer = try {
+            transfer(request, stocks)
+        } catch (_: IllegalArgumentException) {
+            return reject(LogisticsRejection.STOCK)
+        } catch (_: NoSuchElementException) {
+            return reject(LogisticsRejection.OUTFIT)
+        }
+        if (!TacticalAuthority.canAccessOutfitWarehouse(stocks, outfit, actor.characterId, country) ||
+            !LogisticsOfficePolicy(galaxy, countries).permits(stocks, actor.characterId, country, outfit.kind, requiredCard))
+            return reject(LogisticsRejection.ACCESS)
+        if (blocked()) return reject(LogisticsRejection.BUSY)
+        val next = try {
+            applyTransfer(stocks, outfit, transfer, request.supplies).also { validateReply(it, request) }
+        } catch (_: IllegalArgumentException) {
+            return reject(LogisticsRejection.STOCK)
+        }
+        return StockAssignmentResult(actor, next, changed = next != stocks)
+    }
+
+    fun applyTransfer(stocks: PlanetStocks, outfit: OutfitStock, transfer: UnitTransfer, supplies: Int): PlanetStocks {
+        require(transfer.ships.keys.all { key ->
+            ProductionUnits.definitions.any { it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower }
+        } && transfer.troops.keys.all { key ->
+            ProductionUnits.definitions.any { !it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower }
+        })
+        val base = stocks.bases.getValue(outfit.baseId)
+        val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
+        val moved = ReplacementBoats.moveStored(base.units, base.spareShips, warehouse.units, warehouse.spareShips, transfer)
+        val remaining = base.supplies.toLong() - supplies
+        val received = warehouse.supplies.toLong() + supplies
+        require(remaining in 0..Int.MAX_VALUE.toLong() && received in 0..Int.MAX_VALUE.toLong())
+        return stocks.copy(
+            bases = stocks.bases + (base.baseId to base.copy(units = moved.source, spareShips = moved.sourceSpare, supplies = remaining.toInt())),
+            warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination,
+                spareShips = moved.destinationSpare, supplies = received.toInt())),
+        )
+    }
+
+    fun validateReply(stocks: PlanetStocks, request: StockAssignmentRequest) {
+        val base = stocks.bases.getValue(request.base)
+        val warehouse = stocks.warehouses.getValue(stocks.outfits.getValue(request.outfit).warehouseId)
+        validateReply(base.units, base.spareShips)
+        validateReply(warehouse.units, warehouse.spareShips)
+    }
+
     /** Until native paging is recovered, never commit a result that its reply cannot represent. */
     fun validateReply(units: UnitInventory, spare: SpareShipBoats = SpareShipBoats()) {
         val kinds=(units.ships.keys+spare.values.keys).map {it.kind}.toSet()

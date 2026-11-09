@@ -5,6 +5,128 @@ import kotlin.test.*
 import kotlinx.coroutines.*
 
 class OutfitLogisticsTest {
+    @Test fun assignmentPreviewRevalidatesTheChosenOfficeAndMatchesDirectAllocationForAllRows() {
+        val f = Fixture()
+        val returningShip = UnitStack(40)
+        val returningCrew = UnitStack(3, 1)
+        val initial = f.store.saved
+        val warehouse = initial.warehouses.getValue(101)
+        f.store.saved = initial.copy(warehouses = initial.warehouses + (101 to warehouse.copy(
+            units = UnitInventory(warehouse.units.ships + (returningShip to 2), warehouse.units.troops + (returningCrew to 3)),
+        )))
+        f.production = PlanetProduction(f.galaxy, f.store, f.rules.startSeconds, PlanetProductionPolicy())
+        val before = f.production.settle(f.session)
+        val actor = f.player(10)
+        val request = StockAssignmentRequest("p10", "c10", 10, Power.EMPIRE, 1, 1000, 1, OutfitKind.FLEET.wire,
+            listOf(ReorganizationShip(ship.kind, 2, 0), ReorganizationShip(returningShip.kind, -1, 0)),
+            listOf(ReorganizationTroop(1000 + crew.kind, crew.level, 5),
+                ReorganizationTroop(1000 + returningCrew.kind, returningCrew.level, -2)),
+            supplies = 500)
+        val card = LogisticsOffice.EMPIRE_FIRST.card
+        fun preview(stocks: PlanetStocks = before, requiredCard: Int = card, busy: Boolean = false) =
+            StockAssignment.preview(request, actor, stocks, f.galaxy, requiredCard) { busy }
+
+        assertEquals(LogisticsRejection.ACCESS, preview(requiredCard = LogisticsOffice.EMPIRE_SECOND.card).rejection)
+        assertEquals(LogisticsRejection.ACCESS, preview(before.copy(logisticsOfficers = before.logisticsOfficers - 10)).rejection)
+        assertEquals(LogisticsRejection.BUSY, preview(busy = true).rejection)
+        val withoutShips = before.copy(bases = before.bases + (1000 to before.bases.getValue(1000).copy(units = UnitInventory())))
+        assertEquals(LogisticsRejection.STOCK, preview(withoutShips).rejection)
+        val result = preview()
+        assertTrue(result.changed)
+        assertEquals(actor, result.player)
+        assertEquals(before, f.store.saved)
+        val after = assertNotNull(result.stocks)
+        val nextWarehouse = after.warehouses.getValue(101)
+        assertEquals(mapOf(ship to 12, returningShip to 1), nextWarehouse.units.ships)
+        assertEquals(mapOf(crew to 55, returningCrew to 1), nextWarehouse.units.troops)
+        assertEquals(500, nextWarehouse.supplies)
+
+        val prepared = f.prepare(f.request(10, mode = LogisticsMode.ALLOCATION))
+        val direct = f.act(prepared.copy(transfer = StockAssignment.transfer(request, before), supplies = request.supplies))
+        assertEquals(after, direct.stocks)
+        assertEquals(after, f.store.saved)
+    }
+
+    @Test fun stockAssignmentMailChargesOnceAndRevalidatesReservedStockOnEitherApprovalPath() {
+        val f = Fixture()
+        val sender = f.player(16)
+        val recipient = f.player(10)
+        val accounts = mapOf("p16" to sender, "p10" to recipient)
+        val policy = OrganizationalOfficePolicy(f.galaxy)
+        val initial = f.production.settle(f.session)
+        val stock = policy.set(initial, OfficeHolding(1, 1000, sender.characterId)).let {
+            it.copy(strategic = it.strategic.copy(people = mapOf(sender.characterId to StrategicPerson(rank = 1, influence = 5))))
+        }
+        val payload = StockAssignmentProposal(17, 1000, 1, OutfitKind.FLEET.wire,
+            listOf(ReorganizationShip(ship.kind, 2, 0)),
+            listOf(ReorganizationTroop(1000 + crew.kind, crew.level, 5)), supplies = 500)
+        val open = StrategyActionRequest("p16", "c16", sender.characterId, Power.EMPIRE, 1, ProposalActions.OPEN, 1, 1,
+            target = recipient.characterId, value = ProposalActions.ASSIGNMENT, argument = LogisticsOffice.EMPIRE_FIRST.card)
+        fun evaluate(request: SocialRequest, actor: Navigator, stocks: PlanetStocks,
+            players: Map<String, Navigator> = accounts, busy: Boolean = false) =
+            SocialActions.evaluate(f.galaxy, request, f.session, actor, stocks, players.values, players,
+                assignmentBlocked = { _, _ -> busy })
+        val request = SocialRequest(open, assignment = payload)
+        assertTrue(ProposalActions.assignmentEligible(f.galaxy, stock, recipient, LogisticsOffice.EMPIRE_FIRST.card, payload))
+        assertEquals(SocialRejection.BUSY, evaluate(request, sender, stock, busy = true).rejection)
+        val opened = evaluate(request, sender, stock)
+        assertNull(opened.rejection)
+        val afterOpen = assertNotNull(opened.stocks)
+        val paidSender = assertNotNull(opened.player)
+        val paidAccounts = accounts + ("p16" to paidSender)
+        assertEquals(920, paidSender.mcp)
+        assertEquals(stock.bases, afterOpen.bases)
+        assertEquals(stock.warehouses, afterOpen.warehouses)
+
+        val id = assertNotNull(opened.proposalId)
+        val repeated = evaluate(request, paidSender, afterOpen, paidAccounts)
+        assertEquals(id, repeated.proposalId)
+        assertFalse(repeated.changed)
+        assertEquals(paidSender, repeated.player)
+        val tampered = SocialRequest(open, assignment = StockAssignmentProposal(payload.token, payload.base, payload.outfit,
+            payload.kind, payload.ships, payload.troops, supplies = 501))
+        assertEquals(SocialRejection.QUOTE_CHANGED, evaluate(tampered, paidSender, afterOpen, paidAccounts).rejection)
+
+        val reply = SocialRequest(StrategyActionRequest("p10", "c10", recipient.characterId, Power.EMPIRE, 1,
+            ProposalActions.REPLY, LogisticsOffice.EMPIRE_FIRST.card, 9, target = id, value = Proposals.APPROVE))
+        val refused = evaluate(reply, recipient, afterOpen, paidAccounts, busy = true)
+        assertEquals(SocialRejection.BUSY, refused.rejection)
+        assertEquals(afterOpen, refused.stocks)
+        assertEquals(recipient, refused.player)
+        val approved = evaluate(reply, recipient, afterOpen, paidAccounts)
+        assertNull(approved.rejection)
+        val afterApproval = assertNotNull(approved.stocks)
+        assertEquals(920, approved.player?.mcp)
+        assertEquals(Proposals.APPROVE, afterApproval.social.proposals.mails.single().reply)
+        val warehouse = afterApproval.warehouses.getValue(101)
+        assertEquals(12, warehouse.units.ships[ship])
+        assertEquals(55, warehouse.units.troops[crew])
+        assertEquals(500, warehouse.supplies)
+        assertEquals(stock.bases.getValue(1000).supplies - 500, afterApproval.bases.getValue(1000).supplies)
+        assertEquals(SocialRejection.STALE, evaluate(reply, recipient, afterApproval, paidAccounts).rejection)
+        assertEquals(id, evaluate(request, paidSender, afterApproval, paidAccounts).proposalId)
+
+        val due = f.session.copy(gameMillis = f.session.gameMillis + ProposalActions.ABSENT_ORDER_SECONDS * 1000,
+            participants = f.session.participants - "p10")
+        val offline = paidAccounts.toMutableMap()
+        assertEquals(afterOpen, ProposalActions.settle(f.galaxy, due, offline, afterOpen, assignmentBlocked = { _, _ -> true }))
+        assertEquals(paidAccounts, offline)
+        assertEquals(afterApproval, ProposalActions.settle(f.galaxy, due, offline, afterOpen))
+        assertEquals(920, offline.getValue("p10").mcp)
+        assertEquals(afterApproval, ProposalActions.settle(f.galaxy, due, offline, afterApproval))
+        assertEquals(920, offline.getValue("p10").mcp)
+
+        val expiration = due.copy(gameMillis = f.session.gameMillis + Proposals.LIFETIME * 1000)
+        val expiring = paidAccounts.toMutableMap()
+        val expired = ProposalActions.settle(f.galaxy, expiration, expiring, afterOpen)
+        assertTrue(expired.social.proposals.mails.single().assignmentExpired)
+        assertEquals(1000, expiring.getValue("p16").mcp)
+        assertEquals(stock.bases, expired.bases)
+        assertEquals(id, evaluate(request, expiring.getValue("p16"), expired, expiring).proposalId)
+        assertEquals(expired, ProposalActions.settle(f.galaxy, expiration, expiring, expired))
+        assertEquals(1000, expiring.getValue("p16").mcp)
+    }
+
     @Test fun understrengthWarehouseUnitNeedsOnlyItsActualCrewAndConservesBoatsOnCommit() {
         val f=Fixture()
         val warehouse=f.store.saved.warehouses.getValue(101)
