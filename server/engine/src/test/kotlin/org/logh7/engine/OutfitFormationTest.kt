@@ -198,6 +198,34 @@ class OutfitFormationTest {
         assertTrue(second.outfit>outfit.id);assertTrue(assertNotNull(second.stocks).warehouses.keys.single()>warehouse.id)
         assertTrue(second.stocks.nextShipId>first.nextShipId)
     }
+    @Test fun aTransportMustUnloadItsCargoBeforeDissolution() {
+        val base=stocks(card=25)
+        val hull=UnitStack(ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith("輸送艦")}.kind)
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,hull)))
+        val transport=OutfitStock(1,2,OutfitKind.TRANSPORT,1049,101,
+            units=UnitInventory(ships.quantities()),activeShips=ships,position=OutfitPosition(2487,1049))
+        val empty=base.copy(outfits=mapOf(1 to transport),
+            warehouses=mapOf(101 to OutfitWarehouse(101,2,OutfitKind.TRANSPORT,1049,1)),nextShipId=2)
+        val cargo=TransportPackage(1,transport.country,1049,1050,100,
+            carrier=transport.id,carrierBoats=TransportActions.boats(transport))
+        val loaded=empty.copy(strategic=empty.strategic.copy(transports=listOf(cargo),lastTransportId=1))
+        val service=OutfitFormationService {0L}
+        val request=request(FormationPhase.DELETE,25,OutfitKind.TRANSPORT,26).copy(target=transport.id)
+        val rejected=service.evaluate(galaxy,request,session,player,loaded)
+        assertEquals(StrategyActionRejection.BUSY,rejected.rejection)
+        assertFalse(rejected.changed)
+        assertSame(loaded,rejected.stocks)
+        assertSame(player,rejected.player)
+
+        val dissolved=service.evaluate(galaxy,request,session,player,empty)
+        assertNull(dissolved.rejection)
+        assertTrue(dissolved.changed)
+        val result=assertNotNull(dissolved.stocks)
+        assertTrue(result.outfits.isEmpty())
+        assertTrue(result.warehouses.isEmpty())
+        assertEquals(1,result.bases.getValue(1049).units.ships[hull])
+        assertEquals(player.mcp-160,dissolved.player?.mcp)
+    }
     @Test fun allianceEquipmentOfficeIsDistinctFromAllocatorAndOperationsStaff() {
         val a=Galaxy(listOf(GalaxySystem(3,2015,4,"Home",3)),listOf(
             GalaxyBase(1177,2015,80,0,Capital.ALLIANCE.baseName,0,20f,86400,0,0f,2f)),
