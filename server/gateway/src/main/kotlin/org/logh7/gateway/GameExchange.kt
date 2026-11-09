@@ -2361,13 +2361,19 @@ class GameExchange(
                                             val force=when(query.card) {
                                                 28,169->0;29,170->1;30,171->2;else->error("Not an operation issuing office")
                                             }
+                                            val regular=country?.let {org.logh7.engine.Camp(it)}
+                                            if(regular==null || org.logh7.engine.CoupActions.rebel(inventory,query.character,country))
+                                                return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,emptyList())
                                             val solo=navigation?.snapshot()?.navigators.orEmpty().values.filter {
-                                                it.generation==generation && it.country==country && it.hull?.hp?.let {hp->hp>0}==true &&
+                                                it.generation==generation && org.logh7.engine.TacticalAuthority.camp(it,inventory)==regular &&
+                                                    !org.logh7.engine.BattleDeath.deceased(inventory,it.characterId) &&
+                                                    it.hull?.hp?.let {hp->hp>0}==true &&
                                                     inventory.outfits.values.none {o->it.characterId in o.members()}}.map {it.characterId}.toSet()
                                             val rows=if(force==2)characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
                                                 .filter {it.id.toInt() in solo && it.rank in 2..20}
                                                 .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)}
-                                            else inventory.outfits.values.filter {it.country==country &&
+                                            else inventory.outfits.values.filter {org.logh7.engine.TacticalAuthority.camp(it,inventory)==regular &&
+                                                it.activeShips?.values.orEmpty().any {ship->ship.boats>0} &&
                                                 (if(force==0)it.kind==org.logh7.engine.OutfitKind.FLEET else it.kind in setOf(
                                                     org.logh7.engine.OutfitKind.TRANSPORT,org.logh7.engine.OutfitKind.PATROL))}
                                                 .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id,"부대 ${it.id}")}

@@ -190,21 +190,38 @@ class TacticalCombatTest {
     }
 
     @Test fun deceasedFlagshipRejectsNewFireAndCancelsSavedOrdersAtomically() {
+        assertSavedFlagshipOrdersCancelled(deceased=true)
+    }
+
+    @Test fun eliminatedCountryFlagshipCancelsSavedOrdersAtomically() {
+        assertSavedFlagshipOrdersCancelled(deceased=false)
+    }
+
+    @Test fun eliminatedCountryFlagshipCancelsSavedOrdersWithoutAParticipantRecord() {
+        assertSavedFlagshipOrdersCancelled(deceased=false,registered=false)
+    }
+
+    private fun assertSavedFlagshipOrdersCancelled(deceased:Boolean,registered:Boolean=true) {
         val state=state()
         val live=Navigation(galaxy,state.nav,NavigationPolicy())
         val accepted=assertNotNull(TacticalCombat.accept(request,session,galaxy,live,state.stocks,state.commit,24).player)
         val due=assertNotNull(accepted.fire?.pending).firesAt
-        state.players=mapOf("pilot" to accepted.copy(attack=TacticalAttackOrder(2,now,now,due)))
-        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+        state.players=mapOf("pilot" to accepted.copy(attack=TacticalAttackOrder(2,now,now,due),returnBase=65535))
+        if(deceased)state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+        val current=if(deceased)session else session.copy(participants=session.participants.takeIf {registered}.orEmpty(),
+            eliminated=mapOf(Power.ALLIANCE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.EMPIRE.country)))
         val nav=Navigation(galaxy,state.nav,NavigationPolicy())
         val stock=production(state)
         val before=state.players.getValue("pilot")
         val target=state.stocks.outfits.getValue(1)
-        assertEquals(NavigationRejection.IDENTITY,
-            TacticalCombat.accept(request,session,galaxy,nav,state.stocks,state.commit,24).rejection)
-        assertEquals(NavigationRejection.IDENTITY, TacticalCombat.attack(request.copy(tacticalShoot=null,
-            tacticalAttack=TacticalAttack(listOf(before.unitId),2)),session,galaxy,nav,state.stocks,state.commit,24).rejection)
-        val tick=session.copy(gameMillis=due*1000)
+        if(deceased) {
+            assertEquals(NavigationRejection.IDENTITY,
+                TacticalCombat.accept(request,current,galaxy,nav,state.stocks,state.commit,24).rejection)
+            assertEquals(NavigationRejection.IDENTITY, TacticalCombat.attack(request.copy(tacticalShoot=null,
+                tacticalAttack=TacticalAttack(listOf(before.unitId),2)),current,galaxy,nav,state.stocks,state.commit,24).rejection)
+        }
+        val tick=current.copy(gameMillis=due*1000)
         state.fail=true
         assertFailsWith<java.io.IOException> { TacticalCombat.settle(tick,galaxy,nav,stock,state.commit) }
         assertEquals(before,nav.snapshot(1).getValue("pilot"))
@@ -213,6 +230,7 @@ class TacticalCombatTest {
         val saved=Navigation(galaxy,state.nav,NavigationPolicy()).snapshot(1).getValue("pilot")
         assertNull(saved.attack)
         assertEquals(before.fire!!.copy(pending=null),saved.fire)
+        assertEquals(0,saved.returnBase)
         assertEquals(before.charge,saved.charge)
         assertEquals(before.supplies,saved.supplies)
         assertEquals(target,state.stocks.outfits.getValue(1))
