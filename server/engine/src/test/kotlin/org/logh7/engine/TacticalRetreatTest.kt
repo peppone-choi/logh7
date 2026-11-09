@@ -85,6 +85,28 @@ class TacticalRetreatTest {
         }
     }
 
+    @Test fun flagshipRetreatIgnoresAnEliminatedFleetAtThePreferredExit() {
+        val blocker=OutfitStock(500,2,OutfitKind.FLEET,1000,500,500,
+            UnitInventory(mapOf(UnitStack(32) to 1)),position=OutfitPosition(2486))
+        val pirates=PirateFleet(1,2487,seconds,listOf(PirateUnit(900001,1)))
+        val occupied=stocks.copy(outfits=mapOf(500 to blocker),
+            warehouses=mapOf(500 to OutfitWarehouse(500,2,OutfitKind.FLEET,1000,500)),
+            social=stocks.social.copy(pirates=PirateState(mapOf(1 to pirates),2)))
+        val eliminated=session.copy(eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.SYSTEMS_REDUCED,seconds)))
+        val active=Navigation(galaxy,store(),NavigationPolicy())
+        assertNotEquals(2486,assertNotNull(active.apply(request,session,occupied).player?.retreat).destination)
+        val nav=Navigation(galaxy,store(),NavigationPolicy())
+        val prepared=assertNotNull(nav.apply(request,eliminated,occupied).player?.retreat)
+        assertEquals(2486,prepared.destination)
+        nav.settleRetreats(eliminated.copy(gameMillis=prepared.completesAt*1000),occupied)
+        val moved=nav.snapshot(1).getValue("pilot")
+        assertEquals(2486,moved.grid)
+        assertFalse(moved.cpPaused)
+        assertNull(moved.retreat)
+        assertEquals(pilot.moves+1,moved.moves)
+    }
+
     @Test fun completedPreparationWaitsForLegalExitAndBattleEndCancelsItWithoutWarping() {
         val store=store();val nav=Navigation(galaxy,store,NavigationPolicy())
         val prepared=nav.apply(request,session,stocks).player!!
