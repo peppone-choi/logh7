@@ -27,7 +27,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     starterKinds: Map<Int, List<Int>>? = null,
     shipStyles:Map<Int,ShipStyleId>? = null,
     private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates(),
-    private val worldOccupiedOriginals: () -> Set<Long> = { emptySet() }) {
+    private val worldOccupiedOriginals: () -> Set<Long> = { emptySet() },
+    private val worldGeneratedIdFloor: () -> Long = { 10_000L }) {
     companion object {
         fun originalDefinitions()=OriginalCharacterMessages.localCandidates.map { candidate ->
             val data=KoreanDisplayNames.original(candidate.character)
@@ -77,7 +78,14 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             kinds.isNotEmpty() && kinds.distinct().size == kinds.size && kinds.all { Flagships.find(it)?.power == styles.getValue(power).nativePower }
         })
         if (file != null && Files.exists(file)) {
-            val properties = Properties().also { Files.newBufferedReader(file).use(it::load) }
+            val contents = Files.readString(file)
+            // Older servers skip properties comments and can still open this file.
+            contents.lineSequence().take(2).firstOrNull { it.startsWith("#next-id=") }?.let {
+                val saved = it.substringAfter('=').toLong()
+                require(saved in 10_000L..(Int.MAX_VALUE.toLong() + 1))
+                nextId = saved
+            }
+            val properties = Properties().also { contents.reader().use(it::load) }
             for (account in properties.stringPropertyNames()) {
                 val value = properties.getProperty(account)
                 if (account == "@retired-originals") {
@@ -267,7 +275,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         }
         val temporary = Files.createTempFile(target.parent, "characters-", ".tmp")
         try {
-            Files.newBufferedWriter(temporary).use { properties.store(it, "LOGH7 local characters") }
+            Files.newBufferedWriter(temporary).use { properties.store(it, "LOGH7 local characters\nnext-id=$nextId") }
             Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } finally { Files.deleteIfExists(temporary) }
     }
@@ -296,7 +304,12 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 publishedOriginals.current().values.none {normalized(it.profile.surname)==requested}) { "Surname already reserved" }
             require((pending + registered.mapValues {it.value.character}).none { (owner, data) -> owner != account && normalized(data.surname) == normalized(message.surname) }) { "Surname already reserved" }
             check(pending.size < 4096 || previous != null)
-            message.copy(id = previous?.id ?: nextId++, check = 1)
+            val id = previous?.id ?: run {
+                nextId = maxOf(nextId, worldGeneratedIdFloor())
+                check(nextId <= Int.MAX_VALUE) { "Character IDs exhausted" }
+                nextId++
+            }
+            message.copy(id = id, check = 1)
         } else {
             requireNotNull(previous) { "No character reservation" }
             require(message.id == previous.id && message.power == previous.power && message.origin == previous.origin &&

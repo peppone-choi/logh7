@@ -21,6 +21,31 @@ import kotlin.test.*
 class CharacterStoresTest {
     @TempDir lateinit var directory: Path
 
+    @Test fun retirementAndLegacyWorldHistoryBothPreventGeneratedIdReuse() {
+        val file = directory.resolve("retirement.properties")
+        val profile = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Alpha", "Pilot", 18, 1, 1,
+            1_000_001, List(8) { 50 }, 0, 0, 0, 13, 3, 3, "Ship", 1)
+        val store = CharacterStores(file).get(1)
+        assertTrue(store.carry("pilot", profile))
+        assertTrue(store.retire("pilot", profile.id))
+        assertTrue(Properties().also { Files.newBufferedReader(file).use(it::load) }.isEmpty)
+        val request = profile.copy(category = 0, id = 0)
+        fun reserved(store: CharacterCreation): Long {
+            val reply = store.accept("pilot", request)
+            return CharacterMessages.generate(reply.copyOfRange(4, reply.size)).id
+        }
+        assertEquals(10_001L, reserved(CharacterStores(file).get(1)))
+
+        val session = SessionSnapshot(1, 0, 0, 0, emptyMap(), 0, 0, null)
+        val stocks = PlanetStocks(1, 0, emptyMap(),
+            strategic = StrategicState(people = mapOf(10040 to StrategicPerson(deceasedAt = 1))))
+        val snapshot = WorldSnapshot(0, 0, session, planetStocks = stocks)
+        val legacyFile = Files.writeString(directory.resolve("legacy-empty.properties"), "# LOGH7 local characters\n")
+        val legacy = CharacterStores(legacyFile, worldSnapshot = { snapshot })
+        assertEquals(10_041L, reserved(legacy.get(1)))
+        assertEquals(10_000L, reserved(legacy.get(2)))
+    }
+
     @Test fun worldOnlyOriginalsAreUnavailableInTheirOwnGeneration() {
         val session = SessionSnapshot(1, 0, 0, 0, emptyMap(), 0, 0, null)
         val navigator = Navigator(1, 1001, CountryId(2), 2487, 1000, 1000, 1000)
