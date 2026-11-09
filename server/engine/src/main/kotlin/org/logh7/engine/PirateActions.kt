@@ -48,6 +48,12 @@ object PirateActions {
     fun frontier(g:Galaxy,s:PlanetStocks)=g.systems.map {it.grid}.filter {grid->
         g.bases.none {b->b.grid==grid && s.bases[b.id]?.country!=null}}.distinct().sorted()
 
+    internal fun engaged(g:Galaxy,s:PlanetStocks,players:Collection<Navigator>,grid:Int):Boolean =
+        players.any {it.grid==grid && it.baseId==0 && it.mode==5 && it.cpPaused && it.hull!=null} ||
+            s.outfits.values.any {outfit->outfit.positionIn(g)==OutfitPosition(grid) &&
+                outfit.activeShips?.values.orEmpty().any {ship->ship.boats>0 &&
+                    ship.posture?.takeIf {it.grid==grid}?.mode!=TacticalShipMode.STATIONED}}
+
     /** U-32 strategic movement: fleets not in battle drift to a nearby frontier grid, preferring trade-route ends. */
     fun move(g:Galaxy,s:PlanetStocks,now:Long,engaged:Set<Int>):PlanetStocks {
         var p=s.social.pirates
@@ -73,8 +79,7 @@ object PirateActions {
         impacts:MutableList<TacticalImpact>):PlanetStocks {
         var s=start
         for(fleet in start.social.pirates.fleets.values.filter {it.alive && now-it.firedAt>=FIRE_SECONDS}.sortedBy {it.id}) {
-            val engaged=players.values.any {it.cpPaused && it.grid==fleet.grid && it.baseId==0}
-            if(!engaged)continue
+            if(!engaged(g,s,players.values,fleet.grid))continue
             val observers=fleet.units.filter {it.boats>0}.mapNotNull {pose(s,it.id)?.position}
             for(unit in fleet.units.filter {it.boats>0}) {
                 val origin=pose(s,unit.id) ?: continue
