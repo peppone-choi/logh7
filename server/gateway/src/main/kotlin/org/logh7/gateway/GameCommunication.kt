@@ -77,6 +77,15 @@ class GameCommunication(private val presence:GamePresence,private val generation
         return listOf(Wire.begin(query))+engine.list(owner,received,post).take(100).map {Wire.item(item(it))}+Wire.end()
     }
     private companion object {const val REPLY_ROWS=true}
+    private fun officePost(post:Int)=post>0 && OrganizationOffices.of(post)!=null
+    private fun pendingRecipient(mail:ProposalMail,character:Int,country:CountryId)=
+        mail.pending && mail.recipient==character && mail.originCountry==country
+
+    internal fun pendingOfficeMailCount(state:ProposalState,player:Navigator,posts:Collection<Int>,seconds:Long):Int {
+        val country=player.country ?: return 0
+        val held=posts.filter(::officePost).toSet()
+        return state.mails.count {it.card in held && it.expiresAt>seconds && pendingRecipient(it,player.characterId,country)}
+    }
     /** The row's command field picks the command-name table (constmsg group 18), so it is the manual command number. */
     private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;else -> 0}
     /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
@@ -93,7 +102,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
     private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean):List<ByteArray> {
         // Only office cards own proposal rows; a peerage or fief card row crashed the CD's row builder (0053c933).
-        if(post<=0 || org.logh7.engine.OrganizationOffices.of(post)==null)return emptyList()
+        if(!officePost(post))return emptyList()
         val state=proposals(expected) ?: return emptyList()
         val membership=owner.country ?: return emptyList()
         fun ranked(p:MailIdentity)=rank(p.character)?.let {p.copy(rank=it)} ?: p
@@ -103,7 +112,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
         for(mail in state.mails.sortedBy {it.id}) {
             if(mail.originCountry!=membership)continue
             val type=if(mail.order)1 else 0
-            if(received && mail.pending && mail.recipient==owner.character && mail.card==post)
+            if(received && mail.card==post && pendingRecipient(mail,owner.character,membership))
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),self,mail.createdAt,
                     commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
             // Reply rows need the compatibility DLL's 0053c933 null fix (proposal_approval.h). +0x25b 0 shows 22/77 承諾,
