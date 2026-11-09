@@ -25,8 +25,9 @@ data class NpcStrategicMovement(val generation:Long,val outfit:Int,val source:In
 
 internal object NpcStrategy {
     private fun distance(a:Int,b:Int)=max(abs(a%100-b%100),abs(a/100-b/100))
-    private fun eligible(outfit:OutfitStock)=outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) &&
-        outfit.members().isEmpty() && outfit.activeGround?.values.orEmpty().none {it.order!=null} && outfit.activeShips?.values?.any {it.boats>0}==true &&
+    private fun eligible(outfit:OutfitStock,stocks:PlanetStocks)=outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) &&
+        TacticalAuthority.uncommanded(outfit,stocks) && outfit.activeGround?.values.orEmpty().none {it.order!=null} &&
+        outfit.activeShips?.values?.any {it.boats>0}==true &&
         outfit.activeShips.values.none {it.support!=null || it.attack!=null || it.shot!=null || it.posture?.order!=null || it.tactical?.retreat!=null}
     private fun allowed(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,target:Int):Boolean {
         val count=GridForces.mobileUnits(outfit)
@@ -112,7 +113,7 @@ internal object NpcStrategy {
     }
     /** Reserve real cargo for every remaining jump to a reachable safe depot. */
     fun returnDistance(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):Int? =
-        if(!eligible(outfit) || outfit.positionIn(galaxy).baseId!=0)null else home(galaxy,forces,outfit,stocks)?.jumps
+        if(!eligible(outfit,stocks) || outfit.positionIn(galaxy).baseId!=0)null else home(galaxy,forces,outfit,stocks)?.jumps
     /**
      * Next adjacent grid: towards the nearest enemy it can take on (at most twice its own mobile units), or, when
      * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards a reachable own depot
@@ -217,7 +218,7 @@ internal object NpcStrategy {
             var outfit=stocks.outfits.getValue(id)
             val position=outfit.positionIn(galaxy)
             val owner=stocks.bases[position.baseId]
-            val permitted=outfit.country !in session.eliminated && eligible(outfit) &&
+            val permitted=outfit.country !in session.eliminated && eligible(outfit,stocks) &&
                 (position.baseId==0 || owner?.let {it.country==outfit.country && it.camp==0}==true)
             if(!permitted) {
                 if(outfit.strategy!=null)stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=null)))

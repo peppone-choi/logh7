@@ -413,6 +413,23 @@ class NpcStrategyTest {
             assertTrue(events.isEmpty())
         }
     }
+    @Test fun tacticalCommandTransferCancelsAReservedNpcJumpWithoutSpendingSupplies() {
+        val players=players()
+        val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=advance(0,stocks(),players,events)
+        val fleet=reserved.outfits.getValue(1)
+        assertNotNull(fleet.strategy?.destination)
+        val unit=fleet.activeShips!!.values.single()
+        val assigned=reserved.copy(tacticalCommands=reserved.tacticalCommands.copy(authority=mapOf(unit.id to 10001)))
+
+        val settled=advance(3600,assigned,players,events)
+        assertEquals(fleet.copy(strategy=null),settled.outfits.getValue(1))
+        assertEquals(assigned.bases,settled.bases)
+        assertEquals(assigned.tacticalCommands,settled.tacticalCommands)
+        assertTrue(events.isEmpty())
+        assertEquals(settled,advance(25200,settled,players,events))
+        assertTrue(events.isEmpty())
+    }
     @Test fun capacityIsRecheckedAtArrivalAndCannotOverfillAnotherEmpireForce() {
         val players=players();val events=mutableListOf<NpcStrategicMovement>()
         val reserved=advance(0,stocks(),players,events)
