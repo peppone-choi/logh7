@@ -2231,7 +2231,8 @@ class GameExchange(
                                         if(query.command==org.logh7.engine.EspionageActions.INFILTRATE) {
                                             // U-17: the spots of this base's facilities (row id = spot, name = facility/room numbers).
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
-                                            val spots=if(me.baseId==0)emptyList() else world.galaxy.facilitiesAt(me.baseId,inventory)
+                                            val spots=if(me.baseId !in inventory.bases || me.baseId !in world.galaxy.conditions)emptyList()
+                                                else world.galaxy.facilitiesAt(me.baseId,inventory)
                                                 .flatMap {f->f.spots.map {sp->Triple(sp.id,f.kind,sp.kind)}}.filter {it.first>query.target && it.first!=me.spotId}
                                                 .sortedBy {it.first}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,spots.map {(id,kind,room)->

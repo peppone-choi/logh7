@@ -287,7 +287,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val dockOwner=dueDock?.let {id->
             val base=galaxy.conditions[id]
             val stock=stocks?.bases?.get(id)
-            base!=null && ownBase(ranged,stock?.owner ?: galaxy.initialOwners.getValue(id),stock?.camp ?: base.camp,stocks)
+            base!=null && (stocks==null || stock!=null) &&
+                ownBase(ranged,stock?.owner ?: galaxy.initialOwners.getValue(id),stock?.camp ?: base.camp,stocks)
         }
         val docked = if (dueDock != null && dockOwner!=true)
             fueled.copy(baseId = ranged.baseId, mode = ranged.mode, moves = ranged.moves) else fueled
@@ -626,7 +627,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     stock?.camp ?: base.camp,stocks)) return reject(NavigationRejection.ACCESS)
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
-                if (before.spotId != 0 && (before.spotOwner != 0 ||
+                if (before.spotId != 0 && (before.spotOwner != 0 || stocks != null && stock == null ||
                     galaxy.facilitiesAt(before.baseId, stocks,countries).none { facility -> facility.kind == 4 &&
                         facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
                     return reject(NavigationRejection.EMBARKED)
@@ -643,6 +644,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     val base = galaxy.conditions[move.baseId] ?: return reject(NavigationRejection.BASE)
                     if (base.grid != before.grid || move.mode != 4) return reject(NavigationRejection.BASE)
                     val stock=stocks?.bases?.get(base.baseId)
+                    if (stocks != null && stock == null) return reject(NavigationRejection.BASE)
                     if (!ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),stock?.camp ?: base.camp,stocks))
                         return reject(NavigationRejection.ACCESS)
                     if (before.baseId == move.baseId && before.mode == move.mode) return reject(NavigationRejection.BASE)
@@ -660,15 +662,18 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             }
             is PlaceMove.Spot -> {
                 if (before.baseId == 0) return reject(NavigationRejection.BASE)
-                val condition = galaxy.conditions.getValue(before.baseId)
+                val condition = galaxy.conditions[before.baseId]
                 val stored = stocks?.bases?.get(before.baseId)
-                val friendly = ownBase(before,stored?.owner ?: galaxy.initialOwners.getValue(condition.baseId),
-                    stored?.camp ?: condition.camp,stocks)
-                val facilities = galaxy.facilitiesAt(before.baseId, stocks,countries)
+                val available = condition != null && (stocks == null || stored != null)
+                if (move.id != 0 && !available) return reject(NavigationRejection.BASE)
+                val facilities = if (available) galaxy.facilitiesAt(before.baseId, stocks,countries) else emptyList()
                 val target = facilities.singleOrNull { f -> f.spots.any { it.id == move.id } }
                 if (move.id == 0) {
                     if (move.owner != before.characterId || before.spotId == 0) return reject(NavigationRejection.SPOT)
                 } else {
+                    val base = checkNotNull(condition)
+                    val friendly = ownBase(before,stored?.owner ?: galaxy.initialOwners.getValue(base.baseId),
+                        stored?.camp ?: base.camp,stocks)
                     val spot = target?.spots?.single { it.id == move.id } ?: return reject(NavigationRejection.SPOT)
                     if (move.id == before.spotId && move.owner == before.spotOwner) return reject(NavigationRejection.SPOT)
                     val allowed = when (spot.access) {
