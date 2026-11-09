@@ -72,6 +72,7 @@ internal object TacticalPostureOperations {
         fun reject(why:NavigationRejection)=NavigationResult(null,player,why)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
+        if(stocks.social.justice.detained(player.characterId))return reject(NavigationRejection.BUSY)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(player.hull?.woundedUntil?.let {it>session.gameMillis/1000}==true)return reject(NavigationRejection.WOUNDED)
         val command=checkNotNull(request.tacticalPosture);val now=session.gameMillis/1000

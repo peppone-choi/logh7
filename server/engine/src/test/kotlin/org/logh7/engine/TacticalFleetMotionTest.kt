@@ -13,6 +13,29 @@ class TacticalFleetMotionTest {
         assertEquals(NavigationRejection.IDENTITY,nav.apply(request(listOf(1010000)),session,p.snapshot(1)!!).rejection)
         assertEquals(players,s.players);assertEquals(stocks,s.stocks)
     }
+    @Test fun detentionRejectsNewMovementAndStopsSavedFlagshipAndFleetMotion() {
+        val s=state()
+        val mixed=request(listOf(1,1010000))
+        val accepted=move(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),mixed)
+        assertEquals(setOf(1,1010000),accepted.tacticalMotions.keys)
+        val detention=Detention(10000,Power.EMPIRE.country,now,now+Justice.DAY)
+        s.stocks=s.stocks.copy(social=s.stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        val p=production(s)
+        assertEquals(NavigationRejection.BUSY,move(s,nav,p,mixed).rejection)
+        assertEquals(NavigationRejection.BUSY,nav.apply(request(listOf(1010000)),session,p.snapshot(1)!!).rejection)
+        val events=mutableListOf<TacticalMovement>()
+        val tick=session.copy(gameMillis=(now+10)*1000)
+        TacticalCombat.settle(tick,galaxy,nav,p,s.commit,onMovement=events::add)
+        assertEquals(setOf(1,1010000),events.map {it.unit}.toSet())
+        for(event in events) {
+            assertEquals(-1,event.waypoint)
+            assertEquals(0f,event.motion!!.velocity)
+            assertEquals(accepted.tacticalMotions.getValue(event.unit).pose(now+10),event.motion.origin)
+        }
+        TacticalCombat.settle(tick,galaxy,nav,p,s.commit,onMovement=events::add)
+        assertEquals(2,events.size)
+    }
     @Test fun aCommandersDifferentStyleFlagshipMovesWithItsOwnCountrysFleet() {
         val s=state()
         s.players=s.players.mapValues {(_,p)->p.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(89,now,hp=40))}
@@ -62,6 +85,10 @@ class TacticalFleetMotionTest {
     }
     @Test fun deceasedCommandersSavedRotationStopsAtTheOriginalPose() = assertSavedRotationStopsAtTheOriginalPose { s ->
         s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now) {_,_->true}
+    }
+    @Test fun detainedCommandersSavedRotationStopsAtTheOriginalPose() = assertSavedRotationStopsAtTheOriginalPose { s ->
+        val detention=Detention(10000,Power.EMPIRE.country,now,now+Justice.DAY)
+        s.stocks=s.stocks.copy(social=s.stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
     }
     @Test fun woundedCommandersSavedRotationStopsAtTheOriginalPose() = assertSavedRotationStopsAtTheOriginalPose { s ->
         val pilot=s.players.getValue("pilot")

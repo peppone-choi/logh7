@@ -54,6 +54,7 @@ internal object TacticalGroundOperations {
         val p=players.singleOrNull {it.characterId==order.character} ?: return false
         val carrier=o.activeShips?.values?.singleOrNull {it.id==order.carrier} ?: return false
         return operational(carrier,stocks) && !BattleDeath.deceased(stocks,p.characterId) &&
+            !stocks.social.justice.detained(p.characterId) &&
             p.generation==stocks.generation && (p.hull?.woundedUntil ?: 0)<=now &&
             p.cpPaused && p.baseId==0 && p.mode==5 && p.grid==order.grid && owned(o,carrier.id,p,galaxy,stocks) &&
             berth(o,carrier.id,order.grid,stocks)?.base==order.base && when(order.action) {
@@ -109,6 +110,7 @@ internal object TacticalGroundOperations {
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(BattleDeath.deceased(stocks,p.characterId))return reject(NavigationRejection.IDENTITY)
+        if(stocks.social.justice.detained(p.characterId))return reject(NavigationRejection.BUSY)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
         val now=session.gameMillis/1000;val command=checkNotNull(request.tacticalGround)
         if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)
@@ -145,6 +147,7 @@ internal object TacticalGroundOperations {
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(BattleDeath.deceased(stocks,p.characterId))return reject(NavigationRejection.IDENTITY)
+        if(stocks.social.justice.detained(p.characterId))return reject(NavigationRejection.BUSY)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
         val now=session.gameMillis/1000;val command=checkNotNull(request.tacticalGround)
         if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)

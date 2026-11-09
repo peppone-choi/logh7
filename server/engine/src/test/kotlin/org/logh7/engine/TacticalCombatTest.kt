@@ -247,26 +247,35 @@ class TacticalCombatTest {
         assertSavedFlagshipOrdersCancelled(deceased=false,participantCountry=Power.EMPIRE.country)
     }
 
+    @Test fun detainedFlagshipCancelsSavedOrdersAtomically() {
+        assertSavedFlagshipOrdersCancelled(deceased=false,detained=true)
+    }
+
     private fun assertSavedFlagshipOrdersCancelled(deceased:Boolean,registered:Boolean=true,
-        participantCountry:CountryId=Power.ALLIANCE.country) {
+        participantCountry:CountryId=Power.ALLIANCE.country,detained:Boolean=false) {
         val state=state()
         val live=Navigation(galaxy,state.nav,NavigationPolicy())
         val accepted=assertNotNull(TacticalCombat.accept(request,session,galaxy,live,state.stocks,state.commit,24).player)
         val due=assertNotNull(accepted.fire?.pending).firesAt
         state.players=mapOf("pilot" to accepted.copy(attack=TacticalAttackOrder(2,now,now,due),returnBase=65535))
         if(deceased)state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+        if(detained) {
+            val detention=Detention(10000,Power.ALLIANCE.country,now,now+Justice.DAY)
+            state.stocks=state.stocks.copy(social=state.stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
+        }
         val participants=session.participants.takeIf {registered}.orEmpty().mapValues {(_,member)->member.copy(country=participantCountry)}
-        val current=if(deceased)session else session.copy(participants=participants,
+        val current=if(deceased || detained)session else session.copy(participants=participants,
             eliminated=mapOf(Power.ALLIANCE.country to
             CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.EMPIRE.country)))
         val nav=Navigation(galaxy,state.nav,NavigationPolicy())
         val stock=production(state)
         val before=state.players.getValue("pilot")
         val target=state.stocks.outfits.getValue(1)
-        if(deceased) {
-            assertEquals(NavigationRejection.IDENTITY,
+        if(deceased || detained) {
+            val rejection=if(deceased)NavigationRejection.IDENTITY else NavigationRejection.BUSY
+            assertEquals(rejection,
                 TacticalCombat.accept(request,current,galaxy,nav,state.stocks,state.commit,24).rejection)
-            assertEquals(NavigationRejection.IDENTITY, TacticalCombat.attack(request.copy(tacticalShoot=null,
+            assertEquals(rejection, TacticalCombat.attack(request.copy(tacticalShoot=null,
                 tacticalAttack=TacticalAttack(listOf(before.unitId),2)),current,galaxy,nav,state.stocks,state.commit,24).rejection)
         }
         val tick=current.copy(gameMillis=due*1000)

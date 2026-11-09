@@ -132,6 +132,14 @@ class TacticalSupportTest {
     }
 
     @Test fun eliminatedFleetCancelsSavedRepairAndSupplyWithoutSpendingCargo() {
+        assertSupportCancelled(detained=false)
+    }
+
+    @Test fun detainedCommanderCancelsSavedRepairAndSupplyWithoutSpendingCargo() {
+        assertSupportCancelled(detained=true)
+    }
+
+    private fun assertSupportCancelled(detained:Boolean) {
         for(action in TacticalSupportAction.entries) {
             val s=state(repair=action==TacticalSupportAction.REPAIR)
             val command=request(action,2)
@@ -139,8 +147,14 @@ class TacticalSupportTest {
             val readyAt=assertNotNull(accepted.supportReadyAt)
             val before=s.stocks.outfits.getValue(1)
             val units=before.activeShips!!.values
+            if(detained) {
+                val pilot=s.players.getValue("pilot")
+                val detention=Detention(pilot.characterId,Power.EMPIRE.country,now,readyAt+1)
+                s.stocks=s.stocks.copy(social=s.stocks.social.copy(justice=JusticeState(detentions=mapOf(pilot.characterId to detention))))
+                assertEquals(NavigationRejection.BUSY,accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).rejection)
+            }
             val defeated=session.copy(gameMillis=readyAt*1000,
-                eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+                eliminated=if(detained)emptyMap() else mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
             val out=mutableListOf<TacticalSupportResult>()
             TacticalCombat.settle(defeated,galaxy,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),
                 s.commit,onSupport=out::add)

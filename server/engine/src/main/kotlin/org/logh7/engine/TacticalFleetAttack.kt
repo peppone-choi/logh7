@@ -19,6 +19,7 @@ internal object TacticalFleetAttack {
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
+        if(stocks.social.justice.detained(player.characterId))return reject(NavigationRejection.BUSY)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         if(!navigation.captainCard(request,player))return reject(NavigationRejection.CARD)
         val command=checkNotNull(request.tacticalAttack)
@@ -79,6 +80,7 @@ internal object TacticalFleetAttack {
                 it.value.country==outfit.country}
             val commander=commanderEntry?.value
             if(outfit.country in session.eliminated || BattleDeath.deceased(stocks,command.commander) ||
+                stocks.social.justice.detained(command.commander) ||
                 TacticalAuthority.commander(outfit,unit,stocks)!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null ||
                 commander==null || commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid ||

@@ -362,7 +362,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             request.tacticalRetreat != null || request.tacticalShoot != null || request.tacticalAttack != null)) return reject(NavigationRejection.WOUNDED)
         // U-25: a detainee stays in the holding room until released (warp, docking, spot moves and supply refused).
         if (stocks?.social?.justice?.detained(request.characterId) == true &&
-            (request.destination != null || request.place != null || request.supplyFuel)) return reject(NavigationRejection.BUSY)
+            (request.destination != null || request.place != null || request.supplyFuel ||
+                request.tacticalMove != null || request.tacticalRetreat != null)) return reject(NavigationRejection.BUSY)
         if (request.shipKind!=null && before.hull!=null && request.shipKind!=before.hull.kind &&
             (request.energy!=null || request.tacticalMove!=null || request.tacticalRetreat!=null ||
                 request.tacticalStop!=null || request.tacticalShoot!=null || request.tacticalAttack!=null)) return reject(NavigationRejection.UNIT)
@@ -565,7 +566,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val delegationEnded = retreat.issuedByOfflineAi &&
                 stocks?.let { TacticalOfflineAi.eligible(session, account, player, it) } != true
             if (player.country in session.eliminated || session.participants[account]?.country in session.eliminated ||
-                BattleDeath.deceased(stocks,player.characterId) || delegationEnded) {
+                BattleDeath.deceased(stocks,player.characterId) ||
+                stocks?.social?.justice?.detained(player.characterId)==true || delegationEnded) {
                 next[account] = player.copy(retreat=null)
                 changed = true
                 continue
