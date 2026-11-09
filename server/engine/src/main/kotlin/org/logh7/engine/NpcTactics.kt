@@ -47,10 +47,12 @@ internal object NpcTactics {
         ?: TacticalDeployment.initial(unit.id,grid,players.values,stocks,galaxy)
 
     private fun contacts(outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,
-        galaxy:Galaxy):List<Contact> = players.values.filter {it.grid==grid && it.baseId==0 && it.cpPaused &&
+        galaxy:Galaxy,eliminated:Set<CountryId>):List<Contact> = players.values.filter {it.country !in eliminated &&
+        it.grid==grid && it.baseId==0 && it.cpPaused &&
         TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now,p.posture,galaxy) ?:
             TacticalDeployment.initial(p.unitId,grid,players.values,stocks,galaxy))} +
-        stocks.outfits.values.filter {TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) && it.positionIn(galaxy)==OutfitPosition(grid)}.flatMap {o ->
+        stocks.outfits.values.filter {it.country !in eliminated && TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) &&
+            it.positionIn(galaxy)==OutfitPosition(grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}.map {u -> Contact(u.id,initial(u,o,grid,now,players,stocks,galaxy))}}
 
     private fun replace(stocks:PlanetStocks,outfit:OutfitStock,unit:ActiveShipUnit):PlanetStocks {
@@ -59,8 +61,9 @@ internal object NpcTactics {
     }
     private fun direction(from:TacticalPoint,to:TacticalPoint)=atan2(to.x-from.x,to.y-from.y)
     private fun stationary(grid:Int,now:Long,pose:TacticalPose)=TacticalMotion(grid,now,pose,0f,pose.direction,listOf(pose.position))
-    private fun exit(galaxy:Galaxy,outfit:OutfitStock,grid:Int,players:Map<String,Navigator>,stocks:PlanetStocks):Int? {
-        val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
+    private fun exit(galaxy:Galaxy,outfit:OutfitStock,grid:Int,players:Map<String,Navigator>,stocks:PlanetStocks,
+        eliminated:Set<CountryId>):Int? {
+        val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks,eliminated)
         val home=galaxy.bases.single {it.id==outfit.baseId}.grid
         val count=GridForces.mobileUnits(outfit).coerceAtMost(Int.MAX_VALUE.toLong()).toInt().coerceAtLeast(1)
         return (-1..1).flatMap {dy->(-1..1).mapNotNull {dx->
@@ -105,7 +108,7 @@ internal object NpcTactics {
             if(live.isEmpty())continue
             val behavior=policy.behavior(session.generation,outfitId)
             val camp=TacticalAuthority.camp(outfit,stocks)
-            val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy)
+            val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy,session.eliminated.keys)
             val detectsEnemies=enemies.isNotEmpty() && live.any { unit ->
                 val observer=initial(unit,outfit,position.grid,now,players,stocks,galaxy).position
                 enemies.any { !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,observer,it.pose.position,now,players.values,stocks) }
@@ -119,7 +122,7 @@ internal object NpcTactics {
                 live.all {stocks.tacticalCommands.confused(it.id)} ||
                 (returnJumps!=null && returnJumps>0 && live.any {cargo.getValue(it.id)<it.boats}) ||
                 live.all {u->TacticalWeapon.entries.all {TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},it).power==0}}
-            val withdrawal=retreat ?: if(critical && detectsEnemies) exit(galaxy,outfit,position.grid,players,stocks)?.let {
+            val withdrawal=retreat ?: if(critical && detectsEnemies) exit(galaxy,outfit,position.grid,players,stocks,session.eliminated.keys)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
             for(id in live.map {it.id}) {
                 outfit=stocks.outfits.getValue(outfitId)
@@ -172,7 +175,7 @@ internal object NpcTactics {
                     if(cost>0 && returnJumps!=null &&
                         OutfitSupplies.distribution(outfit).getValue(id)-cost<returnJumps*unit.boats)continue
                     val precision=behavior==NpcCombatBehavior.PRECISION
-                    val nearby=contacts(outfit,position.grid,now,players,stocks,galaxy)
+                    val nearby=contacts(outfit,position.grid,now,players,stocks,galaxy,session.eliminated.keys)
                     val inArc=(if(precision)nearby else nearby.sortedBy {it.id}).asSequence()
                         .filterNot {TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,pose.position,it.pose.position,
                             now,players.values,stocks)}
@@ -208,7 +211,7 @@ internal object NpcTactics {
             val current=outfit.activeShips!!.values.filter {it.boats>0}
             if(withdrawal!=null && now>=withdrawal.completesAt && current.all {u->
                     u.tactical?.let {it.retreat==withdrawal && RetreatRules.outside(it.motion.pose(now,u.posture,galaxy))}==true}) {
-                val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
+                val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks,session.eliminated.keys)
                 val count=GridForces.mobileUnits(outfit).toInt().coerceAtLeast(1)
                 if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(outfit.country,false),count,false))==GridEntryVerdict.ALLOWED) {
                     stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),strategy=null,

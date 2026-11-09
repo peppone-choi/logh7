@@ -25,6 +25,41 @@ class NpcTacticsTest {
         }
     }
 
+    @Test fun autonomousFireSkipsCloserFlagshipsAndOutfitsOfEliminatedCountries() {
+        val eliminated = CountryId(42)
+        val combat = session.copy(eliminated = mapOf(eliminated to CountryDefeat(EndReason.SYSTEMS_REDUCED, now)))
+        val state = state()
+        val original = state.stocks.outfits.getValue(1)
+        val unit = original.activeShips!!.values.single()
+        val pilot = state.players.getValue("pilot")
+        fun pose(x: Float, y: Float, heading: Float = 0f): TacticalMotion {
+            val point = TacticalPoint(x, y)
+            return TacticalMotion(2488, now, TacticalPose(point, heading), 0f, heading, listOf(point))
+        }
+        val shooter = unit.copy(tactical = NpcTacticalState(pose(-178f, -95f, (-Math.PI / 2).toFloat()), now + 1, now))
+        val firing = original.copy(activeShips = ActiveShipUnits(listOf(shooter)))
+        val near = pose(-180f, -94.6f)
+        for (flagship in listOf(true, false)) {
+            val players = mutableMapOf("pilot" to pilot.copy(motion = pose(-182.5f, -95f)))
+            val outfits = mutableMapOf(1 to firing)
+            if (flagship) {
+                players["eliminated"] = pilot.copy(characterId = 10001, country = eliminated, motion = near)
+            } else {
+                val ship = unit.copy(id = 2, tactical = NpcTacticalState(near, now + 1, now))
+                outfits[2] = original.copy(id = 2, country = eliminated, warehouseId = 11,
+                    activeShips = ActiveShipUnits(listOf(ship)))
+            }
+            val warehouses = state.stocks.warehouses.let {
+                if (flagship) it else it + (11 to it.getValue(10).copy(id = 11, country = eliminated, outfitId = 2))
+            }
+            val stocks = state.stocks.copy(outfits = outfits, warehouses = warehouses, nextShipId = 3)
+            val impacts = mutableListOf<TacticalImpact>()
+            NpcTactics.advance(combat, galaxy, players, stocks,
+                NpcTacticalPolicy(behavior = { _, _ -> NpcCombatBehavior.PRECISION }), 24, impacts, mutableListOf())
+            assertEquals(setOf(pilot.unitId), impacts.map { it.hit.target }.toSet())
+        }
+    }
+
     @Test fun aStarHidesTargetsFromOutsideObserversButAllowsFireInsideTheSensorCircle() {
         val world=Galaxy(galaxy.systems.map { if(it.grid==2488)it.copy(star=0) else it },galaxy.bases,galaxy.starts)
         val heading=(-Math.PI/2).toFloat()
@@ -366,6 +401,27 @@ class NpcTacticsTest {
         assertNull(state.stocks.outfits.getValue(1).activeShips!!.values.single().tactical)
         assertEquals(2487,moves.last().destination);assertEquals(10000,moves.last().recipients.keys.single())
     }
+    @Test fun npcRetreatIgnoresEliminatedMobileForcesWhenChoosingAndEnteringItsDestination() {
+        val state = state(75)
+        val eliminated = CountryId(42)
+        val retreatSession = session.copy(eliminated = mapOf(eliminated to CountryDefeat(EndReason.SYSTEMS_REDUCED, now)))
+        val players = state.players.toMutableMap()
+        players["eliminated"] = Navigator(1, 10001, Power.ALLIANCE, 2487, 1000, 1000, 1000).copy(country = eliminated)
+        val movements = mutableListOf<TacticalMovement>()
+
+        val preparing = NpcTactics.advance(retreatSession, galaxy, players, state.stocks,
+            NpcTacticalPolicy(), 24, mutableListOf(), movements)
+        val retreat = assertNotNull(preparing.outfits.getValue(1).activeShips!!.values.single().tactical?.retreat)
+        assertEquals(2487, retreat.destination)
+
+        // A second live camp joins the destination after the retreat is accepted.
+        players["other"] = Navigator(1, 10002, Power.ALLIANCE, 2487, 1000, 1000, 1000)
+        val arrived = NpcTactics.advance(retreatSession.copy(gameMillis = retreat.completesAt * 1000),
+            galaxy, players, preparing, NpcTacticalPolicy(), 24, mutableListOf(), movements)
+        assertEquals(OutfitPosition(2487), arrived.outfits.getValue(1).position)
+        assertEquals(listOf(2487), movements.mapNotNull { it.destination })
+    }
+
     @Test fun aSavedNpcRetreatCannotWarpOnItsCompletionTickAfterElimination() {
         val state=state(75)
         val moves=mutableListOf<TacticalMovement>()
