@@ -271,7 +271,8 @@ internal object TacticalCombat {
             }
         }
         if(stocks.tacticalCommands.emergencySupplies.isEmpty() && stocks.tacticalCommands.fortresses.values.none {it.motion.velocity>0} && stocks.tacticalCommands.orders.isEmpty() && stocks.tacticalCommands.air.isEmpty() && stocks.tacticalCommands.missions.isEmpty() && !BaseOccupationOperations.pending(stocks,galaxy) && !FortressArmor.pending(stocks,galaxy,players.values) && stocks.groundBattles.isEmpty() && galaxy.bases.none {GroundBattleOperations.contested(stocks,it)} && due.isEmpty() && players.values.none {it.posture?.order!=null} && players==original && inventory==stocks && !npcPolicy.enabled && (session.ended!=null || committer==null || economy(galaxy,session,players,stocks)==stocks) && stocks.social.pirates.fleets.values.none {f->f.alive && players.values.any {it.cpPaused && it.grid==f.grid}} && stocks.outfits.values.none {
-            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null || u.posture?.order!=null}==true || it.activeGround?.values?.any {u->u.order!=null}==true})return emptyList()
+            it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null || u.posture?.order!=null}==true || it.activeGround?.values?.any {u->u.order!=null}==true} &&
+            (session.ended!=null || committer==null || stocks.social.proposals.mails.none {it.pending}))return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
         val impacts = mutableListOf<TacticalImpact>()
         inventory=TacticalCommandOperations.advance(session,galaxy,players,inventory,scale,commands,impacts)
@@ -346,6 +347,9 @@ internal object TacticalCombat {
         inventory=SinkingExperience.apply(inventory,departedIds.distinct(),
             departedIds.takeIf {it.isNotEmpty()}?.let {production.identities?.invoke()}.orEmpty())
         clearFinishedOrders(players,galaxy,inventory,now)
+        if(inventory.social.coup!=stocks.social.coup)players.replaceAll {_,player->
+            navigation.clearInvalidReturnBase(player,inventory)
+        }
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)
         val recovered = settleOfficeRecovery(stocks, prepared, players)
