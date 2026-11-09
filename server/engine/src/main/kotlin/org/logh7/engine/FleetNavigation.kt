@@ -9,21 +9,21 @@ internal object FleetNavigation {
         val players = navigation.snapshot(session.generation)
         val saved = players[request.account]
         val before = saved?.takeIf { it.blocksFirstEntry(request,stocks) }
-        // Manual pp.60/75: Kircheis and Lohengramm hold separate offices in the Empire's Second Fleet at Odin.
-        val startingRole=when {
-            request.characterId==1001 -> FleetOffice.EMPIRE_AIDE
-            request.startingOffice?.accepts(request.characterId.toLong(),request.country,request.rank)==true -> FleetOffice.EMPIRE_COMMANDER
-            else -> null
+        // Manual pp.60, 66, 75: Kircheis shares the Odin deployment with Lohengramm, in the aide's seat.
+        val kircheis=request.characterId==1001
+        val placement=if(kircheis)OriginalStartingOffice.REINHARD_FLEET_2 else request.startingOffice?.takeIf {
+            it.accepts(request.characterId.toLong(),request.country,request.rank)
         }
-        val startingFleet=stocks.outfits[2]?.takeIf {fleet->
-            startingRole!=null && request.initializeOriginal && request.shipKind!=null && request.country==Power.EMPIRE.country &&
+        val startingRole=if(kircheis)FleetOffice.EMPIRE_AIDE else placement?.role
+        val startingFleet=placement?.let {site->stocks.outfits[site.fleetId]?.takeIf {fleet->
+            startingRole!=null && request.initializeOriginal && request.shipKind!=null && request.country==site.country &&
                 session.participants[request.account]?.original==true && before==null && committer!=null &&
                 players.values.none {it.characterId==request.characterId} && !BattleDeath.deceased(stocks,request.characterId) &&
-                fleet.country==request.country && fleet.kind==OutfitKind.FLEET && fleet.number==2 && fleet.baseId==1049 &&
-                fleet.positionIn(galaxy).baseId==1049 && startingRole.holders(fleet).isEmpty() && CoupActions.outfitCamp(stocks,fleet)==0 &&
-                stocks.bases[1049]?.let {it.country==request.country && it.camp==0}==true &&
+                fleet.country==site.country && fleet.kind==OutfitKind.FLEET && fleet.number==site.fleetNumber && fleet.baseId==site.baseId &&
+                fleet.positionIn(galaxy).baseId==site.baseId && startingRole.holders(fleet).isEmpty() && CoupActions.outfitCamp(stocks,fleet)==0 &&
+                stocks.bases[site.baseId]?.let {it.country==site.country && it.camp==0}==true &&
                 stocks.outfits.values.none {request.characterId in it.members()}
-        }
+        }}
         val startingPerson=initialProfile?.takeIf {committer!=null && before==null &&
             it.peerage!=null && request.characterId !in stocks.strategic.people}?.let {person->
             val supports=request.country?.let {CountryCatalogLoader.current().supportsNativePeerage(it)}==true

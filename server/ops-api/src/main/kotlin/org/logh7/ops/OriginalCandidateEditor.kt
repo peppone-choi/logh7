@@ -18,6 +18,17 @@ private fun CountryCatalog.candidatePower(id:Int)=countries[id]?.takeIf {it.nati
 
 private fun OriginalStartingOffice.label()=when(this) {
     OriginalStartingOffice.REINHARD_FLEET_2 -> "라인하르트 · 제2함대 사령관 (오딘)"
+    OriginalStartingOffice.VUCOCK_FLEET_5 -> "뷰코크 · 제5함대 사령관 (산타 아나)"
+}
+
+/** The definition DB migrations still missing before [office] can be stored, or null when the store accepts it. */
+private fun missingOfficeMigration(store:OriginalCandidateStore?,office:OriginalStartingOffice):String? {
+    val alliance=office==OriginalStartingOffice.VUCOCK_FLEET_5
+    return when {
+        store?.supportsStartingOffice!=true -> if(alliance)"V16·V17" else "V16"
+        alliance && !store.supportsAllianceStartingOffice -> "V17"
+        else -> null
+    }
 }
 
 internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,published:PublishedOriginalCandidates,images:CountryImageStore?,
@@ -39,7 +50,8 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         call.response.headers.append(HttpHeaders.CacheControl,"no-store")
         val editable=loaded && audit!=null && store?.supportsEditing==true && (!store.supportsPortraits || portraits!=null)
         call.respondText(candidatePage(published,id,newCountry,editable,store?.supportsFemaleFaces==true,
-            store?.supportsPortraits==true,portraits,store?.supportsStartingOffice==true),ContentType.Text.Html)
+            store?.supportsPortraits==true,portraits,OriginalStartingOffice.entries.associateWith {missingOfficeMigration(store,it)}),
+            ContentType.Text.Html)
     }
     post("/admin/original-candidates") {
         if(!authenticated) {
@@ -84,7 +96,7 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
             if(store?.supportsEditing!=true || (profile.gender==1 && !store.supportsFemaleFaces))
                 return@audited OpsOutcome.UNAVAILABLE
             if(portrait!=null && !store.supportsPortraits)return@audited OpsOutcome.UNAVAILABLE
-            if(profile.startingOffice!=null && !store.supportsStartingOffice)return@audited OpsOutcome.UNAVAILABLE
+            if(profile.startingOffice?.let {missingOfficeMigration(store,it)}!=null)return@audited OpsOutcome.UNAVAILABLE
             if(store.supportsPortraits && form["portrait"]==null)return@audited OpsOutcome.INVALID
             withContext(Dispatchers.IO) {
                 val saved=try {store.save(id,revision,profile,country)}
@@ -98,7 +110,7 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
 }
 
 private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCountry:Int?,editable:Boolean,femaleFaces:Boolean,
-    portraitSchema:Boolean,portraits:List<CountryImageInfo>?,officeSchema:Boolean)=buildString {
+    portraitSchema:Boolean,portraits:List<CountryImageInfo>?,officeMigrations:Map<OriginalStartingOffice,String?>)=buildString {
     fun escape(text:String)=text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;")
     fun number(name:String,value:Int,min:Int,max:Int)=
         "<input type=\"number\" name=\"$name\" value=\"$value\" min=\"$min\" max=\"$max\" required>"
@@ -178,21 +190,26 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
     for(peerage in Peerage.entries)append("<option value=\"${peerage.ordinal+1}\"${if(profile.peerage==peerage)" selected" else ""}>${peerageNames[peerage.ordinal]}</option>")
     append("</select></label><p>작위를 주려면 제국 작위 카드를 지원하는 응모 국가와 영속 월드 저장이 필요합니다.</p>")
     val boundOffice=edit?.profile?.startingOffice
-    val office=boundOffice ?: OriginalStartingOffice.REINHARD_FLEET_2
-    val empireCountry=Power.EMPIRE.country
-    val officeRank=(2..20).first {office.accepts(PublishedOriginalCandidates.NEW_IDS.first,empireCountry,it)}
-    val officeRankName=militaryRanks[officeRank-2]
+    // Each creation side offers the office its native country accepts: Reinhard for the empire, Vucock for the alliance.
+    val sideCountry=(if(empire)Power.EMPIRE else Power.ALLIANCE).country
+    val office=boundOffice ?: OriginalStartingOffice.entries.firstOrNull {it.country==sideCountry}
+    val officeRank=office?.let {candidate ->
+        (2..20).firstOrNull {candidate.accepts(PublishedOriginalCandidates.NEW_IDS.first,candidate.country,it)}}
+    val officeRankName=officeRank?.let {militaryRanks[it-2]}
     val officeHolder=edits.values.firstOrNull {it.id!=selected && it.profile.startingOffice==office}
-    val officeEligible=empire && scoped==empireCountry.value &&
+    val officeMigration=office?.let {officeMigrations[it]}
+    val officeEligible=office!=null && officeRank!=null && scoped==office.country.value &&
         (creating || (selected!=null && selected !in definitions && selected in PublishedOriginalCandidates.NEW_IDS))
     if(boundOffice!=null) {
-        append("<p>시작 직책 <strong>${boundOffice.label()}</strong> · 게시 후에는 변경할 수 없습니다. 응모 국가나 시작 계급($officeRankName)을 바꾸면 저장되지 않습니다.</p>")
-    } else if(!officeSchema) {
-        if(empire)append("<p>시작 직책을 지정하려면 정의 DB V16을 적용하세요.</p>")
+        append("<p>시작 직책 <strong>${boundOffice.label()}</strong> · 게시 후에는 변경할 수 없습니다. 응모 국가나 시작 계급${officeRankName?.let {"($it)"}.orEmpty()}을 바꾸면 저장되지 않습니다.</p>")
+    } else if(office==null || officeRank==null) {
+        // No original starting office exists for this creation side.
+    } else if(officeMigration!=null) {
+        append("<p>시작 직책 ${office.label()}을 지정하려면 정의 DB ${officeMigration}을 적용하세요.</p>")
     } else if(officeEligible && officeHolder!=null) {
         append("<p>시작 직책 ${office.label()}은 후보 ${officeHolder.id}에 이미 지정되어 있습니다.</p>")
     } else if(officeEligible) {
-        append("<label>시작 직책 <select name=\"startingOffice\" data-country=\"${empireCountry.value}\" data-rank=\"$officeRank\"><option value=\"\">지정 없음</option>")
+        append("<label>시작 직책 <select name=\"startingOffice\" data-country=\"${office.country.value}\" data-rank=\"$officeRank\"><option value=\"\">지정 없음</option>")
         append("<option value=\"${office.key}\">${office.label()}</option></select></label>")
         append("<p>시작 계급이 ${officeRankName}일 때만 지정할 수 있습니다. 게시 후에는 해제하거나 다른 후보로 옮길 수 없습니다.</p>")
     }

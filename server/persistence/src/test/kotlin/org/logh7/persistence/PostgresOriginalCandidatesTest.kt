@@ -34,7 +34,7 @@ class PostgresOriginalCandidatesTest {
                 val store=PostgresOriginalCandidates(::connect,world)
                 val profile=OriginalCandidateProfile("키르히아이스","지크프리트",112,10,listOf(90,85,80,75,70,65,60,55))
                 connect().use {test->test.createStatement().use {
-                    it.execute("CREATE TABLE nation_country (country_id bigint PRIMARY KEY); INSERT INTO nation_country VALUES (2),(42)")
+                    it.execute("CREATE TABLE nation_country (country_id bigint PRIMARY KEY); INSERT INTO nation_country VALUES (2),(3),(42)")
                     it.execute("""INSERT INTO original_candidate_profile VALUES
                         ('$world',1001,1,'키르히아이스','지크프리트',112,10,'{90,85,80,75,70,65,60,55}')""")
                 }}
@@ -136,6 +136,27 @@ class PostgresOriginalCandidatesTest {
                 val other=PostgresOriginalCandidates(::connect,UUID.randomUUID())
                 assertTrue(other.load().isEmpty())
                 assertNotNull(other.save(rival,0,commander,empire))
+
+                val alliance=CountryId(3)
+                val vucock=profile.copy(surname="뷰코크",givenName="알렉산드르",face=100059,rank=5,
+                    startingOffice=OriginalStartingOffice.VUCOCK_FLEET_5)
+                assertFalse(store.supportsAllianceStartingOffice)
+                assertFailsWith<IllegalArgumentException> {store.save(1099,0,vucock,alliance)}
+                migrate("V17__alliance_original_starting_office.sql")
+                assertEquals(edited,store.load().single {it.profile.startingOffice!=null})
+                assertTrue(store.supportsStartingOffice && store.supportsAllianceStartingOffice)
+                assertFailsWith<IllegalArgumentException> {store.save(1099,0,vucock,empire)}
+                assertFailsWith<IllegalArgumentException> {store.save(1099,0,vucock.copy(rank=6),alliance)}
+                val allianceOfficer=assertNotNull(store.save(1099,0,vucock,alliance))
+                assertNull(store.save(1100,0,vucock,alliance))
+                val reopened=PostgresOriginalCandidates(::connect,world)
+                assertEquals(setOf(edited,allianceOfficer),reopened.load().filter {it.profile.startingOffice!=null}.toSet())
+                assertTrue(reopened.supportsAllianceStartingOffice)
+                connect().use {test->test.createStatement().use {
+                    val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile
+                        SET starting_office='vucock-fleet-5' WHERE world_identity='$world' AND candidate_id=${edited.id}""")}
+                    assertEquals("23514",rejected.sqlState)
+                }}
             } finally {
                 db.createStatement().use {it.execute("DROP SCHEMA $schema CASCADE")}
             }

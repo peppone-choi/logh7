@@ -21,15 +21,22 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
         private set
     @Volatile override var supportsStartingOffice=false
         private set
+    @Volatile override var supportsAllianceStartingOffice=false
+        private set
 
     override fun load():List<OriginalCandidateEdit> = connect().use { db ->
-        supportsFemaleFaces=db.prepareStatement("""
-            SELECT EXISTS (SELECT FROM pg_constraint
-                WHERE conrelid=to_regclass('original_candidate_profile')
-                AND conname='original_candidate_profile_native_face_check' AND convalidated)
+        db.prepareStatement("""
+            SELECT bool_or(conname='original_candidate_profile_native_face_check'),
+                bool_or(conname='original_candidate_profile_starting_offices_check')
+            FROM pg_constraint
+            WHERE conrelid=to_regclass('original_candidate_profile') AND convalidated
         """).use { query ->
             query.queryTimeout=5
-            query.executeQuery().use {rows -> rows.next();rows.getBoolean(1)}
+            query.executeQuery().use { rows ->
+                rows.next()
+                supportsFemaleFaces=rows.getBoolean(1)
+                supportsAllianceStartingOffice=rows.getBoolean(2)
+            }
         }
         db.prepareStatement("SELECT * FROM original_candidate_profile WHERE world_identity=? ORDER BY candidate_id").use { query ->
             query.queryTimeout=5
@@ -89,6 +96,7 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
         val office=profile.startingOffice
         require(portrait==null || portraitColumn)
         require(office==null || officeColumn && office.accepts(id,country,profile.rank))
+        require(office!=OriginalStartingOffice.VUCOCK_FLEET_5 || supportsAllianceStartingOffice)
         val sql=if(expected==0L)"""INSERT INTO original_candidate_profile
             (surname,given_name,face,rank,abilities,country_id,peerage${if(portraitColumn)",portrait_asset" else ""}
                 ${if(officeColumn)",starting_office" else ""},world_identity,candidate_id,revision)
