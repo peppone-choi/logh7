@@ -175,7 +175,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val oldStocks=published.get().planetStocks?.takeIf {it.generation==session.generation}
         val experienced=settleExperience(session)
         val before=navigation.snapshot(session.generation)
-        val previousCoup=production.snapshot(session.generation)?.social?.coup
+        val previousSocial=production.snapshot(session.generation)?.social
         val movements=mutableListOf<TacticalMovement>()
         val strategicMovements=mutableListOf<NpcStrategicMovement>()
         val support=mutableListOf<TacticalSupportResult>()
@@ -229,7 +229,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val settledStocks=production.snapshot(session.generation)
         val changedMerit=if(oldStocks==null)emptyList() else settledStocks?.strategic?.people.orEmpty()
             .filter { (id,person)->person.merit!=(oldStocks.strategic.people[id]?.merit ?: 0L) }.keys.toList()
-        val clearedReturnBases=if(previousCoup==settledStocks?.social?.coup) emptyList() else
+        val clearedReturnBases=if(previousSocial?.coup==settledStocks?.social?.coup) emptyList() else
             navigation.snapshot(session.generation).mapNotNull { (account, player) ->
                 val connection=session.participants[account]?.connection ?: return@mapNotNull null
                 val id=player.characterId
@@ -237,7 +237,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     occupations.none {it.recipients[id]==connection} && fortressSunk.none {it==player} &&
                     impacts.none {it.departed==player && it.recipients[id]==connection} }
             }
-        val changedCharacters=(changedMerit+clearedReturnBases).distinct()
+        val officeTargets=if(previousSocial==null || settledStocks==null) emptySet() else
+            ProposalActions.approvedOfficeTargets(previousSocial.proposals,settledStocks.social.proposals)
+        val changedCharacters=(changedMerit+clearedReturnBases+officeTargets).distinct()
         if(changedCharacters.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changedCharacters)}
         catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
     }

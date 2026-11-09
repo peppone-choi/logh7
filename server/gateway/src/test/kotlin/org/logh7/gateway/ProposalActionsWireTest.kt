@@ -40,6 +40,42 @@ class ProposalActionsWireTest {
         repeat(200){val p=client.receive();if(ByteBuffer.wrap(p).getShort(4).toInt()==opcode)return p};error("Missing $opcode")
     }
     private fun query(client:SyntheticClient,id:Int,card:Int)=client.send(body(Wire.begin(Wire.Query(Wire.Peer(id,extra=listOf(0,0,card)),true,true))))
+    @Test fun nativeAppointmentApprovalRefreshesTheOnlineProposersCards() {
+        val state = State()
+        state.stocks = state.stocks.copy(strategic = state.stocks.strategic.copy(
+            people = state.stocks.strategic.people + (10001 to StrategicPerson(rank = 4, influence = 10))))
+        val (card, seat) = ProposalActions.vacancies(galaxy, state.stocks, 10000, 2, 2, 10001, 4).first()
+        seed(directory)
+        LoadFixture(directory, 2, LoadMetrics(), galaxy, ticking = false, navigationStore = state.navigation,
+            stockStore = state.inventory, worldStateCommitter = state).use { fixture ->
+            val approver = fixture.join(fixture.account(0), false, false).client
+            approver.send(SyntheticClient.opcode(0x0f00)); next(approver, 0x0f01)
+            val proposer = fixture.join(fixture.account(1), false, false).client
+            proposer.send(SyntheticClient.opcode(0x0f00)); next(proposer, 0x0f01)
+            proposer.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10001).putShort(0x7f00).putShort(98).putShort(19)
+                .putShort(ProposalActions.APPOINTMENT.toShort()).putInt(10000).put(0).putInt(17)
+                .putShort(card.toShort()).putInt(seat).putShort(0).array())
+            assertEquals(0, ByteBuffer.wrap(next(proposer, 0x1200)).getShort(16).toInt())
+            next(proposer, 0x1201); next(proposer, 0x0356)
+            val mail = state.stocks.social.proposals.mails.single()
+            assertEquals(10001, mail.target)
+
+            val answer = body(Wire.reply(Wire.Reply(0, mail.id, 0, Wire.Peer(10000), Wire.Peer(10001), 0, 0, 0, Proposals.APPROVE)))
+            approver.send(answer)
+            next(approver, 0x0356)
+            val refreshed = ByteBuffer.wrap(next(proposer, 0x0356))
+            assertEquals(10001, refreshed.getInt(7))
+            val office = OrganizationalOfficePolicy(galaxy)
+            val wireTarget = office.target(assertNotNull(office.role(card, CountryId(2))), seat, state.stocks)
+            assertTrue(listOf(refreshed.limit() - 7, refreshed.limit() - 13).any { offset ->
+                refreshed.getShort(offset).toInt() == card && refreshed.getInt(offset + 2) == wireTarget
+            })
+            assertEquals(Proposals.APPROVE, state.stocks.social.proposals.mails.single().reply)
+            assertEquals(840, state.players.getValue("load-000").pcp)
+            assertEquals(920, state.players.getValue("load-001").mcp)
+        }
+    }
+
     @Test fun anOfficeOrderPaidWithPcpSurvivesRestartAndItsNativeReplyChargesTheRecipientHalfOnce() {
         val state=State()
         fun server(name:String):LoadFixture {

@@ -150,6 +150,29 @@ class TacticalDeadlineTest {
             assertTrue(OrganizationalOfficePolicy(rig.galaxy).held(snapshot.planetStocks,10001).none {it.card==19})
         } finally {rig.engine.drainAndClose()}
     }
+    @Test fun absentDismissalRefreshesItsTargetOnlyAfterTheApprovalIsCommitted() = runTest {
+        val rig = Rig(this, testScheduler, resumedAt = 149375, orderDeadline = true, dismissalOrder = true)
+        val refreshed = mutableListOf<List<Int>>()
+        val subscription = rig.engine.observeCharacterRefresh { ids ->
+            val stocks = assertNotNull(rig.engine.snapshot().planetStocks)
+            assertEquals(Proposals.APPROVE, stocks.social.proposals.mails.single().reply)
+            assertTrue(OrganizationalOfficePolicy(rig.galaxy).held(stocks, 10000).none { it.card == 19 })
+            assertEquals(920, rig.players.getValue("recipient").mcp)
+            refreshed.add(ids)
+        }
+        try {
+            rig.engine.submit(WorldCommand.Probe); runCurrent()
+            advanceTimeBy(624); runCurrent()
+            assertTrue(refreshed.isEmpty())
+            advanceTimeBy(1); runCurrent()
+            assertEquals(listOf(listOf(10000)), refreshed)
+            advanceTimeBy(1000); runCurrent()
+            assertEquals(listOf(listOf(10000)), refreshed)
+        } finally {
+            subscription.close()
+            rig.engine.drainAndClose()
+        }
+    }
     @Test fun proposalExpiryRefundsBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,mailDeadline=true)
         try {
@@ -484,7 +507,7 @@ class TacticalDeadlineTest {
         uncharged:Boolean=false,pirateDeadline:Boolean=false,pirateRegularTarget:Boolean=false,pirateStrategyDeadline:Boolean=false,
         pirateHarmDeadline:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
         awaitIdentities:Boolean=false,mailDeadline:Boolean=false,orderDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
-        operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false) {
+        operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false,dismissalOrder:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -531,6 +554,15 @@ class TacticalDeadlineTest {
                     bases=mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
                     social=stocks.social.copy(proposals=ProposalState(listOf(mail)))),
                     OfficeHolding(19,1049,10001))
+                if(dismissalOrder) {
+                    players=players+("sender" to Navigator(1,10002,Power.EMPIRE,homeGrid,1000,920,1000))
+                    val dismissal=mail.copy(sender=10002,senderCard=1,card=17,command=ProposalActions.DISMISSAL,
+                        target=10000,targetCard=19,mcp=80)
+                    stocks=stocks.copy(strategic=StrategicState(people=mapOf(10001 to StrategicPerson(rank=2),
+                        10000 to StrategicPerson(rank=9)),offices=listOf(OfficeHolding(1,1049,10002),
+                        OfficeHolding(17,1049,10001),OfficeHolding(19,1049,10000))),
+                        social=stocks.social.copy(proposals=ProposalState(listOf(dismissal))))
+                }
             }
         }
         init {
