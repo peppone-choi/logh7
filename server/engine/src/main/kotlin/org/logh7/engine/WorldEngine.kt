@@ -267,7 +267,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             }
         val officeTargets=if(previousSocial==null || settledStocks==null) emptySet() else
             ProposalActions.approvedOfficeTargets(previousSocial.proposals,settledStocks.social.proposals)
-        if (previousStocks != null && settledStocks != null) publishProposalTacticalOfficeRefresh(previousStocks, settledStocks)
+        if (previousStocks != null && settledStocks != null) {
+            val defeated = impacts.mapNotNull { it.departed?.characterId } + fortressSunk.map { it.characterId }
+            publishTacticalOfficeRefresh(previousStocks, settledStocks, defeated)
+        }
         val changedCharacters=(changedMerit+clearedReturnBases+officeTargets).distinct()
         if(changedCharacters.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changedCharacters)}
         catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
@@ -389,12 +392,19 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         old.outfits.values.filter { formerMember in it.members() && tacticalOfficeAuthorityChanged(old, updated, it) }
             .map { it.id }.toSet()
 
-    private fun publishProposalTacticalOfficeRefresh(old: PlanetStocks, updated: PlanetStocks) {
+    private fun publishTacticalOfficeRefresh(old: PlanetStocks, updated: PlanetStocks, defeated: List<Int> = emptyList()) {
         if (tacticalOfficeObservers.isEmpty()) return
         val outfits = ProposalActions.approvedOfficeRemovals(old.social.proposals, updated.social.proposals)
             .flatMapTo(linkedSetOf()) { changedTacticalOfficeOutfits(old, updated, it) }
         ProposalActions.approvedOutfitAppointments(old.social.proposals, updated.social.proposals).filterTo(outfits) { id ->
             old.outfits[id]?.let { tacticalOfficeAuthorityChanged(old, updated, it) } == true
+        }
+        val deceased = defeated.filterTo(hashSetOf()) { !BattleDeath.deceased(old, it) && BattleDeath.deceased(updated, it) }
+        if (deceased.isNotEmpty()) {
+            for (outfit in old.outfits.values) {
+                if (outfit.activeShips?.values.orEmpty().any { TacticalAuthority.commander(outfit, it, old) in deceased } &&
+                    tacticalOfficeAuthorityChanged(old, updated, outfit)) outfits += outfit.id
+            }
         }
         if (outfits.isEmpty()) return
         for (observer in tacticalOfficeObservers) try { observer(updated.generation, outfits) }
@@ -1234,7 +1244,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     publish(state)
                     publishCoupDockCancellations(cancelledDocking)
                     if (result.changed && i.command in ProposalActions.commands)
-                        publishProposalTacticalOfficeRefresh(inventory, checkNotNull(result.stocks))
+                        publishTacticalOfficeRefresh(inventory, checkNotNull(result.stocks))
                     command.result.complete(result.copy(recovery=recovered))
                 } catch(failure:Exception) {
                     if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}

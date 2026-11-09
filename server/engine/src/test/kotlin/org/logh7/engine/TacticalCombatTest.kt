@@ -537,6 +537,42 @@ class TacticalCombatTest {
         assertTrue(ends.none { it.character == victim.characterId })
     }
 
+    @Test fun aFlagshipDeathPublishesTheSurvivingFleetsNewCommanderOnce() = runBlocking {
+        val state = state()
+        val point = TacticalPoint(180f, -95f)
+        val victim = Navigator(1, 10001, Power.EMPIRE, 2488, 1000, 1000, 900, cpPaused = true,
+            hull = FlagshipHull(0, now, hp = 1, shields = List(6) { 0L }),
+            motion = TacticalMotion(2488, now, TacticalPose(point, 0f), 0f, 0f, listOf(point)))
+        val fatalAt = (now + 120..now + 2000).first { BattleDeath.dies(victim.characterId, it) }
+        state.players += "victim" to victim
+        state.players = state.players + ("pilot" to state.players.getValue("pilot").copy(
+            hull = FlagshipHull(89, now),
+            fire = TacticalFire(1, TacticalPendingFire(1, 2488, 89, victim.unitId, now, fatalAt))))
+        val fleet = state.stocks.outfits.getValue(1).copy(commanderId = victim.characterId)
+        state.stocks = state.stocks.copy(outfits = mapOf(1 to fleet))
+        val engine = WorldEngine(this, rules, ticking = false, galaxy = galaxy, navigationStore = state.nav,
+            stockStore = state.inventory, worldStateCommitter = state.commit)
+        val notices = mutableListOf<Triple<Long, Set<Int>, Int>>()
+        engine.observeTacticalOfficeRefresh { generation, outfits ->
+            notices += Triple(generation, outfits, engine.snapshot().planetStocks!!.outfits.getValue(1).commanderId)
+        }
+        try {
+            for ((account, player) in state.players) {
+                val joined = CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join(account, player.power, false, joined, account))
+                assertEquals(Admission.ACCEPTED, joined.await())
+            }
+            val elapsed = ((fatalAt - now) * 1000 + rules.speed - 1) / rules.speed
+            engine.submit(WorldCommand.AdvanceTo(elapsed))
+            engine.submit(WorldCommand.AdvanceTo(elapsed + 1000))
+        } finally {
+            engine.drainAndClose()
+        }
+        assertTrue(BattleDeath.deceased(state.stocks, victim.characterId))
+        assertEquals(0, state.stocks.outfits.getValue(1).commanderId)
+        assertEquals(listOf(Triple(1L, setOf(1), 0)), notices)
+    }
+
     @Test fun aRebelFlagshipShootsARegularFlagshipOfItsOwnSide() {
         val state=state()
         // U-10: the pilot leads a revolt holding base 1000; the victim stays in the alliance's regular camp.
