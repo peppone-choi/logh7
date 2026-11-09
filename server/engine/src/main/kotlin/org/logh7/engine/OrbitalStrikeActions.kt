@@ -31,6 +31,8 @@ object OrbitalStrikeActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
+        if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
+        if(BattleDeath.deceased(s,p.characterId))return reject(SocialRejection.IDENTITY)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(SocialRejection.LOCATION)
         if(p.hull?.woundedUntil?.let {it>now}==true || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(p.supplies<SUPPLIES)return reject(SocialRejection.MAXIMUM)

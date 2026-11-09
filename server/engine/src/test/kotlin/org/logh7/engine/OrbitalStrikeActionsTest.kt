@@ -22,9 +22,10 @@ class OrbitalStrikeActionsTest {
         return Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,mode=5,cpPaused=cpPaused,
             motion=TacticalMotion(2487,now,TacticalPose(at,0f),0f,0f,listOf(at)))
     }
-    private fun act(p:Navigator,s:PlanetStocks=stocks(),phase:Int=0,base:Int=0,attackers:Int=0,supplies:Int=0)=
+    private fun act(p:Navigator,s:PlanetStocks=stocks(),phase:Int=0,base:Int=0,attackers:Int=0,supplies:Int=0,
+        state:SessionState=session)=
         SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,
-            OrbitalStrikeActions.STRIKE,0,1,base=base,argument=attackers,value=supplies),phase=phase),session,p,s,listOf(p))
+            OrbitalStrikeActions.STRIKE,0,1,base=base,argument=attackers,value=supplies),phase=phase),state,p,s,listOf(p))
 
     @Test fun quotedStrikeLeavesStateAloneAndRejectsChangedTerms() {
         val s=stocks();val p=player(10f);val cost=OrbitalStrikeActions.SUPPLIES
@@ -41,6 +42,26 @@ class OrbitalStrikeActionsTest {
         val actual=act(p,s,base=quote.found,attackers=quote.outcome,supplies=cost)
         assertTrue(actual.changed)
         assertEquals(p.supplies-cost,actual.player?.supplies)
+    }
+
+    @Test fun deceasedOrEliminatedCommanderCannotQuoteOrExecuteAStrikeFromSavedTactics() {
+        val p=player(10f)
+        val live=stocks()
+        val quote=act(p,live,phase=OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(quote.rejection)
+        val dead=live.copy(strategic=live.strategic.copy(people=mapOf(p.characterId to StrategicPerson(deceasedAt=1))))
+        val defeated=session.copy(eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.ALLIANCE.country)))
+        for((s,state,reason) in listOf(Triple(dead,session,SocialRejection.IDENTITY),Triple(live,defeated,SocialRejection.SESSION))) {
+            val newQuote=act(p,s,phase=OrbitalStrikeActions.QUOTE_PHASE,state=state)
+            val execution=act(p,s,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES,state=state)
+            for(result in listOf(newQuote,execution)) {
+                assertEquals(reason,result.rejection)
+                assertFalse(result.changed)
+                assertSame(s,result.stocks)
+                assertSame(p,result.player)
+            }
+        }
     }
 
     @Test fun additionalCountryBombardmentUsesActualDefendersAndOnlyItsOwnEscorts() {
