@@ -43,6 +43,54 @@ class TransportActionsTest {
         val after=assertNotNull(done.stocks);assertTrue(after.strategic.transports.isEmpty())
         assertEquals(1100,after.bases.getValue(1050).supplies);assertEquals(2,after.bases.getValue(1050).units.ships[cargo])
     }
+    @Test fun dockedTransportHandlesCargoWithOldMotionButRejectsPendingOrders() {
+        val planned=assertNotNull(act(plan(),stocks()).stocks)
+        val packageId=planned.strategic.transports.single().id
+        val transport=planned.outfits.getValue(200)
+        val ship=assertNotNull(transport.activeShips).values.single()
+        val point=TacticalPoint(2f,3f)
+        val motion=TacticalMotion(2487,0,TacticalPose(point,0f),0f,0f,listOf(point))
+        val historical=NpcTacticalState(motion,0,0)
+        fun withShip(state:PlanetStocks,unit:ActiveShipUnit,position:OutfitPosition):PlanetStocks=
+            state.copy(outfits=state.outfits+(200 to transport.copy(position=position,activeShips=ActiveShipUnits(listOf(unit)))))
+
+        val docked=withShip(planned,ship.copy(tactical=historical),OutfitPosition(2487,1049))
+        val loaded=act(load(packageId).copy(value=1),docked)
+        assertNull(loaded.rejection)
+        val aboard=assertNotNull(loaded.stocks)
+        assertEquals(docked.bases,aboard.bases)
+        assertEquals(200,aboard.strategic.transports.single().carrier)
+        assertEquals(840,loaded.player?.mcp)
+
+        val arrived=assertNotNull(loaded.player).copy(grid=2488,baseId=1050)
+        val unload=load(packageId).copy(value=2)
+        fun deliver(state:PlanetStocks)=StrategyActions.evaluate(galaxy,unload,session,arrived,state)
+        val afloat=withShip(aboard,ship.copy(tactical=historical),OutfitPosition(2488))
+        val stillAfloat=deliver(afloat)
+        assertEquals(StrategyActionRejection.LOCATION,stillAfloat.rejection)
+        assertSame(afloat,stillAfloat.stocks)
+
+        val support=TacticalSupportOrder(TacticalSupportAction.SUPPLY,captain.characterId,2,2488,0,5)
+        val current=historical.copy(motion=motion.copy(grid=2488))
+        val retreat=current.copy(retreat=TacticalRetreat(2487,0,5,150))
+        val position=OutfitPosition(2488,1050)
+        for(busy in listOf(ship.copy(tactical=current,support=support),ship.copy(tactical=retreat))) {
+            val before=withShip(aboard,busy,position)
+            val rejected=deliver(before)
+            assertEquals(StrategyActionRejection.BUSY,rejected.rejection)
+            assertSame(before,rejected.stocks)
+            assertEquals(arrived,rejected.player)
+        }
+        val before=withShip(aboard,ship.copy(tactical=historical),position)
+        val unloaded=deliver(before)
+        assertNull(unloaded.rejection)
+        val after=assertNotNull(unloaded.stocks)
+        assertEquals(680,unloaded.player?.mcp)
+        assertTrue(after.strategic.transports.isEmpty())
+        assertEquals(before.bases.getValue(1049),after.bases.getValue(1049))
+        assertEquals(1100,after.bases.getValue(1050).supplies)
+        assertEquals(2,after.bases.getValue(1050).units.ships[cargo])
+    }
     @Test fun cargoBoundForACapturedDestinationCanBeUnloadedAtAnyOwnBase() {
         val s=assertNotNull(act(plan(),stocks()).stocks);val pack=s.strategic.transports.single()
         val aboard=assertNotNull(act(load(pack.id),s).stocks)
