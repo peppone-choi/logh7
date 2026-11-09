@@ -228,6 +228,42 @@ class TacticalGroundOperationsTest {
         }
     }
 
+    @Test fun transportWithdrawalReservesSharedSlotsAndRechecksSavedOverbooking() {
+        val s=state()
+        val original=s.stocks.outfits.getValue(1)
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),base=1000,origin=1),
+            ActiveGroundUnit(5,UnitStack(0),base=1000,origin=4)))
+        val outfit=original.copy(kind=OutfitKind.TRANSPORT,activeGround=troops,
+            units=UnitInventory(original.units.ships,troops.quantities()))
+        val cargo=TransportPackage(1,outfit.country,1000,1001,0,
+            UnitInventory(troops=mapOf(UnitStack(0) to 3)),1,TransportActions.boats(outfit))
+        s.stocks=s.stocks.copy(outfits=mapOf(1 to outfit),
+            warehouses=mapOf(10 to s.stocks.warehouses.getValue(10).copy(kind=OutfitKind.TRANSPORT)),
+            strategic=s.stocks.strategic.copy(transports=listOf(cargo),lastTransportId=1))
+        val n=Navigation(galaxy,s.nav,NavigationPolicy())
+        val p=production(s)
+        val both=request(TacticalGroundAction.WITHDRAW,listOf(1,4))
+        val before=s.stocks
+        assertEquals(NavigationRejection.UNIT,accept(s,n,p,both).rejection)
+        assertEquals(before,s.stocks)
+        assertNotNull(accept(s,n,p,request(TacticalGroundAction.WITHDRAW)).player)
+        val reserved=s.stocks
+        val reservedOutfit=reserved.outfits.getValue(1)
+        val active=assertNotNull(reservedOutfit.activeGround).values
+        val order=assertNotNull(active.first().order)
+        val overbooked=ActiveGroundUnits(listOf(active.first(),active.last().copy(order=order.copy(carrier=4))))
+        s.stocks=reserved.copy(outfits=mapOf(1 to reservedOutfit.copy(activeGround=overbooked)))
+
+        val events=mutableListOf<TacticalGroundResult>()
+        settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+600,events)
+        assertEquals(listOf(false,true),events.map {it.cancelled})
+        val final=assertNotNull(s.stocks.outfits.getValue(1).activeGround).values
+        assertEquals(listOf(1,0),final.map {it.carrier})
+        assertEquals(listOf(0,1000),final.map {it.base})
+        assertTrue(final.all {it.order==null})
+        assertEquals(listOf(cargo),s.stocks.strategic.transports)
+    }
+
     @Test fun restoredWithdrawalRechecksTheCurrentCarrierCapacity() {
         val s=state()
         val own=s.stocks.outfits.getValue(1)

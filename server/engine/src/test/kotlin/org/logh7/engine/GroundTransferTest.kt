@@ -31,6 +31,29 @@ class GroundTransferTest {
         assertEquals(before.outfits.getValue(1).activeGround!!.values.map {it.id to it.stack},unloaded.stocks!!.outfits.getValue(1).activeGround!!.values.map {it.id to it.stack})
         assertFalse(GroundTransfer.evaluate(request(GroundTransferAction.UNLOAD),session,unloaded.player,unloaded.stocks!!).changed)
     }
+    @Test fun cargoSharesTransportSlotsWithoutPreventingUnload() {
+        val troops=listOf(ActiveGroundUnit(2,UnitStack(0),base=1049))
+        val before=stocks(troops)
+        val outfit=before.outfits.getValue(1).copy(kind=OutfitKind.TRANSPORT)
+        val cargo=TransportPackage(1,outfit.country,1049,1050,0,
+            UnitInventory(troops=mapOf(UnitStack(0) to 2)),1,TransportActions.boats(outfit))
+        val full=before.copy(outfits=mapOf(1 to outfit),
+            warehouses=mapOf(101 to before.warehouses.getValue(101).copy(kind=OutfitKind.TRANSPORT)),
+            strategic=before.strategic.copy(transports=listOf(cargo),lastTransportId=1))
+        val rejected=GroundTransfer.evaluate(request(),session,pilot,full)
+        assertEquals(LogisticsRejection.STOCK,rejected.rejection)
+        assertEquals(full,rejected.stocks)
+        assertEquals(pilot,rejected.player)
+
+        val oneSlot=cargo.copy(units=UnitInventory(troops=mapOf(UnitStack(0) to 1)))
+        val available=full.copy(strategic=full.strategic.copy(transports=listOf(oneSlot)))
+        val loaded=GroundTransfer.evaluate(request(),session,pilot,available)
+        assertEquals(listOf(2),loaded.moved)
+        val overfilled=assertNotNull(loaded.stocks).copy(strategic=full.strategic)
+        val unloaded=GroundTransfer.evaluate(request(GroundTransferAction.UNLOAD),session,loaded.player,overfilled)
+        assertEquals(listOf(2),unloaded.moved)
+        assertEquals(full,unloaded.stocks)
+    }
     @Test fun slotOverflowIsAtomicAndExactCapacityIsAllowed() {
         // 揚陸艦Ⅰ (84) carries the full ten; a battleship (32) only two.
         val eleven=stocks((2..12).map {ActiveGroundUnit(it,UnitStack(0),base=1049)},84)

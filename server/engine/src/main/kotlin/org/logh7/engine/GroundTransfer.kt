@@ -54,7 +54,9 @@ internal object GroundTransfer {
         } else {
             val occupied=alive.associate {ship->ship.id to roster.values.count {it.carrier==ship.id}}.toMutableMap()
             val free=alive.sumOf {maxOf(0,capacity(it.stack.kind)-occupied.getValue(it.id))}
-            if(occupied.values.any {it>CARRIER_SLOTS} || selected.size>free)return reject(LogisticsRejection.STOCK)
+            if(occupied.values.any {it>CARRIER_SLOTS} || selected.size>free ||
+                o.kind==OutfitKind.TRANSPORT && selected.isNotEmpty() && selected.size>TransportActions.freeUnitSlots(o,stocks.strategic.transports))
+                return reject(LogisticsRejection.STOCK)
             for(u in selected) {
                 val carrier=alive.firstOrNull {it.id==u.origin && occupied.getValue(it.id)<capacity(it.stack.kind)}
                     ?: alive.firstOrNull {occupied.getValue(it.id)<capacity(it.stack.kind)} ?: return reject(LogisticsRejection.STOCK)
