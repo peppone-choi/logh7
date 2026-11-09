@@ -145,6 +145,33 @@ class OfflineNavigationSettlementTest {
         } finally { engine.drainAndClose() }
     }
 
+    @Test fun savedAbilitiesAllowOfflineWarpWithoutALoginProfile() = assertOfflineWarpWithoutLoginProfile(saved=true)
+
+    @Test fun registeredAbilitiesAllowOfflineWarpWithoutAWorldProfile() = assertOfflineWarpWithoutLoginProfile(saved=false)
+
+    private fun assertOfflineWarpWithoutLoginProfile(saved:Boolean) = runBlocking {
+        val world = world()
+        val reserved = reservedWarp(world)
+        if(saved)world.stocks = world.stocks.copy(strategic = world.stocks.strategic.copy(people = mapOf(10000 to profile)))
+        world.players = mapOf("pilot" to reserved.copy(pcp = 100, cpRecoveryAt = start))
+        val engine = WorldEngine(this, ticking = false, galaxy = fleetGalaxy, navigationStore = world.nav,
+            stockStore = world.inventory, worldStateCommitter = world.commit, npcPolicy = NpcTacticalPolicy(enabled = false))
+        if(!saved)engine.provideIdentities {listOf(StrategicIdentity(10000,Power.ALLIANCE.country,5,0,List(8){50}))}
+        try {
+            val joined = CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot", Power.ALLIANCE, false, joined, "c", 1))
+            assertEquals(Admission.ACCEPTED, joined.await())
+            engine.submit(WorldCommand.Disconnect("pilot", "c"))
+            engine.submit(WorldCommand.AdvanceTo(400_000))
+            engine.drainAndClose()
+            val arrived = world.players.getValue("pilot")
+            assertEquals(2489, arrived.grid)
+            assertNull(arrived.warpTarget)
+            assertTrue(arrived.pcp > 100)
+            assertEquals(OutfitPosition(2489), world.stocks.outfits.getValue(1).position)
+        } finally { engine.drainAndClose() }
+    }
+
     @Test fun withoutKnownAbilitiesAnOfflineWarpWaitsForLoginSoRecoveryIsNotForfeited() = runBlocking {
         val world = world()
         val reserved = reservedWarp(world)

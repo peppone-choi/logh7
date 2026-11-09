@@ -28,10 +28,9 @@ internal object FlagshipRecovery {
         val start=galaxy.startFor(country)
         val playerCamp=CoupActions.camp(stocks,player.characterId,country)
         val owned=galaxy.bases.filter { base ->
-            val stock=stocks.bases[base.id]
+            val stock=stocks.bases[base.id] ?: return@filter false
             val initial=galaxy.conditions.getValue(base.id)
-            val owner=stock?.owner ?: galaxy.initialOwners.getValue(base.id)
-            initial.habitability==1 && TacticalAuthority.ownsBase(player,owner,stock?.camp ?: initial.camp,playerCamp)
+            initial.habitability==1 && TacticalAuthority.ownsBase(player,stock.owner,stock.camp,playerCamp)
         }
         // Manual P04: a return system that is in tactics sends the flagship to another system.
         val forces=GridForces.collect(galaxy,stocks.generation,
