@@ -36,6 +36,7 @@
 #pragma comment(lib,"gdi32.lib")
 #include "mail_refresh.h"
 #include "proposal_approval_state.h"
+#include "assignment_mail_state.h"
 #include "proposal_detail_caption.h"
 #include "korean_windows.h"
 #include "dialog_text.h"
@@ -313,6 +314,121 @@ static bool proposalApprovalTest() {
     if(state.outstanding || state.receive(&world,10001,7,20,0,2))return false;
     return wcscmp(logh::proposalApprovalFailure(10),logh::proposalApprovalFailure(8)) &&
         wcscmp(logh::proposalApprovalFailure(99),logh::proposalApprovalFailure(0));
+}
+// 割当 mail: draft/cancel records, the 0x69 envelope, token range and the draft lifecycle guards.
+static bool assignmentMailTest() {
+    using Mail=logh::AssignmentMail;
+    unsigned char record[36];memset(record,0xcc,sizeof(record));
+    logh::assignmentDraftRecord(record,10001,10002,0x12345678,false);
+    const unsigned char draft[36]={0x11,0x27,0,0, 0,0x7f, 98,0, 0,0, 0x0b,0x0c, 0x12,0x27,0,0, 0,0,0,0, 0x78,0x56,0x34,0x12,
+        0,0,0,0, 0,0,0,0, 0,0,0,0};
+    if(memcmp(record,draft,sizeof(record)))return false;
+    logh::assignmentDraftRecord(record,10001,10002,0x12345678,true);
+    if(record[16]!=1 || memcmp(record,draft,16) || memcmp(record+17,draft+17,19))return false;
+    static unsigned char send[0x8d4];memset(send,0,sizeof(send));
+    send[24]=3;*reinterpret_cast<unsigned*>(send+4)=10001;*reinterpret_cast<unsigned*>(send+20)=77;
+    logh::assignmentMailEnvelope(send,10002,0x7fffffff);
+    if(*reinterpret_cast<unsigned*>(send+8)!=10002 || *reinterpret_cast<unsigned*>(send+12)!=0x7fffffff || send[24]!=0x83 ||
+        *reinterpret_cast<unsigned*>(send+4)!=10001 || *reinterpret_cast<unsigned*>(send+20)!=77)return false;
+    unsigned previous=0;
+    const unsigned long long times[]={0ull,1ull,0x7fffffffull,0xffffffffffffffffull,123456789ull};
+    for(unsigned long long now:times) {
+        unsigned token=logh::assignmentMailToken(now,previous);
+        if(!token || token>0x7fffffffu || token==previous)return false;
+        previous=token;
+    }
+    int world=0,other=0,editor=0,direct=0;
+    Mail mail;
+    if(mail.begin(nullptr,10001,10002,5,0) || mail.begin(&world,0,10002,5,0) || mail.begin(&world,10001,0,5,0) ||
+        mail.begin(&world,10001,10002,0,0) || mail.begin(&world,10001,10002,0x80000000u,0) || mail.active())return false;
+    if(!mail.begin(&world,10001,10002,5,1000) || mail.begin(&world,10001,10003,6,1000))return false; // one draft at a time
+    // Another world, actor, recipient, token or a preview flag is not this draft's reply.
+    if(mail.receive(&other,10001,10002,2,5,0,44,1000) || mail.receive(&world,10009,10002,2,5,0,44,1000) ||
+        mail.receive(&world,10001,10003,2,5,0,44,1000) || mail.receive(&world,10001,10002,2,6,0,44,1000) ||
+        mail.receive(&world,10001,10002,1,5,0,44,1000) || mail.stage!=Mail::Drafting)return false;
+    // Before an editor exists every send is a direct one.
+    if(mail.send(&world,10001,&editor,1000)!=Mail::PassThrough)return false;
+    if(mail.receive(&world,10001,10002,2,5,0,44,1100)!=Mail::Grant || mail.card!=44 || mail.stage!=Mail::Granted)return false;
+    if(!mail.attach(&editor) || mail.stage!=Mail::Editing || mail.attach(&editor))return false;
+    if(mail.tick(&world,10001,&editor,1100+logh::assignmentDraftLife-1)!=Mail::None)return false;
+    // A different command window, world or actor never carries the mail.
+    if(mail.send(&world,10001,&direct,1200)!=Mail::PassThrough || mail.send(&world,10001,nullptr,1200)!=Mail::PassThrough ||
+        mail.send(&other,10001,&editor,1200)!=Mail::Suppress || mail.send(&world,10009,&editor,1200)!=Mail::Suppress ||
+        mail.stage!=Mail::Editing)return false;
+    if(mail.send(&world,10001,&editor,1200)!=Mail::Envelope || mail.stage!=Mail::Sending)return false;
+    if(mail.send(&world,10001,&editor,1201)!=Mail::Suppress)return false; // duplicate send
+    // The editor may close after sending; the confirmation still arrives.
+    if(mail.tick(&world,10001,nullptr,1300)!=Mail::None || mail.editor || mail.stage!=Mail::Sending)return false;
+    if(mail.receive(&world,10001,10002,2,5,0,0,1400)!=Mail::Delivered || mail.active())return false;
+    if(mail.receive(&world,10001,10002,2,5,0,0,1400)!=Mail::Ignored)return false; // repeated reply
+    // A refused draft and a failed mail end the draft; the failed editor stays suppressed until it closes.
+    if(!mail.begin(&world,10001,10002,6,0) || mail.receive(&world,10001,10002,3,6,4,0,10)!=Mail::Refused || mail.status!=4 ||
+        mail.active())return false;
+    if(!mail.begin(&world,10001,10002,7,0) || mail.receive(&world,10001,10002,2,7,0,0,10)!=Mail::Refused)return false; // no card
+    if(!mail.begin(&world,10001,10002,8,0) || mail.receive(&world,10001,10002,2,8,0,44,10)!=Mail::Grant || !mail.attach(&editor) ||
+        mail.send(&world,10001,&editor,20)!=Mail::Envelope || mail.receive(&world,10001,10002,3,8,8,0,30)!=Mail::Failed ||
+        mail.send(&world,10001,&editor,40)!=Mail::Suppress || mail.tick(&world,10001,&editor,50)!=Mail::None ||
+        mail.tick(&world,10001,nullptr,60)!=Mail::None || mail.send(&world,10001,&editor,70)!=Mail::PassThrough)return false;
+    // Editor that did not open, closed editor, expiry, no reply, unconfirmed send and a reconnect.
+    if(!mail.begin(&world,10001,10002,9,0) || mail.receive(&world,10001,10002,2,9,0,44,0)!=Mail::Grant || mail.attach(nullptr) ||
+        mail.active())return false;
+    if(!mail.begin(&world,10001,10002,10,0) || mail.receive(&world,10001,10002,2,10,0,44,0)!=Mail::Grant || !mail.attach(&editor) ||
+        mail.tick(&world,10001,nullptr,5)!=Mail::Closed || mail.active() || mail.recipient!=10002 || mail.token!=10)return false;
+    if(!mail.begin(&world,10001,10002,11,0) || mail.receive(&world,10001,10002,2,11,0,44,0)!=Mail::Grant || !mail.attach(&editor) ||
+        mail.tick(&world,10001,&editor,logh::assignmentDraftLife)!=Mail::Expired || mail.active() ||
+        mail.send(&world,10001,&editor,logh::assignmentDraftLife)!=Mail::Suppress)return false;
+    mail.tick(&world,10001,nullptr,logh::assignmentDraftLife+1);
+    if(mail.stale)return false;
+    if(!mail.begin(&world,10001,10002,12,0) || mail.receive(&world,10001,10002,2,12,0,44,0)!=Mail::Grant || !mail.attach(&editor) ||
+        mail.send(&world,10001,&editor,logh::assignmentDraftLife)!=Mail::Suppress)return false; // late send after the grant life
+    mail=Mail{};
+    if(!mail.begin(&world,10001,10002,13,0) || mail.tick(&world,10001,nullptr,logh::assignmentDraftWait-1)!=Mail::None ||
+        mail.tick(&world,10001,nullptr,logh::assignmentDraftWait)!=Mail::NoReply || mail.active() ||
+        mail.receive(&world,10001,10002,2,13,0,44,0)!=Mail::Ignored)return false;
+    if(!mail.begin(&world,10001,10002,14,0) || mail.receive(&world,10001,10002,2,14,0,44,0)!=Mail::Grant || !mail.attach(&editor) ||
+        mail.send(&world,10001,&editor,0)!=Mail::Envelope ||
+        mail.tick(&world,10001,&editor,logh::assignmentSendWait)!=Mail::Unconfirmed || mail.active() ||
+        mail.send(&world,10001,&editor,logh::assignmentSendWait)!=Mail::Suppress)return false;
+    mail=Mail{};
+    if(!mail.begin(&world,10001,10002,15,0) || mail.receive(&world,10001,10002,2,15,0,44,0)!=Mail::Grant || !mail.attach(&editor) ||
+        mail.tick(&other,10001,&editor,1)!=Mail::Reset || mail.active() || mail.token)return false;
+    if(!mail.begin(&world,10001,10002,16,0) || !mail.abandon() || mail.active() || mail.abandon() ||
+        mail.receive(&world,10001,10002,2,16,0,44,0)!=Mail::Ignored)return false;
+    if(!mail.begin(&world,10001,10002,17,0) || mail.receive(&world,10001,10002,2,17,0,261,0)!=Mail::Refused)return false; // card range
+    // The editor opens only after the grant's own 1200/1201 transaction and its GUI events are gone; any open search
+    // restarts the count, and a search that never settles cancels the draft.
+    mail=Mail{};
+    if(!mail.begin(&world,10001,10002,18,0) || mail.openable(false))return false; // not granted yet
+    if(mail.receive(&world,10001,10002,2,18,0,44,0)!=Mail::Grant || mail.openable(true))return false;
+    for(unsigned i=1;i<logh::assignmentSettleFrames;++i)if(mail.openable(false))return false;
+    if(mail.openable(true))return false; // another search: start over
+    for(unsigned i=1;i<logh::assignmentSettleFrames;++i)if(mail.openable(false))return false;
+    if(!mail.openable(false) || mail.stage!=Mail::Granted || !mail.attach(&editor) || mail.openable(false))return false;
+    mail=Mail{};
+    if(!mail.begin(&world,10001,10002,19,0) || mail.receive(&world,10001,10002,2,19,0,44,100)!=Mail::Grant ||
+        mail.tick(&world,10001,nullptr,100+logh::assignmentDraftWait-1)!=Mail::None ||
+        mail.tick(&world,10001,nullptr,100+logh::assignmentDraftWait)!=Mail::Stalled || mail.active() || mail.token!=19 ||
+        mail.openable(false))return false;
+    if(!mail.begin(&world,10001,10002,20,0) || mail.receive(&world,10001,10002,2,20,0,44,0)!=Mail::Grant || !mail.abandon() ||
+        mail.active() || mail.openable(false))return false; // window closed while waiting
+    // The CD 命令/提案 tab's search 29 is held from the grant until this editor closes; a direct 割当 is never touched.
+    if(logh::assignmentTabSearch!=29)return false;
+    mail=Mail{};
+    if(mail.holdsTabSearch(nullptr) || mail.holdsTabSearch(&editor))return false;          // idle (direct 割当)
+    if(!mail.begin(&world,10001,10002,21,0) || mail.holdsTabSearch(&editor))return false; // drafting: the window is up
+    if(mail.receive(&world,10001,10002,2,21,0,44,0)!=Mail::Grant || !mail.holdsTabSearch(nullptr) ||
+        !mail.holdsTabSearch(&direct))return false;                                        // granted, editor not open yet
+    if(!mail.attach(&editor) || !mail.holdsTabSearch(&editor) || mail.holdsTabSearch(&direct) ||
+        mail.holdsTabSearch(nullptr))return false;
+    if(mail.send(&world,10001,&editor,10)!=Mail::Envelope || !mail.holdsTabSearch(&editor) ||
+        mail.tick(&world,10001,nullptr,20)!=Mail::None || mail.holdsTabSearch(nullptr) || mail.holdsTabSearch(&editor))
+        return false;                                                                      // editor closed after sending
+    if(mail.receive(&world,10001,10002,2,21,0,0,30)!=Mail::Delivered || mail.holdsTabSearch(&editor))return false;
+    if(!mail.begin(&world,10001,10002,22,0) || mail.receive(&world,10001,10002,2,22,0,44,0)!=Mail::Grant ||
+        !mail.attach(&editor) || mail.tick(&world,10001,&direct,1)!=Mail::Closed || mail.holdsTabSearch(&editor) ||
+        mail.holdsTabSearch(&direct))return false;                                         // closed editor, then a direct 割当
+    return wcscmp(logh::assignmentMailFailure(4),logh::assignmentMailFailure(99)) &&
+        wcscmp(logh::assignmentMailFailure(8),logh::assignmentMailFailure(13));
 }
 static void* detailCaptionTable=nullptr;
 static unsigned detailCaptionGroup=0,detailCaptionIndex=0;
@@ -1373,6 +1489,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(!fortressMenuAuthorityTest())return 97;
     if(!commanderMenuTest())return 196;
     if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest() || !proposalApprovalTest() || !proposalDetailCaptionTest()) return 252;
+    if (!assignmentMailTest()) return 197;
     if (!legacyKoreanGlyphTest()) return 253;
     if (!nameCardDisplayTest()) return 254;
     if (!messengerStatusTextTest()) return 255;

@@ -17,6 +17,7 @@ using SupplyDispatch=unsigned(__thiscall*)(void*,char,unsigned,const void*);
 
 static unsigned __fastcall supplySearch(void* world,void*,char pending,unsigned selector,const BYTE* record) {
     auto dispatch=reinterpret_cast<SupplyDispatch>(0x4b78a0);
+    if(assignmentHoldsSearch(record))return 0; // proposal_send.h: the 割当 mail editor's base list
     if(logh::infoShort(record,4)!=14 || !supplyCommandContext())return dispatch(world,pending,selector,record);
     const auto character=logh::infoWord(record,0);
     const bool enabled=supplyQuoteCapability(world,character);
