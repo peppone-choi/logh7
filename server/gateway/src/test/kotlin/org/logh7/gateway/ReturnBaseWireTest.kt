@@ -61,6 +61,53 @@ class ReturnBaseWireTest {
         }
     }
 
+    @Test fun scheduledCoupSettlementClearsAConnectedRebelsReturnPlanet() = runBlocking<Unit> {
+        val capital = GalaxyBase(1049, 2487, 80, 0, Capital.EMPIRE.baseName, 0, 20f, 86400, 0, 0f, 2f)
+        val other = capital.copy(id = 1048, name = "Soest")
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)), listOf(capital, other),
+            Power.entries.associateWith { 2487 })
+        val rules = SessionRules.load()
+        val since = rules.startSeconds + 1
+        val country = Power.EMPIRE.country
+        val winning = Plot(10001, country, rules.startSeconds, revolt = since, bases = setOf(capital.id),
+            capitalSince = since, capitalBase = capital.id)
+        val continuing = Plot(10000, country, rules.startSeconds, revolt = since, bases = setOf(other.id))
+        var players = mapOf("load-000" to Navigator(1, 10000, Power.EMPIRE, 2490, 1000, 1000, 1000,
+            cpRecoveryAt = rules.startSeconds, returnBase = capital.id).copy(originBase = other.id))
+        var inventory = PlanetStocks(1, 0, mapOf(capital.id to PlanetStock(capital.id, 2, 1, 0, 0, 0),
+            other.id to PlanetStock(other.id, 2, 1, 0, 0, 0)), deploymentInitialized = true,
+            social = SocialState(coup = CoupState(mapOf(winning.leader to winning, continuing.leader to continuing))))
+        val navigation = object : NavigationStore {
+            override fun load() = players
+            override fun save(next: Map<String, Navigator>) { players = next }
+        }
+        val stocks = object : PlanetStockStore {
+            override fun load() = inventory
+            override fun save(stocks: PlanetStocks) { inventory = stocks }
+        }
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false, stockStore = stocks,
+            navigationStore = navigation, worldStateCommitter = WorldStateCommitter { next, stock ->
+                players = next
+                inventory = checkNotNull(stock)
+            }).use { fixture ->
+            val account = fixture.account(0)
+            val client = fixture.join(account, true, false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            val initial = through(client, 0x0f01).single { code(it) == 0x0323 }
+            assertEquals(capital.id, ByteBuffer.wrap(initial).getInt(26))
+
+            val deadline = (1 + CoupActions.CAPITAL_DAYS * Justice.DAY) * 1000
+            fixture.engine.submit(WorldCommand.AdvanceTo((deadline + rules.speed - 1) / rules.speed))
+            val changed = ByteBuffer.wrap(through(client, 0x0356).last())
+            assertEquals(10000, changed.getInt(7))
+            assertEquals(0, changed.getInt(27))
+            assertEquals(0, inventory.bases.getValue(capital.id).camp)
+            assertEquals(setOf(continuing.leader), inventory.social.coup.plots.keys)
+            assertEquals(0, players.getValue(account).returnBase)
+            assertEquals(other.id, players.getValue(account).originBase)
+        }
+    }
+
     @Test fun selectionDenialsReconnectAndCpUpdatesKeepAuthoritativeReturnPlanet() = runBlocking<Unit> {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2), GalaxySystem(4, 2015, 4, "Alliance", 3)),
             listOf(GalaxyBase(1048, 2487, 80, 0, "Soest", 0, 20f, 86400, 0, 0f, 2f),
