@@ -23,8 +23,8 @@ class OrbitalStrikeActionsTest {
             motion=TacticalMotion(2487,now,TacticalPose(at,0f),0f,0f,listOf(at)))
     }
     private fun act(p:Navigator,s:PlanetStocks=stocks(),phase:Int=0,base:Int=0,attackers:Int=0,supplies:Int=0,
-        state:SessionState=session)=
-        SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,
+        state:SessionState=session,world:Galaxy=galaxy)=
+        SocialActions.evaluate(world,SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,
             OrbitalStrikeActions.STRIKE,0,1,base=base,argument=attackers,value=supplies),phase=phase),state,p,s,listOf(p))
 
     @Test fun quotedStrikeLeavesStateAloneAndRejectsChangedTerms() {
@@ -202,6 +202,29 @@ class OrbitalStrikeActionsTest {
         val after=assertNotNull(result.stocks)
         assertEquals(s.outfits.getValue(2),after.outfits.getValue(2))
         assertEquals(1000-OrbitalStrikeActions.DAMAGE,after.outfits.getValue(1).activeGround!!.values.first().strength)
+    }
+
+    @Test fun anEliminatedCountryCannotRemainTheTargetOfAnOrbitalStrike() {
+        val p=player(10f)
+        val defeatedCountry=Power.ALLIANCE.country
+        val defeated=session.copy(eliminated=mapOf(defeatedCountry to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.EMPIRE.country)))
+        val other=base.copy(id=1001,name="Other",diameter=1f)
+        val world=Galaxy(galaxy.systems,listOf(base,other),galaxy.starts)
+        val initial=stocks()
+        val withAlternative=initial.copy(bases=initial.bases+(other.id to
+            initial.bases.getValue(base.id).copy(baseId=other.id,owner=Allegiance.Country(CountryId(42)))))
+        val phase=OrbitalStrikeActions.QUOTE_PHASE
+        val quoted=act(p,withAlternative,phase=phase,world=world)
+        assertNull(quoted.rejection)
+        assertEquals(base.id,quoted.found)
+        assertEquals(SocialRejection.TARGET,act(p,initial,phase=phase,state=defeated).rejection)
+        assertEquals(other.id,act(p,withAlternative,phase=phase,state=defeated,world=world).found)
+        val stale=act(p,withAlternative,base=quoted.found,attackers=quoted.outcome,
+            supplies=OrbitalStrikeActions.SUPPLIES,state=defeated,world=world)
+        assertEquals(SocialRejection.QUOTE_CHANGED,stale.rejection)
+        assertSame(p,stale.player)
+        assertSame(withAlternative,stale.stocks)
     }
 
     @Test fun onlyThePlanetHoldersCampDefends() {

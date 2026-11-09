@@ -40,7 +40,9 @@ object OrbitalStrikeActions {
         val own=i.country
         val camp=CoupActions.camp(s,p.characterId,p.country)
         val at=(p.motion?.pose(now,p.posture,g,s) ?: TacticalDeployment.initial(p.unitId,p.grid,players,s,g)).position
-        val base=g.bases.filter {b->b.grid==p.grid && s.bases[b.id]?.let {it.country!=null && (it.country!=own || it.camp!=camp)}==true}
+        val base=g.bases.filter {b->b.grid==p.grid && s.bases[b.id]?.let {
+            it.country!=null && it.country !in session.eliminated && (it.country!=own || it.camp!=camp)
+        }==true}
             .map {b->b to TacticalBasePosition.at(b,now,s).let {c->kotlin.math.hypot((c.x-at.x).toDouble(),(c.y-at.y).toDouble())-b.diameter}}
             .filter {it.second<=RANGE}.minByOrNull {it.second}?.first ?: return reject(SocialRejection.TARGET)
         val owner=s.bases.getValue(base.id)
