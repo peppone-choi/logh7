@@ -10,8 +10,12 @@ internal object TacticalMotionProgress {
         }?.connection?.let {p.characterId to it}}.toMap()
         fun progress(unit:Int,character:Int,motion:TacticalMotion,driftLimit:Float=BlackHoleTides.DRIFT_VELOCITY,
             invalidCommander:Boolean=false):TacticalMotion {
-            if(motion.rotation!=null && (invalidCommander || BattleDeath.deceased(original,character))) {
-                val stopped=motion.copy(direction=motion.origin.direction,waypoints=listOf(motion.origin.position),rotation=null)
+            val detained=original.social.justice.detained(character)
+            if(detained && motion.rotation==null && motion.velocity==0f)return motion
+            if(detained || motion.rotation!=null && (invalidCommander || BattleDeath.deceased(original,character))) {
+                val at=if(motion.rotation!=null)motion.origin else motion.pose(now)
+                val stopped=motion.copy(origin=at,velocity=0f,direction=at.direction,waypoints=listOf(at.position),
+                    reportedWaypoints=0,rotation=null)
                 events+=TacticalMovement(session.generation,unit,motion.grid,now,stopped,audience(motion.grid),
                     character=character,waypoint=-1)
                 return stopped
