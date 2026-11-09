@@ -63,6 +63,7 @@
 #include "environment_shader_data.h"
 #include "tactical_fortress_menu_data.h"
 #include "tactical_detection_data.h"
+#include "tactical_inspect_data.h"
 #include "hd_texture_data.h"
 // HD texture pack rules: data-relative path, skipped files, header sizes and the reported size (codes 901+).
 static int checkHdTextureRules() {
@@ -1243,6 +1244,39 @@ static int tacticalDetectionTest() {
     call(10);if(logh::findTacticalCalls(code,sizeof(code),target,sites,1)!=2 || sites[0]!=code+3)return 1144;
     return 0;
 }
+static int tacticalInspectTest() {
+    // 02216680 is a lookup only in state 2; state 1 and the reset value must not open a panel.
+    if(logh::tacticalInspectShip(2,7)!=7 || logh::tacticalInspectShip(1,7) || logh::tacticalInspectShip(9,7) || logh::tacticalInspectShip(2,0))return 1150;
+    logh::TacticalInspectLatch latch;
+    if(latch.next(7)!=7)return 1151;
+    latch.dismiss(7);
+    if(latch.next(7) || latch.next(8)!=8)return 1152;
+    latch.dismiss(8);
+    if(latch.next(0) || latch.next(8)!=8)return 1153;
+    using View=logh::TacticalInspectView;
+    if(logh::tacticalInspectView(0x400,true)!=View::full || logh::tacticalInspectView(0x800,true)!=View::full ||
+        logh::tacticalInspectView(0x1000,false)!=View::basic || logh::tacticalInspectView(0x1000,true)!=View::hidden ||
+        logh::tacticalInspectView(0,false)!=View::basic)return 1154;
+    static BYTE unit[0x9ec];memset(unit,0,sizeof(unit));
+    const unsigned id=11;unit[0]=1;unit[8]=1;memcpy(unit+4,&id,4);unit[0x9ac]=1;unit[0x95e]=0;
+    if(logh::tacticalInspectUndetected(unit,13))return 1155;
+    unit[0x95e]=4;if(!logh::tacticalInspectUndetected(unit,13))return 1156;
+    unit[0x95e]=0;unit[0x9ac]=0;if(!logh::tacticalInspectUndetected(unit,13) || logh::tacticalInspectUndetected(unit,11))return 1157;
+    BYTE spec[0x2a8]={};float rated=2.5f,read=0;memcpy(spec+0x258,&rated,4);
+    if(!logh::tacticalInspectRated(spec,read) || read!=2.5f)return 1158;
+    const unsigned nan=0x7fc00000;memcpy(spec+0x258,&nan,4);
+    if(logh::tacticalInspectRated(spec,read))return 1159;
+    // Enemy paging: wraps both ways, keeps a sole target, and reports an empty table.
+    auto oneOrThree=[](unsigned row) {return row==1 || row==3;};
+    if(logh::nextInspectRow(5,1,true,oneOrThree)!=3 || logh::nextInspectRow(5,3,true,oneOrThree)!=1 ||
+        logh::nextInspectRow(5,1,false,oneOrThree)!=3 || logh::nextInspectRow(5,3,false,oneOrThree)!=1)return 1160;
+    if(logh::nextInspectRow(5,4,true,oneOrThree)!=1 || logh::nextInspectRow(5,0,false,oneOrThree)!=3)return 1161;
+    if(logh::nextInspectRow(5,2,true,[](unsigned row) {return row==2;})!=2 ||
+        logh::nextInspectRow(5,2,false,[](unsigned row) {return row==2;})!=2)return 1162;
+    if(logh::nextInspectRow(5,2,true,[](unsigned) {return false;})!=5 ||
+        logh::nextInspectRow(0,0,true,[](unsigned) {return true;})!=0)return 1163;
+    return 0;
+}
 static int countryEndingTest() {
     BYTE p[384]={};
     auto frame=[&](unsigned kind,unsigned number,const wchar_t* const (&fields)[10]) {
@@ -1277,6 +1311,7 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::countryAtlasScale(128,128,262144,512)!=0)return 1123;
     if(int result=tacticalCampTest())return result;
     if(int result=tacticalDetectionTest())return result;
+    if(int result=tacticalInspectTest())return result;
     if(int result=countryEndingTest())return result;
     if(int result=outfitAffiliationTest())return result;
     if(int result=baseAffiliationTest())return result;

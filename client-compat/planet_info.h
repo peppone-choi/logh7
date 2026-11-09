@@ -267,6 +267,7 @@ static int __cdecl planetInfoMenu(void* gui) {
     updateOutfitInformation(gui);
     updateOutfitListColumns(gui);
     if (updateGroundWindow()) return -1;
+    syncInspectWindow(gui);
     if (updateUnitWindow()) return -1;
     if (updateTaxWindow(gui)) return -1;
     auto& info = planetInformation;

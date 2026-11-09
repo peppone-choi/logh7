@@ -79,24 +79,28 @@ static BYTE* __cdecl actualTacticalRelation(unsigned id) {
     }
     return record;
 }
+static BYTE* ownTacticalRecord(void* world) {
+    return reinterpret_cast<BYTE*(__cdecl*)(void*,unsigned,int)>(0x4c7fc0)
+        (static_cast<BYTE*>(world)+0x126718,at<unsigned>(at<BYTE*>(world,8),0x24),1);
+}
+static unsigned liveTacticalRelation(void* world,BYTE* ownRecord,unsigned id,unsigned fallback) {
+    const auto own=at<BYTE*>(world,8);
+    auto unit=reinterpret_cast<BYTE*(__cdecl*)(void*,unsigned,int,int,int,int)>(0x4c7cd0)
+        (static_cast<BYTE*>(world)+0x126718,id,1,255,255,255);
+    unsigned native=fallback;
+    if(unit) {
+        const unsigned commander=reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4b5c00)(unit);
+        if(id==at<unsigned>(own,0x48) || commander==at<unsigned>(own,0x24))native=0x400;
+        else native=ownRecord[10]==unit[10] ? 0x800u : 0x1000u;
+    }
+    return tacticalUnitRelation(world,id,native);
+}
 static void refreshTacticalRelations(void* world) {
     if(tacticalCampGrid(world)>=5000)return;
     // Restore the native fallback when metadata expires, also for previously cached icons.
-    auto table=static_cast<BYTE*>(world)+0x126718;
-    const auto own=at<BYTE*>(world,8);
-    auto ownRecord=reinterpret_cast<BYTE*(__cdecl*)(void*,unsigned,int)>(0x4c7fc0)(table,at<unsigned>(own,0x24),1);
+    auto ownRecord=ownTacticalRecord(world);
     if(!ownRecord)return;
-    const auto ownId=at<unsigned>(own,0x48);
-    auto relation=[&](unsigned id,unsigned fallback) {
-        auto unit=reinterpret_cast<BYTE*(__cdecl*)(void*,unsigned,int,int,int,int)>(0x4c7cd0)(table,id,1,255,255,255);
-        unsigned native=fallback;
-        if(unit) {
-            const unsigned commander=reinterpret_cast<unsigned(__thiscall*)(void*)>(0x4b5c00)(unit);
-            if(id==ownId || commander==at<unsigned>(own,0x24))native=0x400;
-            else native=ownRecord[10]==unit[10] ? 0x800u : 0x1000u;
-        }
-        return tacticalUnitRelation(world,id,native);
-    };
+    auto relation=[&](unsigned id,unsigned fallback) {return liveTacticalRelation(world,ownRecord,id,fallback);};
     for(unsigned i=0;i<600;++i) {
         auto record=reinterpret_cast<BYTE*>(0x7db3c8)+i*0xb4c;
         if(record[0]) {auto& flags=at<unsigned>(record,0x8f4);flags=(flags&~0x3c00u)|relation(at<unsigned>(record,4),flags&0x3c00);}
