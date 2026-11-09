@@ -544,23 +544,25 @@ internal object TacticalCommandOperations {
                 var reward=0L;var completed=false
                 if(m.mission!=5 && m.grid!=null && p.grid!=m.grid) {missions[id]=m.copy(completed=true);finished[id]=m.mission to 0L;continue}
                 val active=TacticalContact.contested(forces[p.grid].orEmpty())
+                val sinkingHit=if(m.mission in 3..4) impacts.lastOrNull {it.hit.target==m.target}?.takeIf {
+                    it.hit.destroyed>0 && (it.departed!=null || ship(m.target,stocks)?.unit?.boats==0 || it.pirateSunk)
+                } else null
                 when(m.mission) {
                     1 -> if(id !in defeated && active &&
                         stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true)
                         reward=checks else completed=true
                     2 -> if(stocks.bases[m.target]?.let {TacticalAuthority.camp(it)==TacticalAuthority.camp(p,stocks)}==true){reward=10;completed=true}
-                    3 -> if(impacts.lastOrNull {it.hit.target==m.target}?.let {impact->impact.hit.destroyed>0 &&
-                            (impact.departed!=null || ship(m.target,stocks)?.unit?.boats==0 ||
-                                impact.pirateSunk) &&
-                            (impact.source==p.unitId || ship(impact.source,stocks)?.let {
-                                TacticalAuthority.commander(it.outfit,it.unit,stocks)==id}==true)}==true) {
-                        reward=TacticalMissionRules.interceptionMerit(10,true);completed=true
+                    3 -> if(sinkingHit!=null) {
+                        completed=true
+                        if(sinkingHit.source==p.unitId || ship(sinkingHit.source,stocks)?.let {
+                                TacticalAuthority.commander(it.outfit,it.unit,stocks)==id}==true)
+                            reward=TacticalMissionRules.interceptionMerit(10,true)
                     }
-                    4 -> {
+                    4 -> if(sinkingHit!=null)completed=true else if(active) {
                         val from=pose(p.unitId,p.grid,now,players,stocks,g)
                         val to=TacticalCombat.target(m.target,p.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)
                             ?.let {TacticalFleetAttack.pose(it,now,players,stocks,g)}
-                        if(active && from!=null && to!=null) {
+                        if(from!=null && to!=null) {
                             val distance=hypot((from.position.x-to.position.x).toDouble(),(from.position.y-to.position.y).toDouble())
                             if(TacticalMissionRules.reconnaissanceInRange(distance*TacticalMissionRules.KM_PER_TACTICAL_UNIT))
                                 reward=checks
