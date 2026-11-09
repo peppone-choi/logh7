@@ -277,6 +277,8 @@ internal object NpcStrategy {
                 stocks=stocks.copy(outfits=stocks.outfits+(id to moved))
                 forceCache=null // Later arrivals must see this move when checking the 300-unit cap.
                 for((account,player) in players.toMap())if(player.grid==destination && !player.cpPaused &&
+                    player.generation==session.generation && player.country !in session.eliminated &&
+                    session.participants[account]?.country !in session.eliminated && !BattleDeath.deceased(stocks,player.characterId) &&
                     (player.hull?.woundedUntil ?: 0)<=now && TacticalContact.active(galaxy,player,players.values,stocks)) {
                     players[account]=player.copy(cpPaused=true,cpRecoveryAt=now,
                         commandRange=TacticalCommandRange(now,command=50),motion=null,retreat=null,charge=null,

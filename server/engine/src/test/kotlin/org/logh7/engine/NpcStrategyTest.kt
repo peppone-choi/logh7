@@ -214,6 +214,32 @@ class NpcStrategyTest {
         assertEquals(fleet.position,waiting.outfits.getValue(1).position);assertEquals(fleet.supplies,waiting.outfits.getValue(1).supplies)
         assertNull(waiting.outfits.getValue(1).strategy!!.destination);assertEquals(1,events.size)
     }
+    @Test fun npcArrivalEntersLiveTargetIntoTacticsWithoutChangingDefeatedOrDeceasedPilots() {
+        val defeatedCountry=CountryId(42)
+        val pilots=players()
+        val live=pilots.getValue("pilot")
+        val defeated=live.copy(characterId=10001)
+        val deceased=live.copy(characterId=10002)
+        pilots["defeated"]=defeated
+        pilots["deceased"]=deceased
+        val events=mutableListOf<NpcStrategicMovement>()
+        val before=BattleDeath.apply(stocks(),listOf(deceased.characterId),1) {_,_->true}
+        val continuing=simulation.copy(countries=setOf(Power.EMPIRE.country,Power.ALLIANCE.country,defeatedCountry),
+            participants=simulation.participants+("defeated" to Participant(defeatedCountry,false,false)))
+        val reserved=NpcStrategy.advance(continuing.copy(gameMillis=0),galaxy,pilots,before,events)
+        assertEquals(NpcStrategicState(21600,2488,3600),reserved.outfits.getValue(1).strategy)
+        val due=continuing.copy(gameMillis=3_600_000,eliminated=mapOf(defeatedCountry to CountryDefeat(EndReason.SYSTEMS_REDUCED,1)))
+        val arrived=NpcStrategy.advance(due,galaxy,pilots,reserved,events)
+        assertEquals(OutfitPosition(2488),arrived.outfits.getValue(1).position)
+        assertTrue(pilots.getValue("pilot").cpPaused)
+        assertEquals(defeated,pilots.getValue("defeated"))
+        assertEquals(deceased,pilots.getValue("deceased"))
+        assertEquals(2488,events.single().destination)
+        assertTrue(GridForces.collect(galaxy,arrived.generation,pilots.values,arrived).getValue(2488).any {
+            it.camp.country==Power.ALLIANCE.country && it.units==2L
+        })
+    }
+
     @Test fun outmatchedFleetHoldsAtItsDepotAndWithdrawsFromAStrongerEnemyGrid() {
         // One ship against three enemy flagships (more than twice): no advance from the depot.
         val players=players()
