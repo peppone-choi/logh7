@@ -53,7 +53,8 @@ internal object TacticalCommandStateCodec {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes.toByteArray())
     }
     fun decode(text:String):TacticalCommandState {
-        require(text.length in 1..2_000_000)
+        // FilePlanetStockStore bounds the input file, and each decoded collection has its own count limit.
+        require(text.isNotEmpty())
         val input=DataInputStream(ByteArrayInputStream(Base64.getUrlDecoder().decode(text)))
         return input.use {with(it) {
             val version=readInt();require(version in 1..5)

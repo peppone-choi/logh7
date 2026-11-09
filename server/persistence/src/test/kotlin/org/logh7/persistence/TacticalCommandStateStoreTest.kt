@@ -1,5 +1,6 @@
 package org.logh7.persistence
 
+import java.nio.ByteBuffer
 import java.nio.file.Files
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -41,6 +42,24 @@ class TacticalCommandStateStoreTest {
         Files.writeString(path,Files.readString(path).replace("LOGH7-STOCK-30","LOGH7-STOCK-29"))
         FilePlanetStockStore(path).use {assertFails {it.load()}}
     }
+    @Test fun largeLegalTacticalQueueReopensFromTheSameFileThatSavedIt() {
+        val orders = List(600) { index ->
+            val character = 10000 + index
+            val units = List(32) { index * 32 + it + 1 }
+            val bytes = ByteBuffer.allocate(14 + units.size * 20)
+                .putInt(100).putInt(5).putInt(character).put(units.size.toByte())
+            units.forEach { bytes.putInt(it).putFloat(0f).putFloat(0f).putFloat(0f).putFloat(0f) }
+            val payload = bytes.put(1).array().map { it.toInt() and 255 }
+            TacticalQueuedCommand(character, 2488, 100, 105, TacticalCommand(0x040d, units, kind = 1, payload = payload))
+        }
+        val stock = PlanetStocks(1, 0, emptyMap(), tacticalCommands = TacticalCommandState(orders = orders))
+        val path = directory.resolve("large-tactical-queue")
+        FilePlanetStockStore(path).use { it.save(stock) }
+
+        assertTrue(Files.size(path) in 2_000_001L..4_000_000L)
+        FilePlanetStockStore(path).use { assertEquals(stock, it.load()) }
+    }
+
     @Test fun defaultDefenseAndItsLastCreditTimeSurviveWorldReload() {
         val command=state()
         val mission=command.missions.getValue(10001).copy(grid=2488,checkedAt=1540,defaultDefense=true)
