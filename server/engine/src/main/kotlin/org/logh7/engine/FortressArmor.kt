@@ -58,7 +58,7 @@ object FortressArmor {
             })
             for((account,p) in players.toMap()) {
                 if(p.generation!=session.generation || p.baseId!=base.id || p.grid!=base.grid || !holds(stocks,owner,p))continue
-                val departed=FlagshipRecovery.defeated(p,now,galaxy,stocks,players.values)
+                val departed=FlagshipRecovery.defeated(p,now,galaxy,stocks,players.values,session.eliminated.keys)
                 players[account]=departed
                 sunk+=departed
             }
