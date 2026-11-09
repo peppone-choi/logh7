@@ -213,6 +213,28 @@ class TacticalCombatTest {
         assertSavedFlagshipOrdersCancelled(deceased=true)
     }
 
+    @Test fun woundedFlagshipCancelsSavedManualAndAutomaticFire() {
+        for(automatic in listOf(false,true)) {
+            val state=state()
+            val live=Navigation(galaxy,state.nav,NavigationPolicy())
+            val accepted=assertNotNull(TacticalCombat.accept(request,session,galaxy,live,state.stocks,state.commit,24).player)
+            val due=assertNotNull(accepted.fire?.pending).firesAt
+            val wounded=accepted.copy(hull=accepted.hull!!.copy(woundedUntil=due+1),
+                attack=if(automatic)TacticalAttackOrder(2,now,due,due) else null,
+                fire=if(automatic)accepted.fire.copy(pending=null) else accepted.fire)
+            state.players=mapOf("pilot" to wounded)
+            val restored=Navigation(galaxy,state.nav,NavigationPolicy())
+            val target=state.stocks.outfits.getValue(1)
+            assertTrue(TacticalCombat.settle(session.copy(gameMillis=due*1000),galaxy,restored,production(state),state.commit).isEmpty())
+            val saved=state.players.getValue("pilot")
+            assertNull(saved.attack)
+            assertEquals(wounded.fire?.copy(pending=null),saved.fire)
+            assertEquals(wounded.charge,saved.charge)
+            assertEquals(wounded.supplies,saved.supplies)
+            assertEquals(target,state.stocks.outfits.getValue(1))
+        }
+    }
+
     @Test fun eliminatedCountryFlagshipCancelsSavedOrdersAtomically() {
         assertSavedFlagshipOrdersCancelled(deceased=false)
     }
