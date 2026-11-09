@@ -80,6 +80,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         tickPulse.trySend(Unit)
         return AutoCloseable {production?.identities={emptyList()}}
     }
+    private val coupBaseObservers=java.util.concurrent.CopyOnWriteArrayList<(PlanetStocks,List<Int>)->Unit>()
+    fun observeCoupBases(observer:(PlanetStocks,List<Int>)->Unit):AutoCloseable {
+        coupBaseObservers+=observer;return AutoCloseable {coupBaseObservers.remove(observer)}
+    }
     private val resultObservers=java.util.concurrent.CopyOnWriteArrayList<(WorldSnapshot)->Unit>()
     /** U-27: each published snapshot carrying a session result; observers must be idempotent per generation. */
     fun observeSessionResults(observer:(WorldSnapshot)->Unit):AutoCloseable {
@@ -510,6 +514,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val previousResult=published.get().result
         published.set(snapshot.copy(result=result))
         if(result!=null && previousResult==null)published.get().let {s->resultObservers.forEach {it(s)}}
+        if(inventory!=null && old!=null && old.generation==inventory.generation && old.social.coup!=inventory.social.coup) {
+            val bases=inventory.bases.keys.filter {id->old.bases[id]?.camp!=inventory.bases.getValue(id).camp}
+            if(bases.isNotEmpty())for(observer in coupBaseObservers)try {observer(inventory,bases)}
+            catch(failure:Exception){System.err.println("Coup base refresh failed: ${failure.javaClass.simpleName}")}
+        }
         // Monthly personnel changes are committed before the online character view is refreshed.
         if(inventory!=null && old!=null && old.generation==inventory.generation &&
             inventory.producedDays/PoliticianLadder.PERIOD_DAYS>old.producedDays/PoliticianLadder.PERIOD_DAYS) {

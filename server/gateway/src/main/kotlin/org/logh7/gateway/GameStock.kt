@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture
 
 fun interface GameStock {
     fun snapshot(generation: Long): CompletableFuture<PlanetStocks>
+    fun observeCoupBases(observer:(PlanetStocks,List<Int>)->Unit):AutoCloseable = AutoCloseable {}
     fun observeCivic(observer:(CivicChange)->Unit):AutoCloseable = AutoCloseable {}
     fun observeBudget(observer:(BudgetChange)->Unit):AutoCloseable = AutoCloseable {}
     fun observeSuccession(observer:(SuccessionNotice)->Unit):AutoCloseable = AutoCloseable {}
@@ -14,6 +15,7 @@ fun interface GameStock {
     fun provideIdentities(supplier:()->List<org.logh7.engine.StrategicIdentity>):AutoCloseable = AutoCloseable {}
 }
 class EngineGameStock(private val engine: WorldEngine, private val scope: CoroutineScope) : GameStock {
+    override fun observeCoupBases(observer:(PlanetStocks,List<Int>)->Unit)=engine.observeCoupBases(observer)
     override fun observeCivic(observer:(CivicChange)->Unit)=engine.observeCivic(observer)
     override fun observeBudget(observer:(BudgetChange)->Unit)=engine.observeBudget(observer)
     override fun observeSuccession(observer:(SuccessionNotice)->Unit)=engine.observeSuccession(observer)
