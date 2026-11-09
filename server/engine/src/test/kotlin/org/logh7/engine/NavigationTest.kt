@@ -5,6 +5,40 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NavigationTest {
+    @Test fun foreignSpyInTheCapitalHoldingRoomDoesNotPreventDocking() {
+        val capital = GalaxyBase(1049, 2487, 80, 0, Capital.EMPIRE.baseName, 0, 20f, 86400, 0, 0f, 2f)
+        val outpost = capital.copy(id = 1048, grid = 2486, name = "Outpost")
+        val galaxy = Galaxy(
+            listOf(GalaxySystem(3, 2487, 4, "Capital", 2), GalaxySystem(4, 2486, 4, "Outpost", 2)),
+            listOf(capital, outpost), Power.entries.associateWith { 2487 },
+        )
+        val session = SessionSimulation(SessionRules.load()).also {
+            it.join("pilot", Power.EMPIRE, false, "connection")
+        }.exportState()
+        val now = session.gameMillis / 1000
+        val captain = Navigator(1, request.characterId, Power.EMPIRE, capital.grid, 1000, 1000, 1000, cpRecoveryAt = now)
+        val spy = Navigator(1, 10001, Power.ALLIANCE, outpost.grid, 1000, 1000, 1000,
+            baseId = outpost.id, mode = 4, hull = FlagshipHull(89, now))
+        val players = mutableMapOf("pilot" to captain, "spy" to spy)
+        val stocks = PlanetStocks(1, 0, galaxy.bases.associate { it.id to PlanetStock(it.id, 2, 0, 100, 100, 100) })
+        val detained = assertNotNull(JusticeActions.detain(galaxy, stocks, players, spy.characterId, captain.country!!, now))
+        assertEquals(capital.id, players.getValue("spy").baseId)
+        assertEquals(spy.country, players.getValue("spy").country)
+        val store = Store().also { it.saved = players.toMap() }
+        val navigation = Navigation(galaxy, store, NavigationPolicy())
+        val dock = request.copy(unitId = captain.unitId, captainCard = 59, place = PlaceMove.Dock(capital.id, 4))
+
+        val reserved = navigation.apply(dock, session, detained)
+        assertNull(reserved.rejection)
+        val waiting = assertNotNull(reserved.player)
+        assertEquals(capital.id, waiting.dockTarget)
+        assertFalse(store.saved.getValue("pilot").cpPaused)
+        val later = session.copy(gameMillis = assertNotNull(waiting.dockReadyAt) * 1000)
+        val arrived = navigation.apply(request, later, detained)
+        assertTrue(arrived.completedDock)
+        assertEquals(capital.id, assertNotNull(arrived.player).baseId)
+    }
+
     @Test fun deceasedCaptainCanViewTheFrozenRecordButCannotNavigateAndCanBeReplaced() {
         val store = Store()
         val simulation = SessionSimulation(SessionRules.load()).also {

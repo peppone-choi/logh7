@@ -2152,6 +2152,7 @@ class GameExchange(
                                             val players=navigation?.snapshot()?.navigators.orEmpty()
                                             val me=checkNotNull(players[identity.account])
                                             val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
+                                                !org.logh7.engine.BattleDeath.deceased(inventory,it.characterId) &&
                                                 it.characterId>query.target && me.spotId!=0 && it.grid==me.grid && it.baseId==me.baseId &&
                                                 it.spotId==me.spotId && it.spotOwner==me.spotOwner}.map {it.characterId}.toSet()
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,

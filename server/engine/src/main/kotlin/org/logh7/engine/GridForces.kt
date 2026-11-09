@@ -24,7 +24,10 @@ object GridForces {
                 previous.nonSolo || force.nonSolo, previous.ship || force.ship, previous.base || force.base,
                 previous.deployedShip || force.deployedShip)
         }
-        navigators.filter { it.generation == generation && it.country !in eliminated && !BattleDeath.deceased(stocks, it.characterId) }.forEach {
+        navigators.filter {
+            it.generation == generation && it.country !in eliminated && !BattleDeath.deceased(stocks, it.characterId) &&
+                stocks?.social?.justice?.detained(it.characterId) != true
+        }.forEach {
             val player = it
             val grouped = stocks?.outfits?.values?.any { outfit ->
                 player.characterId in outfit.members() && outfit.country == player.country &&

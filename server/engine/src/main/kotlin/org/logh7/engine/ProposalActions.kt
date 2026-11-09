@@ -83,6 +83,11 @@ object ProposalActions {
             it.target > 0 && (it.command == APPOINTMENT || it.command == DISMISSAL)
         }.mapTo(hashSetOf()) { it.target }
 
+    internal fun approvedOutfitAppointments(before: ProposalState, after: ProposalState): Set<Int> =
+        newlyApproved(before, after).filter {
+            it.command == APPOINTMENT && it.seat > 0 && OrganizationOffices.of(it.targetCard)?.scope == OfficeScope.OUTFIT
+        }.mapTo(hashSetOf()) { it.seat }
+
     internal fun approvedOfficeRemovals(before: ProposalState, after: ProposalState): Set<Int> =
         newlyApproved(before, after).mapNotNullTo(hashSetOf()) {
             when (it.command) {
