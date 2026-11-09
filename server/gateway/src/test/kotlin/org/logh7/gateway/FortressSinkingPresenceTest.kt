@@ -36,6 +36,11 @@ class FortressSinkingPresenceTest {
         hub.update(GamePresence.Member("one",character,docked,received::add))
         val returned = docked.copy(grid=2490,baseId=1004)
         hub.fortressSunk(returned,character,emptyList(),100)
+        val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Battle",3),GalaxySystem(4,2490,4,"Home",3)),
+            emptyList(),Power.entries.associateWith { 2487 })
+        val snapshot = WorldSnapshot(1,0,navigators=mapOf("pilot" to returned))
+        hub.strategicMovement(NpcStrategicMovement(1,1,2487,2488,100,listOf(1),mapOf(10001 to "one")),
+            snapshot,WorldBootstrap(galaxy)) { null }
         val exit = received.flatten().filter { opcode(it)==0x0f1f }.single()
         assertEquals(0,exit[6].toInt())
         assertEquals(docked.grid,ByteBuffer.wrap(exit).getInt(7))
