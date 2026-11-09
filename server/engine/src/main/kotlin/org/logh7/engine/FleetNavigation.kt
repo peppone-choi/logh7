@@ -85,18 +85,24 @@ internal object FleetNavigation {
             it.cpPaused || it.navigationPending || (it.hull?.woundedUntil ?: 0) > now
         })
             return deferred(NavigationRejection.BUSY)
+        // A reserved warp moves the fleet when its job completes, not on the accepting request.
+        val cruiseCost = if (request.destination != null || preview.completedWarp) (before.cruise - after.cruise).coerceAtLeast(0) else 0
+        fun refuseWarp(): NavigationResult {
+            if(request.destination==null || !preview.completedWarp)return deferred(NavigationRejection.CRUISE)
+            // Settle the due leg on its own so refusing the follow-up cannot undo its arrival.
+            val arrived=apply(request.copy(destination=null),session,galaxy,navigation,production,stocks,committer,initialProfile,blocked)
+            return if(arrived.player==null)arrived else arrived.copy(player=null,previous=arrived.player,rejection=NavigationRejection.CRUISE)
+        }
         if (starting && request.destination != null && after.warpTarget == request.destination) {
             val reservedCruise = navigation.warpCruise(after.grid, request.destination)
-            if (followers.values.any { it.cruise < reservedCruise }) return deferred(NavigationRejection.CRUISE)
+            if (followers.values.any { it.cruise - cruiseCost < reservedCruise }) return refuseWarp()
         }
         if (position == outfit.positionIn(galaxy))
             return personal(units,false)
         if (committer == null) return NavigationResult(null, before, NavigationRejection.DISABLED)
         if ((request.destination != null || request.place == PlaceMove.SwitchMode(5)) && blocked(outfit.id))
             return NavigationResult(null, before, NavigationRejection.BUSY)
-        // A reserved warp moves the fleet when its job completes, not on the accepting request.
-        val cruiseCost = if (request.destination != null || preview.completedWarp) (before.cruise - after.cruise).coerceAtLeast(0) else 0
-        if (followers.values.any { it.cruise < cruiseCost }) return deferred(NavigationRejection.CRUISE)
+        if (followers.values.any { it.cruise < cruiseCost }) return refuseWarp()
         val departureBase = before.baseId.takeIf { it != 0 && after.baseId == 0 && after.cpPaused }
             ?.let { id -> galaxy.bases.single { it.id == id } }
         var slot = 1
