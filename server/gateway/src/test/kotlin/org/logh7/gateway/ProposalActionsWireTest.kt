@@ -102,7 +102,7 @@ class ProposalActionsWireTest {
         val stock=state.stocks.bases.getValue(1049).copy(units=UnitInventory(mapOf(stack to 1)))
         state.players=state.players.mapValues {(_,player)->player.copy(mcp=1000)}
         state.stocks=state.stocks.copy(bases=mapOf(1049 to stock),
-            outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1049,10,commanderId=10001)),
+            outfits=mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1049,10,commanderId=10001,number=7)),
             warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,1)),
             strategic=state.stocks.strategic.copy(offices=listOf(OfficeHolding(25,1049,10000),OfficeHolding(24,1049,10001))))
         seed(directory)
@@ -128,7 +128,16 @@ class ProposalActionsWireTest {
                 sender.send(wire)
                 return next(sender,0x1203)[6].toInt()
             }
+            fun bases():ByteBuffer {
+                sender.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(32).putShort(80).array())
+                return ByteBuffer.wrap(next(sender,0x1204)).position(6)
+            }
+            fun partyNumber(base:Int):Int {
+                sender.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(1).putInt(base).put(1).array())
+                return ByteBuffer.wrap(next(sender,0x032f)).getInt(21)
+            }
             assertEquals(1,warehouseStatus())
+            assertEquals(0,bases().get().toInt())
             sender.send(draft(0))
             val grant=ByteBuffer.wrap(next(sender,0x1200))
             assertEquals(0,grant.getShort(16).toInt())
@@ -137,13 +146,19 @@ class ProposalActionsWireTest {
             assertEquals(24,grant.getShort(27).toInt())
             assertEquals(71,grant.getShort(33).toInt())
             next(sender,0x1201)
+            val grantedBases=bases()
+            assertEquals(1,grantedBases.get().toInt())
+            assertEquals(1049,grantedBases.int)
             assertEquals(1,outfits(24))
             assertEquals(0,outfits(25))
+            assertEquals(7,partyNumber(1049))
+            assertEquals(0,partyNumber(1050))
             sender.send(draft(1,token+1))
             assertEquals(0,warehouseStatus())
             sender.send(draft(1))
             assertEquals(1,warehouseStatus())
             assertEquals(0,outfits(24))
+            assertEquals(0,bases().get().toInt())
             assertEquals(1000,state.players.getValue("load-000").mcp)
             assertTrue(state.stocks.social.proposals.mails.isEmpty())
             val offer=LogisticsMessages.AssignmentProposal(10000,10001,token,1049,1,0,
