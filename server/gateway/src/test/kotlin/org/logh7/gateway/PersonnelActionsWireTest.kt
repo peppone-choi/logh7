@@ -55,6 +55,43 @@ class PersonnelActionsWireTest {
         assertEquals(status,ByteBuffer.wrap(next(client,0x1200)).getShort(16).toInt())
         next(client,0x1201);next(client,0x0356)
     }
+    @Test fun promotionRefreshesTheRevokedDelegationOnAnOpenBattlefield() {
+        val state = State(now)
+        val targetAccount = "load-001"
+        state.players = state.players + (targetAccount to state.players.getValue(targetAccount).copy(grid = 2490))
+        val friendly = OutfitStock(1, 2, OutfitKind.FLEET, 1049, 10, commanderId = 10000, aideId = 10001,
+            units = UnitInventory(mapOf(UnitStack(32) to 1)), position = OutfitPosition(2490))
+        val hostile = OutfitStock(2, 3, OutfitKind.FLEET, 1051, 11, commanderId = 500,
+            units = UnitInventory(mapOf(UnitStack(119) to 1)), position = OutfitPosition(2490))
+        state.stocks = ActiveShips.initialize(state.stocks.copy(outfits = mapOf(1 to friendly, 2 to hostile),
+            warehouses = mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, 1049, 1),
+                11 to OutfitWarehouse(11, 3, OutfitKind.FLEET, 1051, 2))))
+        val ship = state.stocks.outfits.getValue(1).activeShips!!.values.single()
+        state.stocks = state.stocks.copy(tacticalCommands = TacticalCommandState(authority = mapOf(ship.id to 10001)))
+        seed(directory)
+        LoadFixture(directory, 2, LoadMetrics(), galaxy, ticking = false, navigationStore = state.navigation,
+            stockStore = state.inventory, worldStateCommitter = state).use { fixture ->
+            val actor = fixture.join(fixture.account(0), false, false).client
+            actor.send(SyntheticClient.opcode(0x0f00)); next(actor, 0x0f01)
+            val viewer = fixture.join(fixture.account(1), false, false).client
+            viewer.send(SyntheticClient.opcode(0x0f00)); next(viewer, 0x0f01)
+            assertTrue(state.players.getValue(targetAccount).cpPaused)
+            viewer.send(SyntheticClient.opcode(0x0f02))
+            fun commander(packet: ByteArray): Int {
+                val states = ByteBuffer.wrap(packet)
+                val row = (0 until states.getShort(6).toInt()).single { states.getInt(8 + it * 47) == ship.id }
+                return states.getInt(14 + row * 47)
+            }
+            assertEquals(10001, commander(next(viewer, 0x033b)))
+            next(viewer, 0x0f03)
+
+            action(actor, 0, 17)
+            assertEquals(0, state.stocks.outfits.getValue(1).aideId)
+            assertNull(state.stocks.tacticalCommands.authority[ship.id])
+            assertEquals(10000, commander(next(viewer, 0x033b)))
+        }
+    }
+
     @Test fun encryptedPersonnelTargetsExcludeIneligibleCharactersAndKeepTitlesFiefsAndStyleAcrossRestart() {
         val state=State(now)
         fun server(name:String):LoadFixture {

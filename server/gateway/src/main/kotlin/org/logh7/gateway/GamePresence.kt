@@ -486,17 +486,25 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         }
 
     /** The current 033b table carries the effective commander for existing ship identities. */
-    @Synchronized internal fun refreshTacticalOffice(generation:Long,outfitId:Int,world:WorldBootstrap,
-        latest:()->org.logh7.engine.WorldSnapshot?,characterById:(Int)->CharacterMessages.Generate?) {
+    internal fun refreshTacticalOffice(generation:Long,outfitId:Int,world:WorldBootstrap,
+        latest:()->org.logh7.engine.WorldSnapshot?,characterById:(Int)->CharacterMessages.Generate?) =
+        refreshTacticalOffices(generation, setOf(outfitId), world, latest, characterById)
+
+    @Synchronized internal fun refreshTacticalOffices(generation: Long, outfitIds: Set<Int>, world: WorldBootstrap,
+        latest: () -> org.logh7.engine.WorldSnapshot?, characterById: (Int) -> CharacterMessages.Generate?) {
         val snapshot=latest() ?: return
         val stocks=snapshot.planetStocks?.takeIf {it.generation==generation} ?: return
-        val position=stocks.outfits[outfitId]?.positionIn(world.galaxy)?.takeIf {it.baseId==0} ?: return
+        val grids = outfitIds.mapNotNull { id ->
+            stocks.outfits[id]?.positionIn(world.galaxy)?.takeIf { it.baseId == 0 }?.grid
+        }.toSet()
+        if (grids.isEmpty()) return
         val countries=world.lobbyCountryDefinitions().first
-        members.values.filter {it.player.generation==generation && it.player.grid==position.grid && it.player.cpPaused}
+        members.values.filter {it.player.generation==generation && it.player.grid in grids && it.player.cpPaused}
             .forEach {viewer->
-                val player=tacticalViewer(snapshot,viewer,position.grid) ?: return@forEach
+                val grid = viewer.player.grid
+                val player=tacticalViewer(snapshot,viewer,grid) ?: return@forEach
                 val tactical=TacticalBootstrap(snapshot,world.galaxy,player,countries,characterById)
-                send(viewer,listOf(org.logh7.protocol.TacticsMessages.states(tactical.units)),position.grid)
+                send(viewer,listOf(org.logh7.protocol.TacticsMessages.states(tactical.units)),grid)
             }
     }
 

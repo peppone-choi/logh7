@@ -2547,6 +2547,8 @@ class GameExchange(
                                                 administration.stationedOutfit(targetPlayer))
                                         }
                                     }
+                                    if (result.tacticalOfficeOutfits.isNotEmpty()) presence?.refreshTacticalOffices(
+                                        player.generation, result.tacticalOfficeOutfits, world, { navigation?.snapshot() }, ::currentCharacterById)
                                     val civic=if(query.command in org.logh7.engine.CivicActions.supported)
                                         org.logh7.protocol.StrategyActionMessages.CivicStatus(result.civic?.phase?.ordinal ?: -1,
                                             result.civic?.outfit ?: 0,result.civic?.base ?: player.baseId,
