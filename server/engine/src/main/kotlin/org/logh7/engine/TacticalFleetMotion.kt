@@ -34,7 +34,8 @@ internal object TacticalFleetMotion {
             val pair=stocks.outfits.values.flatMap {o->o.activeShips?.values.orEmpty().filter {it.id==id}.map {o to it}}
                 .singleOrNull() ?: return reject(NavigationRejection.UNIT)
             val (o,u)=pair
-            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.country!=player.country ||
+            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId ||
+                TacticalAuthority.camp(o,stocks)!=TacticalAuthority.camp(player,stocks) ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
             if(u.boats==0 || u.support!=null)return reject(NavigationRejection.BUSY)
             pair
