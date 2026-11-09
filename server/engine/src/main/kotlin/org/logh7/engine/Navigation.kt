@@ -534,7 +534,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     }
     /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
     private fun operationTarget(player: Navigator, destination: Int, stocks: PlanetStocks?): Boolean =
-        stocks?.strategic?.operations.orEmpty().any { operation -> operation.live &&
+        stocks != null && !CoupActions.rebel(stocks,player.characterId,player.country) &&
+        stocks.strategic.operations.any { operation -> operation.live &&
             operation.country==player.country && operation.state != StrategicPlanState.PLANNED && player.characterId in operation.characters &&
             abs(operation.grid % 100 - destination % 100) <= 1 && abs(operation.grid / 100 - destination / 100) <= 1 }
     /** Runs on clock advances as well as requests, including while the captain is offline. */
