@@ -168,7 +168,8 @@ internal object TacticalSupportOperations {
         .number("修理消費物資(１隻):修理消費物資(１隻)")
 
     fun offlineOrder(outfit:OutfitStock,unit:ActiveShipUnit,player:Navigator,now:Long,scale:Long,
-        players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy,alliedTargets:List<Int>):TacticalSupportOrder? {
+        players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy,alliedTargets:List<Int>,
+        reserved:Set<Pair<TacticalSupportAction,Int>>):TacticalSupportOrder? {
         val type=UnitSpecifications.ships.single {it.kind==unit.stack.kind}.type
         val action=when(type) {
             11 -> TacticalSupportAction.REPAIR
@@ -179,7 +180,7 @@ internal object TacticalSupportOperations {
         if(available==0)return null
         val source=Ship(outfit,unit)
         for(target in listOf(player.unitId)+alliedTargets) {
-            if(target==unit.id)continue
+            if(target==unit.id || (action to target) in reserved)continue
             val order=TacticalSupportOrder(action,player.characterId,target,player.grid,now,now+5*scale)
             if(!eligible(source,player,order,now,players,stocks,galaxy) || !needed(order,players,stocks))continue
             if(action==TacticalSupportAction.REPAIR) {

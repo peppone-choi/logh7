@@ -40,6 +40,11 @@ internal object TacticalOfflineAi {
         var stocks=initial
         val now=session.gameMillis/1000
         if(now>0xffffffffL-maxOf(155*scale,TacticalMotion.WAIT_SECONDS))return stocks
+        val reservedSupport=mutableMapOf<Int,MutableSet<Pair<TacticalSupportAction,Int>>>()
+        for(outfit in stocks.outfits.values)for(unit in outfit.activeShips?.values.orEmpty()) {
+            val order=unit.support ?: continue
+            reservedSupport.getOrPut(order.grid){mutableSetOf()}.add(order.action to order.target)
+        }
         for(account in players.keys.sorted()) {
             val p=players.getValue(account)
             if(!eligible(session,account,p,stocks) || now<(stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0))continue
@@ -91,6 +96,7 @@ internal object TacticalOfflineAi {
                 .flatMap {it.activeShips?.values.orEmpty().asSequence()}
                 .map {it.id}.sorted().toList() else emptyList()
             val alliedTargets=alliedFlagships+alliedShips
+            val reserved=reservedSupport.getOrPut(p.grid){mutableSetOf()}
             // Every regular ship remains subject to ownership, CRC, confusion and pending-job guards.
             for((outfitId,original) in stocks.outfits.toSortedMap()) {
                 if(TacticalAuthority.camp(original,stocks)!=camp || original.positionIn(g)!=OutfitPosition(p.grid))continue
@@ -113,8 +119,9 @@ internal object TacticalOfflineAi {
                     if(unit.id !in commandable || unit.posture?.mode?.requiresBase==true)return@map unit
                     if(kind in 0..1) {
                         val support=TacticalSupportOperations.offlineOrder(original,unit,p,now,scale,players,stocks,g,
-                            alliedTargets)
+                            alliedTargets,reserved)
                         if(support!=null) {
+                            reserved.add(support.action to support.target)
                             commanded=true
                             return@map unit.copy(support=support,attack=null,shot=null)
                         }

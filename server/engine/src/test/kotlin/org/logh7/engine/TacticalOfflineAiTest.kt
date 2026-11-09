@@ -74,6 +74,30 @@ class TacticalOfflineAiTest {
         }
     }
 
+    @Test fun offlineTransportsSplitOrdersBetweenFlagships() {
+        for(pending in listOf(false,true)) {
+            val players=players()
+            val pilot=players.getValue("pilot").copy(supplies=9500)
+            val ally=pilot.copy(characterId=10001,motion=motion(0f,.7f))
+            players["pilot"]=pilot
+            players["ally"]=ally
+            val stock=stocks(1)
+            val kind=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith("輸送艦")}.kind
+            val source=ActiveShipUnit(1,UnitStack(kind),tactical=NpcTacticalState(motion(0f,.5f),now,now),supplies=500)
+            val action=TacticalSupportAction.SUPPLY
+            val first=source.copy(support=if(pending)TacticalSupportOrder(action,10000,pilot.unitId,2488,now,now+5) else null)
+            val own=stock.outfits.getValue(1).copy(units=UnitInventory(mapOf(source.stack to 2)),
+                activeShips=ActiveShipUnits(listOf(first,source.copy(id=2))),supplies=1000)
+            val next=TacticalOfflineAi.advance(offline,galaxy,players,stock.copy(outfits=stock.outfits+(1 to own)),1,mutableListOf())
+            val units=next.outfits.getValue(1).activeShips!!.values
+            assertEquals(listOf(pilot.unitId,ally.unitId),units.map {it.support?.target})
+            val results=mutableListOf<TacticalSupportResult>()
+            TacticalSupportOperations.advance(offline.copy(gameMillis=(now+5)*1000),galaxy,players,next,results)
+            assertEquals(2,results.count {!it.cancelled})
+            assertEquals(listOf(10000,10000),players.values.map {it.supplies})
+        }
+    }
+
     @Test fun offlineSupportFallsBackToAnAlliedShipInRange() {
         for(action in TacticalSupportAction.entries) {
             val players=players()
