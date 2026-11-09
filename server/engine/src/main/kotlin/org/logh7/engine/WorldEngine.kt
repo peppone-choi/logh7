@@ -1266,7 +1266,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     durability.commit(command.sessionAction(), next)
                     durableState = next.state
                     if (command is WorldCommand.AdvanceTo) {
-                        production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
+                        production?.settle(next.state.session)
                         settleCombat(next.state.session,next.state.snapshot(rules)) {reconcileTerritory()}
                         val current=checkNotNull(durableState).session
                         navigation?.settleRetreats(current, production?.snapshot(current.generation))
@@ -1301,7 +1301,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
                         else simulation.advance(command.elapsedRealMillis - elapsed)
                     elapsed = command.elapsedRealMillis
-                    if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
+                    if (!storageFailed) production?.settle(simulation.exportState())
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot())) {reconcileTerritory()}
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
                     if (!storageFailed) settleOfflineNavigation(simulation.exportState())
