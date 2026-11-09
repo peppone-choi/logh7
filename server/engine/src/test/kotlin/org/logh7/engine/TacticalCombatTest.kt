@@ -181,14 +181,19 @@ class TacticalCombatTest {
         assertSavedFlagshipOrdersCancelled(deceased=false)
     }
 
-    private fun assertSavedFlagshipOrdersCancelled(deceased:Boolean) {
+    @Test fun eliminatedCountryFlagshipCancelsSavedOrdersWithoutAParticipantRecord() {
+        assertSavedFlagshipOrdersCancelled(deceased=false,registered=false)
+    }
+
+    private fun assertSavedFlagshipOrdersCancelled(deceased:Boolean,registered:Boolean=true) {
         val state=state()
         val live=Navigation(galaxy,state.nav,NavigationPolicy())
         val accepted=assertNotNull(TacticalCombat.accept(request,session,galaxy,live,state.stocks,state.commit,24).player)
         val due=assertNotNull(accepted.fire?.pending).firesAt
         state.players=mapOf("pilot" to accepted.copy(attack=TacticalAttackOrder(2,now,now,due)))
         if(deceased)state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
-        val current=if(deceased)session else session.copy(eliminated=mapOf(Power.ALLIANCE.country to
+        val current=if(deceased)session else session.copy(participants=session.participants.takeIf {registered}.orEmpty(),
+            eliminated=mapOf(Power.ALLIANCE.country to
             CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.EMPIRE.country)))
         val nav=Navigation(galaxy,state.nav,NavigationPolicy())
         val stock=production(state)

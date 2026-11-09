@@ -247,7 +247,8 @@ internal object TacticalCombat {
         val stocks = checkNotNull(production.snapshot(session.generation))
         for((account,player) in original) {
             if((player.attack!=null || player.fire?.pending!=null) &&
-                (session.participants[account]?.country in session.eliminated || BattleDeath.deceased(stocks,player.characterId)))
+                ((session.participants[account]?.country ?: player.country) in session.eliminated ||
+                    BattleDeath.deceased(stocks,player.characterId)))
                 players[account]=player.copy(attack=null,fire=player.fire?.copy(pending=null))
         }
         clearFinishedOrders(players,galaxy,stocks,now)
