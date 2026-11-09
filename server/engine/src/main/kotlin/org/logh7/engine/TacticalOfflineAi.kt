@@ -38,6 +38,9 @@ internal object TacticalOfflineAi {
         return ids.distinct().sorted()
     }
 
+    fun activeEnemy(target:TacticalCombat.Target,eliminated:Set<CountryId>):Boolean =
+        (target.personal?.second?.country ?: target.regular?.first?.country) !in eliminated
+
     fun advance(session:SessionState,g:Galaxy,players:MutableMap<String,Navigator>,initial:PlanetStocks,scale:Long,
         events:MutableList<TacticalCommandResult>):PlanetStocks {
         var stocks=initial
@@ -65,7 +68,8 @@ internal object TacticalOfflineAi {
             if(kind==1 && mission!=null && missionCamp!=camp)continue
             if(kind==2 && (missionBase==null || missionCamp==camp))continue
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)).distinct()
-            val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,camp,stocks,g,players)?.let {
+            val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,camp,stocks,g,players)
+                ?.takeIf {activeEnemy(it,session.eliminated.keys)}?.let {
                 id to TacticalFleetAttack.pose(it,now,players,stocks,g)}}
                 .filterNot {TacticalTerrain.sharedSensorBlocked(g,p.grid,camp,pose.position,it.second.position,now,players.values,stocks)}
             val enemy=enemies.singleOrNull {kind in 3..4 && it.first==mission?.target}
