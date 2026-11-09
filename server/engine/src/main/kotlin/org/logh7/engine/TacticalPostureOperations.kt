@@ -124,9 +124,9 @@ internal object TacticalPostureOperations {
                 recipients[grid].orEmpty(),cancelled=cancelled)
         for((account,p) in players.toMap()) {
             val state=p.posture ?: continue;val order=state.order ?: continue
-            val country=session.participants[account]?.country ?: p.country
             val context=session.ended==null && p.cpPaused && p.baseId==0 && p.grid==state.grid && order.character==p.characterId &&
-                country !in session.eliminated && !BattleDeath.deceased(stocks,order.character)
+                p.country !in session.eliminated && session.participants[account]?.country !in session.eliminated &&
+                !BattleDeath.deceased(stocks,order.character)
             if(order.readyAt>now && context)continue
             val at=pose(p,minOf(now,order.readyAt),players.values,stocks,galaxy)
             val valid=context &&

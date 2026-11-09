@@ -64,8 +64,11 @@ internal object TacticalFleetRetreat {
             val checked=outfit.activeShips?.values.orEmpty().map {u->
                 val state=u.tactical ?: return@map u;val retreat=state.retreat ?: return@map u
                 if(u.motionCommander==0)return@map u
-                val commander=players.values.singleOrNull {it.characterId==u.motionCommander}
-                if(outfit.country in session.eliminated || position.baseId!=0 || state.motion.grid!=grid ||
+                val commanderEntry=players.entries.singleOrNull {it.value.characterId==u.motionCommander}
+                val commander=commanderEntry?.value
+                val memberCountry=commanderEntry?.key?.let {session.participants[it]?.country}
+                if(outfit.country in session.eliminated || memberCountry in session.eliminated ||
+                    position.baseId!=0 || state.motion.grid!=grid ||
                     BattleDeath.deceased(stocks,u.motionCommander) ||
                     TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander ||
                     commander?.let {TacticalAuthority.camp(it,stocks)!=outfitCamp}==true)
