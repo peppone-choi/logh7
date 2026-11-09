@@ -2801,9 +2801,13 @@ class GameExchange(
                                 require(query.character==character.id.toInt())
                                 pendingWorld=stocks().thenApply { stored ->
                                     val inventory=checkNotNull(stored)
-                                    val scope=SupplyDirectoryScope(world.galaxy,currentProfile(identity.account,character.id.toInt()).country,
+                                    val country=currentProfile(identity.account,character.id.toInt()).country
+                                    val snapshot=navigation?.snapshot()
+                                    if (snapshot?.session?.eliminated?.containsKey(country)==true)
+                                        return@thenApply org.logh7.protocol.SupplyDirectoryMessages.response(query,emptyList())
+                                    val scope=SupplyDirectoryScope(world.galaxy,country,
                                         world.lobbyCountryDefinitions().first)
-                                    val player=if(query.quoteNonce>0)navigation?.snapshot()?.navigators?.get(identity.account)?.takeIf {
+                                    val player=if(query.quoteNonce>0)snapshot?.navigators?.get(identity.account)?.takeIf {
                                         it.characterId==query.character && it.generation==inventory.generation && it.grid==query.grid
                                     } else null
                                     val source=player?.let { scope.supplySource(inventory,query.character,query.grid,it.baseId) }
