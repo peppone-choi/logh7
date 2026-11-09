@@ -375,7 +375,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy,countries)
             if (!RetreatRules.outside(pose)) return reject(NavigationRejection.INSIDE_RADAR)
-            val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose)
+            val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose, session.eliminated.keys)
                 ?: return reject(NavigationRejection.GRID)
             if (now > 0xffffffffL - 155 * clockScale) return reject(NavigationRejection.CLOCK)
             val after = before.copy(retreat = TacticalRetreat(target, now, 5 * clockScale, 150 * clockScale))
@@ -567,7 +567,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 changed = true
                 continue
             }
-            if (!TacticalContact.active(galaxy, player, next.values, stocks)) {
+            if (!TacticalContact.active(galaxy, player, next.values, stocks, session.eliminated.keys)) {
                 next[account] = player.copy(cpPaused = false, motion = null, retreat = null, charge = null,commandRange=null,
                     attack=null,fire=player.fire?.copy(pending=null),cpRecoveryAt = now)
                 changed = true
@@ -576,12 +576,12 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (now < retreat.completesAt) continue
             val pose = player.motion?.pose(now,player.posture,galaxy) ?: continue
             if (!RetreatRules.outside(pose)) continue
-            val forces = GridForces.collect(galaxy, session.generation, next.values, stocks)
+            val forces = GridForces.collect(galaxy, session.generation, next.values, stocks, session.eliminated.keys)
             if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces, stocks)) continue
             val moved = player.copy(grid = retreat.destination, motion = null, retreat = null, charge = null,commandRange=null,
                 attack=null,fire=player.fire?.copy(pending=null),
                 cpRecoveryAt = now, moves = Math.addExact(player.moves, 1))
-            val active = TacticalContact.active(galaxy, moved, next.values, stocks)
+            val active = TacticalContact.active(galaxy, moved, next.values, stocks, session.eliminated.keys)
             next[account] = moved.copy(cpPaused = active,commandRange=if(active)TacticalCommandRange(now,
                 command=player.commandRange?.command ?: 50) else null)
             changed = true

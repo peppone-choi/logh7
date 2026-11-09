@@ -39,7 +39,7 @@ internal object TacticalFleetRetreat {
             p=personal.player ?: return personal
         }
         var next=s
-        val destination=p.retreat?.destination ?: RetreatRules.destination(g,p,players.values,s,regular.first().third)
+        val destination=p.retreat?.destination ?: RetreatRules.destination(g,p,players.values,s,regular.first().third,session.eliminated.keys)
             ?: return reject(NavigationRejection.GRID)
         for((o,u,at) in regular) {
             val current=next.outfits.getValue(o.id)
@@ -89,7 +89,7 @@ internal object TacticalFleetRetreat {
                 RetreatRules.outside(u.tactical.motion.pose(now,u.posture,g,stocks))}
             for(group in due.groupBy {it.tactical!!.retreat!!.destination}.values) {
                 val current=stocks.outfits.getValue(outfitId);val target=group.first().tactical!!.retreat!!.destination
-                val forces=GridForces.collect(g,session.generation,players.values,stocks)
+                val forces=GridForces.collect(g,session.generation,players.values,stocks,session.eliminated.keys)
                 val camp=TacticalAuthority.camp(current,stocks)
                 val ids=group.map {it.id}.toSet();val original=current.activeShips!!.values
                 val aboard=current.activeGround?.values.orEmpty().filter {it.carrier in ids}

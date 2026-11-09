@@ -462,6 +462,21 @@ class TacticalOfflineAiTest {
             assertEquals(range,players.getValue("pilot").commandRange,"a blocked unit must not consume command range")
         }
     }
+    @Test fun offlineRetreatIgnoresAnEliminatedFleetAtThePreferredExit() {
+        val plain=stocks(5)
+        val enemy=plain.outfits.getValue(2)
+        val stock=plain.copy(outfits=plain.outfits+(2 to enemy.copy(position=OutfitPosition(2487))))
+        fun destination(session:SessionState):Int {
+            val players=players()
+            players["pilot"]=players.getValue("pilot").copy(motion=motion(-260f))
+            TacticalOfflineAi.advance(session,galaxy,players,stock,1,mutableListOf())
+            return assertNotNull(players.getValue("pilot").retreat).destination
+        }
+        assertNotEquals(2487,destination(offline))
+        val eliminated=offline.copy(eliminated=mapOf(Power.ALLIANCE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        assertEquals(2487,destination(eliminated))
+    }
+
     @Test fun reconnectAndAiOffCancelPendingOfflineRetreats() {
         val plain=stocks(5)
         val fleet=plain.outfits.getValue(1)
