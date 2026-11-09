@@ -67,6 +67,9 @@ class FleetStaffAppointmentWireTest {
                     assertEquals(200,unit.getInt(19))
                 }
             }
+            actor.send(query(4, 80, 43));next(actor, 0x1200)
+            assertEquals(0, next(actor, 0x1202)[6].toInt(), "A staff officer cannot also become aide in the same fleet")
+            next(actor, 0x1201)
             assertEquals(10001,stocks.outfits.getValue(200).staff.officers.singleOrNull() ?: 0)
             assertEquals(840,players.getValue("load-000").mcp)
             actor.send(ByteBuffer.allocate(11).putShort(0x032e).putInt(200).putInt(1049).put(0).array())

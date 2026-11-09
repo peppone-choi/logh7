@@ -132,6 +132,11 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy,private val configure
     fun held(stocks:PlanetStocks,character:Int)=all(stocks).filter {it.character==character}
     fun cardCount(stocks:PlanetStocks,character:Int)=held(stocks,character).size+
         (if(stocks.strategic.people[character]?.peerage!=null)1 else 0)+stocks.strategic.fiefs.values.count {it==character}
+    fun canTakeAnySeat(stocks: PlanetStocks, role: OrganizationalOffice, character: Int, seats: Collection<Int>): Boolean {
+        // Native resignation names the card kind without a seat.
+        if (held(stocks, character).any { it.card == role.card }) return false
+        return seats.any { role.scope != OfficeScope.OUTFIT || character !in stocks.outfits.getValue(it).members() }
+    }
     fun authorized(stocks:PlanetStocks,role:OrganizationalOffice,seat:Int,character:Int,rank:Int?=null):Boolean {
         if(!active(stocks,role,seat))return false
         val authority=role.authority?.let {this.role(it,role.country)} ?: return false
