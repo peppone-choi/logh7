@@ -462,6 +462,31 @@ class TacticalOfflineAiTest {
             assertEquals(range,players.getValue("pilot").commandRange,"a blocked unit must not consume command range")
         }
     }
+    @Test fun reconnectAndAiOffCancelPendingOfflineRetreats() {
+        val plain=stocks(5)
+        val fleet=plain.outfits.getValue(1)
+        val ship=fleet.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,260f),now,now))
+        val ready=plain.copy(outfits=plain.outfits+(1 to fleet.copy(activeShips=ActiveShipUnits(listOf(ship)))))
+        val pilots=players()
+        pilots["pilot"]=pilots.getValue("pilot").copy(motion=motion(0f,260f))
+        val delegated=TacticalOfflineAi.advance(offline,galaxy,pilots,ready,1,mutableListOf())
+        val retreat=assertNotNull(pilots.getValue("pilot").retreat)
+        assertNotNull(delegated.outfits.getValue(1).activeShips!!.values.single().tactical?.retreat)
+
+        val disabled=delegated.copy(tacticalCommands=delegated.tacticalCommands.copy(aiSwitches=emptyMap()))
+        for((session,stock) in listOf(baseSession to delegated,offline to disabled)) {
+            val tick=session.copy(gameMillis=retreat.startsAt*1000)
+            val navigation=Navigation(galaxy,object:NavigationStore {
+                override fun load()=pilots.toMap()
+                override fun save(players:Map<String,Navigator>) {}
+            },NavigationPolicy())
+            navigation.settleRetreats(tick,stock)
+            assertNull(navigation.snapshot(1).getValue("pilot").retreat)
+            val after=TacticalFleetRetreat.advance(tick,galaxy,pilots.toMutableMap(),stock,mutableListOf())
+            assertNull(after.outfits.getValue(1).activeShips!!.values.single().tactical?.retreat)
+        }
+    }
+
     @Test fun offlineRebelRetreatCommandsOnlyTheMatchingCamp() {
         val plain=stocks(5)
         val fleet=plain.outfits.getValue(1)

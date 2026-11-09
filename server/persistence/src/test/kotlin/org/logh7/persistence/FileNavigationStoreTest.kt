@@ -196,6 +196,10 @@ class FileNavigationStoreTest {
         FileNavigationStore(path).use {assertEquals(player,it.load().getValue("pilot"))}
         java.nio.file.Files.writeString(path,"LOGH7-NAV-9\n"+lines[1].substringBeforeLast('\t')+"\n")
         FileNavigationStore(path).use {assertNull(it.load().getValue("pilot").retreat)}
+        val delegated=player.copy(retreat=player.retreat!!.copy(issuedByOfflineAi=true))
+        FileNavigationStore(path).use {it.save(mapOf("pilot" to delegated))}
+        assertEquals("LOGH7-NAV-23",java.nio.file.Files.readAllLines(path).first())
+        FileNavigationStore(path).use {assertEquals(delegated,it.load().getValue("pilot"))}
     }
     @Test fun motionKeepsItsScheduleAndPathAcrossReopenAndLegacyEightHasNoMotion() {
         val path=directory.resolve("motion")

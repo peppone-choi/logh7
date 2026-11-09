@@ -49,6 +49,18 @@ class NpcTacticalStoreTest {
         FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
         val encoded=NpcTacticalCodec.encode(state)
         assertEquals(state,NpcTacticalCodec.decode(encoded))
+        for(checked in listOf(false,true)) for(delegated in listOf(false,true)) {
+            val pending=state.copy(retreat=state.retreat!!.copy(membershipChecked=checked,issuedByOfflineAi=delegated))
+            assertEquals(pending,NpcTacticalCodec.decode(NpcTacticalCodec.encode(pending)))
+        }
+        val delegatedPath=directory.resolve("delegated-stocks")
+        val fleet=expected.outfits.getValue(1)
+        val ship=fleet.activeShips!!.values.single()
+        val delegated=ship.copy(tactical=state.copy(retreat=state.retreat!!.copy(issuedByOfflineAi=true)))
+        val delegatedStocks=expected.copy(outfits=mapOf(1 to fleet.copy(activeShips=ActiveShipUnits(listOf(delegated)))))
+        FilePlanetStockStore(delegatedPath).use {it.save(delegatedStocks)}
+        assertTrue(Files.readString(delegatedPath).startsWith("LOGH7-STOCK-49\t"))
+        FilePlanetStockStore(delegatedPath).use {assertEquals(delegatedStocks,it.load())}
         val legacy=Files.readString(path).replace("LOGH7-STOCK-16","LOGH7-STOCK-15").replace(".$encoded","")
         Files.writeString(path,legacy)
         FilePlanetStockStore(path).use {assertNull(it.load()!!.outfits.getValue(1).activeShips!!.values.single().tactical)}

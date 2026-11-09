@@ -47,7 +47,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
             "LOGH7-NAV-19" -> 31
             "LOGH7-NAV-20" -> 32
             "LOGH7-NAV-21" -> 33
-            "LOGH7-NAV-22" -> 34
+            "LOGH7-NAV-22", "LOGH7-NAV-23" -> 34
             else -> error("Unknown navigation store format") }
         val players = linkedMapOf<String, Navigator>()
         for (line in lines.drop(1)) {
@@ -67,8 +67,8 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                 if (columns >= 19) f[18].toInt() else 0,
                 if (columns >= 20 && f[19] != "-") TacticalEnergy(f[19].split(',').map(String::toInt)) else null,
                 if (columns >= 21 && f[20] != "-") TacticalMotionCodec.decode(f[20]) else null,
-                if (columns >= 22 && f[21] != "-") f[21].split(',').also { require(it.size == 4) }.let {
-                    TacticalRetreat(it[0].toInt(), it[1].toLong(), it[2].toLong(), it[3].toLong())
+                if (columns >= 22 && f[21] != "-") f[21].split(',').also { require(it.size == 4 || it.size == 5 && it[4] == "ai") }.let {
+                    TacticalRetreat(it[0].toInt(), it[1].toLong(), it[2].toLong(), it[3].toLong(), issuedByOfflineAi=it.size == 5)
                 } else null,
                 if (columns >= 23 && f[22] != "-") f[22].split(',').also { require(it.size == 4) }.let {
                     TacticalCharge(it[0].toLong(), it[1].toLong(), it[2].toLong(), it[3].toLong())
@@ -93,7 +93,8 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
         return players
     }
     override fun save(players: Map<String, Navigator>) {
-        val origins = players.values.any { it.originBase != 0 }
+        val aiRetreats = players.values.any { it.retreat?.issuedByOfflineAi == true }
+        val origins = aiRetreats || players.values.any { it.originBase != 0 }
         val warpNotices = origins || players.values.any { it.offlineWarpCancellation != null }
         val countries=warpNotices || players.values.any {(it.country?.value ?: 0) !in 2..3 ||
             it.shipStyle!=ShipStyleId.fromLegacy(it.power)}
@@ -109,7 +110,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
         val retreats = charges || players.values.any { it.retreat != null }
         val motions = retreats || players.values.any { it.motion != null }
         val bytes = buildString {
-            append(if(origins) "LOGH7-NAV-22\n" else if(warpNotices) "LOGH7-NAV-21\n" else if(countries) "LOGH7-NAV-20\n" else if(used) "LOGH7-NAV-19\n" else if(warps) "LOGH7-NAV-18\n" else if(postures) "LOGH7-NAV-17\n" else if(ranges) "LOGH7-NAV-16\n" else if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
+            append(if(aiRetreats) "LOGH7-NAV-23\n" else if(origins) "LOGH7-NAV-22\n" else if(warpNotices) "LOGH7-NAV-21\n" else if(countries) "LOGH7-NAV-20\n" else if(used) "LOGH7-NAV-19\n" else if(warps) "LOGH7-NAV-18\n" else if(postures) "LOGH7-NAV-17\n" else if(ranges) "LOGH7-NAV-16\n" else if (attacks) "LOGH7-NAV-15\n" else if (hulls) "LOGH7-NAV-14\n" else if (supplies) "LOGH7-NAV-13\n" else if (fires) "LOGH7-NAV-12\n" else if (charges) "LOGH7-NAV-11\n" else if (retreats) "LOGH7-NAV-10\n" else if (motions) "LOGH7-NAV-9\n" else "LOGH7-NAV-8\n")
             players.toSortedMap().forEach { (account, p) ->
                 require(account.matches(Regex("[A-Za-z0-9_.@-]{1,30}")))
                 append((listOf(account, p.generation, p.characterId, if(countries)p.country?.value ?: "-" else p.power.name, p.grid, p.pcp, p.mcp, p.cruise,
@@ -118,7 +119,8 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                     p.energy?.values?.joinToString(",") ?: "-") +
                     (if (motions) listOf(p.motion?.let(TacticalMotionCodec::encode) ?: "-") else emptyList()) +
                     (if (retreats) listOf(p.retreat?.let {
-                        listOf(it.destination,it.acceptedAt,it.waitSeconds,it.preparationSeconds).joinToString(",")
+                        listOf(it.destination,it.acceptedAt,it.waitSeconds,it.preparationSeconds).joinToString(",") +
+                            if(it.issuedByOfflineAi)",ai" else ""
                     } ?: "-") else emptyList()) +
                     (if (charges) listOf(p.charge?.let {
                         listOf(it.at,it.beam,it.gun,it.clockScale).joinToString(",")

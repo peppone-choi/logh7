@@ -67,9 +67,11 @@ internal object TacticalFleetRetreat {
                 val commanderEntry=players.entries.singleOrNull {it.value.characterId==u.motionCommander}
                 val commander=commanderEntry?.value
                 val memberCountry=commanderEntry?.key?.let {session.participants[it]?.country}
+                val delegationEnded=retreat.issuedByOfflineAi && (commanderEntry==null ||
+                    !TacticalOfflineAi.eligible(session,commanderEntry.key,commanderEntry.value,stocks))
                 if(outfit.country in session.eliminated || memberCountry in session.eliminated ||
                     position.baseId!=0 || state.motion.grid!=grid ||
-                    BattleDeath.deceased(stocks,u.motionCommander) ||
+                    BattleDeath.deceased(stocks,u.motionCommander) || delegationEnded ||
                     TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander ||
                     commander?.let {(it.hull?.woundedUntil ?: 0)>now || TacticalAuthority.camp(it,stocks)!=outfitCamp}==true)
                     return@map u.copy(tactical=state.copy(retreat=null))
