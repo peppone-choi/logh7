@@ -202,6 +202,26 @@ class TacticalOfflineAiTest {
         assertTrue(impacts.any {it.hit.target==99},"the enemy is a valid target while the commander is online")
     }
 
+    @Test fun defenseDoesNotDispatchTowardACapturedBaseBeforeMissionSettlement() {
+        val plain=stocks(1)
+        for(power in listOf(2,3)) {
+            val stock=plain.copy(bases=mapOf(1000 to PlanetStock(1000,power,0,100,0,0)))
+            val players=players()
+            val pilot=players.getValue("pilot").copy(motion=motion(0f,12f))
+            players["pilot"]=pilot
+            val events=mutableListOf<TacticalCommandResult>()
+            val result=TacticalOfflineAi.advance(offline,galaxy,players,stock,1,events)
+            if(power==2) {
+                assertTrue(players.getValue("pilot").motion!!.velocity>0)
+                assertNotNull(events.single().motions[pilot.unitId])
+            } else {
+                assertEquals(pilot,players.getValue("pilot"))
+                assertEquals(stock.outfits,result.outfits)
+                assertTrue(events.isEmpty())
+            }
+        }
+    }
+
     @Test fun occupationAnchorsTroopCarriersAtTheEnemyBaseAndThenLandsTheirTroops() {
         // The fortress belongs to the alliance; the pilot's mission 2 (占領) targets it with a light infantry unit aboard ship 1.
         val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(5,UnitStack(0),carrier=1),ActiveGroundUnit(6,UnitStack(2),carrier=1)))

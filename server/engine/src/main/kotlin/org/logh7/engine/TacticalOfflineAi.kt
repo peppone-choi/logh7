@@ -51,6 +51,11 @@ internal object TacticalOfflineAi {
             val camp=TacticalAuthority.camp(p,stocks)
             val defended=defenseBase(p,stocks,g)
             val kind=if(stocks.tacticalCommands.confused(p.unitId))5 else mission?.mission ?: if(defended!=null)1 else 0
+            val missionBase=g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid}
+            val missionCamp=missionBase?.let {stocks.bases[it.id]}?.let(TacticalAuthority::camp)
+            // Ownership can change before the mission settlement runs.
+            if(kind==1 && mission!=null && missionCamp!=camp)continue
+            if(kind==2 && (missionBase==null || missionCamp==camp))continue
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)).distinct()
             val enemies=ids.mapNotNull {id->TacticalCombat.target(id,p.grid,camp,stocks,g,players)?.let {
                 id to TacticalFleetAttack.pose(it,now,players,stocks,g)}}
@@ -58,9 +63,6 @@ internal object TacticalOfflineAi {
             val enemy=enemies.singleOrNull {kind in 3..4 && it.first==mission?.target}
                 ?: if(kind==0)enemies.minWithOrNull(compareBy<Pair<Int,TacticalPose>> {
                     distance(pose.position,it.second.position)}.thenBy {it.first}) else null
-            val missionBase=g.bases.singleOrNull {it.id==mission?.target && it.grid==p.grid}
-            // An occupation mission may outlive its target's capture until this tick is settled.
-            if(kind==2 && (missionBase==null || stocks.bases[missionBase.id]?.let(TacticalAuthority::camp)==camp))continue
             val occupied=missionBase?.takeIf {kind==2}
             val goal=when(kind) {
                 1,2->(defended ?: missionBase)?.let {TacticalCommandOperations.basePoint(it,now,stocks)}
