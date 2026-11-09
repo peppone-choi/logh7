@@ -872,9 +872,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         }
                         val next = checkNotNull(preview.stocks)
                         try {
-                            StockAssignment.validateReply(next.bases.getValue(request.base).units,next.bases.getValue(request.base).spareShips)
-                            StockAssignment.validateReply(next.warehouses.getValue(next.outfits.getValue(request.outfit).warehouseId).units,
-                                next.warehouses.getValue(next.outfits.getValue(request.outfit).warehouseId).spareShips)
+                            StockAssignment.validateReply(next, request)
                         } catch (_: IllegalArgumentException) { return@assignment reject(LogisticsRejection.STOCK) }
                         if (next == inventory) return@assignment StockAssignmentResult(before, inventory)
                         val payment = org.logh7.engine.strategy.CpPayment.charge(

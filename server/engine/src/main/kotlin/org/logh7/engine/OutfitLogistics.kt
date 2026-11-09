@@ -110,18 +110,12 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
         if (existing == null || existing.id != request.reservation || existing.request.mode != request.mode || existing.request.outfitId != request.outfitId ||
             existing.warehouse != outfit.warehouseId || existing.base != outfit.baseId) return reject(LogisticsRejection.PREPARATION)
         val next = try {
-            if (request.transfer.ships.keys.any { key -> ProductionUnits.definitions.none { it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower } } ||
-                request.transfer.troops.keys.any { key -> ProductionUnits.definitions.none { !it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower } })
-                return reject(LogisticsRejection.STOCK)
             if (request.mode == LogisticsMode.ALLOCATION) {
-                val moved = ReplacementBoats.moveStored(base.units,base.spareShips,warehouse.units,warehouse.spareShips,request.transfer)
-                val remaining = base.supplies.toLong() - request.supplies
-                val received = warehouse.supplies.toLong() + request.supplies
-                if (remaining !in 0..Int.MAX_VALUE.toLong() || received !in 0..Int.MAX_VALUE.toLong())
-                    return reject(LogisticsRejection.STOCK)
-                stocks.copy(bases = stocks.bases + (base.baseId to base.copy(units = moved.source, spareShips = moved.sourceSpare, supplies = remaining.toInt())),
-                    warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination, spareShips = moved.destinationSpare, supplies = received.toInt())))
+                StockAssignment.applyTransfer(stocks, outfit, request.transfer, request.supplies)
             } else {
+                if (request.transfer.ships.keys.any { key -> ProductionUnits.definitions.none { it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower } } ||
+                    request.transfer.troops.keys.any { key -> ProductionUnits.definitions.none { !it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower } })
+                    return reject(LogisticsRejection.STOCK)
                 val reorganized=ReplacementBoats.reorganize(stocks,outfit.id,request.transfer)
                 val destination=reorganized.outfits.getValue(outfit.id)
                 val required=ReplacementBoats.crewRequired(destination)

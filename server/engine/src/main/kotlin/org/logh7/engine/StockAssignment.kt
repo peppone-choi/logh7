@@ -23,6 +23,63 @@ data class StockAssignmentResult(val player: Navigator?, val stocks: PlanetStock
 
 internal object StockAssignment {
     const val COST = 160 // Web manual, logistics command table: MCP 160, no wait.
+
+    fun preview(request: StockAssignmentRequest, actor: Navigator, stocks: PlanetStocks, galaxy: Galaxy,
+        requiredCard: Int? = null, countries: CountryCatalog = CountryCatalogLoader.current(),
+        blocked: () -> Boolean = { false }): StockAssignmentResult {
+        fun reject(reason: LogisticsRejection) = StockAssignmentResult(actor, stocks, reason)
+        if (request.generation != stocks.generation) return reject(LogisticsRejection.SESSION)
+        if (actor.generation != request.generation || actor.characterId != request.characterId ||
+            actor.country != request.country) return reject(LogisticsRejection.IDENTITY)
+        val country = actor.country ?: return reject(LogisticsRejection.ACCESS)
+        if (BattleDeath.deceased(stocks, actor.characterId) || stocks.social.justice.detained(actor.characterId))
+            return reject(LogisticsRejection.ACCESS)
+        val outfit = stocks.outfits[request.outfit] ?: return reject(LogisticsRejection.OUTFIT)
+        val transfer = try {
+            transfer(request, stocks)
+        } catch (_: IllegalArgumentException) {
+            return reject(LogisticsRejection.STOCK)
+        } catch (_: NoSuchElementException) {
+            return reject(LogisticsRejection.OUTFIT)
+        }
+        if (!TacticalAuthority.canAccessOutfitWarehouse(stocks, outfit, actor.characterId, country) ||
+            !LogisticsOfficePolicy(galaxy, countries).permits(stocks, actor.characterId, country, outfit.kind, requiredCard))
+            return reject(LogisticsRejection.ACCESS)
+        if (blocked()) return reject(LogisticsRejection.BUSY)
+        val next = try {
+            applyTransfer(stocks, outfit, transfer, request.supplies).also { validateReply(it, request) }
+        } catch (_: IllegalArgumentException) {
+            return reject(LogisticsRejection.STOCK)
+        }
+        return StockAssignmentResult(actor, next, changed = next != stocks)
+    }
+
+    fun applyTransfer(stocks: PlanetStocks, outfit: OutfitStock, transfer: UnitTransfer, supplies: Int): PlanetStocks {
+        require(transfer.ships.keys.all { key ->
+            ProductionUnits.definitions.any { it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower }
+        } && transfer.troops.keys.all { key ->
+            ProductionUnits.definitions.any { !it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower }
+        })
+        val base = stocks.bases.getValue(outfit.baseId)
+        val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
+        val moved = ReplacementBoats.moveStored(base.units, base.spareShips, warehouse.units, warehouse.spareShips, transfer)
+        val remaining = base.supplies.toLong() - supplies
+        val received = warehouse.supplies.toLong() + supplies
+        require(remaining in 0..Int.MAX_VALUE.toLong() && received in 0..Int.MAX_VALUE.toLong())
+        return stocks.copy(
+            bases = stocks.bases + (base.baseId to base.copy(units = moved.source, spareShips = moved.sourceSpare, supplies = remaining.toInt())),
+            warehouses = stocks.warehouses + (warehouse.id to warehouse.copy(units = moved.destination,
+                spareShips = moved.destinationSpare, supplies = received.toInt())),
+        )
+    }
+
+    fun validateReply(stocks: PlanetStocks, request: StockAssignmentRequest) {
+        val base = stocks.bases.getValue(request.base)
+        val warehouse = stocks.warehouses.getValue(stocks.outfits.getValue(request.outfit).warehouseId)
+        validateReply(base.units, base.spareShips)
+        validateReply(warehouse.units, warehouse.spareShips)
+    }
+
     /** Until native paging is recovered, never commit a result that its reply cannot represent. */
     fun validateReply(units: UnitInventory, spare: SpareShipBoats = SpareShipBoats()) {
         val kinds=(units.ships.keys+spare.values.keys).map {it.kind}.toSet()

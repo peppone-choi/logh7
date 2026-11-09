@@ -5,6 +5,48 @@ import kotlin.test.*
 import kotlinx.coroutines.*
 
 class OutfitLogisticsTest {
+    @Test fun assignmentPreviewRevalidatesTheChosenOfficeAndMatchesDirectAllocationForAllRows() {
+        val f = Fixture()
+        val returningShip = UnitStack(40)
+        val returningCrew = UnitStack(3, 1)
+        val initial = f.store.saved
+        val warehouse = initial.warehouses.getValue(101)
+        f.store.saved = initial.copy(warehouses = initial.warehouses + (101 to warehouse.copy(
+            units = UnitInventory(warehouse.units.ships + (returningShip to 2), warehouse.units.troops + (returningCrew to 3)),
+        )))
+        f.production = PlanetProduction(f.galaxy, f.store, f.rules.startSeconds, PlanetProductionPolicy())
+        val before = f.production.settle(f.session)
+        val actor = f.player(10)
+        val request = StockAssignmentRequest("p10", "c10", 10, Power.EMPIRE, 1, 1000, 1, OutfitKind.FLEET.wire,
+            listOf(ReorganizationShip(ship.kind, 2, 0), ReorganizationShip(returningShip.kind, -1, 0)),
+            listOf(ReorganizationTroop(1000 + crew.kind, crew.level, 5),
+                ReorganizationTroop(1000 + returningCrew.kind, returningCrew.level, -2)),
+            supplies = 500)
+        val card = LogisticsOffice.EMPIRE_FIRST.card
+        fun preview(stocks: PlanetStocks = before, requiredCard: Int = card, busy: Boolean = false) =
+            StockAssignment.preview(request, actor, stocks, f.galaxy, requiredCard) { busy }
+
+        assertEquals(LogisticsRejection.ACCESS, preview(requiredCard = LogisticsOffice.EMPIRE_SECOND.card).rejection)
+        assertEquals(LogisticsRejection.ACCESS, preview(before.copy(logisticsOfficers = before.logisticsOfficers - 10)).rejection)
+        assertEquals(LogisticsRejection.BUSY, preview(busy = true).rejection)
+        val withoutShips = before.copy(bases = before.bases + (1000 to before.bases.getValue(1000).copy(units = UnitInventory())))
+        assertEquals(LogisticsRejection.STOCK, preview(withoutShips).rejection)
+        val result = preview()
+        assertTrue(result.changed)
+        assertEquals(actor, result.player)
+        assertEquals(before, f.store.saved)
+        val after = assertNotNull(result.stocks)
+        val nextWarehouse = after.warehouses.getValue(101)
+        assertEquals(mapOf(ship to 12, returningShip to 1), nextWarehouse.units.ships)
+        assertEquals(mapOf(crew to 55, returningCrew to 1), nextWarehouse.units.troops)
+        assertEquals(500, nextWarehouse.supplies)
+
+        val prepared = f.prepare(f.request(10, mode = LogisticsMode.ALLOCATION))
+        val direct = f.act(prepared.copy(transfer = StockAssignment.transfer(request, before), supplies = request.supplies))
+        assertEquals(after, direct.stocks)
+        assertEquals(after, f.store.saved)
+    }
+
     @Test fun understrengthWarehouseUnitNeedsOnlyItsActualCrewAndConservesBoatsOnCommit() {
         val f=Fixture()
         val warehouse=f.store.saved.warehouses.getValue(101)
