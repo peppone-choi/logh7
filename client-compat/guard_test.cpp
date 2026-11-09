@@ -26,6 +26,7 @@
 #include "mail_caption_text.h"
 #include "office_text.h"
 #include "mail_peer_text.h"
+#include "return_base_data.h"
 #include "mail_delivery.h"
 #include "legacy_korean_glyph.h"
 #include "namecard_text.h"
@@ -1351,6 +1352,30 @@ static int runGuard(int argc, wchar_t** argv) {
            refresh.due(nextRoot,true) || refresh.due(nullptr,true))return 290;
         refresh.bind(nextRoot,label); // Recreating the HUD already rendered the current rank.
         if(refresh.due(nextRoot,true))return 291;
+    }
+    {
+        unsigned excluded=0;
+        logh::ReturnBaseRefresh refresh={};
+        refresh.updated(0,0,false,true); // Another character's 0356 leaves the own value unchanged.
+        refresh.updated(1012,0,true,true); // A pending request's reply decides the result.
+        refresh.updated(1012,0,false,false); // Reopening the tab reads the current value.
+        if(refresh.take(excluded))return 292;
+        refresh.updated(1012,0,false,true);
+        if(!refresh.take(excluded) || excluded!=1012 || refresh.take(excluded))return 293;
+        refresh.replied(true,true);
+        refresh.updated(1012,0,false,true); // The tab's own accepted clear keeps its result text.
+        if(refresh.take(excluded))return 1146;
+        refresh.updated(0,1048,false,true);
+        if(!refresh.take(excluded) || excluded!=0)return 1147;
+        refresh.replied(true,true);
+        refresh.updated(1048,1049,false,false); // A closed tab still consumes its echo.
+        refresh.updated(1049,0,false,true);
+        if(!refresh.take(excluded) || excluded!=1049)return 1148;
+        for(bool accepted:{false,true}) { // A rejection or an unchanged save produces no echo.
+            refresh.replied(accepted,!accepted);
+            refresh.updated(1012,0,false,true);
+            if(!refresh.take(excluded))return 1149;
+        }
     }
     std::string calendarPrefix;
     std::wstring calendarDecoded;
