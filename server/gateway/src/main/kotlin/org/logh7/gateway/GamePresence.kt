@@ -18,6 +18,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
     data class Member(val connection: String, val character: CharacterMessages.Generate,
         val player: Navigator, val send: (List<ByteArray>) -> Unit,
         val offices: List<BootstrapMessages.OfficeCard> = emptyList(), val outfit: Int = 0,
+        val pendingTacticalEnd: Boolean = false,
         val sendTactical: ((Int, List<ByteArray>) -> Unit)? = null)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
@@ -468,7 +469,9 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         for(previous in audience) {
             val player=snapshot.navigators.values.singleOrNull {it.generation==event.generation &&
                 it.characterId==previous.character.id.toInt()} ?: continue
-            val member=previous.copy(player=player)
+            val pendingEnd=previous.player.grid==player.grid && !player.cpPaused &&
+                (previous.player.cpPaused || previous.pendingTacticalEnd && previous.player==player)
+            val member=previous.copy(player=player,pendingTacticalEnd=pendingEnd)
             val updated=update(member,event.seconds)
             val packets=mutableListOf<ByteArray>()
             GridForceReport.message(snapshot,world.galaxy,player,event.seconds)?.let {packets+=it}
@@ -556,11 +559,14 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
     @Synchronized fun tacticalEnd(event:org.logh7.engine.TacticalEnd,snapshot:org.logh7.engine.WorldSnapshot) {
         val viewer=members[event.connection] ?: return
         if(viewer.character.id!=event.character.toLong() || viewer.player.generation!=event.generation ||
-            viewer.player.grid!=event.grid || !viewer.player.cpPaused)return
+            viewer.player.grid!=event.grid)return
         val current=snapshot.navigators.values.singleOrNull {
             it.characterId==event.character && it.generation==event.generation
         } ?: return
-        if(current.grid!=event.grid || current.cpPaused)return
+        // A strategic movement report can already have published this same committed exit.
+        if(current.grid!=event.grid || current.cpPaused ||
+            (!viewer.player.cpPaused && (!viewer.pendingTacticalEnd || viewer.player!=current)))return
+        if(viewer.pendingTacticalEnd)members[event.connection]=viewer.copy(pendingTacticalEnd=false)
         send(viewer,listOf(org.logh7.protocol.TacticsMessages.notify(event.grid,false)))
     }
 
