@@ -2,6 +2,7 @@ package org.logh7.gateway
 
 import org.junit.jupiter.api.Test
 import org.logh7.engine.*
+import org.logh7.engine.strategy.*
 import org.logh7.protocol.*
 import java.nio.ByteBuffer
 import kotlin.test.*
@@ -107,5 +108,19 @@ class OccupationPresenceTest {
         assertTrue(listOf(0x0442,0x0f1d).all {messages(0,it).isEmpty()})
         assertEquals(1,messages(0,0x031f).size)
 
+        val waiting=loser.copy(baseId=0,mode=5,spotId=0,returnBase=0)
+        val job=StrategyJob(0,"operation/星系内航行",200_000,29_000_000,29_000_000,
+            PaymentResult.Paid(CpBalance(700,500),CpPool.MCP,160,160,false),JobState.WAITING)
+        val reserved=waiting.copy(dockTarget=1049,strategy=StrategyCheckpoint(1,200_000,listOf(job)))
+        presence.update(GamePresence.Member("c1",people[1],reserved,packets[1]::add))
+        packets.forEach {it.clear()}
+        val cancelled=snapshot.copy(navigators=snapshot.navigators+("loser" to waiting))
+        deliver(s=cancelled)
+        assertContentEquals(PlaceMessages.dockNotification(10001,0,5,250,0,10001),messages(1,0x0b0b).single())
+        assertTrue(messages(1,0x0f1d).map(::notice).any {it.startsWith("[기항]")})
+        assertTrue(messages(0,0x0b0b).isEmpty())
+        packets.forEach {it.clear()}
+        deliver(s=cancelled)
+        assertTrue(messages(1,0x0b0b).isEmpty())
     }
 }

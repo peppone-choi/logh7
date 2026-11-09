@@ -154,6 +154,12 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             }
             val expelled=previous.player.baseId==event.base && player.grid==event.grid &&
                 player.cpPaused && player.baseId==0 && event.expelled.values.any {it.characterId==player.characterId}
+            if(occupationLine!=null && !expelled && previous.player.dockTarget==event.base && player.dockTarget==null &&
+                player.grid==previous.player.grid && player.baseId==previous.player.baseId) {
+                packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
+                    event.seconds,player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)
+                packets+=ChatMessages.spot(ChatMessages.Spot(player.characterId,"[기항] 거점 점령으로 예약이 취소됐습니다."),event.seconds)
+            }
             if(expelled) {
                 packets+=unit(member)
                 packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,0,5,event.seconds)
