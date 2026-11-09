@@ -91,6 +91,27 @@ class TransportActionsTest {
         assertEquals(1100,after.bases.getValue(1050).supplies)
         assertEquals(2,after.bases.getValue(1050).units.ships[cargo])
     }
+    @Test fun destinationLostBeforeLoadingLeavesThePackageAvailableForCancellation() {
+        val initial=stocks()
+        val planned=assertNotNull(act(plan(),initial).stocks)
+        val pack=planned.strategic.transports.single()
+        val destination=planned.bases.getValue(1050)
+        val cancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=pack.id)
+        for(lost in listOf(destination.copy(owner=Allegiance.fromLegacy(3)),destination.copy(camp=1))) {
+            val before=planned.copy(bases=planned.bases+(1050 to lost))
+            val blocked=act(load(pack.id).copy(value=1),before)
+            assertEquals(StrategyActionRejection.LOCATION,blocked.rejection)
+            assertSame(before,blocked.stocks)
+            assertEquals(captain,blocked.player)
+            val cancelled=act(cancel,before)
+            assertNull(cancelled.rejection)
+            assertEquals(920,cancelled.player?.mcp)
+            val after=assertNotNull(cancelled.stocks)
+            assertTrue(after.strategic.transports.isEmpty())
+            assertEquals(initial.bases.getValue(1049),after.bases.getValue(1049))
+            assertEquals(lost,after.bases.getValue(1050))
+        }
+    }
     @Test fun cargoBoundForACapturedDestinationCanBeUnloadedAtAnyOwnBase() {
         val s=assertNotNull(act(plan(),stocks()).stocks);val pack=s.strategic.transports.single()
         val aboard=assertNotNull(act(load(pack.id),s).stocks)
