@@ -1,6 +1,8 @@
 package org.logh7.gateway
 
 import java.nio.file.Path
+import org.logh7.engine.CountryCatalog
+import org.logh7.engine.CountryCatalogLoader
 import org.logh7.engine.PublishedOriginalCandidates
 import org.logh7.engine.WorldSnapshot
 import org.logh7.engine.members
@@ -41,7 +43,7 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
             (retired ?: 9999) + 1
         })
     /** U-27 carry-over (W p.11): writes this generation's qualifying characters into the next generation's store. */
-    @Synchronized fun carryOver(snapshot: WorldSnapshot): List<String> {
+    @Synchronized fun carryOver(snapshot: WorldSnapshot, countries: CountryCatalog = CountryCatalogLoader.current()): List<String> {
         val generation = snapshot.session?.generation ?: return emptyList()
         if (snapshot.result == null) return emptyList()
         val current=get(generation)
@@ -52,10 +54,12 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
         return carried.filter { (account, data) ->
             val profile=profiles.getValue(account)
             val kind=org.logh7.engine.Flagships.forType(profile.shipStyle.nativePower,data.shipType).kind
-            val founded=org.logh7.engine.CountryFounding.isFounded(
-                profile.country?.let {org.logh7.engine.CountryCatalogLoader.current().countries[it.value]})
+            val country=profile.country?.let {countries.countries[it.value]}
+            val founded=org.logh7.engine.CountryFounding.isFounded(country)
             val carriedProfile=if(founded)profile.copy(country=null) else profile
-            next.carry(account,carriedProfile.copy(character=data.copy(shipKind=kind,rank=if(founded)13 else data.rank)))
+            val power=if(carriedProfile.country==null)profile.shipStyle.nativePower
+                else country?.nativePower?.takeIf {it in 2..3} ?: data.power
+            next.carry(account,carriedProfile.copy(character=data.copy(power=power,shipKind=kind,rank=if(founded)13 else data.rank)))
         }.keys.toList()
     }
 }

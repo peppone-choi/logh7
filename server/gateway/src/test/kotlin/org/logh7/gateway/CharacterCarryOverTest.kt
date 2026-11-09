@@ -24,12 +24,18 @@ class CharacterCarryOverTest {
         val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(
             10000 to StrategicPerson(evaluation=CharacterCarryOver.MINIMUM_EVALUATION))))
         val world=WorldSnapshot(0,0,session,navigators=mapOf("veteran" to nav),planetStocks=stocks,result=result)
-        assertEquals(listOf("veteran"),stores.carryOver(world))
+        val defaults=CountryCatalogLoader.current()
+        val finalCountry=defaults.countries.getValue(3).copy(id=42,key="carry_fixture",name="Carry Fixture")
+        val catalog=CountryCatalog(defaults.calendars.values.toList(),defaults.families.values.toList(),
+            defaults.countries.values.filter {it.id!=42}+finalCountry)
+        assertEquals(listOf("veteran"),stores.carryOver(world,catalog))
         val restored=CharacterStores(file).get(2).profiles().getValue("veteran")
         assertEquals(CountryId(42),restored.country);assertEquals(ShipStyleId("alliance"),restored.shipStyle)
+        assertEquals(3,restored.character.power)
+        assertTrue(restored.canEnterNativeCountry(catalog))
         assertEquals(93,restored.character.shipKind,"the carried class uses its actual style, independent of display faction")
         assertEquals(CountryId(2),CharacterStores(file).get(1).profiles().getValue("veteran").country)
-        assertTrue(stores.carryOver(world).isEmpty())
+        assertTrue(stores.carryOver(world,catalog).isEmpty())
     }
     @Test fun qualifyingGeneratedCharactersMoveToTheNextGenerationWithAgeAbilitiesAndRank() {
         val dir=Files.createTempDirectory("carry")

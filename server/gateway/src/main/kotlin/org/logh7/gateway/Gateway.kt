@@ -225,7 +225,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}
         fun settleResult(s:org.logh7.engine.WorldSnapshot) {s.session?.generation?.let {g->
             characterStores.fame.settle(s,characterStores.get(g))
-            characterStores.carryOver(s).takeIf {it.isNotEmpty()}?.let {println("carried over ${it.size} characters to generation ${g+1}")}}}
+            val countries=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
+            characterStores.carryOver(s,countries).takeIf {it.isNotEmpty()}?.let {println("carried over ${it.size} characters to generation ${g+1}")}}}
         fameSubscription=stock?.observeSessionResults(::settleResult)
         // An ended world can have been committed before the award observer ran; replay the durable result on boot.
         val recovered=navigation?.snapshot()
