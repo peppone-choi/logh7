@@ -85,7 +85,8 @@ fn run() -> Result<i32, String> {
                     &PathBuf::from(out),
                     expected.as_deref(),
                     trusted.as_deref(),
-                )?;
+                )
+                .map_err(|error| format!("패치 내려받기: {error}"))?;
                 println!(
                     "패치 파일 {count}개를 받아 해시를 확인했습니다{}",
                     match (expected.is_some(), trusted.is_some()) {
@@ -129,7 +130,14 @@ fn run() -> Result<i32, String> {
     let config = Config::parse(
         &text,
         path.parent().ok_or("설정 디렉터리를 찾지 못했습니다")?,
-    )?;
+    )
+    .map_err(|error| {
+        if apply_patch.is_some() || revert_patch {
+            "패치 작업에 필요한 런처 설정이 올바르지 않습니다. --check로 확인하세요".into()
+        } else {
+            error
+        }
+    })?;
     if check_connection {
         let address = SocketAddrV4::new(config.host, config.port);
         println!("확인할 로그인 서버 {address}");
@@ -138,12 +146,14 @@ fn run() -> Result<i32, String> {
         return Ok(0);
     }
     if let Some(patch) = apply_patch {
-        let count = patch::apply(&config.client_root, &patch)?;
+        let count = patch::apply(&config.client_root, &patch)
+            .map_err(|error| format!("패치 적용: {error}"))?;
         println!("패치 파일 {count}개를 적용했습니다");
         return Ok(0);
     }
     if revert_patch {
-        let count = patch::revert(&config.client_root)?;
+        let count = patch::revert(&config.client_root)
+            .map_err(|error| format!("패치 되돌리기: {error}"))?;
         println!("패치 파일 {count}개를 되돌렸습니다");
         return Ok(0);
     }

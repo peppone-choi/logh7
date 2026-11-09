@@ -93,10 +93,10 @@ pub fn sha256(data: &[u8]) -> String {
     h.iter().map(|x| format!("{x:08x}")).collect()
 }
 
-fn hash_file(path: &Path) -> Result<String, String> {
+fn hash_file(path: &Path, failure: &str) -> Result<String, String> {
     fs::read(path)
         .map(|data| sha256(&data))
-        .map_err(|_| format!("파일을 읽지 못했습니다: {}", path.display()))
+        .map_err(|_| failure.to_string())
 }
 
 /// 패치 경로는 클라이언트 루트 아래 상대 경로만 허용하고 원본 실행 파일은 막는다.
@@ -104,7 +104,7 @@ fn target(root: &Path, relative: &str) -> Result<PathBuf, String> {
     let path = Path::new(relative);
     let plain = path.components().all(|c| matches!(c, Component::Normal(_)));
     if relative.is_empty() || !plain || relative.eq_ignore_ascii_case(CLIENT) {
-        return Err(format!("허용하지 않는 패치 경로: {relative}"));
+        return Err("허용하지 않는 패치 경로입니다".into());
     }
     Ok(root.join(path))
 }
@@ -125,7 +125,7 @@ fn manifest(patch: &Path) -> Result<(String, Vec<Entry>), String> {
                 path: path.replace('\\', "/"),
                 hash: hash.to_ascii_lowercase(),
             }),
-            _ => return Err(format!("패치 목록을 해석하지 못했습니다: {line}")),
+            _ => return Err("패치 목록 항목 형식이 올바르지 않습니다".into()),
         }
     }
     let client = client.ok_or("패치 목록에 client 해시가 없습니다")?;
@@ -140,13 +140,18 @@ pub fn apply(root: &Path, patch: &Path) -> Result<usize, String> {
         return Err("이미 패치가 적용돼 있습니다. 먼저 --revert-patch로 되돌리세요".into());
     }
     let (client, files) = manifest(patch)?;
-    if hash_file(&root.join(CLIENT))? != client {
+    if hash_file(&root.join(CLIENT), "클라이언트 실행 파일을 읽지 못했습니다")? != client
+    {
         return Err("이 패치가 지원하지 않는 클라이언트입니다. 파일을 바꾸지 않았습니다".into());
     }
     for entry in &files {
         target(root, &entry.path)?;
-        if hash_file(&patch.join(&entry.path))? != entry.hash {
-            return Err(format!("패치 파일이 손상됐습니다: {}", entry.path));
+        if hash_file(
+            &patch.join(&entry.path),
+            "적용할 패치 파일을 읽지 못했습니다",
+        )? != entry.hash
+        {
+            return Err("패치 파일 해시가 목록과 다릅니다".into());
         }
     }
     let mut state = String::from("LOGH7-PATCH-STATE-1\n");
@@ -160,7 +165,9 @@ pub fn apply(root: &Path, patch: &Path) -> Result<usize, String> {
             }
             return Err(match revert(root) {
                 Ok(_) => format!("{failure}. 바꾼 파일을 모두 원래대로 되돌렸습니다"),
-                Err(again) => format!("{failure}. 자동 되돌리기도 실패했습니다: {again}"),
+                Err(again) => format!(
+                    "{failure}. 자동 되돌리기도 실패했습니다: {again}. 원인을 해결한 뒤 --revert-patch를 다시 실행하세요"
+                ),
             });
         }
     }
@@ -175,11 +182,11 @@ fn install(root: &Path, patch: &Path, entry: &Entry, state: &mut String) -> Resu
     let original = destination.exists();
     if original {
         let backup = root.join(BACKUP).join(&entry.path);
-        fs::create_dir_all(backup.parent().unwrap()).map_err(|e| e.to_string())?;
-        fs::copy(&destination, &backup)
-            .map_err(|_| format!("원래 파일을 보관하지 못했습니다: {}", entry.path))?;
+        fs::create_dir_all(backup.parent().unwrap())
+            .map_err(|_| "원래 파일의 보관 디렉터리를 만들지 못했습니다")?;
+        fs::copy(&destination, &backup).map_err(|_| "원래 파일을 보관하지 못했습니다")?;
     } else if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        fs::create_dir_all(parent).map_err(|_| "패치를 설치할 디렉터리를 만들지 못했습니다")?;
     }
     state.push_str(&format!(
         "{}\t{}\t{}\n",
@@ -195,8 +202,7 @@ fn install(root: &Path, patch: &Path, entry: &Entry, state: &mut String) -> Resu
             .map_err(|_| "패치 상태를 기록하지 못했습니다".to_string())
     };
     record(&format!("{state}{PENDING}\n"))?;
-    fs::copy(patch.join(&entry.path), &destination)
-        .map_err(|_| format!("패치 파일을 쓰지 못했습니다: {}", entry.path))?;
+    fs::copy(patch.join(&entry.path), &destination).map_err(|_| "패치 파일을 쓰지 못했습니다")?;
     record(state)
 }
 /// Windows에서는 백신·색인기 등이 상태 파일을 잠깐 열고 있으면 바꿔 넣기가 실패한다(2026-11-06 실측).
@@ -230,25 +236,24 @@ pub fn revert(root: &Path) -> Result<usize, String> {
     for (index, line) in lines.iter().enumerate() {
         let fields: Vec<&str> = line.split('\t').collect();
         let [path, hash, original] = fields.as_slice() else {
-            return Err(format!("패치 상태를 해석하지 못했습니다: {line}"));
+            return Err("패치 상태 항목 형식이 올바르지 않습니다".into());
         };
         let destination = target(root, path)?;
         let interrupted = pending && index + 1 == lines.len();
         let current = destination
             .exists()
-            .then(|| hash_file(&destination))
+            .then(|| hash_file(&destination, "설치된 패치 파일을 읽지 못했습니다"))
             .transpose()?;
         let backup = root.join(BACKUP).join(path);
         // 실패한 자동 되돌리기를 다시 시도할 수 있도록 이미 원래대로 돌아간 파일도 받아들인다.
         let restored = if *original == "1" {
-            backup.exists() && current == Some(hash_file(&backup)?)
+            backup.exists()
+                && current == Some(hash_file(&backup, "원래 파일 보관본을 읽지 못했습니다")?)
         } else {
             current.is_none()
         };
         if !interrupted && !restored && current.as_deref() != Some(*hash) {
-            return Err(format!(
-                "패치 뒤 바뀐 파일이 있어 되돌리지 않았습니다: {path}"
-            ));
+            return Err("패치 뒤 바뀐 파일이 있어 되돌리지 않았습니다".into());
         }
         entries.push((path.to_string(), destination, *original == "1", restored));
     }
@@ -258,11 +263,11 @@ pub fn revert(root: &Path) -> Result<usize, String> {
         }
         if *original {
             fs::copy(root.join(BACKUP).join(path), destination)
-                .map_err(|_| format!("원래 파일을 복원하지 못했습니다: {path}"))?;
+                .map_err(|_| "원래 파일을 복원하지 못했습니다")?;
         } else {
             match fs::remove_file(destination) {
                 Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
-                    return Err(format!("추가 파일을 지우지 못했습니다: {path}"));
+                    return Err("추가 파일을 지우지 못했습니다".into());
                 }
                 _ => {}
             }
