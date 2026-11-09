@@ -191,6 +191,26 @@ class NpcStrategyTest {
         })
     }
 
+    @Test fun defeatedFlagshipsAtDepartureDoNotBlockAnAdvanceAgainstAnActiveCountry() {
+        val empire = Power.EMPIRE.country
+        val alliance = Power.ALLIANCE.country
+        val defeatedCountry = CountryId(42)
+        val continuing = simulation.copy(countries = setOf(empire, alliance, defeatedCountry),
+            eliminated = mapOf(defeatedCountry to CountryDefeat(EndReason.SYSTEMS_REDUCED, 0)))
+        val pilots = players()
+        for (id in 12000..12002) {
+            pilots[id.toString()] = Navigator(1, id, Power.ALLIANCE, 2487, 1000, 1000, 1000)
+                .copy(country = defeatedCountry)
+        }
+        val events = mutableListOf<NpcStrategicMovement>()
+        val before = stocks()
+        val reserved = NpcStrategy.advance(continuing.copy(gameMillis = 0), galaxy, pilots, before, events)
+        assertEquals(NpcStrategicState(21600, 2488, 3600), reserved.outfits.getValue(1).strategy)
+        val arrived = NpcStrategy.advance(continuing.copy(gameMillis = 3600_000), galaxy, pilots, reserved, events)
+        assertEquals(OutfitPosition(2488), arrived.outfits.getValue(1).position)
+        assertEquals(2488, events.single().destination)
+    }
+
     @Test fun reservedAdjacentJumpRestoresThenConsumesRealDepotSuppliesOnceAndStartsContact() {
         val before=stocks();val players=players();val events=mutableListOf<NpcStrategicMovement>()
         val reserved=advance(0,before,players,events)
@@ -295,6 +315,15 @@ class NpcStrategyTest {
         val events=mutableListOf<NpcStrategicMovement>()
         val affordable=advance(0,stock(4),observers,events)
         assertEquals(90,affordable.outfits.getValue(1).strategy!!.destination!!%100)
+        val defeatedCountry = CountryId(42)
+        val afterDefeat = simulation.copy(gameMillis = 0,
+            countries = setOf(Power.EMPIRE.country, Power.ALLIANCE.country, defeatedCountry),
+            eliminated = mapOf(defeatedCountry to CountryDefeat(EndReason.SYSTEMS_REDUCED, 0)))
+        val ghost = observers.getValue("pilot").copy(characterId = 12000, country = defeatedCountry,
+            grid = 2487, baseId = 0, mode = 5)
+        val withGhost = observers.toMutableMap().also { it["defeated"] = ghost }
+        val withSafeReturn = NpcStrategy.advance(afterDefeat, galaxy, withGhost, stock(4), events)
+        assertEquals(affordable, withSafeReturn)
         val insufficient=advance(0,stock(3),observers,events)
         assertEquals(88,insufficient.outfits.getValue(1).strategy!!.destination!!%100)
         val depleted=affordable.copy(outfits=affordable.outfits.mapValues {(_,outfit)->

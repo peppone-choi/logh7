@@ -83,7 +83,7 @@ internal object NpcTactics {
         val now=session.gameMillis/1000
         if(now>0xffffffffL-155*scale)return stocks
         var forceCache:Map<Int,List<GridForces.Force>>?=null
-        fun forces()=forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks).also {forceCache=it}
+        fun forces()=forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks,session.eliminated.keys).also {forceCache=it}
         for(outfitId in original.outfits.keys.sorted()) {
             var outfit=stocks.outfits.getValue(outfitId)
             val position=outfit.positionIn(galaxy)

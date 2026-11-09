@@ -153,7 +153,7 @@ internal object NpcStrategy {
                 if(home==null)return next
                 val projected=outfit.copy(position=next)
                 val projectedStocks=stocks.copy(outfits=stocks.outfits+(outfit.id to projected))
-                val projectedForces=GridForces.collect(galaxy,stocks.generation,players,projectedStocks)
+                val projectedForces=GridForces.collect(galaxy,stocks.generation,players,projectedStocks,eliminated)
                 val returnRoute=home(galaxy,projectedForces,projected,projectedStocks,spentJumps=1)
                 if(returnRoute!=null && jumpShortfall(live,balances,1+returnRoute.jumps)==0L)return next
             }
@@ -211,7 +211,7 @@ internal object NpcStrategy {
         if(now>0xffffffffL-21600)return original
         var stocks=original
         var forceCache:Map<Int,List<GridForces.Force>>?=null
-        fun forces():Map<Int,List<GridForces.Force>> = forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks).also {forceCache=it}
+        fun forces():Map<Int,List<GridForces.Force>> = forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks,session.eliminated.keys).also {forceCache=it}
         fun repairAtDepot(outfit:OutfitStock):OutfitStock {
             val ships=outfit.activeShips!!
             if(outfit.guard!=null || ships.values.none {it.damaged>0})return outfit
