@@ -85,6 +85,33 @@ class NpcTacticsTest {
         assertTrue(hits.isEmpty())
     }
 
+    @Test fun anEliminatedFleetStopsItsAutonomousRetreatAndDoesNotResume() {
+        val state=state(150)
+        val players=state.players.toMutableMap()
+        val hits=mutableListOf<TacticalImpact>()
+        val moves=mutableListOf<TacticalMovement>()
+        val policy=NpcTacticalPolicy(behavior={_,_->NpcCombatBehavior.CAUTIOUS})
+        val active=NpcTactics.advance(session,galaxy,players,state.stocks,policy,24,hits,moves)
+        val outfit=active.outfits.getValue(1)
+        assertNotNull(outfit.activeShips!!.values.single().tactical!!.retreat)
+        val defeated=session.copy(eliminated=mapOf(checkNotNull(outfit.country) to
+            CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        moves.clear()
+
+        val stopped=NpcTactics.advance(defeated,galaxy,players,active,policy,24,hits,moves)
+        val current=stopped.outfits.getValue(1).activeShips!!.values.single().tactical!!
+        assertNull(current.retreat)
+        assertEquals(0,current.target)
+        assertEquals(0f,current.motion.velocity)
+        assertEquals(current.motion,moves.single().motion)
+        assertEquals(outfit.supplies,stopped.outfits.getValue(1).supplies)
+        moves.clear()
+        assertEquals(stopped,NpcTactics.advance(defeated.copy(gameMillis=(now+24)*1000),
+            galaxy,players,stopped,policy,24,hits,moves))
+        assertTrue(moves.isEmpty())
+        assertTrue(hits.isEmpty())
+    }
+
     @Test fun cautiousFleetsStartLegalWithdrawalAtHalfStrength() {
         for((boats,behavior,withdraws) in listOf(
             Triple(150,NpcCombatBehavior.STANDARD,false),
