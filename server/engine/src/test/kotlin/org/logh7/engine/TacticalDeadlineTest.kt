@@ -28,6 +28,23 @@ class TacticalDeadlineTest {
             assertEquals(1,stock().bases.getValue(1000).units.ships[stack])
         } finally {rig.engine.drainAndClose()}
     }
+    @Test fun restoredSupplySchedulesItsOwnCompletionBetweenPeriodicTicks() = runTest {
+        val rig=Rig(this,testScheduler,supportDeadline=true)
+        val results=mutableListOf<TacticalSupportResult>()
+        rig.engine.observeSupport(results::add).use {
+            try {
+                rig.engine.submit(WorldCommand.Probe);runCurrent()
+                advanceTimeBy(624);runCurrent()
+                assertTrue(results.isEmpty())
+                assertEquals(9500,rig.players.getValue("pilot").supplies)
+                advanceTimeBy(1);runCurrent()
+                assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+                assertFalse(results.single().cancelled)
+                assertEquals(10000,rig.players.getValue("pilot").supplies)
+                assertEquals(0,rig.engine.snapshot().planetStocks!!.outfits.getValue(1).supplies)
+            } finally {rig.engine.drainAndClose()}
+        }
+    }
     @Test fun restoredPostureAloneSchedulesCompletionBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,postureDeadline=true)
         val events=mutableListOf<TacticalPostureResult>();rig.engine.observePostures(events::add)
@@ -109,7 +126,8 @@ class TacticalDeadlineTest {
             assertFailsWith<IllegalStateException>{rig.engine.synchronizeTime()}
         } finally {rig.engine.drainAndClose()}
     }
-    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,shipOrder:Boolean=false) {
+    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
+        supportDeadline:Boolean=false,shipOrder:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -124,6 +142,19 @@ class TacticalDeadlineTest {
                 players=emptyMap()
                 stocks=stocks.copy(social=stocks.social.copy(
                     production=stocks.social.production.copy(orders=mapOf(1000 to ShipOrder(119,start+15)))))
+            }
+            if(supportDeadline) {
+                val pilot=players.getValue("pilot")
+                val pose=pilot.motion!!.copy(velocity=0f,waypoints=listOf(TacticalPoint(0f,0f)))
+                players=mapOf("pilot" to pilot.copy(motion=pose,supplies=9500))
+                val stack=UnitStack(ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith("輸送艦")}.kind)
+                val ship=ActiveShipUnit(1,stack,tactical=NpcTacticalState(pose,start,start),supplies=500,
+                    support=TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,pilot.unitId,2488,start,start+15))
+                val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
+                    units=UnitInventory(mapOf(stack to 1)),supplies=500,activeShips=ActiveShipUnits(listOf(ship)),
+                    position=OutfitPosition(2488))
+                stocks=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
+                    warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
             }
         }
         private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
