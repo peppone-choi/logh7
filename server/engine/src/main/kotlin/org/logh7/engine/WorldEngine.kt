@@ -1045,7 +1045,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             val previous=checkNotNull(navigation).snapshot(session.generation)
                             require(result.navigators.all {(account,player)->account!=i.account && previous[account]?.let {
                                 it.generation==player.generation && it.characterId==player.characterId}==true})
-                            val next=settleOfficeRecovery(session.gameMillis / 1000,inventory,prepared,previous+result.navigators+(i.account to after))
+                            val recoveredPlayers=settleOfficeRecovery(session.gameMillis / 1000,inventory,prepared,
+                                previous+result.navigators+(i.account to after))
+                            val next=if(inventory.social.coup!=prepared.social.coup)recoveredPlayers.mapValues {(_,player)->
+                                navigation.clearInvalidReturnBase(player,prepared)
+                            } else recoveredPlayers
                             worldStateCommitter.saveWorld(next,prepared)
                             navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
