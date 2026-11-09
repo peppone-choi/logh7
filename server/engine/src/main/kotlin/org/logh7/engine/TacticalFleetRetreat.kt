@@ -118,9 +118,11 @@ internal object TacticalFleetRetreat {
                         position=OutfitPosition(target),activeGround=if(current.activeGround==null)null else movedGround,shipStyle=current.shipStyle)
                     val left=current.copy(activeShips=remaining,activeGround=if(current.activeGround==null)null else leftGround,
                         units=UnitInventory(remaining.quantities(),leftGround.quantities()+leftCrew),supplies=current.supplies-movedSupplies)
+                    val strategic=TransportActions.splitRetreatCargo(stocks.strategic,current,left,detachment) ?: continue
                     val coup=stocks.social.coup
                     stocks=stocks.copy(outfits=stocks.outfits+(outfitId to left)+(newId to detachment),warehouses=if(shared)stocks.warehouses else stocks.warehouses+
                         (warehouseId to OutfitWarehouse(warehouseId,current.country,current.kind,current.baseId,newId,shipStyle=current.shipStyle)),
+                        strategic=strategic,
                         social=if(camp.insurgent)stocks.social.copy(coup=coup.copy(
                             loyalty=coup.loyalty+(newId to coup.loyalty.getValue(current.id)))) else stocks.social,
                         outfitSequence=OutfitSequence(newId+1,if(shared)sequence.nextWarehouse else warehouseId+1),

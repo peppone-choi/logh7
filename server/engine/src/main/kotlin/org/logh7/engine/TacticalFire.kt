@@ -269,6 +269,8 @@ internal object TacticalCombat {
         val strategicMovements=mutableListOf<NpcStrategicMovement>()
         var inventory=if(session.ended==null)TacticalMotionProgress.advance(session,galaxy,players,stocks,movements) else stocks
         if(session.ended==null)inventory=TacticalFleetRetreat.advance(session,galaxy,players,inventory,movements)
+        // Detachment has already allocated cargo. Later casualties use the post-retreat carriers.
+        val cargoBaseline=inventory
         val commands=mutableListOf<TacticalCommandResult>()
         inventory=TacticalPersonnel.credit(inventory)
         if(session.ended==null)inventory=TacticalOfflineAi.advance(session,galaxy,players,inventory,scale,commands)
@@ -375,7 +377,7 @@ internal object TacticalCombat {
             navigation.clearInvalidReturnBase(player,inventory)
         }
         if(players==original && inventory==stocks)return emptyList()
-        val prepared = production.prepareReplacement(stocks, inventory)
+        val prepared = production.prepareReplacement(stocks, inventory,cargoBaseline)
         val recovered = settleOfficeRecovery(stocks, prepared, players)
         checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(recovered, prepared)
         navigation.publishCommitted(original, recovered, session.generation)

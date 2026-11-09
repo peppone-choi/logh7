@@ -211,14 +211,14 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         publishCommitted(expected, result)
         return result
     }
-    fun prepareReplacement(expected: PlanetStocks, next: PlanetStocks): PlanetStocks {
+    fun prepareReplacement(expected: PlanetStocks, next: PlanetStocks, cargoBaseline:PlanetStocks=expected): PlanetStocks {
         check(current === expected) { "Inventory changed during transaction" }
         require(next.generation == expected.generation && next.producedDays == expected.producedDays)
         require(next.bases.keys == expected.bases.keys)
         require(next.outfits.values.all { outfit -> outfit.position?.let { position ->
             position.baseId == 0 || galaxy.bases.single { it.id == position.baseId }.grid == position.grid
         } != false }) { "Outfit position differs from its current base" }
-        return detached(TransportActions.settleCargo(next,expected))
+        return detached(TransportActions.settleCargo(next,cargoBaseline))
     }
     fun publishCommitted(expected: PlanetStocks, next: PlanetStocks) {
         check(current === expected)
