@@ -28,9 +28,9 @@ class ProposalActionsWireTest {
         val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
         override fun saveWorld(navigation:Map<String,Navigator>,inventory:PlanetStocks?){players=navigation;stocks=checkNotNull(inventory)}
     }
-    private fun seed(path:Path) {
+    private fun seed(path:Path,count:Int=2) {
         Files.createDirectories(path);val store=CharacterCreation(path.resolve("characters.properties"));val ship=checkNotNull(Flagships.find(3))
-        for(i in 0..1) {
+        for(i in 0 until count) {
             val data=CharacterMessages.Generate(4,(10000+i).toLong(),2,0,0,"Pilot$i","Test",30,1,1,1000001,List(8){50},
                 0,0,0,if(i==0)2 else 9,ship.type,ship.kind,"Ship",1)
             assertTrue(store.carry("load-%03d".format(i),CharacterProfile(data,CountryId(2),ShipStyleId("empire"))))
@@ -116,6 +116,68 @@ class ProposalActionsWireTest {
             assertEquals(10000, state.stocks.outfits.getValue(1).commanderId)
             assertNull(state.stocks.tacticalCommands.authority[ship.id])
             assertEquals(if (appointment) 920 else 960, state.players.getValue("load-001").mcp)
+        }
+    }
+
+    @Test fun demotionMailListsAnEligibleTargetAndNativeApprovalSplitsTheCostOnce() {
+        val state=State()
+        val target=10002
+        state.players=state.players.mapValues {(_,p)->p.copy(mcp=1000)}+
+            ("load-002" to state.players.getValue("load-001").copy(characterId=target))
+        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(
+            people=state.stocks.strategic.people+mapOf(
+                10001 to StrategicPerson(rank=9,merit=100), target to StrategicPerson(rank=9)),
+            offices=state.stocks.strategic.offices+OfficeHolding(18,1049,target)))
+        seed(directory,3)
+        LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
+            stockStore=state.inventory,worldStateCommitter=state).use {fixture->
+            val sender=fixture.join(fixture.account(0),false,false).client
+            sender.send(SyntheticClient.opcode(0x0f00));next(sender,0x0f01)
+            val executor=fixture.join(fixture.account(1),false,false).client
+            executor.send(SyntheticClient.opcode(0x0f00));next(executor,0x0f01)
+            fun send(preview:Boolean,target:Int,base:Int) {
+                sender.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
+                    .putShort(98).putShort(0).putShort(ProposalActions.DEMOTION.toShort()).putInt(target)
+                    .put(if(preview)1 else 0).putInt(0).putShort(0).putInt(base).putShort(0).array())
+            }
+            send(true,0,10001)
+            val rows=ByteBuffer.wrap(next(sender,0x1202))
+            assertEquals(1,rows.get(6).toInt())
+            assertEquals(target,rows.getInt(7))
+            next(sender,0x1201)
+            send(false,target,10001)
+            assertNotEquals(0,ByteBuffer.wrap(next(sender,0x1200)).getShort(16).toInt())
+            next(sender,0x1201);next(sender,0x0356)
+            assertTrue(state.stocks.social.proposals.mails.isEmpty())
+            send(false,10001,target)
+            assertEquals(0,ByteBuffer.wrap(next(sender,0x1200)).getShort(16).toInt())
+            next(sender,0x1201);next(sender,0x0356)
+            val mail=state.stocks.social.proposals.mails.single()
+            assertEquals(target,mail.target)
+            assertEquals(840,state.players.getValue("load-000").mcp)
+            assertEquals(9,state.stocks.strategic.people.getValue(10000).influence)
+            assertEquals(9,state.stocks.strategic.people.getValue(target).rank)
+            query(executor,10001,19)
+            next(executor,0x0f13)
+            val pair=ByteBuffer.wrap(next(executor,0x0706))
+            assertEquals(0,pair.getInt(6));assertEquals(10001,pair.getInt(10))
+            assertEquals(160,pair.getInt(18));assertEquals(9,pair.get(22).toInt())
+            assertEquals(target,pair.getInt(23));assertEquals(0,pair.get(39).toInt())
+            next(executor,0x0f09)
+
+            val answer=body(Wire.reply(Wire.Reply(0,mail.id,0,Wire.Peer(10001),Wire.Peer(10000),0,0,0,Proposals.APPROVE)))
+            repeat(2) {executor.send(answer);next(executor,0x0356)}
+            assertEquals(10,state.stocks.strategic.people.getValue(target).rank)
+            assertTrue(state.stocks.strategic.offices.none {it.character==target})
+            assertEquals(840,state.players.getValue("load-001").mcp)
+            assertEquals(Proposals.APPROVE,state.stocks.social.proposals.mails.single().reply)
+            assertEquals(9,state.stocks.social.proposals.mails.single().demotionFromRank)
+            query(sender,10000,17)
+            next(sender,0x0f14)
+            val approvedPair=ByteBuffer.wrap(next(sender,0x0706))
+            assertEquals(9,approvedPair.get(22).toInt())
+            assertEquals(target,approvedPair.getInt(23))
+            next(sender,0x0f09)
         }
     }
 

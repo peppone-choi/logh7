@@ -49,21 +49,35 @@ static bool knownName(unsigned id,wchar_t (&name)[13]) {
 static bool bodyDismissal(BYTE* ctx) {return at<unsigned short>(bodyScratch(ctx),0x2ac)==6;}
 // Appointment (command 5): the sender asks to be appointed; the 0x0707 pair record (world+0x43c8c8) has the card at +0x14.
 static bool bodyAppointment(BYTE* ctx) {return at<unsigned short>(bodyScratch(ctx),0x2ac)==5;}
+// Demotion (command 2): the 0x0706 pair record (world+0x43c820, RankDown reader 0043d080) has the target's rank
+// at +0x10 (u8, filled by the server with the rank at send time) and the target character at +0x14.
+static bool bodyDemotion(BYTE* ctx) {return at<unsigned short>(bodyScratch(ctx),0x2ac)==2;}
 static int __cdecl bodyTargetName(BYTE* ctx) {
     if(bodyAppointment(ctx))return bodyName(ctx,0x66);
-    if(!bodyDismissal(ctx))return bodyName(ctx,0x18a);
-    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);unsigned id=world ? at<unsigned>(world,0x43c8f0+0x10) : 0;
+    if(!bodyDismissal(ctx) && !bodyDemotion(ctx))return bodyName(ctx,0x18a);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
+    unsigned id=!world ? 0 : at<unsigned>(world,bodyDemotion(ctx) ? 0x43c820+0x14 : 0x43c8f0+0x10);
     // The mail's own peers (sender SIC at S+0x60, recipient at S+0x184; id +0, name +6) come first.
     for(unsigned peer:{0x60u,0x184u})if(id && at<unsigned>(bodyScratch(ctx),peer)==id)return bodyName(ctx,peer+6);
     wchar_t name[13]={};if(knownName(id,name))return bodyText(ctx,name);
     wchar_t text[16];swprintf_s(text,L"#%u",id);return bodyText(ctx,text);
 }
 static int __cdecl bodyTargetRank(BYTE* ctx) {
+    if(bodyDemotion(ctx)) {auto world=*reinterpret_cast<BYTE**>(0x7ccffc);return world ? catalogCopy(ctx,5,world[0x43c820+0x10]) : 0;}
     if(bodyDismissal(ctx)) {ctx[0x24]=0;return 1;} // the third person's rank is not known to this client
     if(bodyAppointment(ctx))return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x82)); // sender SIC rank
     return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x1a6));
 }
+// $xrankold$/$xranknew$ (messages 3/0): only demotion is filled here, from the 0x0706 rank (one step down is +1);
+// other commands keep the CD's own handler so their meaning is unchanged.
+static int demotionRank(BYTE* ctx,unsigned step) {
+    if(!bodyDemotion(ctx))return reinterpret_cast<int(__cdecl*)(BYTE*)>(0x521670)(ctx);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);return world ? catalogCopy(ctx,5,world[0x43c820+0x10]+step) : 0;
+}
+static int __cdecl bodyRankOld(BYTE* ctx) {return demotionRank(ctx,0);}
+static int __cdecl bodyRankNew(BYTE* ctx) {return demotionRank(ctx,1);}
 static int __cdecl bodyTargetCard(BYTE* ctx) {
+    if(bodyDemotion(ctx)) {ctx[0x24]=0;return 1;} // demotion carries no card
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
     return world ? catalogCopy(ctx,3,bodyAppointment(ctx) ? at<unsigned>(world,0x43c8c8+0x14) :
         bodyDismissal(ctx) ? at<unsigned>(world,0x43c8f0+0x14) : at<unsigned>(world,0x43c990+0x10)) : 0;
@@ -81,7 +95,8 @@ static bool installProposalBody() {
     struct Row {unsigned row;void* handler;} rows[]={
         {0x786bb4,&bodyCommand},{0x786bbc,&bodyPlace},{0x786bec,&bodyHalfCp},{0x786bf4,&bodyHalfCp},
         {0x786c14,&bodyDate},{0x786c2c,&bodyTargetCard},{0x786c34,&bodyExecutor},
-        {0x786c74,&bodyInfluence},{0x786cbc,&bodyTargetName},{0x786d24,&bodyProposer},{0x786d34,&bodyTargetRank}};
+        {0x786c74,&bodyInfluence},{0x786cbc,&bodyTargetName},{0x786d24,&bodyProposer},{0x786d34,&bodyTargetRank},
+        {0x786d3c,&bodyRankNew},{0x786d44,&bodyRankOld}};
     const unsigned stub=0x521670;
     for(auto& r:rows)if(r.handler && at<unsigned>(reinterpret_cast<void*>(r.row),0)!=stub)return false;
     for(auto& r:rows)if(r.handler) {

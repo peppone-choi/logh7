@@ -8,8 +8,15 @@ import org.logh7.engine.strategy.*
  * decorations require 100 merit per grade. Author: Peppone Choi. */
 internal object PersonnelActions {
     val supported=setOf(0,1,2,3,4,8,9)
-    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
-        countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
+    class RankDirectory(identities:List<StrategicIdentity>,stocks:PlanetStocks,country:CountryId?,recoverEstates:Boolean=false) {
+        val byId=identities.filter {it.country==country && (recoverEstates || !BattleDeath.deceased(stocks,it.id))}.associateBy {it.id}
+        val valid=identities.size<=4096 && identities.distinctBy {it.id}.size==identities.size
+        val top=mutableMapOf<Int,Set<String>>()
+        val counts=mutableMapOf<Int,Int>()
+    }
+    fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,now:Long,p:Navigator,stocks:PlanetStocks,
+        countries:CountryCatalog=CountryCatalogLoader.current(),chargeCost:Boolean=true,
+        directory:RankDirectory?=null):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val country=r.country ?: return reject(StrategyActionRejection.IDENTITY)
         val definition=countries.countries[country.value] ?: return reject(StrategyActionRejection.AUTHORITY)
@@ -17,10 +24,11 @@ internal object PersonnelActions {
         val ranks=when(family.ranks) {"empire"->Power.EMPIRE;"alliance"->Power.ALLIANCE;else->return reject(StrategyActionRejection.AUTHORITY)}
         val offices=OrganizationOffices.system(country,countries) ?: return reject(StrategyActionRejection.AUTHORITY)
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
-        if(r.identities.size>4096 || r.identities.distinctBy {it.id}.size!=r.identities.size)return reject(StrategyActionRejection.IDENTITY)
         // Existing estates can still be recovered from a deceased holder.
-        val eligible=r.identities.filter {it.country==country && (r.command==9 || !BattleDeath.deceased(stocks,it.id))}
-        val identity=eligible.singleOrNull {it.id==r.target} ?: return reject(StrategyActionRejection.IDENTITY)
+        val people=directory ?: RankDirectory(r.identities,stocks,country,r.command==9)
+        if(!people.valid)return reject(StrategyActionRejection.IDENTITY)
+        val eligible=people.byId.values
+        val identity=people.byId[r.target] ?: return reject(StrategyActionRejection.IDENTITY)
         if(identity.country!=p.country || identity.id==r.characterId)return reject(StrategyActionRejection.IDENTITY)
         if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val policy=OrganizationalOfficePolicy(galaxy,countries)
@@ -48,27 +56,30 @@ internal object PersonnelActions {
                     else -> if(offices==2)19 else 160
                 }
                 if(!holds(authority))return reject(StrategyActionRejection.AUTHORITY)
-                val entries=eligible.filter {ladder(it)==rank}.map {id->
-                    val progress=stocks.strategic.people[id.id] ?: StrategicPerson()
-                    LadderEntry(id.id.toString(),progress.merit,if(ranks==Power.EMPIRE && family.peerage=="empire")progress.peerage else null,
-                        progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong),
-                        progress.decorations.maxOrNull() ?: -1)
+                val top=people.top.getOrPut(rank) {
+                    val entries=eligible.filter {ladder(it)==rank}.map {id->
+                        val progress=stocks.strategic.people[id.id] ?: StrategicPerson()
+                        LadderEntry(id.id.toString(),progress.merit,if(ranks==Power.EMPIRE && family.peerage=="empire")progress.peerage else null,
+                            progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong),
+                            progress.decorations.maxOrNull() ?: -1)
+                    }
+                    LadderRules.topIds(ranks,entries)
                 }
-                val top=LadderRules.topIds(ranks,entries)
                 if((r.target.toString() in top)!=(r.command==0))return reject(StrategyActionRejection.RANK)
                 val limited=when(changedRank){2->LimitedRank.MARSHAL;3->LimitedRank.SENIOR_ADMIRAL;4->LimitedRank.ADMIRAL;
                     5->LimitedRank.VICE_ADMIRAL;6->LimitedRank.REAR_ADMIRAL;7->LimitedRank.COMMODORE;else->null}
                 if(limited!=null) {
-                    val count=eligible.count {ladder(it)==changedRank}
+                    val count=people.counts.getOrPut(changedRank) {eligible.count {ladder(it)==changedRank}}
                     val capacity=RankRules.capacity(ranks,limited) ?: return reject(StrategyActionRejection.RANK)
                     if(count>=capacity)return reject(StrategyActionRejection.MAXIMUM)
                 }
+                if(directory!=null)return StrategyActionResult(p,stocks,changed=true)
                 next=StrategyActions.clearOffices(stocks,r.target).let {cleared ->cleared.copy(strategic=cleared.strategic.copy(
                     people=cleared.strategic.people+(r.target to (if(person.militaryRank>0)person.copy(militaryRank=changedRank)
                         else person.copy(rank=changedRank)).copy(merit=if(r.command==2)100 else 0))))}
                 // U-24: a promoted character outside battle receives the new rank's default flagship.
                 if(r.command!=2)r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}?.let {(key,other)->
-                    val hull=other.hull;val now=s.gameMillis/1000
+                    val hull=other.hull
                     if(other.country==p.country && hull!=null && !other.cpPaused && hull.woundedUntil<=now) {
                         val upgrade=Flagships.rankDefault(other.shipStyle.nativePower,changedRank)
                         if(Flagships.tier(upgrade.kind)>Flagships.tier(hull.kind))
@@ -112,6 +123,7 @@ internal object PersonnelActions {
                 }
             }
         }
+        if(!chargeCost)return StrategyActionResult(p,next,changed=true,navigators=promoted)
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(StrategyActionRejection.CP)
         return StrategyActionResult(p.paidWith(paid.balance),next,changed=true,navigators=promoted)
