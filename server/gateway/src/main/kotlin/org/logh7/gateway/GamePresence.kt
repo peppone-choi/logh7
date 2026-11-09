@@ -430,7 +430,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 event.motions.filter {(id,motion)->tactical.committedMotion(id)==motion}
             else event.motions
             packets+=motions.map {(id,motion)->TacticalMotionMessages.npc(id,motion,event.seconds,event.order.character)}
-            send(viewer,packets)
+            send(viewer,packets,event.order.grid.takeIf {current.baseId==0})
         }
     }
     @Synchronized fun support(event:org.logh7.engine.TacticalSupportResult,snapshot:org.logh7.engine.WorldSnapshot,
