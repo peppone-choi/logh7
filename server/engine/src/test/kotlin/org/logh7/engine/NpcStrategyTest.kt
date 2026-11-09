@@ -421,7 +421,7 @@ class NpcStrategyTest {
         }
     }
 
-    @Test fun capturedRebelOrDepletedDepotReroutesTheReturningFleetWithoutChargingTheCancelledJump() {
+    @Test fun unavailableDepotReroutesTheReturningFleetWithoutChargingTheCancelledJump() {
         val alternate=galaxy.bases.single().copy(id=1001,grid=2588,name="Alternate")
         val world=Galaxy(galaxy.systems+GalaxySystem(5,2588,4,"Alternate",2),galaxy.bases+alternate,galaxy.starts)
         val original=stocks()
@@ -434,14 +434,18 @@ class NpcStrategyTest {
             NpcStrategy.advance(simulation.copy(gameMillis=at*1000),world,observers,stocks,events)
         val reserved=advanceWorld(0,initial)
         assertEquals(2487,reserved.outfits.getValue(1).strategy?.destination)
-        for(unavailable in listOf(depot.copy(owner=Allegiance.fromLegacy(3)),depot.copy(camp=1),depot.copy(supplies=0))) {
+        val unavailableDepots=listOf(depot.copy(owner=Allegiance.fromLegacy(3)),depot.copy(camp=1),depot.copy(supplies=0))
+        for(unavailable in unavailableDepots+depot) {
             events.clear()
+            observers.clear()
+            if(unavailable==depot)observers["pilot"]=players().getValue("pilot").copy(grid=2487)
             val changed=reserved.copy(bases=reserved.bases+(1000 to unavailable))
             val rerouted=advanceWorld(3600,changed)
             assertEquals(NpcStrategicState(25200,2588,7200),rerouted.outfits.getValue(1).strategy)
             assertEquals(fleet.position,rerouted.outfits.getValue(1).position)
             assertEquals(300,rerouted.outfits.getValue(1).supplies)
             assertEquals(changed.bases,rerouted.bases)
+            if(unavailable==depot)assertEquals(players().getValue("pilot").copy(grid=2487),observers["pilot"])
             assertTrue(events.isEmpty())
             assertEquals(rerouted,advanceWorld(7199,rerouted.copy()))
             val arrived=advanceWorld(7200,rerouted)

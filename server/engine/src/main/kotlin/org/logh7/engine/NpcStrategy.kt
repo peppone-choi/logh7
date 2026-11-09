@@ -241,10 +241,11 @@ internal object NpcStrategy {
                 // Re-evaluate source hostility as well as destination capacity after earlier arrivals.
                 if(distance(position.grid,destination)!=1 || planned?.grid!=destination || !allowed(galaxy,forces(),outfit,destination) ||
                     position.baseId==0 && relief==null && !canDepart(stocks,outfit,galaxy)) {
+                    val contestedDepot=TacticalContact.contested(forces()[destination].orEmpty())
                     val unavailableDepot=galaxy.bases.any {base->base.grid==destination &&
-                        stocks.bases[base.id]?.let {it.country!=outfit.country || it.camp!=0 || it.supplies==0}==true}
+                        stocks.bases[base.id]?.let {contestedDepot || it.country!=outfit.country || it.camp!=0 || it.supplies==0}==true}
                     val reroute=if(unavailableDepot && position.baseId==0 && planned!=null)
-                        home(galaxy,forces(),outfit,stocks)?.takeIf {it.next==planned.grid}
+                        home(galaxy,forces(),outfit,stocks)?.takeIf {it.next==planned.grid && it.next!=destination}
                     else null
                     val next=if(canDepart(stocks,outfit,galaxy))reroute?.next
                         else reliefRoute(galaxy,forces(),outfit,stocks)?.next
