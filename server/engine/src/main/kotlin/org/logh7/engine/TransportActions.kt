@@ -102,6 +102,8 @@ object TransportActions {
                 warehouseBase=base.baseId
                 val pack=packages.singleOrNull {it.id==r.target && it.country==country} ?: return reject(StrategyActionRejection.TARGET)
                 if(o.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null})return reject(StrategyActionRejection.BUSY)
+                val currentIntent=if(pack.carrier==0)1 else 2
+                if(r.value!=0 && r.value!=currentIntent)return reject(StrategyActionRejection.QUOTE_CHANGED)
                 next=if(pack.carrier==0) {
                     if(pack.source!=base.baseId)return reject(StrategyActionRejection.LOCATION)
                     val alive=boats(o)
