@@ -33,7 +33,8 @@ object OrbitalStrikeActions {
             return reject(SocialRejection.IDENTITY)
         if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
         if(BattleDeath.deceased(s,p.characterId))return reject(SocialRejection.IDENTITY)
-        if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(SocialRejection.LOCATION)
+        if(!p.cpPaused || p.baseId!=0 || p.mode!=5 || p.posture?.mode?.requiresBase==true)
+            return reject(SocialRejection.LOCATION)
         if(p.hull?.woundedUntil?.let {it>now}==true || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(p.supplies<SUPPLIES)return reject(SocialRejection.MAXIMUM)
         val own=i.country

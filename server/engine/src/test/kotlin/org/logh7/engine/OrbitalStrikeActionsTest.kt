@@ -88,6 +88,23 @@ class OrbitalStrikeActionsTest {
         assertEquals(SocialRejection.TARGET,SocialActions.evaluate(galaxy,request,countrySession,p,own,listOf(p)).rejection)
     }
 
+    @Test fun anchoringOrStationingTheFlagshipInvalidatesAnOrbitalStrikeQuote() {
+        val s=stocks()
+        val p=player(10f)
+        val quote=act(p,s,phase=OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(quote.rejection)
+        for(mode in listOf(TacticalShipMode.ANCHORED,TacticalShipMode.STATIONED)) {
+            val docked=p.copy(posture=TacticalPosture(p.grid,mode,base.id))
+            val requested=act(docked,s,phase=OrbitalStrikeActions.QUOTE_PHASE)
+            val confirmed=act(docked,s,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES)
+            for(result in listOf(requested,confirmed)) {
+                assertEquals(SocialRejection.LOCATION,result.rejection)
+                assertSame(s,result.stocks)
+                assertSame(docked,result.player)
+            }
+        }
+    }
+
     @Test fun aFlagshipInRangeBombardsTheEnemyGarrisonAndOrder() {
         val r=act(player(10f),stocks(strength=100))
         assertNull(r.rejection,"${r.rejection}");assertEquals(1,r.outcome);assertEquals(1000,r.found);assertEquals(1,r.report)
