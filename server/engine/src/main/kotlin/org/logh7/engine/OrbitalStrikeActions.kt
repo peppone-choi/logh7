@@ -31,7 +31,10 @@ object OrbitalStrikeActions {
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
-        if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(SocialRejection.LOCATION)
+        if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
+        if(BattleDeath.deceased(s,p.characterId))return reject(SocialRejection.IDENTITY)
+        if(!p.cpPaused || p.baseId!=0 || p.mode!=5 || p.posture?.mode?.requiresBase==true)
+            return reject(SocialRejection.LOCATION)
         if(p.hull?.woundedUntil?.let {it>now}==true || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         if(p.supplies<SUPPLIES)return reject(SocialRejection.MAXIMUM)
         val own=i.country
@@ -42,7 +45,9 @@ object OrbitalStrikeActions {
             .filter {it.second<=RANGE}.minByOrNull {it.second}?.first ?: return reject(SocialRejection.TARGET)
         val owner=s.bases.getValue(base.id)
         // User decision 2026-11-02: no bombardment while a ground battle runs on that planet (preparation fire only).
-        if(base.id in s.groundBattles || GroundBattleOperations.contested(s,base))return reject(SocialRejection.COOLDOWN)
+        if(base.id in s.groundBattles ||
+            GroundBattleOperations.sides(s,base).count {it.first.first !in session.eliminated}>1)
+            return reject(SocialRejection.COOLDOWN)
         val centre=TacticalBasePosition.at(base,now,s)
         fun inRange(x:Float,y:Float)=kotlin.math.hypot((centre.x-x).toDouble(),(centre.y-y).toDouble())-base.diameter<=RANGE
         val escorts=s.outfits.values.filter {TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) && it.positionIn(g)==OutfitPosition(p.grid)}.sumOf {o->
@@ -53,7 +58,7 @@ object OrbitalStrikeActions {
         if(r.phase==QUOTE_PHASE)return SocialResult(p,s,outcome=attackers,found=base.id)
         if(i.base!=0 && (i.base!=base.id || i.argument!=attackers || i.value!=SUPPLIES))return reject(SocialRejection.QUOTE_CHANGED)
         val damage=DAMAGE*attackers
-        var destroyed=0
+        val destroyed=mutableSetOf<Int>()
         // A legacy garrison (quantities only) first gets identities at full strength, as ground battle would need.
         var cursor=s.nextShipId
         val known=s.outfits.mapValues {(_,o)->
@@ -66,12 +71,17 @@ object OrbitalStrikeActions {
             // Only the planet holder's camp defends; a revolt's other camp may have troops landed there too.
             if(o.country!=owner.country || CoupActions.outfitCamp(s,o)!=owner.camp || ground==null || ground.values.none {it.base==base.id})return@mapValues o
             val roster=ActiveGroundUnits(ground.values.mapNotNull {u->
-                if(u.base!=base.id)u else (u.strength-damage).let {left->if(left<=0){destroyed++;null} else u.copy(strength=left)}})
+                if(u.base!=base.id)u else (u.strength-damage).let {left->if(left<=0){destroyed+=u.id;null} else u.copy(strength=left)}})
             o.copy(activeGround=roster,units=UnitInventory(o.units.ships,o.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}+roster.quantities(),o.units.work))
         }
         val economy=owner.economy?.let {it.copy(peace=maxOf(0,it.peace-PEACE))}
         // CD manual p.46: a fortress also loses armor, and a mobile fortress its propulsion (FortressArmor).
-        val next=FortressArmor.strike(base,s.copy(outfits=outfits,nextShipId=cursor,bases=s.bases+(base.id to owner.copy(economy=economy))),attackers)
-        return SocialResult(p.copy(supplies=p.supplies-SUPPLIES),next,changed=true,outcome=attackers,found=base.id,report=destroyed)
+        val commands=s.tacticalCommands
+        val remaining=if(destroyed.isEmpty())commands else commands.copy(
+            morale=commands.morale-destroyed,
+            groundTargets=commands.groundTargets.filter {it.key !in destroyed && it.value !in destroyed})
+        val next=FortressArmor.strike(base,s.copy(outfits=outfits,nextShipId=cursor,
+            bases=s.bases+(base.id to owner.copy(economy=economy)),tacticalCommands=remaining),attackers)
+        return SocialResult(p.copy(supplies=p.supplies-SUPPLIES),next,changed=true,outcome=attackers,found=base.id,report=destroyed.size)
     }
 }

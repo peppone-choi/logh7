@@ -22,9 +22,10 @@ class OrbitalStrikeActionsTest {
         return Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,mode=5,cpPaused=cpPaused,
             motion=TacticalMotion(2487,now,TacticalPose(at,0f),0f,0f,listOf(at)))
     }
-    private fun act(p:Navigator,s:PlanetStocks=stocks(),phase:Int=0,base:Int=0,attackers:Int=0,supplies:Int=0)=
+    private fun act(p:Navigator,s:PlanetStocks=stocks(),phase:Int=0,base:Int=0,attackers:Int=0,supplies:Int=0,
+        state:SessionState=session)=
         SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,
-            OrbitalStrikeActions.STRIKE,0,1,base=base,argument=attackers,value=supplies),phase=phase),session,p,s,listOf(p))
+            OrbitalStrikeActions.STRIKE,0,1,base=base,argument=attackers,value=supplies),phase=phase),state,p,s,listOf(p))
 
     @Test fun quotedStrikeLeavesStateAloneAndRejectsChangedTerms() {
         val s=stocks();val p=player(10f);val cost=OrbitalStrikeActions.SUPPLIES
@@ -41,6 +42,26 @@ class OrbitalStrikeActionsTest {
         val actual=act(p,s,base=quote.found,attackers=quote.outcome,supplies=cost)
         assertTrue(actual.changed)
         assertEquals(p.supplies-cost,actual.player?.supplies)
+    }
+
+    @Test fun deceasedOrEliminatedCommanderCannotQuoteOrExecuteAStrikeFromSavedTactics() {
+        val p=player(10f)
+        val live=stocks()
+        val quote=act(p,live,phase=OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(quote.rejection)
+        val dead=live.copy(strategic=live.strategic.copy(people=mapOf(p.characterId to StrategicPerson(deceasedAt=1))))
+        val defeated=session.copy(eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.ALLIANCE.country)))
+        for((s,state,reason) in listOf(Triple(dead,session,SocialRejection.IDENTITY),Triple(live,defeated,SocialRejection.SESSION))) {
+            val newQuote=act(p,s,phase=OrbitalStrikeActions.QUOTE_PHASE,state=state)
+            val execution=act(p,s,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES,state=state)
+            for(result in listOf(newQuote,execution)) {
+                assertEquals(reason,result.rejection)
+                assertFalse(result.changed)
+                assertSame(s,result.stocks)
+                assertSame(p,result.player)
+            }
+        }
     }
 
     @Test fun additionalCountryBombardmentUsesActualDefendersAndOnlyItsOwnEscorts() {
@@ -67,13 +88,34 @@ class OrbitalStrikeActionsTest {
         assertEquals(SocialRejection.TARGET,SocialActions.evaluate(galaxy,request,countrySession,p,own,listOf(p)).rejection)
     }
 
+    @Test fun anchoringOrStationingTheFlagshipInvalidatesAnOrbitalStrikeQuote() {
+        val s=stocks()
+        val p=player(10f)
+        val quote=act(p,s,phase=OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(quote.rejection)
+        for(mode in listOf(TacticalShipMode.ANCHORED,TacticalShipMode.STATIONED)) {
+            val docked=p.copy(posture=TacticalPosture(p.grid,mode,base.id))
+            val requested=act(docked,s,phase=OrbitalStrikeActions.QUOTE_PHASE)
+            val confirmed=act(docked,s,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES)
+            for(result in listOf(requested,confirmed)) {
+                assertEquals(SocialRejection.LOCATION,result.rejection)
+                assertSame(s,result.stocks)
+                assertSame(docked,result.player)
+            }
+        }
+    }
+
     @Test fun aFlagshipInRangeBombardsTheEnemyGarrisonAndOrder() {
-        val r=act(player(10f),stocks(strength=100))
+        val initial=stocks(strength=100).copy(tacticalCommands=TacticalCommandState(
+            morale=mapOf(1 to 70,2 to 80),groundTargets=mapOf(1 to 2,2 to 1,3 to 2)))
+        val r=act(player(10f),initial)
         assertNull(r.rejection,"${r.rejection}");assertEquals(1,r.outcome);assertEquals(1000,r.found);assertEquals(1,r.report)
         val s=assertNotNull(r.stocks)
         val left=s.outfits.getValue(1).activeGround!!.values.single()
         assertEquals(2,left.id);assertEquals(1000-OrbitalStrikeActions.DAMAGE,left.strength)
         assertEquals(1,s.outfits.getValue(1).units.troops[UnitStack(4)])
+        assertEquals(mapOf(2 to 80),s.tacticalCommands.morale)
+        assertEquals(mapOf(3 to 2),s.tacticalCommands.groundTargets)
         assertEquals(38,s.bases.getValue(1000).economy?.peace)
         assertEquals(10_000-OrbitalStrikeActions.SUPPLIES,r.player?.supplies)
     }
@@ -123,6 +165,28 @@ class OrbitalStrikeActionsTest {
         val s=stocks().let {it.copy(groundBattles=mapOf(1000 to now))}
         assertEquals(SocialRejection.COOLDOWN,act(player(10f),s).rejection)
     }
+    @Test fun savedTroopsOfAnEliminatedThirdCountryDoNotStartAGroundBattle() {
+        val p=player(10f)
+        val third=CountryId(42)
+        val before=stocks()
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(0),base=1000)))
+        val s=before.copy(outfits=before.outfits+(2 to OutfitStock(2,third,OutfitKind.GROUND,1000,102,
+            units=UnitInventory(troops=troops.quantities()),activeGround=troops,shipStyle=ShipStyleId("empire"))),
+            warehouses=before.warehouses+(102 to OutfitWarehouse(102,third,OutfitKind.GROUND,1000,shipStyle=ShipStyleId("empire"))),nextShipId=4)
+        assertEquals(SocialRejection.COOLDOWN,act(p,s).rejection)
+        val defeated=session.copy(eliminated=mapOf(third to CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.EMPIRE.country)))
+        fun request(phase:Int,base:Int=0,attackers:Int=0,supplies:Int=0)=SocialActions.evaluate(galaxy,
+            SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,OrbitalStrikeActions.STRIKE,0,1,
+                base=base,argument=attackers,value=supplies),phase=phase),defeated,p,s,listOf(p))
+        val quote=request(OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(quote.rejection)
+        val result=request(0,quote.found,quote.outcome,OrbitalStrikeActions.SUPPLIES)
+        assertNull(result.rejection)
+        val after=assertNotNull(result.stocks)
+        assertEquals(s.outfits.getValue(2),after.outfits.getValue(2))
+        assertEquals(1000-OrbitalStrikeActions.DAMAGE,after.outfits.getValue(1).activeGround!!.values.first().strength)
+    }
+
     @Test fun onlyThePlanetHoldersCampDefends() {
         // A rebel-held planet (camp 1): the regular side's troops landed there are not its garrison.
         val s=stocks().let {it.copy(bases=it.bases+(1000 to it.bases.getValue(1000).copy(camp=1)))}
