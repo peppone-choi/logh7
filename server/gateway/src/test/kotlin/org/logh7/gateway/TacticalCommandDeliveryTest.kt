@@ -73,6 +73,7 @@ class TacticalCommandDeliveryTest {
                 pending.copy(navigators=mapOf("pilot" to commander)),galaxy,player){person}
                 .resume().filter {opcode(it)==code}
             assertEquals(10,ByteBuffer.wrap(replays(player).single()).getInt(10))
+            assertTrue(replays(player.copy(hull=FlagshipHull(0,110,woundedUntil=111))).isEmpty())
             assertTrue(replays(player.copy(cpPaused=false)).isEmpty())
             assertTrue(replays(player.copy(baseId=1000,mode=4,cpPaused=false)).isEmpty())
         }

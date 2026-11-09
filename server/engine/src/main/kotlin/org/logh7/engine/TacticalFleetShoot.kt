@@ -97,6 +97,7 @@ internal object TacticalFleetShoot {
                 TacticalAuthority.commander(outfit,unit,stocks)!=shot.commander || position.baseId!=0 || state.motion.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null || commander==null ||
                 commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid ||
+                (commander.hull?.woundedUntil ?: 0)>now ||
                 TacticalAuthority.camp(commander,stocks)!=TacticalAuthority.camp(outfit,stocks)) {
                 stocks=replace(stocks,outfit,unit.copy(shot=null));continue
             }

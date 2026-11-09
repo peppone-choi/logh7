@@ -191,6 +191,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             unit.tactical?.motion?.grid==viewer.grid && TacticalAuthority.commander(outfit,unit,stocks)==commander &&
             !BattleDeath.deceased(stocks,commander) && people.any {
                 it.characterId==commander && it.country==outfit.country && it.cpPaused &&
+                    (it.hull?.woundedUntil ?: 0)<=(snapshot.session?.gameSeconds ?: 0) &&
                     TacticalAuthority.camp(it,stocks)==TacticalAuthority.camp(outfit,stocks)
             }
     }
