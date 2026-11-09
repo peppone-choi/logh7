@@ -45,7 +45,9 @@ object OrbitalStrikeActions {
             .filter {it.second<=RANGE}.minByOrNull {it.second}?.first ?: return reject(SocialRejection.TARGET)
         val owner=s.bases.getValue(base.id)
         // User decision 2026-11-02: no bombardment while a ground battle runs on that planet (preparation fire only).
-        if(base.id in s.groundBattles || GroundBattleOperations.contested(s,base))return reject(SocialRejection.COOLDOWN)
+        if(base.id in s.groundBattles ||
+            GroundBattleOperations.sides(s,base).count {it.first.first !in session.eliminated}>1)
+            return reject(SocialRejection.COOLDOWN)
         val centre=TacticalBasePosition.at(base,now,s)
         fun inRange(x:Float,y:Float)=kotlin.math.hypot((centre.x-x).toDouble(),(centre.y-y).toDouble())-base.diameter<=RANGE
         val escorts=s.outfits.values.filter {TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) && it.positionIn(g)==OutfitPosition(p.grid)}.sumOf {o->
