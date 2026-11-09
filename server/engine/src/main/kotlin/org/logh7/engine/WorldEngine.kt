@@ -502,13 +502,17 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}
         // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
         val nowSeconds=session.gameMillis/1000
+        val mailDeadlines=snapshot.planetStocks?.social?.proposals?.mails.orEmpty().filter {it.pending}.flatMap {mail->
+            val approvalAt=mail.createdAt+ProposalActions.ABSENT_ORDER_SECONDS
+            listOfNotNull(mail.expiresAt,approvalAt.takeIf {mail.order && it<mail.expiresAt})
+        }.filter {it>nowSeconds}
         val navigationDeadlines=snapshot.navigators.filter {(account,p)->p.generation==session.generation && !p.cpPaused &&
             session.participants[account]?.online==false &&
             (p.warpTarget==null || (profiles[account]?.abilities?.size ?: 0)>2)}.values.flatMap {p->
             (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+mailDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed

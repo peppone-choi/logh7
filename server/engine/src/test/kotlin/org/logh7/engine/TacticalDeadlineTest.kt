@@ -10,6 +10,18 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun proposalExpiryRefundsBetweenPeriodicTicks() = runTest {
+        val rig=Rig(this,testScheduler,mailDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(624);runCurrent()
+            assertEquals(960,rig.players.getValue("pilot").mcp)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(1000,rig.players.getValue("pilot").mcp)
+            assertTrue(rig.engine.snapshot().planetStocks!!.social.proposals.mails.isEmpty())
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun restoredPostureAloneSchedulesCompletionBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,postureDeadline=true)
         val events=mutableListOf<TacticalPostureResult>();rig.engine.observePostures(events::add)
@@ -91,7 +103,8 @@ class TacticalDeadlineTest {
             assertFailsWith<IllegalStateException>{rig.engine.synchronizeTime()}
         } finally {rig.engine.drainAndClose()}
     }
-    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false) {
+    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
+        mailDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -101,6 +114,13 @@ class TacticalDeadlineTest {
                 listOf(TacticalPoint(0f,10f)),turnRate=1f).let {if(postureDeadline)it.copy(velocity=0f) else it},
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
+        init {
+            if(mailDeadline) {
+                players=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2488,1000,960,1000))
+                val mail=ProposalMail(1,10000,10001,17,19,ProposalActions.RESIGNATION,false,start,start+15,mcp=40)
+                stocks=stocks.copy(social=stocks.social.copy(proposals=ProposalState(listOf(mail))))
+            }
+        }
         private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
             listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2488})
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
