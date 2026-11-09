@@ -1396,6 +1396,15 @@ class GameExchange(
                         require(query.header.characterId == character.id.toInt())
                         // 005313f0 previews in mode 0; 00574ba0 commits in mode 1.
                         require(query.mode in 0..1) { "Unsupported strategic reorganization mode" }
+                        if (query.outfit == 0) {
+                            // The native editor previews outfit zero when its base has no eligible outfit.
+                            val player = checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account) ?: deliveredPlayer)
+                            val reply = if (query.mode == 0) listOf(org.logh7.protocol.LogisticsMessages.reorganizationPreview(
+                                query, gameSeconds(), player.pcp, player.mcp, 0, 0, 0, false, emptyList()))
+                            else listOf(org.logh7.protocol.LogisticsMessages.reorganizationResponse(
+                                query, gameSeconds(), player.pcp, player.mcp, 0, false), characterMessage(character, player, true))
+                            return handshake.stageAll(reply, clearHeader = 0)
+                        }
                         pendingWorld = administration.reorganize(org.logh7.engine.ReorganizationRequest(
                             identity.account, connection, character.id.toInt(),
                             currentProfile(identity.account,character.id.toInt()).country,
