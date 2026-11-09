@@ -248,8 +248,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             Navigator(request.generation, request.characterId, country, start, policy.initialCp,
                 policy.initialCp, policy.initialCruise, shipStyle = style, originBase = home?.id ?: 0)
         }
-        if (stocks != null && initial.returnBase != 0 && returnBaseRejection(initial, initial.returnBase, stocks) != null)
-            initial = initial.copy(returnBase = 0)
+        if (stocks != null) initial = clearInvalidReturnBase(initial, stocks)
         if (initial.offlineWarpCancellation != null && initial.offlineWarpCancellation == request.acknowledgedOfflineWarpCancellation)
             initial = initial.copy(offlineWarpCancellation = null)
         val now = session.gameMillis / 1000
@@ -508,6 +507,10 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock,
             completedWarp = completedWarp, warpCancellation = warpCancellation)
     }
+    internal fun clearInvalidReturnBase(player:Navigator,stocks:PlanetStocks):Navigator =
+        if(player.returnBase!=0 && returnBaseRejection(player,player.returnBase,stocks)!=null)
+            player.copy(returnBase=0) else player
+
     private fun returnBaseRejection(player: Navigator, target: Int, stocks: PlanetStocks?): NavigationRejection? {
         val condition = galaxy.conditions[target] ?: return NavigationRejection.BASE
         if (condition.habitability == 0) return NavigationRejection.BASE
