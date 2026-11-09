@@ -97,6 +97,12 @@ internal object ReplacementBoats {
         (unit.boats.toLong()*spec.number("必要乗組員ユニット数:必要乗組員ユニット数")+spec.number-1)/spec.number
     }
 
+    fun restoreUnit(warehouse: OutfitWarehouse, unit: ActiveShipUnit): Pair<OutfitWarehouse, ActiveShipUnit> {
+        val full = UnitSpecifications.ships.single { it.kind == unit.stack.kind }.number
+        if (unit.boats == full) return warehouse to unit
+        return take(warehouse, unit.stack.kind, full - unit.boats) to unit.copy(boats = full)
+    }
+
     /** Consume only the exact native ship kind, including a previous unpacked remainder. */
     fun take(warehouse: OutfitWarehouse, kind: Int, count: Int): OutfitWarehouse {
         require(count>=0)
