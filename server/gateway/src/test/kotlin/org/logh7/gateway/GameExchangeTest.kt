@@ -489,6 +489,8 @@ class GameExchangeTest {
             assertNull(game.accept(0x30,encrypted(query,5)))
             val operation=assertNotNull(game.takePendingWorld())
             assertFalse(operation.isDone);assertEquals(1,syncs);assertEquals(1,recoveries)
+            val queuedMovement=listOf(TacticalMoveMessages.moved(5,player.unitId,0f,
+                TacticalMoveMessages.Point(0f,5f,0f),0))
             if(outcome=="failure") {
                 sampled.completeExceptionally(java.io.IOException("position time save failed"))
                 assertTrue(operation.isCompletedExceptionally);assertEquals(1,recoveries)
@@ -505,6 +507,7 @@ class GameExchangeTest {
                         org.logh7.protocol.TacticalSupportMessages.supplied(1,player.unitId,100,200),
                         TacticsMessages.definitions(2487,emptyList()))
                     assertNull(game.notifyWorld(queuedSupport,tacticalGrid=2487))
+                    assertNull(game.notifyWorld(queuedMovement,tacticalGrid=2487))
                 }
                 sampled.complete(Unit)
                 val messages=operation.join();val position=ByteBuffer.wrap(messages.first())
@@ -535,6 +538,7 @@ class GameExchangeTest {
                             "A queued exit must not close the reentered battlefield")
                     }
                 } else {
+                    assertNotNull(game.notifyWorld(queuedMovement,tacticalGrid=2487))
                     assertEquals(1,position.getShort(6).toInt());assertEquals(player.unitId,position.getInt(8))
                     assertEquals(0f,position.getFloat(12));assertEquals(5f,position.getFloat(16))
                     val replay=messages.single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0400}
