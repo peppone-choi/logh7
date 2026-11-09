@@ -38,9 +38,9 @@ object FortressArmor {
         owner.country!=null && player.country==owner.country && CoupActions.camp(stocks,player.characterId,player.country)==owner.camp
     fun pending(stocks:PlanetStocks,galaxy:Galaxy,players:Collection<Navigator>)=galaxy.bases.any {base->
         val owner=stocks.bases[base.id]
-        owner!=null && breached(stocks,base.id) && (stocks.outfits.values.any {o->holds(stocks,owner,o) &&
+        base.kind==1 && owner!=null && breached(stocks,base.id) && (stocks.outfits.values.any {o->holds(stocks,owner,o) &&
             o.activeShips?.values.orEmpty().any {it.boats>0 && stationed(base,galaxy,o,it)}} ||
-            players.any {it.baseId==base.id && it.grid==base.grid && holds(stocks,owner,it)})}
+            players.any {it.generation==stocks.generation && it.baseId==base.id && it.grid==base.grid && holds(stocks,owner,it)})}
     /** Sinks the holder's flagships and ship units stationed inside a fortress whose armor is gone. */
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
         sunk:MutableList<Navigator>):PlanetStocks {
