@@ -165,8 +165,9 @@ object TransportActions {
                     it.attack!=null || it.shot!=null})return reject(StrategyActionRejection.BUSY)
                 val currentIntent=if(pack.carrier==0)1 else 2
                 if(r.value!=0 && r.value!=currentIntent)return reject(StrategyActionRejection.QUOTE_CHANGED)
+                val destinationAvailable=stocks.bases[pack.destination]?.let {it.belongsTo(country) && it.camp==0}==true
                 next=if(pack.carrier==0) {
-                    if(pack.source!=base.baseId)return reject(StrategyActionRejection.LOCATION)
+                    if(pack.source!=base.baseId || !destinationAvailable)return reject(StrategyActionRejection.LOCATION)
                     val alive=boats(o)
                     val carried=carriedCargo(o,packages)
                     val room=OutfitSupplies.capacity(o)-o.supplies-carried.sumOf {it.first.toLong()}
@@ -177,8 +178,7 @@ object TransportActions {
                     if(pack.carrier!=o.id)return reject(StrategyActionRejection.AUTHORITY)
                     // A destination lost to capture or revolt while the cargo is aboard would strand it: the carrier
                     // may then unload at the own regular base it docks at (2026-11-04 rerouting, evidence:guess).
-                    val lost=stocks.bases[pack.destination]?.let {!it.belongsTo(country) || it.camp!=0} ?: true
-                    if(pack.destination!=base.baseId && !lost)return reject(StrategyActionRejection.LOCATION)
+                    if(pack.destination!=base.baseId && destinationAvailable)return reject(StrategyActionRejection.LOCATION)
                     // Boats lost since loading take the same share of the cargo (approved §2.3).
                     val (supplies,units)=delivered(pack,boats(o))
                     val stocked=deposit(base,supplies,units) ?: return reject(StrategyActionRejection.MAXIMUM)
