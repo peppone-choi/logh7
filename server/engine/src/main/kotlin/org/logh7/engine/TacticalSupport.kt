@@ -171,7 +171,7 @@ internal object TacticalSupportOperations {
         production.publishCommitted(stocks,prepared)
         return NavigationResult(player,preview.previous,supportReadyAt=order.readyAt)
     }
-    private fun repairCost(kind:Int)=UnitSpecifications.ships.single {it.kind==kind}
+    fun repairCost(kind:Int)=UnitSpecifications.ships.single {it.kind==kind}
         .number("修理消費物資(１隻):修理消費物資(１隻)")
 
     data class OfflineSupport(val order:TacticalSupportOrder,val approach:TacticalPoint?=null)

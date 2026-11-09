@@ -211,8 +211,30 @@ internal object NpcStrategy {
         var stocks=original
         var forceCache:Map<Int,List<GridForces.Force>>?=null
         fun forces():Map<Int,List<GridForces.Force>> = forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks).also {forceCache=it}
+        fun repairAtDepot(outfit:OutfitStock):OutfitStock {
+            val ships=outfit.activeShips!!
+            if(outfit.guard!=null || ships.values.none {it.damaged>0})return outfit
+            val depot=depot(stocks,outfit,galaxy) ?: return outfit
+            if(depot.supplies==0 || TacticalContact.contested(forces()[outfit.positionIn(galaxy).grid].orEmpty()))return outfit
+            // Keep enough cargo in the ships and depot to launch and return before spending on repairs.
+            val reserved=jumpShortfall(ships.values,OutfitSupplies.distribution(outfit),2)
+            var available=(depot.supplies-reserved).coerceAtLeast(0).toInt()
+            if(available==0)return outfit
+            val before=available
+            val repaired=ships.values.map {unit->
+                if(unit.damaged==0)return@map unit
+                val cost=TacticalSupportOperations.repairCost(unit.stack.kind).coerceAtLeast(1)
+                val count=minOf(unit.damaged,available/cost)
+                available-=count*cost
+                unit.copy(damaged=unit.damaged-count)
+            }
+            if(available==before)return outfit
+            stocks=stocks.copy(bases=stocks.bases+(depot.baseId to depot.copy(supplies=depot.supplies-(before-available))))
+            return outfit.copy(activeShips=ActiveShipUnits(repaired))
+        }
         fun dockLocally(outfit:OutfitStock,destination:OutfitPosition) {
-            val (inventory,replenished)=checkNotNull(supplied(stocks,outfit.copy(position=destination),galaxy,departing=false))
+            val repaired=repairAtDepot(outfit.copy(position=destination))
+            val (inventory,replenished)=checkNotNull(supplied(stocks,repaired,galaxy,departing=false))
             val docked=replenished.copy(strategy=NpcStrategicState(now+21600),
                 activeShips=ActiveShipUnits(replenished.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,posture=null)}))
             stocks=inventory.copy(outfits=inventory.outfits+(outfit.id to docked))
@@ -254,6 +276,7 @@ internal object NpcStrategy {
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=strategy)))
                     continue
                 }
+                if(position.baseId!=0)outfit=repairAtDepot(outfit)
                 val provision=if(relief==null)supplied(stocks,outfit,galaxy) else {
                     val depot=stocks.bases.getValue(relief.base.id)
                     val ships=outfit.activeShips!!.values
@@ -272,6 +295,7 @@ internal object NpcStrategy {
                     activeShips=ActiveShipUnits(outfit.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,
                         posture=null,attack=null,shot=null)}))
                 if(planned.baseId!=0) {
+                    moved=repairAtDepot(moved)
                     val replenished=checkNotNull(supplied(stocks,moved,galaxy,departing=false))
                     stocks=replenished.first;moved=replenished.second
                 }
@@ -290,6 +314,7 @@ internal object NpcStrategy {
                 movements+=NpcStrategicMovement(session.generation,id,position.grid,destination,now,
                     moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
+                if(position.baseId!=0)outfit=repairAtDepot(outfit)
                 val destination=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys)
                 val relief=reliefRoute(galaxy,forces(),outfit,stocks)
                 if(relief==null && destination?.grid==position.grid) {
