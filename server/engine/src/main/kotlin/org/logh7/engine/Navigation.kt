@@ -627,7 +627,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     stock?.camp ?: base.camp,stocks)) return reject(NavigationRejection.ACCESS)
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
-                if (before.spotId != 0 && (before.spotOwner != 0 ||
+                if (before.spotId != 0 && (before.spotOwner != 0 || stocks != null && stock == null ||
                     galaxy.facilitiesAt(before.baseId, stocks,countries).none { facility -> facility.kind == 4 &&
                         facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
                     return reject(NavigationRejection.EMBARKED)
