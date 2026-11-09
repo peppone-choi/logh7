@@ -123,6 +123,28 @@ class OrbitalStrikeActionsTest {
         val s=stocks().let {it.copy(groundBattles=mapOf(1000 to now))}
         assertEquals(SocialRejection.COOLDOWN,act(player(10f),s).rejection)
     }
+    @Test fun savedTroopsOfAnEliminatedThirdCountryDoNotStartAGroundBattle() {
+        val p=player(10f)
+        val third=CountryId(42)
+        val before=stocks()
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(0),base=1000)))
+        val s=before.copy(outfits=before.outfits+(2 to OutfitStock(2,third,OutfitKind.GROUND,1000,102,
+            units=UnitInventory(troops=troops.quantities()),activeGround=troops,shipStyle=ShipStyleId("empire"))),
+            warehouses=before.warehouses+(102 to OutfitWarehouse(102,third,OutfitKind.GROUND,1000,shipStyle=ShipStyleId("empire"))),nextShipId=4)
+        assertEquals(SocialRejection.COOLDOWN,act(p,s).rejection)
+        val defeated=session.copy(eliminated=mapOf(third to CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.EMPIRE.country)))
+        fun request(phase:Int,base:Int=0,attackers:Int=0,supplies:Int=0)=SocialActions.evaluate(galaxy,
+            SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,OrbitalStrikeActions.STRIKE,0,1,
+                base=base,argument=attackers,value=supplies),phase=phase),defeated,p,s,listOf(p))
+        val quote=request(OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(quote.rejection)
+        val result=request(0,quote.found,quote.outcome,OrbitalStrikeActions.SUPPLIES)
+        assertNull(result.rejection)
+        val after=assertNotNull(result.stocks)
+        assertEquals(s.outfits.getValue(2),after.outfits.getValue(2))
+        assertEquals(1000-OrbitalStrikeActions.DAMAGE,after.outfits.getValue(1).activeGround!!.values.first().strength)
+    }
+
     @Test fun onlyThePlanetHoldersCampDefends() {
         // A rebel-held planet (camp 1): the regular side's troops landed there are not its garrison.
         val s=stocks().let {it.copy(bases=it.bases+(1000 to it.bases.getValue(1000).copy(camp=1)))}
