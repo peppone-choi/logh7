@@ -8,9 +8,10 @@ internal object TacticalContact {
     fun contested(forces: List<GridForces.Force>): Boolean = forces.any { own ->
         own.units > 0 && forces.any { it.camp != own.camp && (it.units > 0 || it.base) }
     }
-    fun endUncontested(galaxy:Galaxy,players:MutableMap<String,Navigator>,stocks:PlanetStocks,now:Long) {
+    fun endUncontested(galaxy:Galaxy,players:MutableMap<String,Navigator>,stocks:PlanetStocks,now:Long,
+        eliminated:Set<CountryId> = emptySet()) {
         if(players.values.none {it.cpPaused})return
-        val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
+        val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks,eliminated)
         for((account,p) in players.toMap()) if(p.cpPaused &&
             (p.baseId!=0 || p.mode!=5 || forces[p.grid].orEmpty().none {
                 it.camp!=Camp.of(p,CoupActions.rebel(stocks,p.characterId,p.country)) && (it.units>0 || it.base)
@@ -19,10 +20,11 @@ internal object TacticalContact {
                 charge=null,commandRange=null,attack=null,fire=p.fire?.copy(pending=null))
         }
     }
-    fun active(galaxy: Galaxy, player: Navigator, players: Collection<Navigator>, stocks: PlanetStocks?): Boolean {
+    fun active(galaxy: Galaxy, player: Navigator, players: Collection<Navigator>, stocks: PlanetStocks?,
+        eliminated: Set<CountryId> = emptySet()): Boolean {
         if (player.baseId != 0 || player.mode != 5) return false
         val forces = GridForces.collect(galaxy,player.generation,
-            players.filter { it.characterId != player.characterId } + player,stocks)[player.grid].orEmpty()
+            players.filter { it.characterId != player.characterId } + player,stocks,eliminated)[player.grid].orEmpty()
         val own = Camp.of(player,stocks?.let { CoupActions.rebel(it,player.characterId,player.country) } == true)
         return forces.any { it.camp != own && (it.units > 0 || it.base) }
     }
