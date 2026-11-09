@@ -867,8 +867,8 @@ class TacticalCommandOperationsTest {
         assertNotNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.retreat)
     }
 
-    @Test fun admittedFleetRetreatCannotWarpAfterTheOutfitDocksOrChangesGrid() {
-        for (position in listOf(OutfitPosition(2488,1000),OutfitPosition(2487))) {
+    @Test fun admittedFleetRetreatCannotWarpAfterTheOutfitDocksChangesGridOrLosesItsCountry() {
+        for (position in listOf(OutfitPosition(2488,1000),OutfitPosition(2487),OutfitPosition(2488))) {
             val s=state()
             val fleet=s.stocks.outfits.getValue(1)
             val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=true)
@@ -879,7 +879,9 @@ class TacticalCommandOperationsTest {
             val moved=fleet.copy(position=position,activeShips=ships)
             val before=s.stocks.copy(outfits=s.stocks.outfits+(1 to moved))
             val events=mutableListOf<TacticalMovement>()
-            val due=session.copy(gameMillis=(now+155)*1000)
+            val eliminated=if(position==OutfitPosition(2488))mapOf(checkNotNull(fleet.country) to
+                CountryDefeat(EndReason.SYSTEMS_REDUCED,now)) else emptyMap()
+            val due=session.copy(gameMillis=(now+155)*1000,eliminated=eliminated)
             val after=TacticalFleetRetreat.advance(due,galaxy,s.players.toMutableMap(),before,events)
             val result=after.outfits.getValue(1)
             assertEquals(position,result.position)
