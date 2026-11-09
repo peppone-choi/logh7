@@ -78,6 +78,23 @@ class ProposalActionsTest {
         assertEquals(SocialRejection.RANK,act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,poor).rejection,"no influence")
         assertEquals(SocialRejection.COMMAND,act("a",ProposalActions.OPEN,17,10001,0x0c0b,19,stocks()).rejection)
     }
+    @Test fun proposalsCannotCrossBetweenSpaceAndAFacilityInTheSameGrid() {
+        val s=stocks()
+        val request=SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,ProposalActions.OPEN,17,9,
+            target=10001,value=ProposalActions.RESIGNATION,argument=19))
+        val spaceA=a.copy(baseId=0,mode=5,spotId=0)
+        val spaceB=b.copy(baseId=0,mode=5,spotId=0)
+        for((sender,recipient) in listOf(spaceA to b,a to spaceB)) {
+            val result=SocialActions.evaluate(galaxy,request,session,sender,s,listOf(sender,recipient),
+                mapOf("a" to sender,"b" to recipient))
+            assertEquals(SocialRejection.LOCATION,result.rejection)
+            assertEquals(sender,result.player)
+            assertEquals(s,result.stocks)
+        }
+        assertNull(SocialActions.evaluate(galaxy,request,session,spaceA,s,listOf(spaceA,spaceB),
+            mapOf("a" to spaceA,"b" to spaceB)).rejection)
+    }
+
     @Test fun anExpiredRowGivesTheSendersHalfBackInTheNextCommit() {
         val opened=act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,stocks())
         val s=assertNotNull(opened.stocks)

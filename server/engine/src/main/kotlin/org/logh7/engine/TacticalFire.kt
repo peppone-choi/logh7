@@ -347,6 +347,9 @@ internal object TacticalCombat {
         inventory=SinkingExperience.apply(inventory,departedIds.distinct(),
             departedIds.takeIf {it.isNotEmpty()}?.let {production.identities?.invoke()}.orEmpty())
         clearFinishedOrders(players,galaxy,inventory,now)
+        if(inventory.social.coup!=stocks.social.coup)players.replaceAll {_,player->
+            navigation.clearInvalidReturnBase(player,inventory)
+        }
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory)
         val recovered = settleOfficeRecovery(stocks, prepared, players)

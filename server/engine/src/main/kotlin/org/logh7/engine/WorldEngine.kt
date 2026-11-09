@@ -494,8 +494,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         it.boats>0 && (it.motionCommander==0 || it.motionCommander==TacticalAuthority.commander(outfit,it,checkNotNull(snapshot.planetStocks)))
                     }.mapNotNull {it.tactical?.motion?.takeIf {m->m.grid==position.grid}}
             }
-        val postureDeadlines=snapshot.navigators.values.mapNotNull {it.posture?.order?.readyAt} +
-            snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().mapNotNull {it.posture?.order?.readyAt}}
+        val nowSeconds=session.gameMillis/1000
+        val shipOrderDeadlines=snapshot.navigators.values.flatMap {listOfNotNull(it.posture?.order?.readyAt,
+            it.fire?.pending?.firesAt,it.attack?.nextAt?.takeIf {at->at>nowSeconds})} +
+            snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().flatMap {
+                listOfNotNull(it.posture?.order?.readyAt,it.support?.readyAt,it.shot?.firesAt,
+                    it.attack?.order?.nextAt?.takeIf {at->at>nowSeconds})}}
         val groundDeadlines=snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order?.readyAt}}
         val commands=snapshot.planetStocks?.tacticalCommands
         val commandDeadlines=commands?.orders.orEmpty().map {it.readyAt}+commands?.air.orEmpty().values.map {it.nextAt}+
@@ -508,7 +512,6 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0) else null}}.orEmpty()
         val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}
         // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
-        val nowSeconds=session.gameMillis/1000
         val mailDeadlines=snapshot.planetStocks?.social?.proposals?.mails.orEmpty().filter {it.pending}.flatMap {mail->
             val approvalAt=mail.createdAt+ProposalActions.ABSENT_ORDER_SECONDS
             listOfNotNull(mail.expiresAt,approvalAt.takeIf {mail.order && it<mail.expiresAt})
@@ -520,7 +523,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+postureDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+mailDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+mailDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -1046,7 +1049,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             val previous=checkNotNull(navigation).snapshot(session.generation)
                             require(result.navigators.all {(account,player)->account!=i.account && previous[account]?.let {
                                 it.generation==player.generation && it.characterId==player.characterId}==true})
-                            val next=settleOfficeRecovery(session.gameMillis / 1000,inventory,prepared,previous+result.navigators+(i.account to after))
+                            val recoveredPlayers=settleOfficeRecovery(session.gameMillis / 1000,inventory,prepared,
+                                previous+result.navigators+(i.account to after))
+                            val next=if(inventory.social.coup!=prepared.social.coup)recoveredPlayers.mapValues {(_,player)->
+                                navigation.clearInvalidReturnBase(player,prepared)
+                            } else recoveredPlayers
                             worldStateCommitter.saveWorld(next,prepared)
                             navigation.publishCommitted(previous,next,session.generation)
                             production.publishCommitted(inventory,prepared)
