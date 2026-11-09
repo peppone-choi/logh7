@@ -409,12 +409,20 @@ class TacticalCommandOperationsTest {
         val coup=CoupState(mapOf(10000 to Plot(10000,Power.EMPIRE.country,0,revolt=5)))
         s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to fleet.copy(activeShips=ActiveShipUnits(listOf(moving)))),
             social=s.stocks.social.copy(coup=coup),tacticalCommands=s.stocks.tacticalCommands.copy(air=mapOf(1 to wing)))
-        val events=mutableListOf<TacticalCommandResult>()
-        settle(run(s),now+5,events)
+        val run = run(s)
+        val events = mutableListOf<TacticalCommandResult>()
+        val movements = mutableListOf<TacticalMovement>()
+        val tick = session.copy(gameMillis = (now + 5) * 1000)
+        TacticalCombat.settle(tick, galaxy, run.navigation, run.production, s.commit, scale = 1,
+            onMovement = movements::add, onCommand = events::add)
         val stopped=s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion
         assertEquals(0f,stopped.velocity)
         assertEquals(TacticalPoint(0f,2f),stopped.origin.position)
-        assertEquals(stopped,events.single {it.stateOnly}.motions.getValue(99))
+        assertTrue(s.stocks.tacticalCommands.air.isEmpty())
+        val stop = movements.single { it.unit == 99 }
+        assertEquals(-1, stop.waypoint)
+        assertEquals(stopped, stop.motion)
+        assertTrue(events.none { 99 in it.motions })
     }
 
     @Test fun changingFlagshipEnginePowerKeepsTheSlowdownAndCapsTheRestoredSpeed() {
