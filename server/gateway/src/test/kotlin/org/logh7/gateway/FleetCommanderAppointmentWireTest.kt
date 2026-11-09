@@ -88,4 +88,66 @@ class FleetCommanderAppointmentWireTest {
             assertTrue(commits>0)
         }
     }
+
+    @Test fun tacticalObserverGetsCurrentAuthorityWhenACommanderChangesFleets() {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2488,4,"Battle",2)),
+            listOf(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),
+            Power.entries.associateWith {2487})
+        val properties=Properties()
+        for(i in 0..2) {
+            val person=CharacterMessages.Generate(4,10000L+i,2,0,0,"Pilot$i","Test",30,1,1,1,List(8){50},
+                0,0,0,if(i==0)2 else 5,0,0,"Ship$i",0)
+            val bytes=CharacterMessages.generateReply(person)
+            properties.setProperty("load-%03d".format(i),HexFormat.of().formatHex(bytes.copyOfRange(4,bytes.size)))
+        }
+        Files.newBufferedWriter(directory.resolve("characters.properties")).use {properties.store(it,null)}
+        val now=SessionRules.load().startSeconds
+        var players=(0..2).associate {i->
+            val observer=i==2
+            "load-%03d".format(i) to Navigator(1,10000+i,Power.EMPIRE,if(observer)2488 else 2487,1000,1000,1000,
+                baseId=if(observer)0 else 1049,mode=if(observer)5 else 4,cpPaused=observer,cpRecoveryAt=now)
+        }
+        val fleets=(1..3).associateWith {id->
+            val stack=UnitStack(if(id==3)119 else 32)
+            OutfitStock(id,if(id==3)3 else 2,OutfitKind.FLEET,1049,id+10,commanderId=if(id==1)10001 else 0,
+                units=UnitInventory(mapOf(stack to 1)),activeShips=ActiveShipUnits(listOf(ActiveShipUnit(id,stack))),
+                position=OutfitPosition(2488))
+        }
+        var stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300)),outfits=fleets,
+            warehouses=fleets.values.associate {it.warehouseId to OutfitWarehouse(it.warehouseId,it.country,it.kind,it.baseId,it.id)},
+            deploymentInitialized=true,nextShipId=4,nationalOffices=mapOf(NationalOffice.MILITARY_MINISTER to 10000),
+            tacticalCommands=TacticalCommandState(authority=mapOf(1 to 10001)))
+        val navStore=object:NavigationStore {override fun load()=players;override fun save(value:Map<String,Navigator>){players=value}}
+        val stockStore=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
+        val commit=WorldStateCommitter {nav,inventory ->players=nav;stocks=checkNotNull(inventory)}
+        LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false,stockStore=stockStore,navigationStore=navStore,
+            worldStateCommitter=commit,powerByIndex={2}).use {fixture->
+            val clients=(0..2).map {i->fixture.join(fixture.account(i),false,false).client.also {client->
+                client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+            }}
+            val (actor,target,observer)=clients
+            fun commanders():Map<Int,Int> {
+                val states=ByteBuffer.wrap(next(observer,0x033b))
+                return (0 until states.getShort(6).toInt()).associate {row->
+                    val offset=8+47*row
+                    states.getInt(offset) to states.getInt(offset+6)
+                }.filterKeys {it in 1..2}
+            }
+            observer.send(SyntheticClient.opcode(0x0f02))
+            assertEquals(mapOf(1 to 10001,2 to 0),commanders())
+            next(observer,0x0f03)
+            actor.send(ByteBuffer.allocate(31).putShort(0x0708).putInt(-1).putInt(10000).putInt(-1).putInt(-1)
+                .putInt(10001).putInt(39).putInt(0).put(0).array())
+            assertEquals(0,ByteBuffer.wrap(next(actor,0x0708)).int)
+            assertEquals(mapOf(1 to 0,2 to 0),commanders())
+            actor.send(ByteBuffer.allocate(40).putShort(0x0707).putInt(-1).putInt(10000).putInt(-1).putInt(-1)
+                .putInt(10001).putInt(39).putShort(0).putInt(0).putInt(2).putInt(0).array())
+            assertEquals(0,ByteBuffer.wrap(next(actor,0x0707)).int)
+            assertEquals(mapOf(1 to 0,2 to 10001),commanders())
+            target.send(ByteBuffer.allocate(27).putShort(0x0709).putInt(-1).putInt(10001).putInt(-1).putInt(-1)
+                .putInt(39).putInt(0).put(0).array())
+            assertEquals(0,ByteBuffer.wrap(next(target,0x0709)).int)
+            assertEquals(mapOf(1 to 0,2 to 0),commanders())
+        }
+    }
 }

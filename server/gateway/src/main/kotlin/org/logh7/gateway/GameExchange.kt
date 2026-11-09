@@ -208,6 +208,11 @@ class GameExchange(
         navigators.values.forEach {other->currentCharacterById(other.characterId)?.let {c->
             presence?.refreshCharacter(c,other,offices(c,other),gameSeconds(),administration?.stationedOutfit(other) ?: 0)}}
     }
+    private fun refreshTacticalOffice(generation:Long,outfit:Int) {
+        if(outfit<=0)return
+        val map=world ?: return
+        presence?.refreshTacticalOffice(generation,outfit,map,{navigation?.snapshot()},::currentCharacterById)
+    }
     private fun offices(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator) =
         player.country?.let {administration?.offices(character.id.toInt(), it.value, player.generation)}.orEmpty()
     private fun flagshipCharacter(character:CharacterMessages.Generate,player:org.logh7.engine.Navigator) =
@@ -1198,6 +1203,7 @@ class GameExchange(
                             checkNotNull(generation),query.card,character.abilities[1],character.abilities[2])).thenApply { result ->
                             val player=checkNotNull(result.player) { "Resignation lost its authenticated actor" }
                             publication=Publication(character,player,false)
+                            if(result.changed)refreshTacticalOffice(player.generation,result.outfit)
                             listOf(org.logh7.protocol.ResignationMessages.response(query,gameSeconds(),player.pcp,player.mcp,result.rejection==null),
                                 characterMessage(character,player,true),unitMessage(character,player))+
                                 result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty() +
@@ -1224,6 +1230,7 @@ class GameExchange(
                                 presence?.refreshOffices(target.id.toInt(),targetPlayer.generation,offices(target,targetPlayer),gameSeconds(),
                                     administration.stationedOutfit(targetPlayer))
                             }
+                            if(result.changed)refreshTacticalOffice(player.generation,query.outfit)
                             val resolved=if(result.rejection!=null)query else if(query.outfit>0)query.copy(
                                 base=checkNotNull(result.stocks).outfits.getValue(query.outfit).baseId)
                             else if(query.base==0)query.copy(base=checkNotNull(org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
@@ -1251,6 +1258,7 @@ class GameExchange(
                                 presence?.refreshOffices(target.id.toInt(),targetPlayer.generation,offices(target,targetPlayer),gameSeconds(),
                                     administration.stationedOutfit(targetPlayer))
                             }
+                            if(result.changed)refreshTacticalOffice(player.generation,result.outfit)
                             listOf(org.logh7.protocol.DismissalMessages.response(query,gameSeconds(),player.pcp,player.mcp,result.changed),
                                 characterMessage(character,player,true),unitMessage(character,player))+
                                 result.recovery?.let {completedWork(it.copy(player=player),character)}.orEmpty()

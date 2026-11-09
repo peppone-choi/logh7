@@ -9,7 +9,7 @@ data class OfficeResignationRequest(val account:String,val connection:String,val
 }
 enum class ResignationRejection { SESSION,IDENTITY,CARD,AUTHORITY,AMBIGUOUS,BUSY,CP,STORAGE }
 data class OfficeResignationResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:ResignationRejection?=null,
-    val changed:Boolean=false,val recovery:NavigationResult?=null)
+    val changed:Boolean=false,val recovery:NavigationResult?=null,val outfit:Int=0)
 
 /** A native resignation identifies the card kind, not its seat. Never guess between duplicate seats. */
 internal object OfficeResignation {
@@ -37,6 +37,8 @@ internal object OfficeResignation {
         if(player.cpPaused || player.navigationPending) return reject(ResignationRejection.BUSY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),80,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(ResignationRejection.CP)
-        return OfficeResignationResult(player.paidWith(paid.balance),clear(policy,stocks,holdings.single()),changed=true)
+        val holding=holdings.single()
+        return OfficeResignationResult(player.paidWith(paid.balance),clear(policy,stocks,holding),changed=true,
+            outfit=if(role.scope==OfficeScope.OUTFIT)holding.seat else 0)
     }
 }
