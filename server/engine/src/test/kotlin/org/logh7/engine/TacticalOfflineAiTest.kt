@@ -40,10 +40,12 @@ class TacticalOfflineAiTest {
         assertEquals(saved,players);assertEquals(1,events.size)
     }
     @Test fun nearbyOfflineSupportUsesTheNormalDelayAndConsumesRealCargo() {
-        for(action in TacticalSupportAction.entries) {
+        for(action in TacticalSupportAction.entries)for(targetAccount in listOf("pilot","ally")) {
             val players=players()
             val pilot=players.getValue("pilot")
-            players["pilot"]=pilot.copy(supplies=9500,hull=pilot.hull!!.copy(hp=40))
+            val needy=pilot.copy(supplies=9500,hull=pilot.hull!!.copy(hp=40))
+            players[targetAccount]=if(targetAccount=="pilot")needy else needy.copy(characterId=10001,motion=motion(0f,.7f))
+            players["unavailable"]=needy.copy(characterId=9999,cpPaused=false,motion=null,commandRange=null)
             val stock=stocks(1)
             val original=stock.outfits.getValue(1)
             val name=if(action==TacticalSupportAction.REPAIR)"工作艦" else "輸送艦"
@@ -54,17 +56,18 @@ class TacticalOfflineAiTest {
                 units=UnitInventory(mapOf(stack to 1)),activeShips=ActiveShipUnits(listOf(ship)),supplies=500)))
             val ordered=TacticalOfflineAi.advance(offline,galaxy,players,state,1,mutableListOf())
             val pending=ordered.outfits.getValue(1)
-            assertEquals(TacticalSupportOrder(action,10000,1010000,2488,now,now+5),pending.activeShips!!.values.single().support)
+            val targetId=players.getValue(targetAccount).unitId
+            assertEquals(TacticalSupportOrder(action,10000,targetId,2488,now,now+5),pending.activeShips!!.values.single().support)
             assertEquals(500,pending.supplies)
             val result=mutableListOf<TacticalSupportResult>()
             val finished=TacticalSupportOperations.advance(offline.copy(gameMillis=(now+5)*1000),galaxy,players,ordered,result)
             assertFalse(result.single().cancelled)
             assertNull(finished.outfits.getValue(1).activeShips!!.values.single().support)
             if(action==TacticalSupportAction.SUPPLY) {
-                assertEquals(10000,players.getValue("pilot").supplies)
+                assertEquals(10000,players.getValue(targetAccount).supplies)
                 assertEquals(0,finished.outfits.getValue(1).supplies)
             } else {
-                assertEquals(100,players.getValue("pilot").hull!!.hp)
+                assertEquals(100,players.getValue(targetAccount).hull!!.hp)
                 val cost=Flagships.find(0)!!.number("修理消費物資(１隻):修理消費物資(１隻)")
                 assertEquals(500-cost,finished.outfits.getValue(1).supplies)
             }
