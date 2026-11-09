@@ -31,6 +31,32 @@ class OutfitFormationTest {
     private fun create(s:PlanetStocks=stocks(),p:Navigator=player,selected:Map<Int,Int> = mapOf(code to 3),
         supplies:Int=0,r:OutfitFormationRequest=request())=OutfitFormationPolicy.create(galaxy,r,p,s,selected,supplies)
 
+    @Test fun formationCommitIgnoresDefeatedFlagshipsButStillCountsActiveCamps() {
+        val defeatedCountry=CountryId(42)
+        val before=stocks()
+        val alliance=player.copy(characterId=10001,country=Power.ALLIANCE.country,baseId=0,mode=5)
+        val third=player.copy(characterId=10002,country=defeatedCountry,baseId=0,mode=5)
+        val identity=request().identity.copy(navigators=mapOf("actor" to player,"alliance" to alliance,"third" to third))
+        val service=OutfitFormationService {0L}
+        val begin=service.evaluate(galaxy,request().copy(identity=identity),session,player,before)
+        assertNull(begin.rejection)
+        val select=request(FormationPhase.SET_UNIT).copy(identity=identity,target=begin.lease,unit=code,amount=1)
+        assertNull(service.evaluate(galaxy,select,session,player,before).rejection)
+        val commit=select.copy(phase=FormationPhase.COMMIT)
+        val blocked=service.evaluate(galaxy,commit,session,player,before)
+        assertEquals(StrategyActionRejection.MAXIMUM,blocked.rejection)
+        assertEquals(before,blocked.stocks)
+        assertEquals(player,blocked.player)
+
+        val afterDefeat=session.copy(eliminated=mapOf(defeatedCountry to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,1,Power.ALLIANCE.country)))
+        val formed=service.evaluate(galaxy,commit,afterDefeat,player,before)
+        assertNull(formed.rejection)
+        assertTrue(formed.changed)
+        assertEquals(680,formed.player?.mcp)
+        assertEquals(1,formed.stocks?.outfits?.get(formed.outfit)?.units?.ships?.get(ship))
+    }
+
     @Test fun aFormationLeaseExpiresOnCountryChangeAndCannotBeUsedByAnotherCharacter() {
         val service=OutfitFormationService {0L};val before=stocks()
         val begun=service.evaluate(galaxy,request(),session,player,before)

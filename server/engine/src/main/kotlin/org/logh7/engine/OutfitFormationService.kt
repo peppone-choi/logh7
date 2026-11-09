@@ -68,7 +68,7 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
                 if(r.unit !in 0..stocks.bases.getValue(r.base).supplies)return reject(StrategyActionRejection.RESOURCE)
                 draft=draft.copy(supplies=r.unit)
             }
-            FormationPhase.COMMIT -> return guarded(p,stocks,r.base) {OutfitFormationPolicy.create(galaxy,r,p,stocks,draft.rows,draft.supplies,style)}
+            FormationPhase.COMMIT -> return guarded(p,stocks,r.base) {OutfitFormationPolicy.create(galaxy,r,p,stocks,draft.rows,draft.supplies,style,s.eliminated.keys)}
                 .copy(lease=draft.id)
             FormationPhase.REFRESH -> Unit
             else -> return reject(StrategyActionRejection.COMMAND)
