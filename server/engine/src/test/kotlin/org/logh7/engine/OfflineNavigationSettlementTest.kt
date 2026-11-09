@@ -1,6 +1,9 @@
 package org.logh7.engine
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -164,6 +167,38 @@ class OfflineNavigationSettlementTest {
             val arrival = arrivals.single()
             assertEquals(1, arrival.outfit); assertEquals(2487, arrival.source); assertEquals(arrived.grid, arrival.destination)
             assertTrue(arrival.units.isNotEmpty()); assertTrue(arrival.recipients.isEmpty(), "the offline captain gets no packets")
+        } finally { engine.drainAndClose() }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun aRestoredWarpUsesRegistryAbilitiesAtItsDeadlineWithoutAClientRequest() = runTest {
+        val world = world()
+        val reserved = reservedWarp(world)
+        val readyAt = assertNotNull(reserved.warpReadyAt)
+        val elapsed = ((readyAt - start) * 1000 + rules.speed - 1) / rules.speed - 625
+        val durability = object : SessionDurability {
+            private var saved = DurableWorldState(SessionSimulation(rules).apply {
+                join("pilot", Power.ALLIANCE, false, "c")
+                disconnect("pilot", "c")
+                advance(elapsed)
+            }.exportState(), elapsed)
+            override fun load() = saved
+            override fun commit(action: SessionAction, transition: SessionTransition) { saved = transition.state }
+            override fun close() {}
+        }
+        val engine = WorldEngine(this, rules, durability = durability, monotonicMillis = { testScheduler.currentTime },
+            galaxy = fleetGalaxy, navigationStore = world.nav, stockStore = world.inventory,
+            worldStateCommitter = world.commit, npcPolicy = NpcTacticalPolicy(enabled = false), awaitIdentities = true)
+        try {
+            advanceTimeBy(100); runCurrent()
+            engine.provideIdentities { listOf(StrategicIdentity(10000, Power.ALLIANCE.country, 5, 0, List(8) { 50 })) }.use {
+                advanceTimeBy(524); runCurrent()
+                assertEquals(2487, world.players.getValue("pilot").grid)
+                advanceTimeBy(1); runCurrent()
+                assertEquals(readyAt, engine.snapshot().session!!.gameSeconds)
+                assertEquals(2489, world.players.getValue("pilot").grid)
+                assertEquals(OutfitPosition(2489), world.stocks.outfits.getValue(1).position)
+            }
         } finally { engine.drainAndClose() }
     }
 

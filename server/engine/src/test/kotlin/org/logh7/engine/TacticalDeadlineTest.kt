@@ -10,6 +10,22 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredDeadlineWaitsForTheIdentityProviderAndResumesImmediately() = runTest {
+        val rig=Rig(this,testScheduler,retreatDeadline=true,fleetRetreat=true,awaitIdentities=true)
+        try {
+            advanceTimeBy(300);runCurrent()
+            assertNull(rig.engine.snapshot().planetStocks)
+            rig.engine.provideIdentities {emptyList()}.use {
+                runCurrent()
+                val fleet=rig.engine.snapshot().planetStocks!!.outfits.getValue(1)
+                assertTrue(fleet.activeShips!!.values.single().tactical!!.retreat!!.membershipChecked)
+                assertEquals(rig.start+7,rig.engine.snapshot().session!!.gameSeconds)
+                advanceTimeBy(325);runCurrent()
+                assertEquals(OutfitPosition(2487),rig.engine.snapshot().planetStocks!!.outfits.getValue(1).position)
+            }
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredSabotageExplodesWithoutCombatAtItsDeadline() = runTest {
         val rig=Rig(this,testScheduler,espionageDeadline=true)
         try {
@@ -171,10 +187,9 @@ class TacticalDeadlineTest {
     @Test fun restoredFleetRetreatChecksMembershipAndCompletesBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,retreatDeadline=true,fleetRetreat=true)
         try {
-            rig.engine.submit(WorldCommand.Probe);runCurrent()
             fun fleet()=rig.engine.snapshot().planetStocks!!.outfits.getValue(1)
             advanceTimeBy(208);runCurrent()
-            assertFalse(fleet().activeShips!!.values.single().tactical!!.retreat!!.membershipChecked)
+            assertNull(rig.engine.snapshot().planetStocks)
             advanceTimeBy(1);runCurrent()
             assertTrue(fleet().activeShips!!.values.single().tactical!!.retreat!!.membershipChecked)
             assertEquals(rig.start+5,rig.engine.snapshot().session!!.gameSeconds)
@@ -411,7 +426,7 @@ class TacticalDeadlineTest {
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
         uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
-        mailDeadline:Boolean=false,orderDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
+        awaitIdentities:Boolean=false,mailDeadline:Boolean=false,orderDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
         operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
@@ -581,6 +596,6 @@ class TacticalDeadlineTest {
             },worldStateCommitter=WorldStateCommitter {next,inventory->
                 if(fail)throw java.io.IOException("deadline save failed")
                 players=next;stocks=checkNotNull(inventory)
-            },npcPolicy=NpcTacticalPolicy(enabled=false))
+            },npcPolicy=NpcTacticalPolicy(enabled=false),awaitIdentities=awaitIdentities)
     }
 }
