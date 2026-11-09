@@ -94,9 +94,12 @@ internal object TacticalFleetRetreat {
                 val arriving=GridEntry(camp,group.size+aboard.size,false)
                 if(GridEntryRules.evaluate(GridForces.state(g,target,forces),arriving)!=GridEntryVerdict.ALLOWED)continue
                 val balances=OutfitSupplies.distribution(current)
-                val moving=ActiveShipUnits(original.filter {it.id in ids}.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null,support=null,posture=null)})
                 val remaining=ActiveShipUnits(original.filter {it.id !in ids})
                 val ashore=current.activeGround?.values.orEmpty().filter {it.carrier !in ids}
+                val fullRetreat=remaining.values.none {it.boats>0} && ashore.isEmpty()
+                val moving=ActiveShipUnits(original.filter {fullRetreat || it.id in ids}.map {
+                    it.copy(tactical=null,motionCommander=0,attack=null,shot=null,support=null,posture=null)
+                })
                 val movedGround=ActiveGroundUnits(aboard)
                 val leftGround=ActiveGroundUnits(ashore)
                 val crew=current.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}
@@ -104,7 +107,7 @@ internal object TacticalFleetRetreat {
                 val leftCrew=crew.mapValues {(stack,count)->count-(movedCrew[stack] ?: 0)}.filterValues {it>0}
                 val movedSupplies=ids.sumOf {balances.getValue(it).toLong()}.toInt()
                 // Keep the original outfit identity when nothing remains at the source.
-                if(remaining.values.isEmpty() && ashore.isEmpty())stocks=stocks.copy(outfits=stocks.outfits+(outfitId to current.copy(
+                if(fullRetreat)stocks=stocks.copy(outfits=stocks.outfits+(outfitId to current.copy(
                     position=OutfitPosition(target),activeShips=moving,activeGround=if(current.activeGround==null)null else movedGround)))
                 else {
                     val sequence=try {OutfitFormationPolicy.sequence(stocks)} catch(_:IllegalArgumentException) {continue}
