@@ -1302,6 +1302,41 @@ class TacticalCommandOperationsTest {
         assertEquals(experience,s.stocks.social.academy.experience[target.characterId])
     }
 
+    @Test fun boardingCancelsTheInjuredCommandersAdmittedFleetRetreat() {
+        val s = state()
+        val source = s.players.getValue("pilot").copy(hull = FlagshipHull(4, now))
+        val target = Navigator(1, 10002, Power.ALLIANCE, 2488, 100, 100, 1000, cpPaused = true,
+            hull = FlagshipHull(89, now), motion = motion(0f, .5f))
+        s.players = s.players + mapOf("pilot" to source, "enemy" to target)
+        val retreat = TacticalRetreat(2489, now, 5, 150, membershipChecked = true)
+        val fleet = s.stocks.outfits.getValue(2)
+        val ship = fleet.activeShips!!.values.single().copy(motionCommander = target.characterId, supplies = 100,
+            tactical = NpcTacticalState(motion(260f), now, now, retreat = retreat))
+        val deployed = fleet.copy(commanderId = target.characterId, activeShips = ActiveShipUnits(listOf(ship)), supplies = 100)
+        s.stocks = s.stocks.copy(outfits = s.stocks.outfits + (2 to deployed))
+
+        val r = run(s)
+        val boarding = request(TacticalCommand(0x407, listOf(source.unitId), target = target.unitId)).copy(shipKind = 4)
+        assertNotNull(TacticalCommandOperations.accept(boarding, session, galaxy, r.navigation, r.production,
+            r.production.snapshot(1)!!, s.commit, 1).player)
+        val hits = settle(r, now + 5)
+        assertTrue(hits.single().boarding)
+        assertTrue(s.players.getValue("enemy").hull!!.woundedUntil > retreat.completesAt)
+        assertEquals(retreat, s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.retreat)
+
+        val movements = mutableListOf<TacticalMovement>()
+        TacticalCombat.settle(session.copy(gameMillis = retreat.completesAt * 1000), galaxy, r.navigation,
+            r.production, s.commit, scale = 1, onMovement = movements::add)
+        val result = s.stocks.outfits.getValue(2)
+        val remaining = result.activeShips!!.values.single()
+        assertEquals(deployed.position, result.position)
+        assertEquals(deployed.supplies, result.supplies)
+        assertEquals(ship.supplies, remaining.supplies)
+        assertEquals(ship.tactical!!.motion.origin.position, remaining.tactical!!.motion.origin.position)
+        assertNull(remaining.tactical.retreat)
+        assertTrue(movements.none { it.unit == ship.id })
+    }
+
     @Test fun boardingRequiresSharedContactAtAcceptanceAndCompletion() {
         val s=state()
         val source=s.players.getValue("pilot").copy(hull=FlagshipHull(4,now),motion=motion(.5f))

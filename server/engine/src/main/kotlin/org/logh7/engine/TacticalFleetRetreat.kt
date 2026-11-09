@@ -71,7 +71,7 @@ internal object TacticalFleetRetreat {
                     position.baseId!=0 || state.motion.grid!=grid ||
                     BattleDeath.deceased(stocks,u.motionCommander) ||
                     TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander ||
-                    commander?.let {TacticalAuthority.camp(it,stocks)!=outfitCamp}==true)
+                    commander?.let {(it.hull?.woundedUntil ?: 0)>now || TacticalAuthority.camp(it,stocks)!=outfitCamp}==true)
                     return@map u.copy(tactical=state.copy(retreat=null))
                 if(retreat.membershipChecked || now<retreat.startsAt)return@map u
                 val from=commander?.takeIf {it.grid==grid && it.baseId==0 && it.cpPaused}?.let {it.motion?.pose(retreat.startsAt,it.posture,g,stocks) ?:
