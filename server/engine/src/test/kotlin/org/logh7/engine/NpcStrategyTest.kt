@@ -19,7 +19,7 @@ class NpcStrategyTest {
         NpcStrategy.advance(simulation.copy(gameMillis=at*1000),galaxy,players,stocks,events)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    @Test fun restoredNpcJumpArrivesBetweenPeriodicTicks() = runTest {
+    @Test fun restoredNpcJumpArrivesBetweenPeriodicTicksWithoutAClientRequest() = runTest {
         val rules=SessionRules.load()
         val before=stocks()
         var saved=before.copy(outfits=before.outfits.mapValues {(_,fleet)->
@@ -36,7 +36,6 @@ class NpcStrategyTest {
             },worldStateCommitter=WorldStateCommitter {_,inventory->saved=checkNotNull(inventory)},
             npcPolicy=NpcTacticalPolicy(strategic=true))
         try {
-            engine.submit(WorldCommand.Probe);runCurrent()
             advanceTimeBy(624);runCurrent()
             assertEquals(OutfitPosition(2487,1000),saved.outfits.getValue(1).position)
             advanceTimeBy(1);runCurrent()
