@@ -10,6 +10,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     constructor(snapshot:WorldSnapshot,galaxy:Galaxy,viewer:Navigator,baseCharacterById:(Int)->CharacterMessages.Generate?):
         this(snapshot,galaxy,viewer,CountryCatalogLoader.current(),baseCharacterById)
     private val characterById:(Int)->CharacterMessages.Generate? = {id->baseCharacterById(id)?.let {WorldCharacters.view(it,snapshot)}}
+    private val eliminated=snapshot.session?.eliminated.orEmpty().keys
     private val people=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==viewer.grid && it.baseId==0}
         .sortedBy {it.characterId}
     val characterIds get()=people.map {it.characterId}
@@ -41,7 +42,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val cannon=snapshot.planetStocks!!.tacticalCommands.orders.singleOrNull {it.command.base==base.id && it.command.opcode==0x419}
         TacticsMessages.BaseInformation(base,cannonStart=cannon?.acceptedAt ?: 0,
             cannonAngle=cannon?.command?.direction?.let {(((it/(2*Math.PI)*65536).toInt()%65536)+65536)%65536} ?: 0,
-            stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id}))}}
+            stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id},eliminated))}}
     /** [camp] is the unit's actual combat side (country + rebellion, an unaffiliated individual, or pirates). */
     private data class Source(val id:Int,val kind:Int,val outfit:Int,val character:Int,val supplies:Int,val cruise:Float,
         val camp:Camp,val destroyed:Int=0,val posture:TacticalPosture?=null)
@@ -81,7 +82,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 damaged=if(people.singleOrNull {it.unitId==u.id}?.hull?.hp?.let {it<100}==true)1 else
                     stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}?.unavailable ?: 0,
                 mode=u.posture?.mode?.wire ?: TacticalShipMode.SAILING.wire,base=u.posture?.base ?: 0,
-                troops=stocks.outfits[u.outfit]?.activeGround?.values.orEmpty().filter {it.carrier==u.id}.sortedBy {it.id}.map {it.id},
+                troops=stocks.outfits[u.outfit]?.takeUnless {it.country in eliminated}?.activeGround?.values.orEmpty().filter {it.carrier==u.id}.sortedBy {it.id}.map {it.id},
                 morale=stocks.tacticalCommands.morale[u.id] ?: 100,confused=stocks.tacticalCommands.confused(u.id))
         }.let { units ->
             val camps=unitCamps
@@ -115,7 +116,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     fun detectionChanges(previousHidden:Set<Int>):List<TacticsMessages.Unit> =
         units.filter { it.detected==(it.id in previousHidden) }
 
-    val groundDefinitions by lazy { snapshot.planetStocks?.outfits?.values.orEmpty().sortedBy {it.id}.flatMap {outfit ->
+    val groundDefinitions by lazy { snapshot.planetStocks?.outfits?.values.orEmpty().filter {it.country !in eliminated}.sortedBy {it.id}.flatMap {outfit ->
         val carriers=units.filter {it.outfit==outfit.id && it.destroyed<UnitSpecifications.ships.single {s->s.kind==it.kind}.number}
             .map {it.id}.toSet()
         outfit.activeGround?.values.orEmpty().filter {unit ->
@@ -155,7 +156,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 else TacticalGroundMessages.reply(TacticalGroundMessages.Posture(order.character,ids,order.mode.wire,order.base),
                     now,(order.readyAt-now).coerceAtLeast(0))}}
     }
-    val groundOrders by lazy { pendingGroundOrders(snapshot.planetStocks, viewer.grid) }
+    val groundOrders by lazy { pendingGroundOrders(snapshot.planetStocks, viewer.grid, eliminated) }
     private fun groundOrderReplies():List<ByteArray> = groundOrders.map {order->TacticalGroundMessages.reply(TacticalGroundMessages.Command(
         if(order.action==TacticalGroundAction.DEPLOY)TacticalGroundMessages.Action.DEPLOY else TacticalGroundMessages.Action.WITHDRAW,
         order.character,listOf(order.carrier)),snapshot.session?.gameSeconds ?: 0,

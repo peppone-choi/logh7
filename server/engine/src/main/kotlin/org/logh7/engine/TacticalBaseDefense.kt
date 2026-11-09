@@ -8,9 +8,10 @@ package org.logh7.engine
  */
 object TacticalBaseDefense {
     const val MAXIMUM_STRENGTH=30_000
-    fun strength(stocks:PlanetStocks,base:GalaxyBase):Int {
+    fun strength(stocks:PlanetStocks,base:GalaxyBase,eliminated:Set<CountryId> = emptySet()):Int {
         val owner=stocks.bases.getValue(base.id)
         val country=owner.country ?: return 0
+        if(country in eliminated)return 0
         return GroundBattleOperations.participants(stocks,base,country,owner.camp).sumOf {it.strength}
     }
     fun strength(stocks:PlanetStocks,base:Int):Int {

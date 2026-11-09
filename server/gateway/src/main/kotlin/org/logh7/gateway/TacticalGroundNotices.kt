@@ -1,5 +1,6 @@
 package org.logh7.gateway
 
+import org.logh7.engine.CountryId
 import org.logh7.engine.NavigationRejection
 import org.logh7.engine.PlanetStocks
 import org.logh7.engine.TacticalGroundAction
@@ -41,8 +42,8 @@ object TacticalGroundNotices {
     }
 }
 
-internal fun pendingGroundOrders(stocks: PlanetStocks?, grid: Int): Set<TacticalGroundOrder> =
-    stocks?.outfits.orEmpty().values.asSequence()
+internal fun pendingGroundOrders(stocks: PlanetStocks?, grid: Int, eliminated: Set<CountryId>): Set<TacticalGroundOrder> =
+    stocks?.outfits.orEmpty().values.asSequence().filter { it.country !in eliminated }
         .flatMap { it.activeGround?.values.orEmpty() }
         .mapNotNull { it.order?.takeIf { order -> order.grid == grid } }
         .toSet()

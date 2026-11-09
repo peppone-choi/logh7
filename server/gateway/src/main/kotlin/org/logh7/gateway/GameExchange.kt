@@ -497,7 +497,7 @@ class GameExchange(
                 val now = snapshot?.session?.gameSeconds
                 val speed = navigation?.clockSpeed
                 val text = if (player.cpPaused && now != null && speed != null) TacticalGroundNotices.resumed(
-                    restored.intersect(pendingGroundOrders(snapshot.planetStocks, player.grid)), now, speed) else null
+                    restored.intersect(pendingGroundOrders(snapshot.planetStocks, player.grid, snapshot.session?.eliminated.orEmpty().keys)), now, speed) else null
                 text?.let { ChatMessages.spot(ChatMessages.Spot(player.characterId, it), gameSeconds()) }
             } else null
             // A screen change clears chat. Release the ground result on the clock after the new grid is ready.

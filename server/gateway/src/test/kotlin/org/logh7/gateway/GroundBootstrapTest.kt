@@ -63,5 +63,19 @@ class GroundBootstrapTest {
         assertEquals(listOf(2),newGrid.units.single().troops);assertEquals(listOf(2),newGrid.groundDefinitions.map {it.id})
         newGrid.initialize();oldGrid.initialize()
         assertEquals(troops,moved.planetStocks!!.outfits.getValue(1).activeGround)
+
+        val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,viewer.characterId,viewer.grid,1,1049,250,275)
+        val reserved=outfit.copy(activeGround=ActiveGroundUnits(troops.values.map {if(it.id==2)it.copy(order=order) else it}))
+        val pending=snapshot.copy(planetStocks=stocks.copy(outfits=mapOf(1 to reserved)))
+        assertEquals(setOf(order),TacticalBootstrap(pending,galaxy,viewer){null}.groundOrders)
+        val endedCountry=pending.copy(session=checkNotNull(pending.session).copy(eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,250,Power.ALLIANCE.country))))
+        val observer=viewer.copy(country=Power.ALLIANCE.country)
+        val restored=TacticalBootstrap(endedCountry,galaxy,observer){null}
+        assertTrue(restored.groundOrders.isEmpty())
+        assertTrue(restored.groundDefinitions.isEmpty())
+        assertTrue(restored.units.single().troops.isEmpty())
+        assertEquals(0,restored.baseInformation.single().stamina)
+        assertEquals(reserved,endedCountry.planetStocks!!.outfits.getValue(1))
     }
 }
