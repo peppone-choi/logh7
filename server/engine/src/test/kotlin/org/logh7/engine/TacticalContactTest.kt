@@ -53,6 +53,13 @@ class TacticalContactTest {
         assertEquals(NavigationRejection.UNIT,navigation.apply(request.copy(shipKind=0),session,stocks).rejection)
         assertEquals(NavigationRejection.ENERGY,navigation.apply(request.copy(energy=TacticalEnergy(List(11){100})),session,stocks).rejection)
         assertEquals(energy,store.state.getValue("pilot").energy)
+        val detention=Detention(pilot.characterId,Power.ALLIANCE.country,0,Justice.DAY,base=1000)
+        val held=stocks.copy(social=stocks.social.copy(justice=JusticeState(detentions=mapOf(pilot.characterId to detention))))
+        val saved=store.state
+        assertEquals(NavigationRejection.BUSY,navigation.apply(request.copy(energy=TacticalEnergy.ZERO),session,held).rejection)
+        assertEquals(saved,store.state)
+        assertEquals(TacticalEnergy.ZERO,navigation.apply(request.copy(energy=TacticalEnergy.ZERO),session,stocks).player?.energy)
+        assertEquals(TacticalEnergy.ZERO,store.state.getValue("pilot").energy)
         store.state=store.state-"enemy";navigation=Navigation(galaxy,store,NavigationPolicy())
         assertEquals(NavigationRejection.TACTICAL,navigation.apply(request,session,stocks).rejection)
     }
