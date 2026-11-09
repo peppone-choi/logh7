@@ -81,6 +81,30 @@ class TacticalFleetMotionTest {
             assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.tactical!!.motion.rotation==null})
         }
     }
+    @Test fun commanderChangingCampCannotMoveOrRotateShipsInTheOtherCamp() {
+        val s=state()
+        val command=request().copy(tacticalMove=TacticalMove(listOf(1,2,1010000),0f,1f,
+            listOf(TacticalPoint(0f,0f)),maneuver=TacticalManeuver.REVERSE))
+        val accepted=move(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command)
+        assertEquals(3,accepted.tacticalMotions.size)
+        val plot=Plot(10000,Power.EMPIRE.country,now,revolt=5)
+        s.stocks=s.stocks.copy(social=s.stocks.social.copy(coup=CoupState(mapOf(10000 to plot))))
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy());val stock=production(s)
+        assertEquals(NavigationRejection.CARD,move(s,nav,stock,request(listOf(1))).rejection)
+        assertEquals(NavigationRejection.CARD,move(s,nav,stock,command).rejection)
+
+        val deadline=accepted.tacticalMotions.getValue(1).startsAt
+        val events=mutableListOf<TacticalMovement>()
+        TacticalCombat.settle(session.copy(gameMillis=deadline*1000),galaxy,nav,stock,s.commit,onMovement=events::add)
+        for(id in listOf(1,2)) {
+            val stopped=events.single {it.unit==id}
+            assertNull(stopped.reverseTarget)
+            assertEquals(accepted.tacticalMotions.getValue(id).origin,stopped.motion!!.pose(deadline))
+            assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.single {it.id==id}.tactical!!.motion.rotation)
+        }
+        assertNotNull(events.single {it.unit==1010000}.reverseTarget)
+    }
+
     @Test fun reloadedRotationCancelsOnlyTheShipWhoseCommanderChanged() {
         for (kind in TacticalManeuver.entries) {
             val s=state()

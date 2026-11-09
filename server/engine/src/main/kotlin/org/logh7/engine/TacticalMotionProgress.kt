@@ -45,6 +45,7 @@ internal object TacticalMotionProgress {
             val next=progress(player.unitId,player.characterId,motion,(player.energy ?: TacticalEnergy.ZERO).values[0]/100f*0.5f)
             if(next!=motion)players[account]=player.copy(motion=next)
         }
+        val commanders=players.values.associateBy {it.characterId}
         var stocks=original
         for((id,outfit) in original.outfits) {
             val position=outfit.positionIn(galaxy)
@@ -54,7 +55,10 @@ internal object TacticalMotionProgress {
                 val state=unit.tactical?.takeIf {unit.boats>0 && it.motion.grid==position.grid} ?: return@map unit
                 val commanderChanged=unit.motionCommander!=0 && unit.motionCommander!=TacticalAuthority.commander(outfit,unit,stocks)
                 if(commanderChanged && state.motion.rotation==null)return@map unit
-                val motion=progress(unit.id,unit.motionCommander,state.motion,commanderChanged=commanderChanged)
+                val wrongCamp=state.motion.rotation!=null && commanders[unit.motionCommander]?.let {
+                    TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks)
+                }==true
+                val motion=progress(unit.id,unit.motionCommander,state.motion,commanderChanged=commanderChanged || wrongCamp)
                 if(motion==state.motion)unit else unit.copy(tactical=state.copy(motion=motion,
                     nextDecisionAt=maxOf(state.nextDecisionAt,motion.acceptedAt)))
             }
