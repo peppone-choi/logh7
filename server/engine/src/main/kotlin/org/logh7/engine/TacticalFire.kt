@@ -261,7 +261,7 @@ internal object TacticalCombat {
         for((account,player) in original) {
             if((player.attack!=null || player.fire?.pending!=null) &&
                 (player.country in session.eliminated || session.participants[account]?.country in session.eliminated ||
-                    BattleDeath.deceased(stocks,player.characterId)))
+                    BattleDeath.deceased(stocks,player.characterId) || (player.hull?.woundedUntil ?: 0)>now))
                 players[account]=players.getValue(account).copy(attack=null,fire=player.fire?.copy(pending=null))
         }
         clearFinishedOrders(players,galaxy,stocks,now)
