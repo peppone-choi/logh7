@@ -41,6 +41,16 @@ class FortressArmorTest {
         assertEquals(listOf(10001),sunk.map {it.characterId});assertNotEquals(1002,players.getValue("a").baseId)
         assertEquals(enemy,players.getValue("e"))
     }
+    @Test fun staleFlagshipsAndNonFortressDamageDoNotKeepBreachSettlementPending() {
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2)),listOf(fixed,planet),Power.entries.associateWith {2487})
+        val docked=Navigator(1,10001,Power.EMPIRE,2487,1000,1000,900,baseId=fixed.id,mode=4)
+        val breached=FortressArmor.strike(fixed,stocks,20)
+        assertFalse(FortressArmor.pending(breached,galaxy,listOf(docked.copy(generation=2))))
+        val invalidDamage=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(
+            fortressDamage=mapOf(planet.id to FortressArmor.ARMOR)))
+        assertFalse(FortressArmor.pending(invalidDamage,galaxy,listOf(docked.copy(baseId=planet.id))))
+    }
+
     @Test fun duringARevoltOnlyTheHoldingCampIsSunk() {
         // PR #214 review: a rebel fortress breach must spare loyal units of the same power stationed there.
         val session=SessionSimulation(SessionRules.load()).exportState()
