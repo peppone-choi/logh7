@@ -4,7 +4,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
+import org.logh7.engine.strategy.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.PlaceMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
@@ -24,15 +26,21 @@ class OccupationWireTest {
             1001 to PlanetStock(1001,3,0,100,100,100)),
             troops,troops.values.associate {it.warehouseId to OutfitWarehouse(it.warehouseId,it.power,OutfitKind.PATROL,1000)},
             deploymentInitialized=true,nextShipId=3)
+        val acceptedAt=SessionRules.load().startSeconds*1000
+        val arrivesAt=acceptedAt+8*3600_000L
+        val dock=StrategyJob(0,"operation/星系内航行",acceptedAt,arrivesAt,arrivesAt,
+            PaymentResult.Paid(CpBalance(700,500),CpPool.MCP,160,160,false),JobState.WAITING)
         var players=mapOf(
             "load-001" to Navigator(1,10001,Power.ALLIANCE,2487,700,500,1000,baseId=1000,mode=4,returnBase=1000),
-            "load-002" to Navigator(1,10002,Power.ALLIANCE,2488,700,500,1000,returnBase=1000).copy(originBase=1001))
+            "load-002" to Navigator(1,10002,Power.ALLIANCE,2488,700,500,1000,returnBase=1000).copy(originBase=1001),
+            "load-003" to Navigator(1,10003,Power.ALLIANCE,2487,700,500,1000,
+                strategy=StrategyCheckpoint(1,acceptedAt,listOf(dock)),dockTarget=1000))
         val stocks=object:PlanetStockStore {override fun load()=saved;override fun save(stocks:PlanetStocks){saved=stocks}}
         val navigation=object:NavigationStore {
             override fun load()=players;override fun save(next:Map<String,Navigator>){players=next}
         }
         val commit=WorldStateCommitter {next,inventory->players=next;saved=checkNotNull(inventory)}
-        LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false,stockStore=stocks,navigationStore=navigation,
+        LoadFixture(directory,4,LoadMetrics(),galaxy,ticking=false,stockStore=stocks,navigationStore=navigation,
             worldStateCommitter=commit,powerByIndex={if(it==0)2 else 3}).use {fixture->
             fun code(packet:ByteArray)=ByteBuffer.wrap(packet).getShort(4).toInt() and 65535
             val clients=(0..1).map {i->fixture.join(fixture.account(i),true,false).client.also {c->
@@ -46,6 +54,10 @@ class OccupationWireTest {
             val startup=generateSequence { remote.receive() }.take(300).takeWhile {code(it)!=0x0f01}.toList()
             val ownAtLogin=startup.single {code(it)==0x0323 && ByteBuffer.wrap(it).getInt(6)==10002}
             assertEquals(1000,ByteBuffer.wrap(ownAtLogin).getInt(26))
+            val incoming=fixture.join(fixture.account(3),true,false).client
+            incoming.send(SyntheticClient.opcode(0x0f00))
+            val restoredDock=generateSequence {incoming.receive()}.take(300).first {code(it)==0x0b00}
+            assertEquals(1000,ByteBuffer.wrap(restoredDock).getInt(28))
             val now=fixture.engine.snapshot().session!!.gameSeconds
             fixture.engine.submit(WorldCommand.AdvanceTo(5_000))
             fixture.await("captured world") {fixture.engine.snapshot().planetStocks!!.bases.getValue(1000).power==2}
@@ -53,6 +65,13 @@ class OccupationWireTest {
             assertEquals(0,players.getValue("load-002").returnBase)
             assertEquals(1001,players.getValue("load-002").originBase)
             assertEquals(2488,players.getValue("load-002").grid)
+            val cancelled=players.getValue("load-003")
+            assertNull(cancelled.dockTarget)
+            assertEquals(0,cancelled.baseId)
+            val released=generateSequence {incoming.receive()}.take(300).first {
+                code(it)==0x0b0b && ByteBuffer.wrap(it).getInt(10)==10003
+            }
+            assertContentEquals(PlaceMessages.dockNotification(10003,0,5,now+120),released)
             assertTrue(generateSequence { remote.receive() }.take(300).any {
                 code(it)==0x0356 && ByteBuffer.wrap(it).getInt(7)==10002 && ByteBuffer.wrap(it).getInt(27)==0
             })
@@ -80,7 +99,7 @@ class OccupationWireTest {
             }
             assertTrue(fixture.engine.snapshot().session!!.gameSeconds>=now+5)
             remote.close()
-            fixture.awaitState(2,2,3)
+            fixture.awaitState(3,3,4)
             val rejoined=fixture.join(fixture.account(2),false,false).client
             rejoined.send(SyntheticClient.opcode(0x0f00))
             val reopened=generateSequence { rejoined.receive() }.take(300).takeWhile {code(it)!=0x0f01}.toList()
