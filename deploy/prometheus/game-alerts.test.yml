@@ -250,6 +250,25 @@ tests:
               summary: 'LOGH7 operator audit log over 1 GiB'
               description: 'The operator audit log on game-server:47901 is over 1 GiB; archive it off the server and start a new file.'
 
+  - name: audit failure remains visible even if it predates the first scrape
+    interval: 1m
+    input_series:
+      - series: 'logh7_audit_write_failures_total{job="game-server",instance="failed:47901"}'
+        values: '1x3 0x3'
+      - series: 'logh7_audit_write_failures_total{job="game-server",instance="healthy:47901"}'
+        values: '0x7'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: LOGH7AuditWriteFailed
+        exp_alerts:
+          - exp_labels: {job: game-server, instance: 'failed:47901', severity: critical}
+            exp_annotations:
+              summary: 'LOGH7 operator audit write failed'
+              description: 'An operator audit record on failed:47901 could not be written or synced. Check the audit file and review the affected operation; this alert clears on process restart.'
+      - eval_time: 4m
+        alertname: LOGH7AuditWriteFailed
+        exp_alerts: []
+
   - name: notification queue overflow disconnects warn at once
     interval: 1m
     input_series:

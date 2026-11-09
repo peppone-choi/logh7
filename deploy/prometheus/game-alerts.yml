@@ -127,6 +127,14 @@ groups:
         annotations:
           summary: 'LOGH7 packet capture near its retention limit'
           description: 'The packet capture on {{ $labels.instance }} has stayed above 90% of LOGH7_CAPTURE_MAX_MB for 30 minutes (live captures or a failing prune). Captures contain key exchanges: turn LOGH7_CAPTURE_DIR off when not diagnosing.'
+      # Keep the audit gap visible even if the first scrape follows the failed append.
+      - alert: LOGH7AuditWriteFailed
+        expr: logh7_audit_write_failures_total{job="game-server"} > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 'LOGH7 operator audit write failed'
+          description: 'An operator audit record on {{ $labels.instance }} could not be written or synced. Check the audit file and review the affected operation; this alert clears on process restart.'
       - alert: LOGH7AuditLogLarge
         expr: logh7_audit_file_bytes > 1073741824
         for: 1h

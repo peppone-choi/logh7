@@ -136,7 +136,7 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
             get("/metrics") {
                 call.respondText(opsMetrics(snapshots.health(), snapshots.snapshot(), backups, stateDisk, gatewayCounters?.invoke(),
                     storage?.invoke().orEmpty() + (maintenance?.let { m -> mapOf("maintenance_closed" to (if (m.closed()) 1L else 0L),
-                        "maintenance_refused_logins_total" to m.refusedLogins()) }.orEmpty())) +
+                        "maintenance_refused_logins_total" to m.refusedLogins()) }.orEmpty()), auditWriteFailures = audit?.writeFailures()) +
                     (actorTimings?.exposition() ?: ""),
                     io.ktor.http.ContentType.parse("text/plain; version=0.0.4; charset=utf-8"))
             }
@@ -340,7 +340,8 @@ internal suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction
 
 /** Prometheus text exposition of engine health and counters (deploy/prometheus scrapes this). */
 internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: StateBackups? = null,
-    stateDisk: Path? = null, gateway: Map<String, Long>? = null, storage: Map<String, Long>? = null): String = buildString {
+    stateDisk: Path? = null, gateway: Map<String, Long>? = null, storage: Map<String, Long>? = null,
+    auditWriteFailures: Long? = null): String = buildString {
     fun metric(name: String, type: String, help: String, value: Number) {
         append("# HELP logh7_").append(name).append(' ').append(help).append('\n')
         append("# TYPE logh7_").append(name).append(' ').append(type).append('\n')
@@ -382,6 +383,7 @@ internal fun opsMetrics(health: EngineHealth, snapshot: WorldSnapshot, backups: 
         require(Regex("[a-z_]+_total").matches(name)) { "gateway counter name: $name" }
         metric(name, "counter", "Gateway outcome count since start (${name.removeSuffix("_total").replace('_', ' ')}).", value)
     }
+    auditWriteFailures?.let { metric("audit_write_failures_total", "counter", "Failed audit appends or disk syncs since process start.", it) }
     // Retention/capacity (capture directory, audit log): *_total counters, everything else gauges.
     storage?.forEach { (name, value) ->
         require(Regex("[a-z_]+").matches(name)) { "storage metric name: $name" }
