@@ -85,11 +85,11 @@ object StrategyActionMessages {
         // Dismissal (value 0x0708) also names the third person (base) and that person's card (amount).
         // Previews: value 0 lists recipients; value 0x0708 with base = the recipient lists the seats it may dismiss.
         // Appointment (0x0707): base = the seat and amount = the card; its preview lists the recipient's vacancies.
-        // Demotion (0x0706): base = the affected person on commit or the recipient on preview. No target card.
+        // Special promotion (0x0705) and demotion (0x0706): base = affected person on commit or recipient on preview.
         else if(proposal)require(card in 0..260 && argument in 0..260 && amount in 0..260 && base>=0 &&
-            (if(preview)card==0 && argument==0 && amount==0 && (value==0 && base==0 || value in 0x0706..0x0708 && base>0)
+            (if(preview)card==0 && argument==0 && amount==0 && (value==0 && base==0 || value in 0x0705..0x0708 && base>0)
              else target>0 && value in 1..0xffff && when(value) {
-                 0x0706 -> base>0 && amount==0
+                 0x0705,0x0706 -> base>0 && amount==0
                  0x0707,0x0708 -> base>0 && amount>0
                  else -> base==0 && amount==0
              }))

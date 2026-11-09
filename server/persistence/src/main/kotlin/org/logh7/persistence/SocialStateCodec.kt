@@ -61,7 +61,7 @@ internal object SocialStateCodec {
         p.mails.sortedBy {it.id}.joinToString(",") {listOf(it.id,it.sender,it.recipient,it.senderCard,it.card,it.command,
             if(it.order)1 else 0,it.createdAt,it.expiresAt,it.reply,it.pcp,it.mcp)
             .plus(when {
-                it.demotionFromRank!=null -> listOf(it.target,it.targetCard,it.seat,it.country?.value ?: 0,it.demotionFromRank)
+                it.rankChangeMailRank!=null -> listOf(it.target,it.targetCard,it.seat,it.country?.value ?: 0,it.rankChangeMailRank)
                 it.country!=null -> listOf(it.target,it.targetCard,it.seat,checkNotNull(it.country).value)
                 else -> (if(it.target>0)listOf(it.target,it.targetCard) else emptyList())+(if(it.seat>0)listOf(it.seat) else emptyList())
             })

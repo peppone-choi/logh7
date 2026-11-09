@@ -168,14 +168,26 @@ class ProposalActionsWireTest {
         }
     }
 
-    @Test fun demotionMailListsAnEligibleTargetAndNativeApprovalSplitsTheCostOnce() {
+    @Test fun demotionMailListsAnEligibleTargetAndNativeApprovalSplitsTheCostOnce() =
+        rankChangeMail(ProposalActions.DEMOTION)
+
+    @Test fun specialPromotionMailUpgradesTheTargetsFlagshipInTheApprovalCommit() =
+        rankChangeMail(ProposalActions.SPECIAL_PROMOTION)
+
+    private fun rankChangeMail(command:Int) {
+        val promoting=command==ProposalActions.SPECIAL_PROMOTION
+        val oldRank=if(promoting)11 else 9
+        val newRank=10
+        val mailRank=if(promoting)newRank else oldRank
+        val half=if(promoting)320 else 160
         val state=State()
         val target=10002
+        val destroyer=Flagships.forType(2,3).kind
         state.players=state.players.mapValues {(_,p)->p.copy(mcp=1000)}+
-            ("load-002" to state.players.getValue("load-001").copy(characterId=target))
+            ("load-002" to state.players.getValue("load-001").copy(characterId=target,hull=FlagshipHull(destroyer,now)))
         state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(
             people=state.stocks.strategic.people+mapOf(
-                10001 to StrategicPerson(rank=9,merit=100), target to StrategicPerson(rank=9)),
+                10001 to StrategicPerson(rank=oldRank,merit=100), target to StrategicPerson(rank=oldRank)),
             offices=state.stocks.strategic.offices+OfficeHolding(18,1049,target)))
         seed(directory,3)
         LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
@@ -186,7 +198,7 @@ class ProposalActionsWireTest {
             executor.send(SyntheticClient.opcode(0x0f00));next(executor,0x0f01)
             fun send(preview:Boolean,target:Int,base:Int) {
                 sender.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
-                    .putShort(98).putShort(0).putShort(ProposalActions.DEMOTION.toShort()).putInt(target)
+                    .putShort(98).putShort(0).putShort(command.toShort()).putInt(target)
                     .put(if(preview)1 else 0).putInt(0).putShort(0).putInt(base).putShort(0).array())
             }
             send(true,0,10001)
@@ -203,29 +215,36 @@ class ProposalActionsWireTest {
             next(sender,0x1201);next(sender,0x0356)
             val mail=state.stocks.social.proposals.mails.single()
             assertEquals(target,mail.target)
-            assertEquals(840,state.players.getValue("load-000").mcp)
+            assertEquals(1000-half,state.players.getValue("load-000").mcp)
             assertEquals(9,state.stocks.strategic.people.getValue(10000).influence)
-            assertEquals(9,state.stocks.strategic.people.getValue(target).rank)
+            assertEquals(oldRank,state.stocks.strategic.people.getValue(target).rank)
+            assertEquals(destroyer,state.players.getValue("load-002").hull?.kind)
             query(executor,10001,19)
             next(executor,0x0f13)
-            val pair=ByteBuffer.wrap(next(executor,0x0706))
-            assertEquals(0,pair.getInt(6));assertEquals(10001,pair.getInt(10))
-            assertEquals(160,pair.getInt(18));assertEquals(9,pair.get(22).toInt())
-            assertEquals(target,pair.getInt(23));assertEquals(0,pair.get(39).toInt())
+            fun assertPair(packet:ByteArray) {
+                val pair=ByteBuffer.wrap(packet)
+                assertEquals(0,pair.getInt(6));assertEquals(10001,pair.getInt(10))
+                assertEquals(half,pair.getInt(18))
+                assertEquals(mailRank,pair.get(if(promoting)26 else 22).toInt())
+                assertEquals(target,pair.getInt(if(promoting)22 else 23))
+                assertEquals(if(promoting)38 else 40,pair.limit())
+                assertEquals(0,pair.get(pair.limit()-1).toInt())
+                if(promoting)assertEquals(0,pair.getShort(31).toInt())
+            }
+            assertPair(next(executor,command))
             next(executor,0x0f09)
 
             val answer=body(Wire.reply(Wire.Reply(0,mail.id,0,Wire.Peer(10001),Wire.Peer(10000),0,0,0,Proposals.APPROVE)))
             repeat(2) {executor.send(answer);next(executor,0x0356)}
-            assertEquals(10,state.stocks.strategic.people.getValue(target).rank)
+            assertEquals(newRank,state.stocks.strategic.people.getValue(target).rank)
             assertTrue(state.stocks.strategic.offices.none {it.character==target})
-            assertEquals(840,state.players.getValue("load-001").mcp)
+            assertEquals(1000-half,state.players.getValue("load-001").mcp)
+            assertEquals(if(promoting)Flagships.rankDefault(2,newRank).kind else destroyer,state.players.getValue("load-002").hull?.kind)
             assertEquals(Proposals.APPROVE,state.stocks.social.proposals.mails.single().reply)
-            assertEquals(9,state.stocks.social.proposals.mails.single().demotionFromRank)
+            assertEquals(mailRank,state.stocks.social.proposals.mails.single().rankChangeMailRank)
             query(sender,10000,17)
             next(sender,0x0f14)
-            val approvedPair=ByteBuffer.wrap(next(sender,0x0706))
-            assertEquals(9,approvedPair.get(22).toInt())
-            assertEquals(target,approvedPair.getInt(23))
+            assertPair(next(sender,command))
             next(sender,0x0f09)
         }
     }

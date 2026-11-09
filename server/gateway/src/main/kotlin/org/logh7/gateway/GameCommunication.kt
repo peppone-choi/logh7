@@ -14,7 +14,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
     /** 命令/提案 rows of the world state (design-proposals-orders.md). */
     private val proposals:(Long)->ProposalState?={null},
     /** Current rank (promotion, accession) over the character file's creation rank; null keeps the file's. */
-    private val rank:(Int)->Int?={null}):AutoCloseable {
+    private val rank:(Int)->Int?={null},private val militaryRank:(Int)->Int?=rank):AutoCloseable {
     private var current:Triple<Long,CommunicationStore,Communication>?=null
     private var messenger:Pair<Long,GameMessenger>?=null
     private data class Offer(val from:String,val to:String,val expires:Long)
@@ -87,8 +87,11 @@ class GameCommunication(private val presence:GamePresence,private val generation
         return state.mails.count {it.card in held && it.expiresAt>seconds && pendingRecipient(it,player.characterId,country)}
     }
     /** The row's command field picks the command-name table (constmsg group 18), so it is the manual command number. */
-    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;ProposalActions.DEMOTION -> 2;else -> 0}
+    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;ProposalActions.DEMOTION -> 2;ProposalActions.SPECIAL_PROMOTION -> 1;else -> 0}
     /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
+    private fun currentMilitaryRank(mail:ProposalMail,expected:Long)=
+        militaryRank(mail.target) ?: directory(expected,mail.target)?.rank ?: 20
+
     private fun paired(mail:ProposalMail,expected:Long)=when(mail.command) {
         ProposalActions.RESIGNATION -> org.logh7.protocol.ResignationMessages.response(
             org.logh7.protocol.ResignationMessages.Query(mail.recipient,mail.card),0,0,(ProposalActions.costs.getValue(mail.command)/2).toInt(),true)
@@ -98,8 +101,11 @@ class GameCommunication(private val presence:GamePresence,private val generation
         ProposalActions.APPOINTMENT -> org.logh7.protocol.AppointmentMessages.response(
             org.logh7.protocol.AppointmentMessages.Query(mail.recipient,mail.target,mail.targetCard,0,0),0,0,(ProposalActions.costs.getValue(mail.command)/2).toInt(),true,false)
         ProposalActions.DEMOTION -> org.logh7.protocol.RankDownMessages.mailPair(mail.recipient,mail.target,
-            (mail.demotionFromRank ?: rank(mail.target) ?: directory(expected,mail.target)?.rank ?: 20).coerceIn(0,20),
+            (mail.rankChangeMailRank ?: currentMilitaryRank(mail,expected)).coerceIn(0,20),
             (ProposalActions.costs.getValue(mail.command)/2).toInt(),0)
+        ProposalActions.SPECIAL_PROMOTION -> org.logh7.protocol.SpecialRankUpMessages.mailPair(mail.recipient,mail.target,
+            (mail.rankChangeMailRank ?: (currentMilitaryRank(mail,expected)-1)).coerceIn(0,20),
+            (ProposalActions.costs.getValue(mail.command)/2).toInt())
         else -> error("Unsupported proposal command")
     }
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */

@@ -2343,14 +2343,14 @@ class GameExchange(
                                             val recipientCountry=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
                                                 .singleOrNull {it.id==query.base}?.country
                                             val sameCountry=me.country!=null && recipientCountry==me.country
-                                            if(query.value==org.logh7.engine.ProposalActions.DEMOTION) {
+                                            if(org.logh7.engine.ProposalActions.rankChange(query.value)) {
                                                 val snapshot=checkNotNull(navigation?.snapshot())
                                                 val recipient=snapshot.navigators.values.singleOrNull {it.characterId==query.base}
                                                 val identities=WorldCharacters.identities(characters.profiles(),snapshot)
                                                 val rows=if(recipient==null || !sameCountry || me.country in snapshot.session?.eliminated.orEmpty())
                                                     emptyList() else {
-                                                    val eligible=org.logh7.engine.ProposalActions.demotionDirectory(
-                                                        world.galaxy,inventory,recipient,identities)
+                                                    val eligible=org.logh7.engine.ProposalActions.rankChangeDirectory(
+                                                        world.galaxy,inventory,recipient,query.value,identities)
                                                     val country=checkNotNull(me.country)
                                                     val cards=policy.held(inventory,recipient.characterId).filter {it.country==country}
                                                         .map {it.card}.distinct().filter {card->
@@ -2559,12 +2559,12 @@ class GameExchange(
                                         navigation?.snapshot()?.let {s->
                                             val inventory=checkNotNull(s.planetStocks)
                                             val sender=checkNotNull(s.navigators[identity.account])
-                                            if(query.value!=org.logh7.engine.ProposalActions.DEMOTION) proposalPairs(inventory,sender,query.target).singleOrNull()
+                                            if(!org.logh7.engine.ProposalActions.rankChange(query.value)) proposalPairs(inventory,sender,query.target).singleOrNull()
                                             else {
                                                 val recipient=s.navigators.values.singleOrNull {it.characterId==query.target} ?: return@let null
                                                 val identities=WorldCharacters.identities(characters.profiles(),s)
-                                                val eligible=org.logh7.engine.ProposalActions.demotionDirectory(
-                                                    world.galaxy,inventory,recipient,identities)
+                                                val eligible=org.logh7.engine.ProposalActions.rankChangeDirectory(
+                                                    world.galaxy,inventory,recipient,query.value,identities)
                                                 proposalPairs(inventory,sender,query.target) {eligible(it,query.base)}.singleOrNull()
                                             }
                                         } ?: Triple(query.target,0,0)
