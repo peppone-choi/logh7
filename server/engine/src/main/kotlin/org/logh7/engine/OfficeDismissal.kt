@@ -15,7 +15,7 @@ data class OfficeDismissalRequest(val account:String,val connection:String,val c
 }
 enum class DismissalRejection { SESSION,IDENTITY,TARGET,CARD,AUTHORITY,AMBIGUOUS,BUSY,CP,STORAGE }
 data class OfficeDismissalResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:DismissalRejection?=null,
-    val changed:Boolean=false,val recovery:NavigationResult?=null,val targetPlayer:Navigator?=null)
+    val changed:Boolean=false,val recovery:NavigationResult?=null,val targetPlayer:Navigator?=null,val outfit:Int=0)
 
 /** Native 0708 identifies the person and card kind, without a base/outfit identity. Author: Peppone Choi. */
 class OfficeDismissalPolicy(private val galaxy:Galaxy,private val countries:CountryCatalog=CountryCatalogLoader.current()) {
@@ -69,6 +69,6 @@ internal object OfficeDismissal {
         if(player.cpPaused || player.navigationPending) return reject(DismissalRejection.BUSY)
         val paid=CpPayment.charge(CpBalance(player.pcp.toLong(),player.mcp.toLong()),160,CpPool.MCP)
         if(paid !is PaymentResult.Paid) return reject(DismissalRejection.CP)
-        return OfficeDismissalResult(player.paidWith(paid.balance),policy.clear(stocks,seat),changed=true)
+        return OfficeDismissalResult(player.paidWith(paid.balance),policy.clear(stocks,seat),changed=true,outfit=seat.outfit)
     }
 }

@@ -485,6 +485,21 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 it.grid==grid && it.baseId==0 && it.cpPaused
         }
 
+    /** The current 033b table carries the effective commander for existing ship identities. */
+    @Synchronized internal fun refreshTacticalOffice(generation:Long,outfitId:Int,world:WorldBootstrap,
+        latest:()->org.logh7.engine.WorldSnapshot?,characterById:(Int)->CharacterMessages.Generate?) {
+        val snapshot=latest() ?: return
+        val stocks=snapshot.planetStocks?.takeIf {it.generation==generation} ?: return
+        val position=stocks.outfits[outfitId]?.positionIn(world.galaxy)?.takeIf {it.baseId==0} ?: return
+        val countries=world.lobbyCountryDefinitions().first
+        members.values.filter {it.player.generation==generation && it.player.grid==position.grid && it.player.cpPaused}
+            .forEach {viewer->
+                val player=tacticalViewer(snapshot,viewer,position.grid) ?: return@forEach
+                val tactical=TacticalBootstrap(snapshot,world.galaxy,player,countries,characterById)
+                send(viewer,listOf(org.logh7.protocol.TacticsMessages.states(tactical.units)),position.grid)
+            }
+    }
+
     @Synchronized fun movement(event:org.logh7.engine.TacticalMovement,
         snapshot:org.logh7.engine.WorldSnapshot?=null) {
         // A committed audience binding can still be live after its viewer changes battlefield.

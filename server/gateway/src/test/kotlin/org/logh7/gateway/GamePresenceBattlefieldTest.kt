@@ -39,6 +39,27 @@ class GamePresenceBattlefieldTest {
         assertEquals(expected, received.flatten().map(::opcode), "Returning viewers receive current battlefield events")
     }
 
+    @Test fun officeAuthorityRefreshUsesTheLiveTacticalGridAndNoBootstrapPackets() {
+        val base=GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f)
+        val world=WorldBootstrap(Galaxy(galaxy.systems,listOf(base),Power.entries.associateWith {2487}))
+        val fleet=OutfitStock(1,2,OutfitKind.FLEET,1049,10,position=OutfitPosition(2487))
+        val inventory=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,100,100)),
+            mapOf(1 to fleet),mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,1)))
+        val hub=GamePresence()
+        val sent=mutableListOf<Pair<Int,List<Int>>>()
+        hub.update(GamePresence.Member("viewer",character,player,{error("Office refresh must use guarded delivery")},
+            sendTactical={grid,packets->sent+=grid to packets.map(::opcode)}))
+        fun refresh(current:Navigator) {
+            hub.refreshTacticalOffice(1,1,world,{snapshot.copy(
+                planetStocks=inventory,navigators=mapOf("viewer" to current))}) {id->character.takeIf {it.id.toInt()==id}}
+        }
+        refresh(player.copy(grid=2488))
+        refresh(player.copy(cpPaused=false))
+        assertTrue(sent.isEmpty())
+        refresh(player)
+        assertEquals(listOf(2487 to listOf(0x033b)),sent)
+    }
+
     @Test fun delayedMovementAndRetreatDoNotReachAViewerInAnotherGrid() {
         val motion = TacticalMotion(2487, 100, TacticalPose(TacticalPoint(0f, 0f), 0f),
             1f, 0f, listOf(TacticalPoint(0f, 10f)))
