@@ -165,7 +165,8 @@ object ProposalActions {
             ?: return reject(SocialRejection.LOCATION)
         // CD p.28: not in tactics; the same spot inside a facility, otherwise the same grid.
         if(recipient.country!=p.country || recipient.cpPaused || recipient.grid!=p.grid ||
-            p.spotId!=0 && (recipient.baseId!=p.baseId || recipient.spotId!=p.spotId || recipient.spotOwner!=p.spotOwner))
+            (p.spotId!=0 || recipient.spotId!=0) &&
+                (recipient.baseId!=p.baseId || recipient.spotId!=p.spotId || recipient.spotOwner!=p.spotOwner))
             return reject(SocialRejection.LOCATION)
         if(policy.holders(s,i.argument,i.country).none {it.character==i.target})return reject(SocialRejection.CARD)
         val emperor=i.card==1
