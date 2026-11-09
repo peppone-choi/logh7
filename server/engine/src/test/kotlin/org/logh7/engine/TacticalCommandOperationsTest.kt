@@ -1212,14 +1212,21 @@ class TacticalCommandOperationsTest {
         val s=state();val source=s.players.getValue("pilot").copy(hull=FlagshipHull(4,now))
         val target=Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,hull=FlagshipHull(89,now),motion=motion(0f,.5f))
         s.players=s.players+("pilot" to source)+("enemy" to target)
+        val person=StrategicPerson(rank=10,abilities=List(8){50})
+        val experience=List(8){20}
+        s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(people=mapOf(target.characterId to person)),
+            social=s.stocks.social.copy(academy=AcademyState(experience=mapOf(target.characterId to experience))))
         val r=run(s);val command=TacticalCommand(0x407,listOf(source.unitId),target=target.unitId)
         val req=request(command).copy(shipKind=4)
         assertNotNull(TacticalCommandOperations.accept(req,session,galaxy,r.navigation,r.production,r.production.snapshot(1)!!,s.commit,1).player)
-        val hits=mutableListOf<TacticalImpact>();settle(r,now+5,impacts=hits)
+        val at=(now+5..now+1000).first {BattleDeath.dies(target.characterId,it)}
+        val hits=mutableListOf<TacticalImpact>();settle(r,at,impacts=hits)
         assertTrue(hits.single().boarding);assertEquals(0,hits.single().hit.destroyed)
         assertEquals(89,s.players.getValue("enemy").hull!!.kind)
-        assertTrue(s.players.getValue("enemy").hull!!.woundedUntil>now+5)
+        assertTrue(s.players.getValue("enemy").hull!!.woundedUntil>at)
         assertEquals(target.supplies,s.players.getValue("enemy").supplies)
+        assertFalse(BattleDeath.deceased(s.stocks,target.characterId))
+        assertEquals(experience,s.stocks.social.academy.experience[target.characterId])
     }
 
     @Test fun boardingRequiresSharedContactAtAcceptanceAndCompletion() {

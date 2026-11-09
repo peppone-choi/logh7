@@ -119,13 +119,13 @@ class CharacterCreationCountryTest {
         val before=store.candidates("hero",selection).single().character
         assertEquals("키르히아이스",before.surname)
         store.apply("hero",listOf(id),selection)
-        val edit=definitions.single {it.id==id}.profile.copy(surname="시험함장",givenName="지크",face=112,rank=10,
+        val edit=definitions.single {it.id==id}.profile.copy(surname="시험함장",givenName="지크",face=112,rank=9,
             abilities=listOf(91,90,89,88,87,86,85,84))
         assertFalse(published.accepts(id,edit.copy(face=100074)))
         published.publish(listOf(OriginalCandidateEdit(id,2,edit)))
         published.publish(listOf(OriginalCandidateEdit(id,1,edit.copy(rank=20))))
         val listed=store.candidates("other",selection).single().character
-        assertEquals(before.copy(surname=edit.surname,givenName=edit.givenName,face=112,rank=10,abilities=edit.abilities),listed)
+        assertEquals(before.copy(surname=edit.surname,givenName=edit.givenName,face=112,rank=edit.rank,abilities=edit.abilities),listed)
         val packet=OriginalCharacterMessages.catalogue(store.candidates("other",selection))
         assertTrue(packet.toList().windowed(edit.surname.length*2).contains(edit.surname.toByteArray(Charsets.UTF_16BE).toList()))
         assertFailsWith<IllegalArgumentException> {store.accept("name",request(2,edit.surname),selection)}
