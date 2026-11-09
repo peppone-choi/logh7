@@ -50,7 +50,7 @@ internal object TacticalOfflineAi {
             val p=players.getValue(account)
             if(!eligible(session,account,p,stocks) || now<(stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0))continue
             stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(aiNextAt=stocks.tacticalCommands.aiNextAt+(p.characterId to now+5*scale)))
-            if(p.retreat!=null || p.fire?.pending!=null || p.posture?.let {it.mode.requiresBase || it.order!=null}==true ||
+            if(p.retreat!=null || p.posture?.let {it.mode.requiresBase || it.order!=null}==true ||
                 stocks.tacticalCommands.orders.any {p.unitId in it.command.units})continue
             val pose=p.motion?.pose(now,p.posture,g,stocks) ?: TacticalDeployment.initial(p.unitId,p.grid,players.values,stocks,g)
             val mission=currentMission(p,stocks)?.takeUnless {it.defaultDefense}
@@ -85,13 +85,13 @@ internal object TacticalOfflineAi {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
             val attack=if(kind in setOf(4,5) || enemies.isEmpty() || kind==3 && enemy==null)null
                 else p.attack ?: TacticalAttackOrder(2,now,now,now+5*scale)
-            val flagshipRotating=p.motion?.takeIf {it.grid==p.grid}?.rotation!=null
-            val next=if(flagshipRotating)p else p.copy(energy=energy,motion=motion,retreat=retreat,attack=attack,
+            val flagshipBusy=p.fire?.pending!=null || p.motion?.takeIf {it.grid==p.grid}?.rotation!=null
+            val next=if(flagshipBusy)p else p.copy(energy=energy,motion=motion,retreat=retreat,attack=attack,
                 hull=hull.settle(now,p.energy ?: TacticalEnergy.ZERO),
                 charge=p.charge?.settle(now,p.energy ?: TacticalEnergy.ZERO) ?: TacticalCharge(now,clockScale=scale))
             players[account]=next
             val motions=linkedMapOf<Int,TacticalMotion>()
-            if(!flagshipRotating)motions[p.unitId]=motion
+            if(!flagshipBusy)motions[p.unitId]=motion
             var commanded=false
             val alliedFlagships=if(kind in 0..1) players.values.asSequence()
                 .filter {it.unitId!=p.unitId && it.grid==p.grid && TacticalAuthority.camp(it,stocks)==camp}
