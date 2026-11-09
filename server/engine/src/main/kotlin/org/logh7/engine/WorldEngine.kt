@@ -170,6 +170,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private fun settleCombat(session: SessionState, base: WorldSnapshot, afterCommit:()->Unit = {}) {
         if (navigation == null || production == null || galaxy == null) return
+        val oldStocks=published.get().planetStocks?.takeIf {it.generation==session.generation}
         val experienced=settleExperience(session)
         val before=navigation.snapshot(session.generation)
         val movements=mutableListOf<TacticalMovement>()
@@ -221,6 +222,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             for(observer in tacticalEndObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Tactical end delivery failed: ${failure.javaClass.simpleName}")}
         }
+        // Keep the previous battlefield membership until damage and exit notifications have been delivered.
+        val changedMerit=if(oldStocks==null)emptyList() else production.snapshot(session.generation)?.strategic?.people.orEmpty()
+            .filter { (id,person)->person.merit!=(oldStocks.strategic.people[id]?.merit ?: 0L) }.keys.toList()
+        if(changedMerit.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changedMerit)}
+        catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
     }
     // Validate definitions before any recovery write; actual IDs never become native display identities.
     private fun validateWorldCountry(id:CountryId?) {
@@ -535,7 +541,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             else null
         val shipProductionDeadlines=snapshot.planetStocks?.social?.production?.orders.orEmpty().values
             .map {it.readyAt}.filter {it>nowSeconds}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+coupDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val operationDeadline=snapshot.planetStocks?.strategic?.operations.orEmpty().asSequence()
+            .filter {it.live}.mapNotNull {it.issuedAt}.map(OperationPlanRules::endGameSeconds)
+            .filter {it>nowSeconds}.minOrNull()
+        val exchangeDeadline=snapshot.planetStocks?.flagshipMarket?.offers.orEmpty().asSequence()
+            .map {it.expiresAt}.filter {it>nowSeconds}.minOrNull()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+coupDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline,operationDeadline,exchangeDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -1273,7 +1284,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     durability.commit(command.sessionAction(), next)
                     durableState = next.state
                     if (command is WorldCommand.AdvanceTo) {
-                        production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
+                        production?.settle(next.state.session)
                         settleCombat(next.state.session,next.state.snapshot(rules)) {reconcileTerritory()}
                         val current=checkNotNull(durableState).session
                         navigation?.settleRetreats(current, production?.snapshot(current.generation))
@@ -1308,7 +1319,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
                         else simulation.advance(command.elapsedRealMillis - elapsed)
                     elapsed = command.elapsedRealMillis
-                    if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
+                    if (!storageFailed) production?.settle(simulation.exportState())
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot())) {reconcileTerritory()}
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
                     if (!storageFailed) settleOfflineNavigation(simulation.exportState())

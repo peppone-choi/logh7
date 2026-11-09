@@ -58,6 +58,28 @@ class WorldCountryRuntimeTest {
         durability=session,galaxy=galaxy,navigationStore=world.navigation,stockStore=world.inventory,
         worldStateCommitter=world.committer,npcPolicy=NpcTacticalPolicy(enabled=false))
 
+    @Test fun worldTickInvalidatesSpecialGuardForAnEliminatedCountry()=published {runBlocking {
+        val empireCountry=Power.EMPIRE.country
+        val spot=galaxy.facilities.getValue(1049).flatMap {it.spots}.first {it.kind==0 && it.access==SpotAccess.GUARDED}.id
+        val guard=Navigator(1,10000,Power.EMPIRE,10,800,700,1000,baseId=1049,mode=4,spotId=spot)
+        val order=CivicOrder(guard.characterId,55,59,empireCountry,5,1049,0,spot,rules.startSeconds,
+            rules.startSeconds+rules.speed,CivicPhase.GUARDING)
+        val world=World(stocks().copy(civic=CivicState(mapOf(guard.characterId to order))),mapOf("guard" to guard))
+        val eligible=CivicActions.settle(galaxy,world.stocks,order.readyAt,listOf(guard),catalog)
+        assertEquals(CivicPhase.COMPLETED,eligible.civic.orders.getValue(guard.characterId).phase)
+        val stored=durable().state
+        val session=Durable(stored.copy(session=stored.session.copy(
+            countries=setOf(empireCountry,Power.ALLIANCE.country,third),
+            eliminated=mapOf(empireCountry to CountryDefeat(EndReason.SYSTEMS_REDUCED,rules.startSeconds)))))
+        val engine=engine(this,world,session)
+        try {
+            engine.submit(WorldCommand.AdvanceTo(1000))
+            val result=CompletableDeferred<CivicOrder>()
+            engine.submit(WorldCommand.Quiesce({world.stocks.civic.orders.getValue(guard.characterId)},result))
+            assertEquals(CivicPhase.INVALIDATED,withTimeout(5000) {result.await()}.phase)
+        } finally {engine.drainAndClose()}
+    }}
+
     @Test fun anActualThirdCountryBootsActsAndRestarts()=published {runBlocking {
         val world=World(stocks(),mapOf("pilot" to pilot));val session=durable()
         val first=engine(this,world,session)

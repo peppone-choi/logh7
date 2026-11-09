@@ -166,7 +166,8 @@ internal object TacticalGroundOperations {
             val o=next.outfits.values.singleOrNull {it.activeGround?.values?.any {u->u.order==order}==true} ?: continue
             val units=o.activeGround!!.values.filter {it.order==order}
             val base=galaxy.bases.singleOrNull {it.id==order.base && it.grid==order.grid}
-            val valid=session.ended==null && base!=null && validOrder(o,order,units,base,players.values,next,galaxy)
+            val valid=session.ended==null && o.country !in session.eliminated &&
+                base!=null && validOrder(o,order,units,base,players.values,next,galaxy)
             if(valid && now<order.readyAt)continue
             val completed=valid && (order.action!=TacticalGroundAction.DEPLOY ||
                 next.outfits.values.filter {TacticalAuthority.camp(it,next)==TacticalAuthority.camp(o,next)}.sumOf {other->
