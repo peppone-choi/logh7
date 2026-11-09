@@ -90,6 +90,26 @@ class GamePresenceBattlefieldTest {
         verifyBattlefield(listOf(0x0426)) { it.combat(impact) }
     }
 
+    @Test fun queuedImpactRechecksTheBattlefieldButDockedBoardingDoesNot() {
+        val hub = GamePresence()
+        val unguarded = mutableListOf<List<ByteArray>>()
+        val guarded = mutableListOf<Pair<Int, List<ByteArray>>>()
+        val member = GamePresence.Member("viewer", character, player, unguarded::add,
+            sendTactical = { grid, packets -> guarded += grid to packets })
+        hub.update(member)
+        val impact = TacticalImpact(1, 1010001, TacticalWeapon.BEAM,
+            TacticalHit(1, 2487, 100, 1, 2), recipients)
+
+        hub.combat(impact, snapshot.copy(navigators = mapOf("pilot" to player)))
+        val docked = player.copy(baseId = 1049, mode = 4, cpPaused = false)
+        hub.update(member.copy(player = docked))
+        hub.combat(impact.copy(boarding = true), snapshot.copy(navigators = mapOf("pilot" to docked)))
+
+        assertEquals(listOf(2487), guarded.map { it.first })
+        assertEquals(listOf(0x0426), guarded.flatMap { it.second }.map(::opcode))
+        assertEquals(listOf(0x0427), unguarded.flatten().map(::opcode))
+    }
+
     @Test fun delayedImpactChecksTheCommittedLocationWhenPresenceStillShowsTheOldBattlefield() {
         val hub = GamePresence()
         val received = mutableListOf<List<ByteArray>>()
