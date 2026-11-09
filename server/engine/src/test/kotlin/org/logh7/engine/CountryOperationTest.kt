@@ -38,6 +38,22 @@ class CountryOperationTest {
     private fun act(r:StrategyActionRequest,s:PlanetStocks,family:String="empire")=
         StrategyActions.evaluate(galaxy,r,session,if(r.command==24)issuer else planner,s,catalog(family))
 
+    @Test fun rebelFleetCannotCountJoinOrStartARegularOperation() {
+        val regular=stock()
+        val rebellion=CoupState(plots=mapOf(10002 to Plot(10002,country,0,revolt=1)),loyalty=mapOf(200 to CoupActions.LOYAL))
+        fun rebel(s:PlanetStocks)=s.copy(social=s.social.copy(coup=rebellion))
+        assertEquals(StrategyActionRejection.MAXIMUM,act(request(22),rebel(regular)).rejection)
+        val planned=assertNotNull(act(request(22),regular).stocks)
+        val denied=act(request(24),rebel(planned))
+        assertEquals(StrategyActionRejection.AUTHORITY,denied.rejection)
+        assertEquals(issuer,denied.player)
+        assertEquals(rebel(planned),denied.stocks)
+        val assigned=assertNotNull(act(request(24),planned).stocks)
+        val arrived=assigned.copy(outfits=assigned.outfits.mapValues {(_,outfit)->outfit.copy(position=OutfitPosition(2490))})
+        assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,rebel(arrived),now+1).strategic.operations.single().state)
+        assertEquals(StrategicPlanState.STARTED,StrategicOperations.settle(galaxy,arrived,now+1).strategic.operations.single().state)
+    }
+
     @Test fun sameDisplayAndOfficeNumberDoNotSharePlanLimitsOrdersOrRewards() {
         for(family in listOf("empire","alliance")) {
             val s=stock(family);val foreign=StrategicOperation(50,10000,cards(family).first,other,2490,

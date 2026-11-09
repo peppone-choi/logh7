@@ -54,7 +54,8 @@ internal object StrategicOperations {
     }
     private fun sole(r:StrategyActionRequest,stocks:PlanetStocks)=r.navigators.values.filter {p->
         val rank=stocks.strategic.people[p.characterId]?.rank ?: r.identities.singleOrNull {it.id==p.characterId}?.rank
-        p.generation==r.generation && p.country==r.country && rank!=null && rank in 2..20 && p.hull?.hp?.let {it>0}==true &&
+        p.generation==r.generation && p.country==r.country && !CoupActions.rebel(stocks,p.characterId,p.country) &&
+            rank!=null && rank in 2..20 && p.hull?.hp?.let {it>0}==true &&
             stocks.outfits.values.none {p.characterId in it.members()}
     }
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
@@ -62,10 +63,12 @@ internal object StrategicOperations {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
         val country=r.country ?: return reject(StrategyActionRejection.IDENTITY)
         if(country.value !in countries.countries)return reject(StrategyActionRejection.AUTHORITY)
+        val regular=Camp(country)
         if(r.command !in supported)return reject(StrategyActionRejection.COMMAND)
         if(p.cpPaused || p.navigationPending)return reject(StrategyActionRejection.BUSY)
         val role=OrganizationOffices.of(r.card,country,countries) ?: return reject(StrategyActionRejection.CARD)
-        if(role.camp!=0 || OrganizationalOfficePolicy(galaxy,countries).holders(stocks,r.card,country).none {it.character==r.characterId})
+        if(TacticalAuthority.camp(p,stocks)!=regular || role.camp!=0 ||
+            OrganizationalOfficePolicy(galaxy,countries).holders(stocks,r.card,country).none {it.character==r.characterId})
             return reject(StrategyActionRejection.AUTHORITY)
         val force=(if(r.command==24)issuerForce(r.card) else plannerForce(r.card)) ?: return reject(StrategyActionRejection.CARD)
         if(r.target !in 0..4999)return reject(StrategyActionRejection.LOCATION)
@@ -80,7 +83,7 @@ internal object StrategicOperations {
                     return reject(StrategyActionRejection.COMMAND)
                 if(!target(galaxy,stocks,r.target,country,purpose))return reject(StrategyActionRejection.LOCATION)
                 val committed=ownLive.sumOf {it.units}
-                val effective=stocks.outfits.values.filter {it.country==country}.sumOf(::shipUnits)+sole(r,stocks).size
+                val effective=stocks.outfits.values.filter {TacticalAuthority.camp(it,stocks)==regular}.sumOf(::shipUnits)+sole(r,stocks).size
                 if(OperationPlanLimits.canPlan(ownLive.filter {it.card==r.card}.map {it.grid.toString()}.toSet(),
                     r.target.toString(),r.amount.toInt(),committed,effective)!=OperationPlanVerdict.ALLOWED)return reject(StrategyActionRejection.MAXIMUM)
                 val now=s.gameMillis/1000
@@ -113,14 +116,16 @@ internal object StrategicOperations {
                     characters=characters+solo.characterId
                 } else {
                     val outfit=stocks.outfits[r.base] ?: return reject(StrategyActionRejection.AUTHORITY)
-                    if(outfit.country!=country || !fits(force,outfit.kind) || shipUnits(outfit)==0)return reject(StrategyActionRejection.AUTHORITY)
+                    if(TacticalAuthority.camp(outfit,stocks)!=regular || !fits(force,outfit.kind) || shipUnits(outfit)==0)
+                        return reject(StrategyActionRejection.AUTHORITY)
                     if(outfit.id in outfits || ownLive.any {it.id!=plan.id && outfit.id in it.outfits})return reject(StrategyActionRejection.BUSY)
                     if(outfit.activeShips?.values.orEmpty().any {it.tactical!=null || it.support!=null} ||
                         outfit.activeGround?.values.orEmpty().any {it.order!=null})return reject(StrategyActionRejection.BUSY)
                     outfits=outfits+outfit.id
                     characters=characters+outfit.members()
                 }
-                val count=if(force==StrategicForce.SOLO)characters.size else outfits.sumOf {stocks.outfits[it]?.takeIf {o->o.country==country}?.let(::shipUnits) ?: 0}
+                val count=if(force==StrategicForce.SOLO)characters.count {!CoupActions.rebel(stocks,it,country)}
+                    else outfits.sumOf {stocks.outfits[it]?.takeIf {o->TacticalAuthority.camp(o,stocks)==regular}?.let(::shipUnits) ?: 0}
                 if(count>plan.units)return reject(StrategyActionRejection.MAXIMUM)
                 plans=plans.map {if(it.id==plan.id)it.copy(outfits=outfits,characters=characters,
                     state=if(it.state==StrategicPlanState.PLANNED)StrategicPlanState.ISSUED else it.state,
@@ -152,8 +157,10 @@ internal object StrategicOperations {
             val issued=plan.issuedAt ?: return@map plan
             // Startup may restore stock before navigation; missing arrival context must not erase a solo reward.
             if(plan.force==StrategicForce.SOLO && plan.state!=StrategicPlanState.STARTED && navigators==null)return@map plan
-            val reached=plan.outfits.any {stocks.outfits[it]?.let {o->o.country==plan.country && o.positionIn(galaxy).grid==plan.grid}==true} ||
-                navigators.orEmpty().any {it.generation==stocks.generation && it.country==plan.country && it.characterId in plan.characters && it.grid==plan.grid}
+            val regular=Camp(plan.country)
+            val reached=plan.outfits.any {stocks.outfits[it]?.let {o->TacticalAuthority.camp(o,stocks)==regular && o.positionIn(galaxy).grid==plan.grid}==true} ||
+                (plan.force==StrategicForce.SOLO && navigators.orEmpty().any {it.generation==stocks.generation && TacticalAuthority.camp(it,stocks)==regular &&
+                    it.characterId in plan.characters && it.grid==plan.grid})
             if(seconds<issued+OperationPlanRules.DURATION_GAME_SECONDS)
                 return@map if(reached && plan.state==StrategicPlanState.ISSUED)plan.copy(state=StrategicPlanState.STARTED) else plan
             val outcome=when(plan.purpose) {
