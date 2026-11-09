@@ -156,6 +156,19 @@ internal object NpcStrategy {
         return jumpShortfall(ships,OutfitSupplies.distribution(outfit),if(source==null)1 else 2)<=(source?.supplies ?: 0)
     }
 
+    /** A safe neighboring depot can pay for one emergency return jump (replacement policy). */
+    private fun reliefDepot(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
+        stocks:PlanetStocks,destination:Int?=null):GalaxyBase? {
+        val position=outfit.positionIn(galaxy)
+        if(position.baseId!=0 || outfit.supplies!=0 || TacticalContact.contested(forces[position.grid].orEmpty()))return null
+        val cost=outfit.activeShips!!.values.sumOf {it.boats}
+        return galaxy.bases.filter {base->
+            (destination==null || base.grid==destination) && distance(position.grid,base.grid)==1 && stocks.bases[base.id]?.let {
+                it.country==outfit.country && it.camp==0 && it.supplies>=cost
+            }==true && !TacticalContact.contested(forces[base.grid].orEmpty()) && allowed(galaxy,forces,outfit,base.grid)
+        }.minByOrNull {it.id}
+    }
+
     private fun supplied(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy,departing:Boolean=true):Pair<PlanetStocks,OutfitStock>? {
         val live=outfit.activeShips!!.values.filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit).toMutableMap()
@@ -206,7 +219,9 @@ internal object NpcStrategy {
             val pending=outfit.strategy
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
-                val planned=target(galaxy,forces(),outfit,stocks,players.values,destination)
+                val normal=target(galaxy,forces(),outfit,stocks,players.values,destination)
+                val relief=if(normal?.grid==position.grid)null else reliefDepot(galaxy,forces(),outfit,stocks,destination)
+                val planned=relief?.let {OutfitPosition(it.grid,it.id)} ?: normal
                 if(planned?.grid==position.grid) {
                     dockLocally(outfit,planned)
                     continue
@@ -223,7 +238,11 @@ internal object NpcStrategy {
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=strategy)))
                     continue
                 }
-                val provision=supplied(stocks,outfit,galaxy)
+                val provision=if(relief==null)supplied(stocks,outfit,galaxy) else {
+                    val depot=stocks.bases.getValue(relief.id)
+                    val cost=outfit.activeShips!!.values.sumOf {it.boats}
+                    stocks.copy(bases=stocks.bases+(depot.baseId to depot.copy(supplies=depot.supplies-cost))) to outfit
+                }
                 if(provision==null) {
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=NpcStrategicState(now+21600))))
                     continue
@@ -253,7 +272,8 @@ internal object NpcStrategy {
                 if(destination?.grid==position.grid) {
                     dockLocally(outfit,destination)
                 } else {
-                    val next=if(destination==null || !canDepart(stocks,outfit,galaxy))NpcStrategicState(now+21600) else NpcStrategicState(now+21600,destination.grid,now+3600)
+                    val grid=if(canDepart(stocks,outfit,galaxy))destination?.grid else reliefDepot(galaxy,forces(),outfit,stocks)?.grid
+                    val next=if(grid==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,grid,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
                 }
             }

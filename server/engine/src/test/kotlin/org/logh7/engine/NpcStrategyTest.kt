@@ -46,6 +46,41 @@ class NpcStrategyTest {
         } finally {engine.drainAndClose()}
     }
 
+    @Test fun adjacentDepotPaysOnceToRescueAZeroSupplyFleetOutsideCombat() {
+        val initial=stocks()
+        val fleet=initial.outfits.getValue(1).copy(position=OutfitPosition(2488))
+        val before=initial.copy(outfits=mapOf(1 to fleet))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=advance(0,before,mutableMapOf(),events)
+        assertEquals(NpcStrategicState(21600,2487,3600),reserved.outfits.getValue(1).strategy)
+        assertEquals(before.bases,reserved.bases)
+        assertTrue(events.isEmpty())
+
+        val blocked=advance(3600,reserved,players(),events)
+        assertEquals(OutfitPosition(2488),blocked.outfits.getValue(1).position)
+        assertEquals(before.bases,blocked.bases)
+        assertTrue(events.isEmpty())
+
+        val depot=before.bases.getValue(1000)
+        for (unavailable in listOf(depot.copy(supplies=1),depot.copy(owner=Allegiance.Country(Power.ALLIANCE.country)))) {
+            val changed=reserved.copy(bases=mapOf(1000 to unavailable))
+            val cancelled=advance(3600,changed,mutableMapOf(),events)
+            assertEquals(OutfitPosition(2488),cancelled.outfits.getValue(1).position)
+            assertEquals(changed.bases,cancelled.bases)
+            assertTrue(events.isEmpty())
+        }
+
+        val arrived=advance(3600,reserved,mutableMapOf(),events)
+        val docked=arrived.outfits.getValue(1)
+        assertEquals(OutfitPosition(2487,1000),docked.position)
+        val jumpCost=fleet.activeShips!!.values.single().boats
+        assertEquals(before.bases.getValue(1000).supplies-jumpCost-docked.supplies,arrived.bases.getValue(1000).supplies)
+        assertTrue(docked.supplies>0)
+        assertEquals(2487,events.single().destination)
+        assertEquals(arrived,advance(3600,arrived,mutableMapOf(),events))
+        assertEquals(1,events.size)
+    }
+
     @Test fun eliminatedCountryCancelsAnUncommandedFleetJumpWithoutSpendingDepotSupplies() {
         val before=stocks()
         val pilots=players()
