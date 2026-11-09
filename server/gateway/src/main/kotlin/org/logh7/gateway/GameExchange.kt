@@ -2464,6 +2464,8 @@ class GameExchange(
                                         val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)
                                         refreshPaid(result.navigators)
+                                        if (result.tacticalOfficeOutfits.isNotEmpty()) presence?.refreshTacticalOffices(
+                                            player.generation, result.tacticalOfficeOutfits, world, { navigation?.snapshot() }, ::currentCharacterById)
                                         // U-31: the orbital ground attack button has no window, so its result is a tactical chat line.
                                         val strike=if(query.command!=org.logh7.engine.OrbitalStrikeActions.STRIKE)emptyList() else listOf(
                                             org.logh7.protocol.ChatMessages.grid(org.logh7.protocol.ChatMessages.Grid(character.id.toInt(),1,

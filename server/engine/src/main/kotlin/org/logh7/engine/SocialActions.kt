@@ -58,7 +58,7 @@ data class SocialResult(val player:Navigator?,val stocks:PlanetStocks?,val rejec
     val defected:CountryId?=null,
     /** 情報工作 report: approval*256+peace of the infiltrated base. */
     val report:Int=0,val tradeQuote:TradeActions.Quote?=null,val tradeReportCountry:CountryId?=null,
-    val productionQuote:ProductionActions.Quote?=null)
+    val productionQuote:ProductionActions.Quote?=null,val tacticalOfficeOutfits: Set<Int> = emptySet())
 
 /** First social slice: speech only. Manual W73/native command14, MCP320, immediate.
  * Personal-card politician authority, deterministic politics threshold50, +/-1 influence,

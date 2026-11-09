@@ -204,6 +204,46 @@ class SocialActionsWireTest {
             assertEquals(1049, state.players.getValue("load-000").returnBase)
         }
     }
+    @Test fun defectionRefreshesTheFormerFleetsDelegatedShipOnAnOpenBattlefield() {
+        val state = State()
+        val viewerAccount = "load-001"
+        state.players = state.players + (viewerAccount to state.players.getValue(viewerAccount)
+            .copy(grid = 2015, baseId = 0, mode = 5, spotId = 0))
+        val former = OutfitStock(1, 2, OutfitKind.FLEET, 1049, 10, commanderId = 10001, aideId = 10000,
+            units = UnitInventory(mapOf(UnitStack(32) to 1)), position = OutfitPosition(2015))
+        val hostile = OutfitStock(2, 3, OutfitKind.FLEET, 1177, 11, commanderId = 500,
+            units = UnitInventory(mapOf(UnitStack(119) to 1)), position = OutfitPosition(2015))
+        state.stocks = ActiveShips.initialize(state.stocks.copy(outfits = mapOf(1 to former, 2 to hostile),
+            warehouses = mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, 1049, 1),
+                11 to OutfitWarehouse(11, 3, OutfitKind.FLEET, 1177, 2))))
+        val ship = state.stocks.outfits.getValue(1).activeShips!!.values.single()
+        state.stocks = state.stocks.copy(tacticalCommands = TacticalCommandState(authority = mapOf(ship.id to 10000)))
+        LoadFixture(directory, 2, LoadMetrics(), galaxy, ticking = false, navigationStore = state.navigation,
+            stockStore = state.inventory, worldStateCommitter = state).use { fixture ->
+            val actor = fixture.join(fixture.account(0), true, false).client
+            actor.send(SyntheticClient.opcode(0x0f00)); next(actor, 0x0f01)
+            val viewer = fixture.join(fixture.account(1), true, false).client
+            viewer.send(SyntheticClient.opcode(0x0f00)); next(viewer, 0x0f01)
+            assertTrue(state.players.getValue(viewerAccount).cpPaused)
+            viewer.send(SyntheticClient.opcode(0x0f02))
+            fun commander(packet: ByteArray): Int {
+                val states = ByteBuffer.wrap(packet)
+                val row = (0 until states.getShort(6).toInt()).single { states.getInt(8 + it * 47) == ship.id }
+                return states.getInt(14 + row * 47)
+            }
+            assertEquals(10000, commander(next(viewer, 0x033b)))
+            next(viewer, 0x0f03)
+
+            actor.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
+                .putShort(Justice.DEFECT.toShort()).putShort(0).putShort(0).putInt(0)
+                .put(0).putInt(0).putShort(0).putInt(0).putShort(0).array())
+            assertEquals(0, ByteBuffer.wrap(next(actor, 0x1200)).getShort(16).toInt())
+            assertEquals(CountryId(3), state.players.getValue("load-000").country)
+            assertNull(state.stocks.tacticalCommands.authority[ship.id])
+            assertEquals(10001, commander(next(viewer, 0x033b)))
+        }
+    }
+
     @Test fun encryptedDefectionCommitsNavigationSessionAndCharacterMembershipAcrossRestart() {
         val state=State();val path=directory.resolve("defection")
         fun inbox(client:SyntheticClient):List<Mail.Item> {
