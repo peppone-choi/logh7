@@ -1225,7 +1225,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val session = durableState?.session ?: simulation.exportState()
                     require(session.generation == command.generation) { "Inventory query belongs to a stale session" }
                     val result = checkNotNull(production) { "World production is disabled" }.settle(session)
-                    state = published.get().copy(planetStocks = result)
+                    // The first stock query after boot can publish the recovered session result.
+                    state = published.get().copy(navigators = navigation?.snapshot(session.generation).orEmpty(), planetStocks = result)
                     publish(state)
                     command.result.complete(result)
                 } catch (failure: Exception) {

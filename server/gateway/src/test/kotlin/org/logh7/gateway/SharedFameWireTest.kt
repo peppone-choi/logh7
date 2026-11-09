@@ -53,13 +53,23 @@ class SharedFameWireTest {
             f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
             f.await("durable ended world") {f.engine.snapshot().result!=null}
         }
+        // Model a durable ending after a defection, with the registration still showing the former country.
+        navigation().use {it.save(mapOf("load-000" to Navigator(1,10000,Power.ALLIANCE,2015,1000,1000,1000)))}
+        stocks().use {store->
+            val saved=checkNotNull(store.load())
+            store.save(saved.copy(strategic=saved.strategic.copy(people=mapOf(
+                10000 to StrategicPerson(evaluation=1500)))))
+        }
         FameLedger.openShared(directory.resolve("common.fame"),false).use {bank->
             repeat(2) {boot->
                 LoadFixture(root,2,LoadMetrics(),galaxy,ticking=false,stockStore=stocks(),navigationStore=navigation(),
                     accountFame=bank.forWorld("restored"),sessionDurability=durability(),awaitIdentities=true,
                     prepare={engine->if(boot==0)runBlocking {engine.submit(WorldCommand.AdvanceTo(rules.restartDelayRealMillis+1))} else hydrate(engine)}).use {f->
                     assertNotNull(f.engine.snapshot().result)
-                    assertEquals(10,bank.fame().getValue("load-000"))
+                    assertEquals(15,bank.fame().getValue("load-000"),"the defeated side earns no victory bonus")
+                    val carried=CharacterStores(root.resolve("characters.properties")).get(2).profiles().getValue("load-000")
+                    assertEquals(Power.ALLIANCE.country,carried.country)
+                    assertEquals(ShipStyleId("alliance"),carried.shipStyle)
                     assertEquals(0,f.engine.snapshot().session!!.online)
                 }
             }
