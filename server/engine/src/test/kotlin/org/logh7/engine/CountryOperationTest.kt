@@ -66,6 +66,27 @@ class CountryOperationTest {
         }
     }
 
+    @Test fun expiredOperationsCannotBeWithdrawnOrAssignedBeforeSettlement() {
+        val initial=stock()
+        val plan=StrategicOperation(1,10000,24,country,2490,StrategicForce.FLEET,StrategicPurpose.OCCUPY,1,now,
+            StrategicPlanState.ISSUED,now,issuer=10001)
+        val pending=initial.copy(strategic=initial.strategic.copy(operations=listOf(plan)))
+        val deadline=OperationPlanRules.endGameSeconds(now)
+        for(command in listOf(23,24)) {
+            val player=if(command==24)issuer else planner
+            fun attempt(seconds:Long)=StrategyActions.evaluate(galaxy,request(command),
+                session.copy(gameMillis=seconds*1000),player,pending,catalog("empire"))
+            assertTrue(attempt(deadline-1).changed)
+            val rejected=attempt(deadline)
+            assertFalse(rejected.changed)
+            assertNotNull(rejected.rejection)
+            assertEquals(player,rejected.player)
+            assertEquals(pending,rejected.stocks)
+        }
+        val settled=StrategicOperations.settle(galaxy,pending,deadline)
+        assertEquals(StrategicPlanState.ENDED,settled.strategic.operations.single().state)
+    }
+
     @Test fun foreignSeatsArmiesAndInvalidTargetsCannotAuthorizeAPlanOrAnOrder() {
         val s=stock();val q=request(22)
         val borrowed=s.copy(strategic=s.strategic.copy(offices=listOf(OfficeHolding(24,1001,10000,other))))
