@@ -48,6 +48,30 @@ class ProposalActionsTest {
         assertEquals(b,players.getValue("b"))
         assertTrue(policy.held(state,b.characterId).any {it.card==19})
     }
+
+    @Test fun ordersToADeceasedRecipientCannotExecuteAgainstAnAbsentSuccessor() {
+        val opened=act("a",ProposalActions.OPEN,17,b.characterId,ProposalActions.RESIGNATION,19,stocks())
+        val dead=BattleDeath.apply(assertNotNull(opened.stocks),listOf(b.characterId),session.gameMillis/1000) {_,_->true}
+        val successor=b.copy(characterId=10003)
+        val state=policy.set(dead,OfficeHolding(19,1049,successor.characterId))
+        val mail=state.social.proposals.mails.single()
+        val sender=assertNotNull(opened.player)
+        val players=mutableMapOf("a" to sender,"b" to b,"successor" to successor)
+        val due=session.copy(gameMillis=(mail.createdAt+ProposalActions.ABSENT_ORDER_SECONDS)*1000)
+
+        assertEquals(state,ProposalActions.settle(galaxy,due,players,state))
+        assertEquals(successor,players.getValue("successor"))
+
+        val expiry=due.copy(gameMillis=mail.expiresAt*1000)
+        val expired=ProposalActions.settle(galaxy,expiry,players,state)
+        assertTrue(expired.social.proposals.mails.isEmpty())
+        val refunded=sender.copy(pcp=a.pcp,mcp=a.mcp)
+        assertEquals(refunded,players.getValue("a"))
+        assertEquals(successor,players.getValue("successor"))
+        assertTrue(policy.held(expired,successor.characterId).any {it.card==19})
+        assertEquals(expired,ProposalActions.settle(galaxy,expiry,players,expired))
+        assertEquals(refunded,players.getValue("a"))
+    }
     @Test fun approvingAnAbdicationProposalPassesTheThroneToTheNextCandidate() {
         val initial=policy.set(policy.set(stocks(),OfficeHolding(1,1049,a.characterId)),OfficeHolding(2,1049,b.characterId))
         val opened=act("b",ProposalActions.OPEN,2,a.characterId,ProposalActions.RESIGNATION,1,initial)
