@@ -221,6 +221,31 @@ class ReorganizationWireTest {
             assertEquals(680,state.players.getValue("load-000").mcp)
         }
     }
+    @Test fun nativeZeroOutfitIsRejectedWithoutDisconnectingOrChangingState() {
+        val state = State(10000)
+        fixture(state, "zero-outfit").use { server ->
+            val client = server.join(server.account(0), true, false).client
+            start(client)
+            val before = state.stocks
+            val players = state.players
+            val saves = state.saves
+            val nativePreview = java.util.HexFormat.of().parseHex(
+                "0c0200000000000027110000000000000000000000049900000000000000000000000000000000000000")
+            ByteBuffer.wrap(nativePreview).putInt(6, 10000)
+            client.send(nativePreview)
+            val denied = client.receive()
+            assertEquals(1, ByteBuffer.wrap(denied).int)
+            val decoded = LogisticsMessages.reorganization(denied.copyOfRange(4, denied.size))
+            assertEquals(0, decoded.outfit)
+            assertEquals(1177, decoded.base)
+            assertEquals(1000, decoded.header.mcp)
+            response(client, query().copy(outfit = 0), false, 1000)
+            assertEquals(before, state.stocks)
+            assertEquals(players, state.players)
+            assertEquals(saves, state.saves)
+            response(client, query(), true, 840)
+        }
+    }
     @Test fun unauthorizedOutfitReturnsNoOtherCommandersRosterOrWarehouse() {
         val state=State(10001)
         fixture(state,"denied").use { server ->
