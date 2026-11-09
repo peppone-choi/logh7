@@ -391,32 +391,43 @@ class NpcStrategyTest {
         assertEquals(2391,reserved.outfits.getValue(1).strategy?.destination)
     }
 
-    @Test fun returningFleetPrefersAStockedDepotOnlyWhenItCanAffordTheRoute() {
-        val alternate=galaxy.bases.single().copy(id=1001,grid=2488,name="Alternate")
-        val world=Galaxy(galaxy.systems,galaxy.bases+alternate,galaxy.starts)
-        val original=stocks()
-        val stocked=original.bases.getValue(1000)
-        val reserves=mapOf(1000 to stocked.copy(supplies=0),1001 to stocked.copy(baseId=1001))
-        val fleet=original.outfits.getValue(1).copy(position=OutfitPosition(2487))
-        for(fuel in listOf(0,300)) {
-            val ready=OutfitSupplies.withBalances(fleet,mapOf(1 to fuel))
-            val before=original.copy(bases=reserves,outfits=mapOf(1 to ready))
-            val players=mutableMapOf<String,Navigator>()
-            val events=mutableListOf<NpcStrategicMovement>()
-            fun advanceWorld(at:Long,stocks:PlanetStocks)=
-                NpcStrategy.advance(simulation.copy(gameMillis=at*1000),world,players,stocks,events)
-            val decided=advanceWorld(0,before)
-            if(fuel==0) {
-                assertEquals(OutfitPosition(2487,1000),decided.outfits.getValue(1).position)
-                assertEquals(reserves,decided.bases)
+    @Test fun dryLocalDepotDoesNotBlockAnAffordableReturnOrFundedRescue() {
+        val alternate = galaxy.bases.single().copy(id = 1001, grid = 2488, name = "Alternate")
+        val world = Galaxy(galaxy.systems, galaxy.bases + alternate, galaxy.starts)
+        val original = stocks()
+        val depot = original.bases.getValue(1000)
+        val remote = depot.copy(baseId = 1001)
+        val fleet = original.outfits.getValue(1).copy(position = OutfitPosition(2487))
+        for (fuel in listOf(0, 300)) {
+            val initial = original.copy(
+                bases = mapOf(1000 to depot.copy(supplies = 0), 1001 to remote),
+                outfits = mapOf(1 to OutfitSupplies.withBalances(fleet, mapOf(1 to fuel))),
+            )
+            val events = mutableListOf<NpcStrategicMovement>()
+            fun advanceWorld(at: Long, stocks: PlanetStocks) =
+                NpcStrategy.advance(simulation.copy(gameMillis = at * 1000), world, mutableMapOf(), stocks, events)
+
+            val reserved = advanceWorld(0, initial)
+            assertEquals(2488, reserved.outfits.getValue(1).strategy?.destination)
+            assertEquals(OutfitPosition(2487), reserved.outfits.getValue(1).position)
+            assertEquals(fuel, reserved.outfits.getValue(1).supplies)
+            assertEquals(initial.bases, reserved.bases)
+            assertTrue(events.isEmpty())
+
+            val docked = advanceWorld(3600, reserved)
+            assertEquals(OutfitPosition(2488, 1001), docked.outfits.getValue(1).position)
+            assertEquals(3000, docked.outfits.getValue(1).supplies)
+            assertEquals(0, docked.bases.getValue(1000).supplies)
+            assertEquals(remote.supplies - 3300 + fuel, docked.bases.getValue(1001).supplies)
+            assertEquals(2488, events.single().destination)
+
+            if (fuel == 0) {
+                events.clear()
+                val depleted = reserved.copy(bases = reserved.bases + (1001 to remote.copy(supplies = 0)))
+                val fallback = advanceWorld(3600, depleted)
+                assertEquals(OutfitPosition(2487, 1000), fallback.outfits.getValue(1).position)
+                assertEquals(depleted.bases, fallback.bases)
                 assertTrue(events.isEmpty())
-            } else {
-                assertEquals(2488,decided.outfits.getValue(1).strategy?.destination)
-                assertEquals(reserves,decided.bases)
-                val arrived=advanceWorld(3600,decided)
-                assertEquals(OutfitPosition(2488,1001),arrived.outfits.getValue(1).position)
-                assertEquals(97000,arrived.bases.getValue(1001).supplies)
-                assertEquals(2488,events.single().destination)
             }
         }
     }
