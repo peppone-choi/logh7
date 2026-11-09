@@ -46,6 +46,20 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
 
+    @Test fun restoredTradePassageExpiresBetweenRegularTicks() = runTest {
+        val rig=Rig(this,testScheduler,tradeDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun passages()=rig.engine.snapshot().planetStocks!!.social.trade.passages
+            advanceTimeBy(624);runCurrent()
+            assertEquals(mapOf(2 to rig.start+15),passages())
+            advanceTimeBy(1);runCurrent()
+            assertTrue(passages().isEmpty())
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(0L,rig.engine.snapshot().session!!.strategyTicks)
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredMovingFortressStopsAtItsFinalWaypointBetweenRegularTicks() = runTest {
         val rig=Rig(this,testScheduler,fortressDeadline=true)
         try {
@@ -322,7 +336,7 @@ class TacticalDeadlineTest {
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
         uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,justiceDeadline:Boolean=false,
-        espionageDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false) {
+        espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -347,6 +361,10 @@ class TacticalDeadlineTest {
                 val detention=Detention(10000,CountryId(2),start,start+15,base=1000)
                 stocks=stocks.copy(strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=8,merit=100))),
                     social=stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
+            }
+            if(tradeDeadline) {
+                players=emptyMap()
+                stocks=stocks.copy(social=stocks.social.copy(trade=TradeState(passages=mapOf(2 to start+15))))
             }
             if(shipOrder) {
                 players=emptyMap()
