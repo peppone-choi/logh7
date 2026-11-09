@@ -94,6 +94,108 @@ class NavigationForcesTest {
             Navigation(galaxy,Store(),NavigationPolicy()).apply(request,session,enemy).rejection)
     }
 
+    @Test fun soloWarpIgnoresEliminatedMobileForcesAtReservationAndArrival() {
+        val target=2588
+        val third=CountryId(42)
+        val before=stocks(count=1)
+        val inventory=before.copy(outfits=before.outfits.mapValues {(_,outfit)->
+            outfit.copy(country=third,position=OutfitPosition(target))
+        },warehouses=before.warehouses.mapValues {(_,warehouse)->warehouse.copy(country=third)})
+        val ongoing=session.copy(countries=setOf(Power.EMPIRE.country,Power.ALLIANCE.country,third))
+        val defeated=ongoing.copy(eliminated=mapOf(third to CountryDefeat(
+            EndReason.CAPITAL_CAPTURED,session.gameMillis/1000,Power.ALLIANCE.country)))
+        val command=request.copy(destination=target)
+        val store=Store()
+        val navigation=Navigation(galaxy,store,NavigationPolicy())
+        val pilot=assertNotNull(navigation.apply(request.copy(destination=null),ongoing).player)
+        assertEquals(NavigationRejection.GRID,navigation.apply(command,ongoing,inventory).rejection)
+        assertEquals(pilot,store.saved["pilot"])
+
+        val reserved=assertNotNull(navigation.apply(command,defeated,inventory).player)
+        assertEquals(target,reserved.warpTarget)
+        assertEquals(pilot.grid,reserved.grid)
+        assertEquals(pilot.cruise,reserved.cruise)
+        val due=defeated.copy(gameMillis=assertNotNull(reserved.warpReadyAt)*1000)
+        val completed=navigation.apply(request.copy(destination=null),due,inventory)
+        assertTrue(completed.completedWarp)
+        assertNull(completed.warpCancellation)
+        val arrived=assertNotNull(completed.player)
+        assertEquals(target,arrived.grid)
+        assertEquals(pilot.moves+1,arrived.moves)
+        assertEquals(pilot.cruise-142,arrived.cruise)
+        assertFalse(arrived.cpPaused)
+        assertNull(arrived.warpTarget)
+
+        val held=stocks().let {it.copy(bases=it.bases.mapValues {(_,base)->base.copy(owner=Allegiance.Country(third))})}
+        assertEquals(NavigationRejection.GRID,
+            Navigation(galaxy,Store(),NavigationPolicy()).apply(request,defeated,held).rejection)
+    }
+
+    @Test fun scheduledWarpAndTheFollowingWorldTickIgnoreEliminatedMobileForces() = runBlocking {
+        val rules=SessionRules.load()
+        val target=2588
+        val third=CountryId(42)
+        val before=stocks(count=1)
+        val ghost=before.outfits.getValue(1).copy(country=third,position=OutfitPosition(target))
+        val fleet=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(0))))
+        var inventory=before.copy(outfits=mapOf(1 to ghost.copy(activeShips=fleet)),
+            warehouses=before.warehouses.mapValues {(_,warehouse)->warehouse.copy(country=third)},
+            strategic=before.strategic.copy(people=mapOf(10000 to StrategicPerson(abilities=List(8){50}))),
+            deploymentInitialized=true,nextShipId=2)
+        val ongoing=session.copy(countries=setOf(Power.EMPIRE.country,Power.ALLIANCE.country,third))
+        val defeated=ongoing.copy(eliminated=mapOf(third to CountryDefeat(
+            EndReason.CAPITAL_CAPTURED,session.gameMillis/1000,Power.ALLIANCE.country)))
+        val store=Store()
+        val nav=Navigation(galaxy,store,NavigationPolicy())
+        val reserved=assertNotNull(nav.apply(request.copy(destination=target),defeated,inventory).player)
+        val stale=reserved.copy(characterId=10001,grid=target,cpPaused=true,warpTarget=null,strategy=null)
+        store.saved=store.saved+("observer" to stale)
+        val offline=defeated.copy(participants=defeated.participants.mapValues {(_,p)->p.copy(online=false,connection=null)})
+        val durable=object:SessionDurability {
+            private var saved=DurableWorldState(offline,0)
+            override fun load()=saved
+            override fun commit(action:SessionAction,transition:SessionTransition) {saved=transition.state}
+            override fun close() {}
+        }
+        val normal=CountryCatalogLoader.current()
+        val definition=normal.countries.getValue(2).copy(id=third.value,key="test_country",name="Test Country")
+        val catalog=CountryCatalog(normal.calendars.values.toList(),normal.families.values.toList(),
+            normal.countries.values.toList()+definition)
+        val revision=(CountryCatalogLoader.snapshot()?.revision ?: 0)+1
+        CountryCatalogLoader.publish(CountryDefinitionSnapshot(revision,catalog,emptyMap(),emptyMap()))
+        val engine=try { WorldEngine(this,rules,ticking=false,durability=durable,galaxy=galaxy,navigationStore=store,
+            stockStore=object:PlanetStockStore {
+                override fun load()=inventory
+                override fun save(stocks:PlanetStocks) {inventory=stocks}
+            },worldStateCommitter=WorldStateCommitter {players,stocks->store.save(players);inventory=assertNotNull(stocks)}) }
+        catch(failure:Throwable) {
+            CountryCatalogLoader.publish(CountryDefinitionSnapshot(revision+1,normal,emptyMap(),emptyMap()))
+            throw failure
+        }
+        suspend fun tick(elapsed:Long):WorldSnapshot {
+            engine.submit(WorldCommand.AdvanceTo(elapsed))
+            val result=CompletableDeferred<WorldSnapshot>()
+            engine.submit(WorldCommand.Quiesce({engine.snapshot()},result))
+            return result.await()
+        }
+        try {
+            val due=assertNotNull(reserved.warpReadyAt)*1000-offline.gameMillis
+            val elapsed=(due+rules.speed-1)/rules.speed
+            val arrival=tick(elapsed)
+            val pilot=arrival.navigators.getValue("pilot")
+            assertEquals(target,pilot.grid)
+            assertNull(pilot.warpTarget)
+            assertFalse(pilot.cpPaused)
+            assertFalse(arrival.navigators.getValue("observer").cpPaused)
+            val following=tick(elapsed+1_000)
+            assertEquals(pilot,following.navigators.getValue("pilot"))
+            assertEquals(ghost.position,following.planetStocks!!.outfits.getValue(1).position)
+        } finally {
+            try {engine.drainAndClose()}
+            finally {CountryCatalogLoader.publish(CountryDefinitionSnapshot(revision+1,normal,emptyMap(),emptyMap()))}
+        }
+    }
+
     @Test fun worldActorPassesCurrentDeploymentAndPublishesTheSameStockForMapReports() = runBlocking {
         val navigationStore=Store()
         val stockStore=object : PlanetStockStore {

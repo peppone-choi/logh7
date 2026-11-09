@@ -275,7 +275,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         }
         val wounded=initial.hull?.woundedUntil?.let {now<it} == true
         val tactical = if(wounded) false else request.tactical ?: if(stocks == null) initial.cpPaused else
-            TacticalContact.active(galaxy,initial,snapshot(session.generation).values,stocks)
+            TacticalContact.active(galaxy,initial,snapshot(session.generation).values,stocks,session.eliminated.keys)
         val ready = (if(initial.cpPaused == tactical) initial else initial.copy(cpPaused=tactical,cpRecoveryAt=now,
             commandRange=if(tactical)TacticalCommandRange(now,command=request.commandAbility ?: 50) else null,
             motion=if(tactical)initial.motion else null,retreat=if(tactical)initial.retreat else null,
@@ -314,7 +314,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val settled = recovered
         fun contact(player: Navigator): Navigator {
             val active = if(stocks == null) player.cpPaused else
-                TacticalContact.active(galaxy,player,snapshot(session.generation).values,stocks)
+                TacticalContact.active(galaxy,player,snapshot(session.generation).values,stocks,session.eliminated.keys)
             return if(active == player.cpPaused) player else player.copy(cpPaused=active,cpRecoveryAt=now,
                 commandRange=if(active)TacticalCommandRange(now,command=request.commandAbility ?: 50) else null,
                 motion=if(active)player.motion else null,retreat=if(active)player.retreat else null,
@@ -323,7 +323,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 fire=if(active)player.fire else player.fire?.copy(pending=null))
         }
         fun enterableFrom(player: Navigator, units: Int, solo: Boolean): (Int) -> Boolean {
-            val forces = GridForces.collect(galaxy, session.generation, snapshot(session.generation).values, stocks)
+            val forces = GridForces.collect(galaxy, session.generation, snapshot(session.generation).values, stocks, session.eliminated.keys)
             return { grid -> GridEntryRules.evaluate(GridForces.state(galaxy, grid, forces),
                 GridEntry(Camp.of(player, stocks?.let { CoupActions.rebel(it, player.characterId,player.country) } == true), units, solo)) == GridEntryVerdict.ALLOWED }
         }
