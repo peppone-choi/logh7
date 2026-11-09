@@ -40,6 +40,12 @@ object TransportActions {
         return packages.filter {it.carrier==outfit.id}.map {delivered(it,alive)}
     }
 
+    internal fun freeUnitSlots(outfit:OutfitStock,packages:List<TransportPackage>):Int =
+        freeUnitSlots(outfit,carriedCargo(outfit,packages).sumOf {unitCount(it.second)})
+
+    private fun freeUnitSlots(outfit:OutfitStock,cargoUnits:Int):Int =
+        unitSlots(outfit)-outfit.activeGround?.values.orEmpty().count {it.carrier>0}-cargoUnits
+
     private fun add(a:Map<UnitStack,Int>,b:Map<UnitStack,Int>,sign:Int)=(a.keys+b.keys).associateWith {
         (a[it] ?: 0)+sign*(b[it] ?: 0)}.filterValues {it!=0}
     private fun deposit(base: PlanetStock, supplies: Int, units: UnitInventory): PlanetStock? {
@@ -113,7 +119,7 @@ object TransportActions {
                     source.camp!=0 || destination.camp!=0)return reject(StrategyActionRejection.TARGET)
                 if(r.amount !in 0..source.supplies.toLong() || r.argument<0 || r.value!=NO_UNIT && r.argument==0 ||
                     r.value==NO_UNIT && r.argument!=0)return reject(StrategyActionRejection.RESOURCE)
-                if(packages.count {it.source==source.baseId && it.carrier==0}>=PER_BASE || packages.size>=4096)
+                if(packages.count {it.source==source.baseId && it.country==country && it.carrier==0}>=PER_BASE || packages.size>=4096)
                     return reject(StrategyActionRejection.MAXIMUM)
                 var remaining=r.argument
                 val ships=linkedMapOf<UnitStack,Int>();val troops=linkedMapOf<UnitStack,Int>()
@@ -162,7 +168,7 @@ object TransportActions {
                     val alive=boats(o)
                     val carried=carriedCargo(o,packages)
                     val room=OutfitSupplies.capacity(o)-o.supplies-carried.sumOf {it.first.toLong()}
-                    val slots=unitSlots(o)-(o.activeGround?.values.orEmpty().count {it.carrier>0})-carried.sumOf {unitCount(it.second)}
+                    val slots=freeUnitSlots(o,carried.sumOf {unitCount(it.second)})
                     if(alive<=0 || pack.supplies>room || unitCount(pack.units)>slots)return reject(StrategyActionRejection.TROOPS)
                     stocks.copy(strategic=stocks.strategic.copy(transports=packages.map {if(it.id==pack.id)it.copy(carrier=o.id,carrierBoats=alive,survivingBoats=alive) else it}))
                 } else {

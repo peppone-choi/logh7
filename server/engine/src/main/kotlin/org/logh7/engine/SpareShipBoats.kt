@@ -73,6 +73,10 @@ internal object ReplacementBoats {
                 nextUnits[added]=nextUnits[added].copy(boats=boats)
             }
         }
+        require(nextUnits.sumOf {it.boats}>=previous.sumOf {it.boats} ||
+            ready.strategic.transports.none {it.carrier==outfitId}) {
+            "Unload transport packages before returning live boats"
+        }
         for (unit in previous.filter {it.id !in retained}) {
             val size=UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number
             val amount=(spare[unit.stack] ?: 0)+unit.boats

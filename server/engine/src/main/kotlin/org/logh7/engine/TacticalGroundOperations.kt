@@ -42,8 +42,13 @@ internal object TacticalGroundOperations {
     }
     private fun operational(ship:ActiveShipUnit,stocks:PlanetStocks)=
         ship.boats>ship.damaged && !stocks.tacticalCommands.confused(ship.id)
-    private fun hasRoom(o:OutfitStock,ship:ActiveShipUnit,returning:Int)=
-        o.activeGround?.values.orEmpty().count {it.carrier==ship.id}+returning<=GroundTransfer.capacity(ship.stack.kind)
+    private fun hasRoom(o:OutfitStock,ship:ActiveShipUnit,returning:Int,stocks:PlanetStocks,reserve:Boolean=false):Boolean {
+        val troops=o.activeGround?.values.orEmpty()
+        if(troops.count {it.carrier==ship.id}+returning>GroundTransfer.capacity(ship.stack.kind))return false
+        if(o.kind!=OutfitKind.TRANSPORT)return true
+        val reserved=if(reserve)troops.count {it.order?.action==TacticalGroundAction.WITHDRAW} else 0
+        return returning+reserved<=TransportActions.freeUnitSlots(o,stocks.strategic.transports)
+    }
     private fun validOrder(o:OutfitStock,order:TacticalGroundOrder,units:List<ActiveGroundUnit>,base:GalaxyBase,
         players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy,now:Long):Boolean {
         val p=players.singleOrNull {it.characterId==order.character} ?: return false
@@ -53,7 +58,7 @@ internal object TacticalGroundOperations {
             p.cpPaused && p.baseId==0 && p.mode==5 && p.grid==order.grid && owned(o,carrier.id,p,galaxy,stocks) &&
             berth(o,carrier.id,order.grid,stocks)?.base==order.base && when(order.action) {
                 TacticalGroundAction.DEPLOY -> admits(base,units)
-                TacticalGroundAction.WITHDRAW -> hasRoom(o,carrier,units.size)
+                TacticalGroundAction.WITHDRAW -> hasRoom(o,carrier,units.size,stocks)
                 else -> false
             }
     }
@@ -170,7 +175,7 @@ internal object TacticalGroundOperations {
                 if(!admits(base,troops))return reject(NavigationRejection.CREW)
                 val occupied=landingSlotsUsed(base,TacticalAuthority.camp(o,next),players.values,next,galaxy,now)
                 if(occupied+troops.size>GroundBattleRules.BOX_CAPACITY_PER_FACTION)return reject(NavigationRejection.GRID)
-            } else if(!hasRoom(o,ship,troops.size))return reject(NavigationRejection.UNIT)
+            } else if(!hasRoom(o,ship,troops.size,next,reserve=true))return reject(NavigationRejection.UNIT)
             val order=TacticalGroundOrder(command.action,p.characterId,p.grid,id,state.base,now,readyAt)
             val selected=troops.map {it.id}.toSet()
             val changed=o.copy(activeGround=ActiveGroundUnits(o.activeGround!!.values.map {if(it.id in selected)it.copy(order=order) else it}))

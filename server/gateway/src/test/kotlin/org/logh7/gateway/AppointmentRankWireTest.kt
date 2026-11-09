@@ -52,7 +52,9 @@ class AppointmentRankWireTest {
     // reports 1, so only the country rank (ProposalActions.rank) used by both paths makes them agree.
     @Test fun anEmpirePoliticianIsJudgedByTheMilitaryLadderInTheDirectoryAndTheAppointment()=exercise(10,1,true,militaryRank=10)
 
-    private fun exercise(profileTargetRank:Int,storedTargetRank:Int,accepted:Boolean,militaryRank:Int=0) {
+    @Test fun aDetainedCandidateIsHiddenAndCannotBeAppointed() = exercise(10, 10, false, detained = true)
+
+    private fun exercise(profileTargetRank:Int,storedTargetRank:Int,accepted:Boolean,militaryRank:Int=0,detained:Boolean=false) {
         val properties=Properties()
         for(i in 0..1) {
             val person=CharacterMessages.Generate(4,10000L+i,2,0,0,"Pilot$i","Test",30,1,1,1,List(8){50},
@@ -62,6 +64,12 @@ class AppointmentRankWireTest {
         }
         Files.newBufferedWriter(directory.resolve("characters.properties")).use { properties.store(it,null) }
         val state=State(galaxy,storedTargetRank,militaryRank)
+        if (detained) {
+            val now = SessionRules.load().startSeconds
+            val detention = Detention(10001, CountryId(2), now, now + 60)
+            state.stocks = state.stocks.copy(social = state.stocks.social.copy(
+                justice = state.stocks.social.justice.copy(detentions = mapOf(10001 to detention))))
+        }
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,stockStore=state.stockStore,
             navigationStore=state.navigationStore,worldStateCommitter=state).use { fixture->
             val actor=fixture.join(fixture.account(0),false,false).client

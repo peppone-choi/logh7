@@ -159,6 +159,18 @@ class GarrisonAppointmentTest {
         assertEquals(AppointmentRejection.BASE,act(request.copy(base=1050)).rejection)
         assertEquals(AppointmentRejection.BASE,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))).rejection)
     }
+    @Test fun aDetainedCandidateCannotBeAppointed() {
+        val now = session.gameMillis / 1000
+        val detention = Detention(request.target, CountryId(2), now, now + 60)
+        val detained = stocks.copy(social = stocks.social.copy(
+            justice = stocks.social.justice.copy(detentions = mapOf(request.target to detention))))
+        val rejected = act(s = detained)
+        assertEquals(AppointmentRejection.TARGET, rejected.rejection)
+        assertFalse(rejected.changed)
+        assertEquals(player, rejected.player)
+        assertEquals(detained, rejected.stocks)
+    }
+
     @Test fun occupiedPostsAndCardCapacityDoNotChargeOrReplaceTheHolder() {
         assertEquals(AppointmentRejection.OCCUPIED,act(s=stocks.copy(bases=mapOf(1049 to stocks.bases.getValue(1049).copy(garrisonCommanderId=10002)))).rejection)
         val many=stocks.copy(bases=stocks.bases+(1..14).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10001) })
