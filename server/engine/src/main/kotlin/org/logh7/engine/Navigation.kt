@@ -287,7 +287,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val dockOwner=dueDock?.let {id->
             val base=galaxy.conditions[id]
             val stock=stocks?.bases?.get(id)
-            base!=null && ownBase(ranged,stock?.owner ?: galaxy.initialOwners.getValue(id),stock?.camp ?: base.camp,stocks)
+            base!=null && (stocks==null || stock!=null) &&
+                ownBase(ranged,stock?.owner ?: galaxy.initialOwners.getValue(id),stock?.camp ?: base.camp,stocks)
         }
         val docked = if (dueDock != null && dockOwner!=true)
             fueled.copy(baseId = ranged.baseId, mode = ranged.mode, moves = ranged.moves) else fueled
@@ -643,6 +644,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                     val base = galaxy.conditions[move.baseId] ?: return reject(NavigationRejection.BASE)
                     if (base.grid != before.grid || move.mode != 4) return reject(NavigationRejection.BASE)
                     val stock=stocks?.bases?.get(base.baseId)
+                    if (stocks != null && stock == null) return reject(NavigationRejection.BASE)
                     if (!ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),stock?.camp ?: base.camp,stocks))
                         return reject(NavigationRejection.ACCESS)
                     if (before.baseId == move.baseId && before.mode == move.mode) return reject(NavigationRejection.BASE)
