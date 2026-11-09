@@ -420,6 +420,43 @@ class FleetNavigationTest {
         assertEquals(920, state.players.getValue("pilot").mcp)
         assertEquals(200, state.players.getValue("aide").cruise)
     }
+    @Test fun dueWarpStillArrivesWhenFollowersCannotAffordTheNextWarp() {
+        for(next in listOf(2589,2689)) {
+            val state=state()
+            addAide(state,cruise=200)
+            apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
+            val before=state.players
+            val first=apply(state,request.copy(destination=2588)).single()
+            assertNull(first.rejection)
+            val reserved=assertNotNull(first.player)
+            assertEquals(920,reserved.mcp)
+            val ready=assertNotNull(reserved.warpReadyAt)
+            val commits=state.commits
+            val due=session.copy(gameMillis=ready*1000)
+            val navigation=Navigation(galaxy,state.nav,NavigationPolicy())
+            val production=PlanetProduction(galaxy,state.inventory,0,PlanetProductionPolicy())
+            val result=FleetNavigation.apply(request.copy(destination=next),due,galaxy,navigation,production,
+                production.settle(1,ready),state.commit) {false}
+
+            assertEquals(NavigationRejection.CRUISE,result.rejection)
+            assertTrue(result.completedWarp)
+            assertNull(result.warpCancellation)
+            assertNull(result.player)
+            val pilot=state.players.getValue("pilot")
+            val aide=state.players.getValue("aide")
+            assertEquals(pilot,result.previous)
+            assertEquals(OutfitPosition(2588),state.stocks.outfits.getValue(1).position)
+            assertEquals(listOf(2588,2588),listOf(pilot.grid,aide.grid))
+            assertEquals(listOf(before.getValue("pilot").cruise-142,58),listOf(pilot.cruise,aide.cruise))
+            assertEquals(listOf(reserved.mcp,before.getValue("aide").mcp),listOf(pilot.mcp,aide.mcp))
+            assertEquals(before.getValue("pilot").moves+1,pilot.moves)
+            assertEquals(before.getValue("aide").moves+1,aide.moves)
+            assertNull(pilot.warpTarget)
+            assertTrue(pilot.strategy!!.jobs.isEmpty())
+            assertEquals(commits+1,state.commits)
+        }
+    }
+
     @Test fun dockCompletionMovesOfflineMemberAndAtomicFailureMovesNobody() {
         val state=state();addAide(state)
         apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
