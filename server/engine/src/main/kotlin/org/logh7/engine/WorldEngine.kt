@@ -483,6 +483,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             for(observer in tidalObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Tidal delivery failed: ${failure.javaClass.simpleName}")}
         }
+        scheduleDeadline(snapshot)
+    }
+
+    private fun scheduleDeadline(snapshot:WorldSnapshot) {
         val session=durableState?.session ?: simulation.exportState()
         val personal=snapshot.navigators.values.asSequence().filter {it.generation==session.generation && it.cpPaused && it.baseId==0 && it.hull!=null}
             .mapNotNull {it.motion?.takeIf {m->m.grid==it.grid}}
@@ -531,6 +535,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val worker = scope.launch {
         var state = published.get()
+        val generation=(durableState?.session ?: simulation.exportState()).generation
+        scheduleDeadline(state.copy(navigators=navigation?.snapshot(generation).orEmpty(),
+            planetStocks=production?.snapshot(generation)))
         var restartAt: Long? = null
         fun restart(): List<WorldEvent> {
             val snapshot = simulation.snapshot()

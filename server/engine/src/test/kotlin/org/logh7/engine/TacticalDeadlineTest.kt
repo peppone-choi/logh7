@@ -13,10 +13,9 @@ class TacticalDeadlineTest {
     @Test fun restoredFleetRetreatChecksMembershipAndCompletesBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,retreatDeadline=true,fleetRetreat=true)
         try {
-            rig.engine.submit(WorldCommand.Probe);runCurrent()
             fun fleet()=rig.engine.snapshot().planetStocks!!.outfits.getValue(1)
             advanceTimeBy(208);runCurrent()
-            assertFalse(fleet().activeShips!!.values.single().tactical!!.retreat!!.membershipChecked)
+            assertNull(rig.engine.snapshot().planetStocks)
             advanceTimeBy(1);runCurrent()
             assertTrue(fleet().activeShips!!.values.single().tactical!!.retreat!!.membershipChecked)
             assertEquals(rig.start+5,rig.engine.snapshot().session!!.gameSeconds)
