@@ -81,6 +81,29 @@ class NpcStrategyTest {
         assertEquals(1,events.size)
     }
 
+    @Test fun distantDepotFundsTheSafeReturnRouteOnlyOnce() {
+        val initial=stocks()
+        val fleet=initial.outfits.getValue(1).copy(position=OutfitPosition(2489))
+        val before=initial.copy(outfits=mapOf(1 to fleet))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val pilots=mutableMapOf<String,Navigator>()
+        val reserved=advance(0,before,pilots,events)
+        val first=assertNotNull(reserved.outfits.getValue(1).strategy?.arrivesAt)
+        assertEquals(before.bases,reserved.bases)
+        val mid=advance(first,reserved,pilots,events)
+        val jumpCost=fleet.activeShips!!.values.single().boats
+        assertEquals(0,mid.outfits.getValue(1).position!!.baseId)
+        assertEquals(jumpCost,mid.outfits.getValue(1).supplies)
+        assertEquals(before.bases.getValue(1000).supplies-2*jumpCost,mid.bases.getValue(1000).supplies)
+
+        val homeReserved=advance(first+21600,mid,pilots,events)
+        val arrival=assertNotNull(homeReserved.outfits.getValue(1).strategy?.arrivesAt)
+        val home=advance(arrival,homeReserved,pilots,events)
+        assertEquals(OutfitPosition(2487,1000),home.outfits.getValue(1).position)
+        assertEquals(mid.bases.getValue(1000).supplies-home.outfits.getValue(1).supplies,home.bases.getValue(1000).supplies)
+        assertEquals(2,events.size)
+    }
+
     @Test fun eliminatedCountryCancelsAnUncommandedFleetJumpWithoutSpendingDepotSupplies() {
         val before=stocks()
         val pilots=players()
