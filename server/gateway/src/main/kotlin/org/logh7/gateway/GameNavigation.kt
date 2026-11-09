@@ -14,6 +14,7 @@ fun interface GameNavigation {
     fun observeMovements(observer:(TacticalMovement)->Unit):AutoCloseable = AutoCloseable {}
     fun observeStrategicMovements(observer:(NpcStrategicMovement)->Unit):AutoCloseable = AutoCloseable {}
     fun observeSupport(observer:(TacticalSupportResult)->Unit):AutoCloseable = AutoCloseable {}
+    fun observeCoupDockCancellations(observer:(List<Navigator>)->Unit):AutoCloseable = AutoCloseable {}
     fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable = AutoCloseable {}
     fun observeFortressSinking(observer:(org.logh7.engine.Navigator)->Unit):AutoCloseable = AutoCloseable {}
     fun observeCharacterRefresh(observer:(List<Int>)->Unit):AutoCloseable = AutoCloseable {}
@@ -31,6 +32,7 @@ class EngineGameNavigation(private val engine: WorldEngine, private val scope: C
     override fun observeMovements(observer:(TacticalMovement)->Unit) = engine.observeMovements(observer)
     override fun observeStrategicMovements(observer:(NpcStrategicMovement)->Unit) = engine.observeStrategicMovements(observer)
     override fun observeSupport(observer:(TacticalSupportResult)->Unit) = engine.observeSupport(observer)
+    override fun observeCoupDockCancellations(observer:(List<Navigator>)->Unit)=engine.observeCoupDockCancellations(observer)
     override fun observeOccupations(observer:(BaseOccupation)->Unit) = engine.observeOccupations(observer)
     override fun observeFortressSinking(observer:(org.logh7.engine.Navigator)->Unit) = engine.observeFortressSinking(observer)
     override fun observeCharacterRefresh(observer:(List<Int>)->Unit) = engine.observeCharacterRefresh(observer)

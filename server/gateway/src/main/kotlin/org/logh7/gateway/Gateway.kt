@@ -100,6 +100,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var movementSubscription: AutoCloseable? = null
     private var strategicMovementSubscription: AutoCloseable? = null
     private var occupationSubscription:AutoCloseable?=null
+    private var coupDockSubscription:AutoCloseable?=null
     private var fortressSinkingSubscription:AutoCloseable?=null
     private var characterRefreshSubscription:AutoCloseable?=null
     private var tacticalOfficeRefreshSubscription: AutoCloseable? = null
@@ -246,6 +247,17 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         }}
         combatSubscription = presence?.let { p -> navigation!!.observeCombat { impact ->
             navigation.snapshot()?.let { snapshot -> p.combat(impact,snapshot,world!!.galaxy,currentCharacters()::characterById) }
+        }}
+        coupDockSubscription=presence?.let {p->navigation!!.observeCoupDockCancellations {players->
+            val session=navigation.snapshot()?.session
+            if(session!=null)for(player in players.filter {it.generation==session.generation}) {
+                val seconds=session.gameSeconds
+                p.toCharacter(player.characterId,player.generation,listOf(
+                    org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
+                        seconds,player.spotId,if(player.spotId==0)player.characterId else player.spotOwner),
+                    org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(
+                        player.characterId,"[기항] 진영 변경으로 예약이 취소됐습니다."),seconds)))
+            }
         }}
         occupationSubscription=presence?.let {p->navigation!!.observeOccupations {event->
             navigation.snapshot()?.let {snapshot->p.occupation(event,snapshot,world!!,currentCharacters()::characterById,
@@ -470,6 +482,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         civicSubscription?.close();successionSubscription?.close();tidalSubscription?.close()
         budgetSubscription?.close()
         coupBaseSubscription?.close()
+        coupDockSubscription?.close()
         identitySubscription?.close()
         fameSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }

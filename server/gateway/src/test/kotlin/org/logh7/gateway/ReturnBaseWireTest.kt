@@ -6,6 +6,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
+import org.logh7.engine.strategy.*
 import org.logh7.gateway.load.*
 import org.logh7.protocol.*
 import java.nio.ByteBuffer
@@ -72,8 +73,13 @@ class ReturnBaseWireTest {
         val winning = Plot(10001, country, rules.startSeconds, revolt = since, bases = setOf(capital.id),
             capitalSince = since, capitalBase = capital.id)
         val continuing = Plot(10000, country, rules.startSeconds, revolt = since, bases = setOf(other.id))
-        var players = mapOf("load-000" to Navigator(1, 10000, Power.EMPIRE, 2490, 1000, 1000, 1000,
-            cpRecoveryAt = rules.startSeconds, returnBase = capital.id).copy(originBase = other.id))
+        val now=rules.startSeconds*1000
+        val due=(since+CoupActions.CAPITAL_DAYS*Justice.DAY+3600)*1000
+        val dock=StrategyJob(0,"operation/星系内航行",now,due,due,
+            PaymentResult.Paid(CpBalance(1000,840),CpPool.MCP,160,160,false),JobState.WAITING)
+        var players = mapOf("load-000" to Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 840, 1000,
+            cpRecoveryAt = rules.startSeconds, returnBase = capital.id,
+            strategy=StrategyCheckpoint(1,now,listOf(dock)),dockTarget=capital.id).copy(originBase = other.id))
         var inventory = PlanetStocks(1, 0, mapOf(capital.id to PlanetStock(capital.id, 2, 1, 0, 0, 0),
             other.id to PlanetStock(other.id, 2, 1, 0, 0, 0)), deploymentInitialized = true,
             social = SocialState(coup = CoupState(mapOf(winning.leader to winning, continuing.leader to continuing))))
@@ -104,6 +110,11 @@ class ReturnBaseWireTest {
             assertEquals(0, conditions.get(12).toInt())
             assertEquals(capital.id, ByteBuffer.wrap(updates.single { code(it) == 0x0321 }).getInt(7))
             val changed = ByteBuffer.wrap(updates.last())
+            val cancelled=updates.firstOrNull {code(it)==0x0b0b} ?: through(client,0x0b0b).last()
+            assertEquals(0,ByteBuffer.wrap(cancelled).getInt(14))
+            assertNull(players.getValue(account).dockTarget)
+            assertNull(players.getValue(account).strategy)
+            assertEquals(2487,players.getValue(account).grid)
             assertEquals(10000, changed.getInt(7))
             assertEquals(0, changed.getInt(27))
             assertEquals(0, inventory.bases.getValue(capital.id).camp)

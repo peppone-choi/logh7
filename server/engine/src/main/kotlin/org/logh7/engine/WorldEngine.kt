@@ -84,6 +84,18 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     fun observeCoupBases(observer:(PlanetStocks,List<Int>)->Unit):AutoCloseable {
         coupBaseObservers+=observer;return AutoCloseable {coupBaseObservers.remove(observer)}
     }
+    private val coupDockCancellationObservers = java.util.concurrent.CopyOnWriteArrayList<(List<Navigator>) -> Unit>()
+    fun observeCoupDockCancellations(observer: (List<Navigator>) -> Unit): AutoCloseable {
+        coupDockCancellationObservers += observer
+        return AutoCloseable { coupDockCancellationObservers.remove(observer) }
+    }
+
+    private fun publishCoupDockCancellations(players: List<Navigator>) {
+        if (players.isEmpty()) return
+        for (observer in coupDockCancellationObservers) try { observer(players) }
+        catch (failure: Exception) { System.err.println("Coup dock cancellation delivery failed: ${failure.javaClass.simpleName}") }
+    }
+
     private val resultObservers=java.util.concurrent.CopyOnWriteArrayList<(WorldSnapshot)->Unit>()
     /** U-27: each published snapshot carrying a session result; observers must be idempotent per generation. */
     fun observeSessionResults(observer:(WorldSnapshot)->Unit):AutoCloseable {
@@ -196,9 +208,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val occupations=mutableListOf<BaseOccupation>()
         val commands=mutableListOf<TacticalCommandResult>()
         val fortressSunk=mutableListOf<Navigator>()
+        val cancelledDocking = mutableListOf<Navigator>()
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
             npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add,fortressSunk::add,
-            settleOfficeRecovery = { old, updated, players -> settleOfficeRecovery(session.gameMillis / 1000, old, updated, players) })
+            settleOfficeRecovery = { old, updated, players -> settleOfficeRecovery(session.gameMillis / 1000, old, updated, players) },
+            onCoupDockCancellations = { cancelledDocking.addAll(it) })
         // A later recapture must not restore a warehouse reservation from before occupation.
         occupations.forEach {logistics.occupationCommitted(it.base)}
         // Publish this committed transaction before a later movement/retreat save can fail.
@@ -206,6 +220,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // Reconcile durable capital/session endings before observers can start a native
         // forced-undock transition that cannot finish once gameplay requests are frozen.
         afterCommit()
+        publishCoupDockCancellations(cancelledDocking)
         if(experienced.isNotEmpty())for(observer in characterRefreshObservers)try {observer(experienced)}
         catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
         for(event in strategicMovements)for(observer in strategicMovementObservers)try {observer(event)}
@@ -1163,6 +1178,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     // Keep the startup membership fence on live defection too, until the remaining world APIs migrate.
                     if(result.defected?.value?.let {it !in 2..3}==true)
                         result=SocialResult(recovered?.player,inventory,SocialRejection.CARD)
+                    val cancelledDocking = mutableListOf<Navigator>()
                     if(result.changed) {
                         if(worldStateCommitter==null)result=SocialResult(recovered?.player,inventory,SocialRejection.STORAGE)
                         else {
@@ -1174,7 +1190,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             val recoveredPlayers=settleOfficeRecovery(session.gameMillis / 1000,inventory,prepared,
                                 previous+result.navigators+(i.account to after))
                             val next=if(inventory.social.coup!=prepared.social.coup)recoveredPlayers.mapValues {(_,player)->
-                                navigation.clearInvalidReturnBase(player,prepared)
+                                val after = navigation.clearLostDockReservation(player, inventory, prepared)
+                                val updated = navigation.clearInvalidReturnBase(after,prepared)
+                                if (after != player) cancelledDocking += updated
+                                updated
                             } else recoveredPlayers
                             val refreshed = next.filter { (account, player) ->
                                 account != i.account && (account in result.navigators ||
@@ -1203,6 +1222,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     }
                     state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=production.snapshot(session.generation))
                     publish(state)
+                    publishCoupDockCancellations(cancelledDocking)
                     if (result.changed && i.command in ProposalActions.commands)
                         publishProposalTacticalOfficeRefresh(inventory, checkNotNull(result.stocks))
                     command.result.complete(result.copy(recovery=recovered))

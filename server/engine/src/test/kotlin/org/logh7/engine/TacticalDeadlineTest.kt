@@ -1,5 +1,6 @@
 package org.logh7.engine
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -139,6 +140,56 @@ class TacticalDeadlineTest {
             assertTrue(after.social.coup.plots.isEmpty())
             assertTrue(after.strategic.offices.any {it.card==1 && it.character==10000 && it.seat==1049})
             assertEquals(listOf(listOf(1049) to 0),changes)
+        } finally {
+            subscription.close()
+            rig.engine.drainAndClose()
+        }
+    }
+
+    @Test fun revoltCancelsDockReservationsInTheWorldCommitEvenWhenTheirCampReturns() = runTest {
+        val rig = Rig(this, testScheduler, coupRevolt = true)
+        val before = rig.players.filterKeys { it != "pilot" }
+        val cancelled = mutableListOf<List<Navigator>>()
+        val subscription = rig.engine.observeCoupDockCancellations { players ->
+            for (player in players) {
+                assertEquals(player, rig.players.values.single { it.characterId == player.characterId })
+                assertEquals(player, rig.engine.snapshot().navigators.values.single { it.characterId == player.characterId })
+            }
+            assertEquals(1, rig.engine.snapshot().planetStocks!!.bases.getValue(1049).camp)
+            cancelled += players
+        }
+        try {
+            val joined = CompletableDeferred<Admission>()
+            rig.engine.submit(WorldCommand.Join("pilot", Power.EMPIRE, false, joined, "c", 1))
+            assertEquals(Admission.ACCEPTED, joined.await())
+            val result = CompletableDeferred<SocialResult>()
+            val request = StrategyActionRequest("pilot", "c", 10000, Power.EMPIRE, 1, CoupActions.REVOLT, 0, 7)
+            rig.engine.submit(WorldCommand.Social(SocialRequest(request), result))
+            assertTrue(result.await().changed)
+
+            val expected = before.mapValues { (account, player) ->
+                if (account == "unaffected") player else player.copy(dockTarget = null, strategy = null)
+            }
+            assertEquals(expected, rig.players.filterKeys { it != "pilot" })
+            assertEquals(1, cancelled.size)
+            assertEquals(setOf(expected.getValue("loyal"), expected.getValue("rebel")), cancelled.single().toSet())
+
+            rig.engine.submit(WorldCommand.AdvanceTo(625))
+            runCurrent()
+            val hold = CoupActions.CAPITAL_DAYS * Justice.DAY
+            rig.engine.submit(WorldCommand.AdvanceTo(625 + hold * 1000 / SessionRules.load().speed))
+            runCurrent()
+            val restored = rig.engine.snapshot().planetStocks!!
+            assertEquals(0, restored.bases.getValue(1049).camp)
+            assertTrue(restored.social.coup.plots.isEmpty())
+            for (account in listOf("loyal", "rebel")) {
+                val player = rig.players.getValue(account)
+                assertNull(player.dockTarget)
+                assertNull(player.strategy)
+                assertEquals(expected.getValue(account).baseId, player.baseId)
+                assertEquals(expected.getValue(account).moves, player.moves)
+            }
+            assertEquals(1, cancelled.size)
         } finally {
             subscription.close()
             rig.engine.drainAndClose()
@@ -516,7 +567,7 @@ class TacticalDeadlineTest {
         uncharged:Boolean=false,pirateDeadline:Boolean=false,pirateRegularTarget:Boolean=false,pirateStrategyDeadline:Boolean=false,
         pirateHarmDeadline:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
         awaitIdentities:Boolean=false,mailDeadline:Boolean=false,orderDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
-        operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false,dismissalOrder:Boolean=false) {
+        operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false,dismissalOrder:Boolean=false,coupRevolt:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -526,12 +577,13 @@ class TacticalDeadlineTest {
                 listOf(TacticalPoint(0f,10f)),turnRate=1f).let {if(postureDeadline)it.copy(velocity=0f) else it},
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
-        private val imperialCapital=orderDeadline || coupDeadline
+        private val imperialCapital=orderDeadline || coupDeadline || coupRevolt
         private val homeGrid=if(imperialCapital)2487 else 2488
         val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(imperialCapital)2 else 3))+
             listOfNotNull(GalaxySystem(4,2490,4,"Frontier").takeIf {pirateStrategyDeadline}),
             listOf(GalaxyBase(if(imperialCapital)1049 else 1000,homeGrid,80,if(fortressDeadline)1 else 0,
-                if(imperialCapital)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),
+                if(imperialCapital)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)) + listOfNotNull(
+                GalaxyBase(1050,homeGrid,81,0,"Second base",0,20f,86400,0,0f,2f).takeIf { coupRevolt }),
             Power.entries.associateWith {homeGrid})
         init {
             if(espionageDeadline) {
@@ -575,6 +627,21 @@ class TacticalDeadlineTest {
             }
         }
         init {
+            if (coupRevolt) {
+                val leader = Navigator(1, 10000, Power.EMPIRE, homeGrid, 1000, 1000, 1000, baseId = 1049, mode = 4)
+                fun reserved(character: Int, target: Int): Navigator {
+                    val pilot = Navigator(1, character, Power.EMPIRE.country, homeGrid, 1000, 1000, 1000, originBase = 1050)
+                    val pipeline = NavigationWork.pipeline(pilot, NavigationPolicy())
+                    pipeline.submit(NavigationWork.DOCK, listOf(NavigationWork.CAPTAIN), start * 1000, false)
+                    return pilot.copy(dockTarget = target, strategy = pipeline.checkpoint()).paidWith(pipeline.balance)
+                }
+                players = mapOf("pilot" to leader, "loyal" to reserved(10001, 1049),
+                    "rebel" to reserved(10002, 1050), "unaffected" to reserved(10003, 1050))
+                val plot = Plot(10000, Power.EMPIRE.country, start, members = listOf(10002))
+                stocks = stocks.copy(bases = mapOf(1049 to PlanetStock(1049,2,0,0,0,0),
+                    1050 to PlanetStock(1050,2,0,0,0,0)), social = stocks.social.copy(
+                    coup = CoupState(plots = mapOf(10000 to plot))))
+            }
             if(coupDeadline) {
                 players=emptyMap()
                 val plot=Plot(10000,Power.EMPIRE.country,start,revolt=start+10,bases=setOf(1049),capitalSince=start+15,capitalBase=1049)
