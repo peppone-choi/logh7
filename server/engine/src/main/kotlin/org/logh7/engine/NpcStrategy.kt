@@ -153,7 +153,7 @@ internal object NpcStrategy {
                 if(home==null)return next
                 val projected=outfit.copy(position=next)
                 val projectedStocks=stocks.copy(outfits=stocks.outfits+(outfit.id to projected))
-                val projectedForces=GridForces.collect(galaxy,stocks.generation,players,projectedStocks)
+                val projectedForces=GridForces.collect(galaxy,stocks.generation,players,projectedStocks,eliminated)
                 val returnRoute=home(galaxy,projectedForces,projected,projectedStocks,spentJumps=1)
                 if(returnRoute!=null && jumpShortfall(live,balances,1+returnRoute.jumps)==0L)return next
             }

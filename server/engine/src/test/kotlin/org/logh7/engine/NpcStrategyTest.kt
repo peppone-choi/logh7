@@ -315,6 +315,15 @@ class NpcStrategyTest {
         val events=mutableListOf<NpcStrategicMovement>()
         val affordable=advance(0,stock(4),observers,events)
         assertEquals(90,affordable.outfits.getValue(1).strategy!!.destination!!%100)
+        val defeatedCountry = CountryId(42)
+        val afterDefeat = simulation.copy(gameMillis = 0,
+            countries = setOf(Power.EMPIRE.country, Power.ALLIANCE.country, defeatedCountry),
+            eliminated = mapOf(defeatedCountry to CountryDefeat(EndReason.SYSTEMS_REDUCED, 0)))
+        val ghost = observers.getValue("pilot").copy(characterId = 12000, country = defeatedCountry,
+            grid = 2487, baseId = 0, mode = 5)
+        val withGhost = observers.toMutableMap().also { it["defeated"] = ghost }
+        val withSafeReturn = NpcStrategy.advance(afterDefeat, galaxy, withGhost, stock(4), events)
+        assertEquals(affordable, withSafeReturn)
         val insufficient=advance(0,stock(3),observers,events)
         assertEquals(88,insufficient.outfits.getValue(1).strategy!!.destination!!%100)
         val depleted=affordable.copy(outfits=affordable.outfits.mapValues {(_,outfit)->
