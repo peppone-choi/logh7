@@ -79,7 +79,10 @@ internal object TacticalCommandOperations {
     }
     private fun supreme(p:Navigator,players:Map<String,Navigator>,s:PlanetStocks):Boolean {
         // Native rank numbers decrease with rank. Merit breaks equal ranks (update04).
-        val candidates=players.values.filter {it.grid==p.grid && TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) && (it.cpPaused || it.baseId>0)}
+        val candidates=players.values.filter {
+            it.grid==p.grid && TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) &&
+                (it.cpPaused || it.baseId>0) && !s.social.justice.detained(it.characterId)
+        }
         val best=candidates.maxWithOrNull(compareBy<Navigator> {-TacticalPersonnel.rank(s,it.characterId)}
             .thenBy {TacticalPersonnel.merit(s,it.characterId)}.thenByDescending {it.characterId}) ?: return false
         return p.characterId==best.characterId
@@ -87,6 +90,7 @@ internal object TacticalCommandOperations {
     private fun validate(c:TacticalCommand,p:Navigator,now:Long,players:Map<String,Navigator>,s:PlanetStocks,g:Galaxy,
         checkRange:Boolean,sessionOnline:Map<String,Boolean> = emptyMap(),fortressStartAt:Long=now):NavigationRejection? {
         if(BattleDeath.deceased(s,p.characterId))return NavigationRejection.IDENTITY
+        if(s.social.justice.detained(p.characterId))return NavigationRejection.BUSY
         if(p.hull?.woundedUntil?.let {it>now}==true)return NavigationRejection.WOUNDED
         val baseOnly=c.opcode in setOf(0x419,0x41d,0x41e,0x41f,0x422)
         val baseSupport=c.opcode in setOf(0x41b,0x41c)
