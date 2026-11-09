@@ -146,13 +146,15 @@ internal object NpcStrategy {
         }
         if(goal!=null && beatable(origin) && !short) {
             if(goal==origin)return null
-            val next=step(galaxy,forces,outfit,origin,goal,preferred)?.let(::OutfitPosition) ?: return null
-            if(home==null)return next
-            val projected=outfit.copy(position=next)
-            val projectedStocks=stocks.copy(outfits=stocks.outfits+(outfit.id to projected))
-            val projectedForces=GridForces.collect(galaxy,stocks.generation,players,projectedStocks)
-            val returnRoute=home(galaxy,projectedForces,projected,projectedStocks,spentJumps=1)
-            if(returnRoute!=null && jumpShortfall(live,balances,1+returnRoute.jumps)==0L)return next
+            val next=step(galaxy,forces,outfit,origin,goal,preferred)?.let(::OutfitPosition)
+            if(next!=null) {
+                if(home==null)return next
+                val projected=outfit.copy(position=next)
+                val projectedStocks=stocks.copy(outfits=stocks.outfits+(outfit.id to projected))
+                val projectedForces=GridForces.collect(galaxy,stocks.generation,players,projectedStocks)
+                val returnRoute=home(galaxy,projectedForces,projected,projectedStocks,spentJumps=1)
+                if(returnRoute!=null && jumpShortfall(live,balances,1+returnRoute.jumps)==0L)return next
+            }
         }
         if(home==null)return null
         return OutfitPosition(home.next,if(home.next==home.base.grid)home.base.id else 0)
