@@ -36,6 +36,7 @@ object GridForces {
         }
         galaxy.bases.forEach { base ->
             val stock = stocks?.bases?.get(base.id)
+            if(stocks!=null && stock==null)return@forEach
             val initial = galaxy.conditions.getValue(base.id)
             val owner=stock?.owner ?: galaxy.initialOwners.getValue(base.id)
             val camp=when(owner) {

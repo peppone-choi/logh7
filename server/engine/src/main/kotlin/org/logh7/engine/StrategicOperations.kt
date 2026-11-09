@@ -71,6 +71,10 @@ internal object StrategicOperations {
         if(r.target !in 0..4999)return reject(StrategyActionRejection.LOCATION)
         val live=stocks.strategic.operations.filter {it.live}
         val ownLive=live.filter {it.country==country}
+        val now=s.gameMillis/1000
+        val actionable=ownLive.filter { plan ->
+            plan.issuedAt?.let { now < OperationPlanRules.endGameSeconds(it) } != false
+        }
         var plans=stocks.strategic.operations
         val cost:Long
         when(r.command) {
@@ -83,7 +87,6 @@ internal object StrategicOperations {
                 val effective=stocks.outfits.values.filter {it.country==country}.sumOf(::shipUnits)+sole(r,stocks).size
                 if(OperationPlanLimits.canPlan(ownLive.filter {it.card==r.card}.map {it.grid.toString()}.toSet(),
                     r.target.toString(),r.amount.toInt(),committed,effective)!=OperationPlanVerdict.ALLOWED)return reject(StrategyActionRejection.MAXIMUM)
-                val now=s.gameMillis/1000
                 val activation=now+r.argument*86400L
                 if(activation>0xffffffffL-OperationPlanRules.DURATION_GAME_SECONDS)return reject(StrategyActionRejection.MAXIMUM)
                 val id=(plans.maxOfOrNull {it.id} ?: 0).toLong()+1
@@ -94,15 +97,14 @@ internal object StrategicOperations {
                 cost=(1280L/(r.argument+1)).coerceIn(10,1280)
             }
             23 -> {
-                val plan=ownLive.singleOrNull {it.card==r.card && it.planner==r.characterId && it.grid==r.target}
+                val plan=actionable.singleOrNull {it.card==r.card && it.planner==r.characterId && it.grid==r.target}
                     ?: return reject(StrategyActionRejection.AUTHORITY)
                 plans=plans.map {if(it.id==plan.id)it.copy(state=StrategicPlanState.WITHDRAWN) else it}
                 cost=(plan.units*5L).coerceIn(5,320)
             }
             24 -> {
-                val plan=ownLive.singleOrNull {it.force==force && it.grid==r.target}
+                val plan=actionable.singleOrNull {it.force==force && it.grid==r.target}
                     ?: return reject(StrategyActionRejection.COMMAND)
-                val now=s.gameMillis/1000
                 if(now<plan.activatesAt)return reject(StrategyActionRejection.BUSY)
                 if(!target(galaxy,stocks,plan.grid,country,plan.purpose) && plan.state==StrategicPlanState.PLANNED)
                     return reject(StrategyActionRejection.LOCATION)
@@ -134,6 +136,24 @@ internal object StrategicOperations {
         val next=stocks.copy(strategic=stocks.strategic.copy(operations=plans))
         return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
     }
+    fun awardSweep(stocks:PlanetStocks,shooter:Navigator,grid:Int,seconds:Long,destroyed:Int):PlanetStocks {
+        if(destroyed<=0 || CoupActions.rebel(stocks,shooter.characterId,shooter.country))return stocks
+        if(stocks.strategic.operations.none {plan->
+            val issued=plan.issuedAt
+            plan.live && plan.purpose==StrategicPurpose.SWEEP && plan.country==shooter.country &&
+                shooter.characterId in plan.characters && issued!=null && seconds in issued until OperationPlanRules.endGameSeconds(issued) &&
+                WarpCourse.cruiseCost(grid,plan.grid)<=400
+        })return stocks
+        if(stocks.outfits.values.any {shooter.characterId in it.members()})return stocks
+        val people=stocks.strategic.people
+        if(shooter.characterId !in people && people.size>=4096)return stocks
+        val person=people[shooter.characterId] ?: StrategicPerson()
+        // One merit per boat is the replacement value. The manual specifies per-boat credit without a value.
+        val merit=minOf(0xffffffffL,person.merit+destroyed)
+        if(merit==person.merit)return stocks
+        return stocks.copy(strategic=stocks.strategic.copy(people=people+(shooter.characterId to person.copy(merit=merit))))
+    }
+
     fun settle(galaxy:Galaxy,stocks:PlanetStocks,seconds:Long,navigators:Collection<Navigator>?=null):PlanetStocks {
         if(stocks.strategic.operations.none {it.live})return stocks
         var people=stocks.strategic.people
@@ -159,7 +179,7 @@ internal object StrategicOperations {
             val outcome=when(plan.purpose) {
                 StrategicPurpose.OCCUPY->when {ownership.size==ids.size->OperationOutcome.FULL_SUCCESS;ownership.isEmpty()->OperationOutcome.FAILURE;else->OperationOutcome.PARTIAL_SUCCESS}
                 StrategicPurpose.DEFEND->if(ownership.containsAll(plan.defended))OperationOutcome.FULL_SUCCESS else OperationOutcome.PARTIAL_SUCCESS
-                StrategicPurpose.SWEEP->null // No fabricated success/failure without the actual kill-linked battle event.
+                StrategicPurpose.SWEEP->null // Actual ship losses pay individually at the time of the hit.
             }
             val bonus=if(plan.state==StrategicPlanState.STARTED || reached)when(outcome) {
                 OperationOutcome.FULL_SUCCESS->100;OperationOutcome.PARTIAL_SUCCESS->50;OperationOutcome.FAILURE,null->0

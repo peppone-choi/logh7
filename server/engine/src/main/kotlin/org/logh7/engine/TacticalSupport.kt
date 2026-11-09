@@ -208,7 +208,8 @@ internal object TacticalSupportOperations {
             var source=ship(id,stocks) ?: continue
             val order=source.unit.support ?: continue
             val player=players.values.singleOrNull {it.characterId==order.character}
-            if(session.ended!=null || player==null || BattleDeath.deceased(stocks,order.character) ||
+            if(session.ended!=null || source.outfit.country in session.eliminated ||
+                player==null || BattleDeath.deceased(stocks,order.character) ||
                 !eligible(source,player,order,now,players,stocks,galaxy)) {
                 results+=cancelled(session,source,order,players)
                 stocks=replace(stocks,source,source.unit.copy(support=null)); continue

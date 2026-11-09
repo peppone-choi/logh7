@@ -1,6 +1,7 @@
 // Restore the manual's game-settings entry on the earlier CD client.
 // Native widgets, serializer and authoritative replies. Author: Peppone Choi.
 #pragma once
+#include "return_base_data.h"
 
 static struct ReturnBaseSettings {
     void* manager;
@@ -10,6 +11,7 @@ static struct ReturnBaseSettings {
     bool visible, pending;
     ULONGLONG sentAt;
     const wchar_t* message;
+    logh::ReturnBaseRefresh refresh;
 } returnBaseSettings = {};
 static constexpr int returnSettingsId = 0x72;
 
@@ -74,6 +76,7 @@ static void __cdecl returnSettingsReply(void* record) {
     auto& state = returnBaseSettings;
     if (!state.pending || !record || at<unsigned>(record, 4) != state.character) return;
     state.pending = false;
+    state.refresh.replied(at<unsigned>(record, 8) == state.requested, state.previous != state.requested);
     if (at<unsigned>(record, 8) != state.requested)
         state.message = L"설정 거부: 아군의 거주 가능한 행성을 선택하세요.";
     else state.message = state.previous == state.requested ? L"현재 귀환 설정을 유지합니다." : L"귀환 설정을 저장했습니다.";
@@ -91,6 +94,26 @@ static void __declspec(naked) copiedReturnSettings() {
         jmp dword ptr [returnReplyResume]
     }
 }
+// Called around 004c0400. Another character's 0356 leaves the own value untouched.
+static void returnSettingsCharacterUpdated(void* world, unsigned before, unsigned after) {
+    auto& state = returnBaseSettings;
+    state.refresh.updated(before, after, state.pending, state.visible && state.world == world);
+}
+// The cleared base may still look selectable until newer base data arrives, so a refresh skips it.
+static void selectReturnCandidate(void* world, void* own, unsigned excluded) {
+    auto& state = returnBaseSettings;
+    state.selected = at<unsigned>(own, 0x3c);
+    if (pickerBase(state.selected)) return;
+    unsigned first = 0;
+    for (unsigned slot = 0; slot < 350; ++slot) {
+        unsigned id = at<unsigned>(world, 0x2eb288 + slot * 4);
+        auto base = pickerBase(id);
+        if (!base || id == excluded) continue;
+        if (!first) first = id;
+        if (logh::infoShort(base, 0x10) == at<unsigned>(own, 0x320)) { state.selected = id; break; }
+    }
+    if (!pickerBase(state.selected)) state.selected = first;
+}
 static void __cdecl updateReturnSettings(void* manager) {
     reinterpret_cast<void(__cdecl*)(void*)>(0x54ef40)(manager);
     auto& state = returnBaseSettings;
@@ -101,22 +124,16 @@ static void __cdecl updateReturnSettings(void* manager) {
     auto world = *reinterpret_cast<void**>(0x7ccffc);
     auto own = world ? at<void*>(world, 8) : nullptr;
     if (!own || !at<BYTE>(own, 0) || !at<BYTE>(world, 0x2a58f8) || at<BYTE>(world, 0x3579cc)) return;
+    unsigned excluded = 0;
     if (!state.visible || state.world != world || state.character != at<unsigned>(own, 0x24)) {
-        if (state.world != world || state.character != at<unsigned>(own, 0x24)) state.pending = false;
+        if (state.world != world || state.character != at<unsigned>(own, 0x24)) { state.pending = false; state.refresh = {}; }
         state.world = world; state.character = at<unsigned>(own, 0x24); state.visible = true;
-        state.selected = at<unsigned>(own, 0x3c);
-        if (!pickerBase(state.selected)) {
-            unsigned first = 0;
-            for (unsigned slot = 0; slot < 350; ++slot) {
-                unsigned id = at<unsigned>(world, 0x2eb288 + slot * 4);
-                auto base = pickerBase(id);
-                if (!base) continue;
-                if (!first) first = id;
-                if (logh::infoShort(base, 0x10) == at<unsigned>(own, 0x320)) { state.selected = id; break; }
-            }
-            if (!pickerBase(state.selected)) state.selected = first;
-        }
+        selectReturnCandidate(world, own, 0);
         state.message = L"아군 거주 행성만 설정할 수 있습니다.";
+        state.refresh.due = false;
+    } else if (state.refresh.take(excluded)) {
+        selectReturnCandidate(world, own, excluded);
+        state.message = L"서버에서 귀환 설정이 변경됐습니다.";
     }
     BYTE event[52] = {};
     for (int index = 3; index <= 6; ++index) {

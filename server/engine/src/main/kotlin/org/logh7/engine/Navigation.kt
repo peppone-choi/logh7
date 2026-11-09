@@ -239,6 +239,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val candidates = galaxy.bases.filter { it.grid == start }.filter { base ->
                     val condition = galaxy.conditions.getValue(base.id)
                     val stock = stocks?.bases?.get(base.id)
+                    if(stocks!=null && stock==null)return@filter false
                     val allegiance = stock?.owner ?: galaxy.initialOwners.getValue(base.id)
                     condition.habitability == 1 && allegiance == Allegiance.Country(owner) &&
                         (stock?.camp ?: condition.camp) == 0
@@ -487,7 +488,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         // W p.68: CP and execution wait grow with distance. 40 per started 100 ly (CD help: x4 at most) and
         // one G-hour per grid beyond the first are revival policy (design 2026-10-30, evidence:guess).
         val grids = (WarpCourse.cruiseCost(before.grid, destination) + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID
-        val cost = policy.warpCost.toLong() * if (operationTarget(before, destination, stocks)) 1 else minOf(4, grids)
+        val cost = policy.warpCost.toLong() * if (operationTarget(before, destination, now, stocks)) 1 else minOf(4, grids)
         val waitHours = (grids - 1).toLong()
         if (waitHours > 0) {
             val pipeline = NavigationWork.pipeline(before, policy, warpCost = cost, warpWaitHours = waitHours)
@@ -532,9 +533,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         return request.captainCard==card
     }
     /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
-    private fun operationTarget(player: Navigator, destination: Int, stocks: PlanetStocks?): Boolean =
-        stocks?.strategic?.operations.orEmpty().any { operation -> operation.live &&
+    private fun operationTarget(player: Navigator, destination: Int, now: Long, stocks: PlanetStocks?): Boolean =
+        stocks != null && !CoupActions.rebel(stocks,player.characterId,player.country) &&
+        stocks.strategic.operations.any { operation -> operation.live &&
             operation.country==player.country && operation.state != StrategicPlanState.PLANNED && player.characterId in operation.characters &&
+            operation.issuedAt?.let { now in it until OperationPlanRules.endGameSeconds(it) } == true &&
             abs(operation.grid % 100 - destination % 100) <= 1 && abs(operation.grid / 100 - destination / 100) <= 1 }
     /** Runs on clock advances as well as requests, including while the captain is offline. */
     fun settleRetreats(session: SessionState, stocks: PlanetStocks?) {
@@ -544,7 +547,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         var changed = false
         for ((account, player) in next.toSortedMap()) {
             val retreat = player.retreat ?: continue
-            if (BattleDeath.deceased(stocks,player.characterId)) {
+            val country = session.participants[account]?.country ?: player.country
+            if (country in session.eliminated || BattleDeath.deceased(stocks,player.characterId)) {
                 next[account] = player.copy(retreat=null)
                 changed = true
                 continue
@@ -613,6 +617,15 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     }
     private fun movePlace(request: NavigationRequest, before: Navigator, now: Long, stocks: PlanetStocks?,countries:CountryCatalog): NavigationResult {
         fun reject(reason: NavigationRejection) = NavigationResult(null, previous = before, rejection = reason)
+        fun departureRejection(): NavigationRejection? {
+            if (before.baseId == 0 || before.mode != 4) return NavigationRejection.BASE
+            val base = galaxy.conditions[before.baseId] ?: return NavigationRejection.BASE
+            val stock = stocks?.bases?.get(base.baseId)
+            return NavigationRejection.ACCESS.takeIf {
+                base.grid != before.grid || !ownBase(before, stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),
+                    stock?.camp ?: base.camp, stocks)
+            }
+        }
         val after: Navigator
         val cost: Long
         val pool: CpPool
@@ -620,14 +633,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             is PlaceMove.SwitchMode -> {
                 if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
                 if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
-                if (move.mode != 5 || before.baseId == 0 || before.mode != 4) return reject(NavigationRejection.BASE)
-                val base = galaxy.conditions[before.baseId] ?: return reject(NavigationRejection.BASE)
-                val stock=stocks?.bases?.get(base.baseId)
-                if (base.grid != before.grid || !ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),
-                    stock?.camp ?: base.camp,stocks)) return reject(NavigationRejection.ACCESS)
+                if (move.mode != 5) return reject(NavigationRejection.BASE)
+                departureRejection()?.let { return reject(it) }
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
-                if (before.spotId != 0 && (before.spotOwner != 0 || stocks != null && stock == null ||
+                if (before.spotId != 0 && (before.spotOwner != 0 || stocks != null && before.baseId !in stocks.bases ||
                     galaxy.facilitiesAt(before.baseId, stocks,countries).none { facility -> facility.kind == 4 &&
                         facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
                     return reject(NavigationRejection.EMBARKED)
@@ -639,7 +649,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
                 if (before.spotId != 0) return reject(NavigationRejection.EMBARKED)
                 if (move.baseId == 0) {
-                    if (move.mode != 5 || before.baseId == 0) return reject(NavigationRejection.BASE)
+                    if (move.mode != 5) return reject(NavigationRejection.BASE)
+                    departureRejection()?.let { return reject(it) }
                 } else {
                     val base = galaxy.conditions[move.baseId] ?: return reject(NavigationRejection.BASE)
                     if (base.grid != before.grid || move.mode != 4) return reject(NavigationRejection.BASE)

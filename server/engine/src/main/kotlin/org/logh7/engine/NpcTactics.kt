@@ -81,8 +81,8 @@ internal object NpcTactics {
         for(outfitId in original.outfits.keys.sorted()) {
             var outfit=stocks.outfits.getValue(outfitId)
             val position=outfit.positionIn(galaxy)
-            // A player taking command must never compete with autonomous orders.
-            if(position.baseId!=0 || !TacticalAuthority.uncommanded(outfit,stocks)) {
+            // Autonomous orders stop when the fleet is docked, commanded, or eliminated.
+            if(position.baseId!=0 || outfit.country in session.eliminated || !TacticalAuthority.uncommanded(outfit,stocks)) {
                 for(unit in outfit.activeShips?.values.orEmpty()) {
                     val state=unit.tactical ?: continue
                     if(position.baseId==0 && state.motion.grid==position.grid && unit.motionCommander!=0 &&
