@@ -500,6 +500,19 @@ class TacticalCommandOperationsTest {
         assertTrue(events.single {it.order.command.opcode==0x419}.cancelled)
         assertEquals(lost.bases.getValue(1000).supplies,after.bases.getValue(1000).supplies)
     }
+    @Test fun fortressCannonHitsBeforeTheStarButCannotHitThroughIt() {
+        val s=state()
+        s.players=s.players+mapOf(
+            "pilot" to s.players.getValue("pilot").copy(motion=motion(2f,0f)),
+            "ally" to s.players.getValue("ally").copy(motion=motion(0f,-1f)))
+        s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(
+            fortresses=mapOf(1000 to TacticalFortressMotion(2488,motion(0f,-2f)))))
+        val r=run(s)
+        assertNotNull(accept(r,TacticalCommand(0x419,base=1000,direction=0f)).player)
+        val impacts=mutableListOf<TacticalImpact>()
+        settle(r,now+35,impacts=impacts)
+        assertEquals(listOf(s.players.getValue("ally").unitId),impacts.filter {it.fortress}.map {it.hit.target})
+    }
     @Test fun fortressRepairsAndSuppliesItsStationedShipsAcrossReloadWithoutLaunchingThem() {
         for(opcode in listOf(0x41b,0x41c))for(atBase in listOf(false,true)) {
             val s=state();val outfit=s.stocks.outfits.getValue(1)

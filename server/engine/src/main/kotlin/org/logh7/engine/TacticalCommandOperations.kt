@@ -407,6 +407,7 @@ internal object TacticalCommandOperations {
                         val at=pose(id,p.grid,now,players,stocks,g)?.position ?: continue
                         val x=at.x-from.x;val y=at.y-from.y;val along=x*dx+y*dy
                         if(along<0f || along>500f || abs(x*dy-y*dx)>1f)continue
+                        if(TacticalTerrain.fireBlocked(g,p.grid,from,at))continue
                         // The cannon hits friendly ships too, using the actual physical target.
                         val victim=TacticalCombat.unit(id,p.grid,stocks,g,players) ?: continue
                         val hit=TacticalCombat.strike(session,g,players,stocks,c.base,p.grid,o.acceptedAt+1,now,id,TacticalWeapon.BEAM,
