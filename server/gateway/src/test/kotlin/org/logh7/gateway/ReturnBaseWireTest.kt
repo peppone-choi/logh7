@@ -98,7 +98,12 @@ class ReturnBaseWireTest {
 
             val deadline = (1 + CoupActions.CAPITAL_DAYS * Justice.DAY) * 1000
             fixture.engine.submit(WorldCommand.AdvanceTo((deadline + rules.speed - 1) / rules.speed))
-            val changed = ByteBuffer.wrap(through(client, 0x0356).last())
+            val updates = through(client, 0x0356)
+            val conditions = ByteBuffer.wrap(updates.single { code(it) == 0x031f })
+            assertEquals(capital.id, conditions.getInt(7))
+            assertEquals(0, conditions.get(12).toInt())
+            assertEquals(capital.id, ByteBuffer.wrap(updates.single { code(it) == 0x0321 }).getInt(7))
+            val changed = ByteBuffer.wrap(updates.last())
             assertEquals(10000, changed.getInt(7))
             assertEquals(0, changed.getInt(27))
             assertEquals(0, inventory.bases.getValue(capital.id).camp)
