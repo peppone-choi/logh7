@@ -29,6 +29,19 @@ class FortressSinkingPresenceTest {
         assertEquals(1,received.size)
     }
 
+    @Test fun dockedStrategicOwnerReceivesTheSceneTransitionForCrossGridReturn() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        val docked = Navigator(1,10001,Power.ALLIANCE,2487,1000,1000,900,baseId=1002,mode=4)
+        hub.update(GamePresence.Member("one",character,docked,received::add))
+        val returned = docked.copy(grid=2490,baseId=1004)
+        hub.fortressSunk(returned,character,emptyList(),100)
+        val exit = received.flatten().filter { opcode(it)==0x0f1f }.single()
+        assertEquals(0,exit[6].toInt())
+        assertEquals(docked.grid,ByteBuffer.wrap(exit).getInt(7))
+        assertEquals(returned,hub.communicationMember("one")!!.player)
+    }
+
     @Test fun dockedTacticalOwnerLeavesTheBattleAndGetsItsReturnLocation() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         val docked=Navigator(1,10001,Power.ALLIANCE,2487,1000,1000,900,baseId=1002,mode=4,cpPaused=true)
