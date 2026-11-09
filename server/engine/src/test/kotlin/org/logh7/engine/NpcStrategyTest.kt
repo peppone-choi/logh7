@@ -191,6 +191,26 @@ class NpcStrategyTest {
         })
     }
 
+    @Test fun defeatedFlagshipsAtDepartureDoNotBlockAnAdvanceAgainstAnActiveCountry() {
+        val empire = Power.EMPIRE.country
+        val alliance = Power.ALLIANCE.country
+        val defeatedCountry = CountryId(42)
+        val continuing = simulation.copy(countries = setOf(empire, alliance, defeatedCountry),
+            eliminated = mapOf(defeatedCountry to CountryDefeat(EndReason.SYSTEMS_REDUCED, 0)))
+        val pilots = players()
+        for (id in 12000..12002) {
+            pilots[id.toString()] = Navigator(1, id, Power.ALLIANCE, 2487, 1000, 1000, 1000)
+                .copy(country = defeatedCountry)
+        }
+        val events = mutableListOf<NpcStrategicMovement>()
+        val before = stocks()
+        val reserved = NpcStrategy.advance(continuing.copy(gameMillis = 0), galaxy, pilots, before, events)
+        assertEquals(NpcStrategicState(21600, 2488, 3600), reserved.outfits.getValue(1).strategy)
+        val arrived = NpcStrategy.advance(continuing.copy(gameMillis = 3600_000), galaxy, pilots, reserved, events)
+        assertEquals(OutfitPosition(2488), arrived.outfits.getValue(1).position)
+        assertEquals(2488, events.single().destination)
+    }
+
     @Test fun reservedAdjacentJumpRestoresThenConsumesRealDepotSuppliesOnceAndStartsContact() {
         val before=stocks();val players=players();val events=mutableListOf<NpcStrategicMovement>()
         val reserved=advance(0,before,players,events)

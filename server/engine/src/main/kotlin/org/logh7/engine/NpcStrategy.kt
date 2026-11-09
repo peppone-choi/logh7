@@ -211,7 +211,7 @@ internal object NpcStrategy {
         if(now>0xffffffffL-21600)return original
         var stocks=original
         var forceCache:Map<Int,List<GridForces.Force>>?=null
-        fun forces():Map<Int,List<GridForces.Force>> = forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks).also {forceCache=it}
+        fun forces():Map<Int,List<GridForces.Force>> = forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks,session.eliminated.keys).also {forceCache=it}
         fun repairAtDepot(outfit:OutfitStock):OutfitStock {
             val ships=outfit.activeShips!!
             if(outfit.guard!=null || ships.values.none {it.damaged>0})return outfit
