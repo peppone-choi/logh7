@@ -92,6 +92,14 @@ struct AssignmentMail {
     bool holdsTabSearch(const void* command)const {
         return stage==Granted || ((stage==Editing || stage==Sending) && command && command==editor);
     }
+    /** The native editor class (0052f700-005339a1, e.g. its data load 005321a0) does not read the command object's +0x28:
+     * it reads the CD selection, card ID 0xc9eac0 and command slot 0xc9eabc, in the card definition table. Only 割当 (0x43)
+     * takes the base and outfit chosen in this command's own steps; any other command loads the sender's own unit (run 06:
+     * 0326 base/0 twice, 032e 0/base, header 제0함대). The mail editor is opened from the 命令/提案 tab, so the CD never
+     * selected 割当; those lookups see it only while this draft's editor is the open command. */
+    bool editsAssignment(const void* session,const void* command)const {
+        return command && command==editor && session==world && (stage==Editing || stage==Sending);
+    }
     /** After a grant: the editor the native entry opened, or nullptr when it did not open (caller cancels). */
     bool attach(const void* command) {
         if(stage!=Granted)return false;

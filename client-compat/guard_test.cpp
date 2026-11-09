@@ -427,6 +427,21 @@ static bool assignmentMailTest() {
     if(!mail.begin(&world,10001,10002,22,0) || mail.receive(&world,10001,10002,2,22,0,44,0)!=Mail::Grant ||
         !mail.attach(&editor) || mail.tick(&world,10001,&direct,1)!=Mail::Closed || mail.holdsTabSearch(&editor) ||
         mail.holdsTabSearch(&direct))return false;                                         // closed editor, then a direct 割当
+    // The editor class sees 割当 from the CD lookups only while this draft's editor is the open command (run 06).
+    if(logh::assignmentMailCommand!=0x43)return false;
+    mail=Mail{};
+    if(mail.editsAssignment(&world,&editor) || mail.editsAssignment(&world,nullptr))return false;            // idle, direct 割当
+    if(!mail.begin(&world,10001,10002,23,0) || mail.editsAssignment(&world,&editor) ||
+        mail.receive(&world,10001,10002,2,23,0,44,0)!=Mail::Grant || mail.editsAssignment(&world,&editor) ||
+        !mail.attach(&editor))return false;                                                                   // not before attach
+    if(!mail.editsAssignment(&world,&editor) || mail.editsAssignment(&world,&direct) ||
+        mail.editsAssignment(&world,nullptr) || mail.editsAssignment(&other,&editor))return false;
+    if(mail.send(&world,10001,&editor,10)!=Mail::Envelope || !mail.editsAssignment(&world,&editor))return false; // sending
+    if(mail.tick(&world,10001,nullptr,20)!=Mail::None || mail.editsAssignment(&world,&editor))return false;   // closed itself
+    if(mail.receive(&world,10001,10002,2,23,0,0,30)!=Mail::Delivered || mail.editsAssignment(&world,&editor))return false;
+    if(!mail.begin(&world,10001,10002,24,0) || mail.receive(&world,10001,10002,2,24,0,44,0)!=Mail::Grant ||
+        !mail.attach(&editor) || mail.tick(&world,10001,&editor,logh::assignmentDraftLife)!=Mail::Expired ||
+        mail.editsAssignment(&world,&editor) || mail.stale!=&editor)return false;                            // stale editor
     return wcscmp(logh::assignmentMailFailure(4),logh::assignmentMailFailure(99)) &&
         wcscmp(logh::assignmentMailFailure(8),logh::assignmentMailFailure(13));
 }

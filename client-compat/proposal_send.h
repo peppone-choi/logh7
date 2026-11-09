@@ -139,9 +139,78 @@ static bool assignmentHoldsSearch(const BYTE* record) {
     return *reinterpret_cast<const unsigned short*>(record+4)==logh::assignmentTabSearch &&
         assignmentMail.holdsTabSearch(*reinterpret_cast<void**>(0xc9e2f8));
 }
+/** The editor's command lookups (AssignmentMail::editsAssignment). Each of the twelve sites reads the CD slot
+ * (`mov eax,[0xc9eabc]`), range-checks it (0..0x17), calls 004c8700 for the card definition table and reads the command
+ * word at table + card*0x46 + 0x20 + slot*2, reloading the card (0xc9eac0) and slot from the globals right after the call.
+ * While this draft's editor is open the slot read passes the check and the table pointer is shifted so that this word is
+ * 割当. Nothing is written: the CD, the selection steps (0057xxxx) and a direct 割当 keep their own lookups. */
+static constexpr unsigned assignmentEditorLookups[][2]={
+    {0x52f73b,0x52f74f},{0x530c70,0x530c90},{0x530f74,0x530f92},{0x531301,0x531315},{0x531421,0x531437},
+    {0x531d5f,0x531d7f},{0x53222b,0x53223f},{0x5324a6,0x5324bc},{0x5329ce,0x5329fd},{0x533527,0x533549},
+    {0x5338e7,0x5338fc},{0x533983,0x5339a1}};
+static constexpr unsigned assignmentCardTable=0x4c8700;
+static constexpr BYTE assignmentSlotRead[5]={0xa1,0xbc,0xea,0xc9,0x00};
+static const unsigned short assignmentEditorCommand=static_cast<unsigned short>(logh::assignmentMailCommand);
+static bool __cdecl assignmentEditorActive() {
+    return assignmentMail.editsAssignment(*reinterpret_cast<void**>(0x7ccffc),*reinterpret_cast<void**>(0xc9e2f8));
+}
+static BYTE* __cdecl assignmentEditorCards() {
+    auto table=reinterpret_cast<BYTE*(__cdecl*)()>(assignmentCardTable)();
+    if(!table || !assignmentEditorActive())return table;
+    const uintptr_t card=*reinterpret_cast<unsigned*>(0xc9eac0),slot=*reinterpret_cast<unsigned*>(0xc9eabc);
+    return reinterpret_cast<BYTE*>(reinterpret_cast<uintptr_t>(&assignmentEditorCommand)-0x20-card*0x46-slot*2);
+}
+// Both keep ecx/edx like the instructions they replace; the sites recompute them anyway.
+static void __declspec(naked) assignmentEditorSlot() {
+    __asm {
+        push ecx
+        push edx
+        call assignmentEditorActive
+        pop edx
+        pop ecx
+        test al,al
+        jnz assigned
+        mov eax,dword ptr ds:[0xc9eabc]
+        ret
+    assigned:
+        xor eax,eax
+        ret
+    }
+}
+static void __declspec(naked) assignmentEditorTable() {
+    __asm {
+        push ecx
+        push edx
+        call assignmentEditorCards
+        pop edx
+        pop ecx
+        ret
+    }
+}
+static void assignmentCall(BYTE code[5],unsigned site,const void* target) {
+    code[0]=0xe8;
+    at<LONG>(code,1)=static_cast<LONG>(reinterpret_cast<uintptr_t>(target)-(site+5));
+}
+static bool installAssignmentEditorLookups() {
+    constexpr unsigned count=_countof(assignmentEditorLookups);
+    BYTE cardCalls[count][5];
+    for(unsigned i=0;i<count;++i) {
+        assignmentCall(cardCalls[i],assignmentEditorLookups[i][1],reinterpret_cast<const void*>(assignmentCardTable));
+        if(memcmp(reinterpret_cast<void*>(assignmentEditorLookups[i][0]),assignmentSlotRead,5) ||
+            memcmp(reinterpret_cast<void*>(assignmentEditorLookups[i][1]),cardCalls[i],5))return false;
+    }
+    for(unsigned i=0;i<count;++i) {
+        BYTE slot[5],table[5];
+        assignmentCall(slot,assignmentEditorLookups[i][0],reinterpret_cast<const void*>(&assignmentEditorSlot));
+        assignmentCall(table,assignmentEditorLookups[i][1],reinterpret_cast<const void*>(&assignmentEditorTable));
+        if(!patchBytes(reinterpret_cast<void*>(assignmentEditorLookups[i][0]),assignmentSlotRead,slot,5) ||
+            !patchBytes(reinterpret_cast<void*>(assignmentEditorLookups[i][1]),cardCalls[i],table,5))return false;
+    }
+    return true;
+}
 static bool installAssignmentMail() {
     auto call=reinterpret_cast<BYTE*>(assignmentSendCall);
-    if(memcmp(call,assignmentSendExpected,5))return false;
+    if(memcmp(call,assignmentSendExpected,5) || !installAssignmentEditorLookups())return false;
     BYTE replacement[5]={0xe8};
     at<LONG>(replacement,1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&assignmentSend)-call-5);
     return patchBytes(call,assignmentSendExpected,replacement,5);
