@@ -822,11 +822,13 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         offices:List<BootstrapMessages.OfficeCard>,seconds:Long) {
         val previous=members.values.singleOrNull {it.character.id.toInt()==departed.characterId &&
             it.player.generation==departed.generation} ?: return
-        val member=previous.copy(character=character,player=departed,offices=offices)
+        val member=previous.copy(character=character,player=departed,offices=offices,pendingTacticalEnd=false)
         val updated=update(member,seconds)
-        val exit=if(previous.player.cpPaused)listOf(org.logh7.protocol.TacticsMessages.notify(previous.player.grid,false)) else emptyList()
+        val exit=if(previous.player.cpPaused || previous.pendingTacticalEnd && previous.player==departed)listOf(org.logh7.protocol.TacticsMessages.notify(previous.player.grid,false)) else emptyList()
         send(member,exit+listOf(BootstrapMessages.changedCharacter(character,departed.pcp,departed.mcp,departed.spotId,
-            departed.spotOwner,departed.returnBase,offices),unit(member))+updated.refresh)
+            departed.spotOwner,departed.returnBase,offices),unit(member)))
+        // During tactical exit the exchange suppresses strategy cache rebuilds, not the return itself.
+        if(updated.refresh.isNotEmpty())send(member,updated.refresh)
     }
     @Synchronized fun refreshCharacter(character:CharacterMessages.Generate,player:Navigator,
         offices:List<BootstrapMessages.OfficeCard>,seconds:Long,outfit:Int=0) {

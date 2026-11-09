@@ -772,7 +772,7 @@ class GameExchange(
             // tactical transition instead, then answer its 0f02 initialization request.
             return listOf(org.logh7.protocol.TacticsMessages.notify(player.grid, true))
         }
-        if (messages.none { opcode(it) == 0x0325 }) return messages
+        if (!player.cpPaused || messages.none { opcode(it) == 0x0325 }) return messages
         val tactical = TacticalBootstrap(snapshot, world.galaxy, player, ::currentCharacterById)
         return messages.filterNot { opcode(it) == 0x0325 } +
             org.logh7.protocol.TacticsMessages.definitions(player.grid, tactical.units,tactical.groundDefinitions)
