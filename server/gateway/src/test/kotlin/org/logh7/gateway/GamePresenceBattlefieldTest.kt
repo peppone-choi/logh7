@@ -221,6 +221,31 @@ class GamePresenceBattlefieldTest {
         verifyBattlefield(listOf(0x040a)) { it.support(result.copy(cancelled = true), committed, galaxy) { null } }
     }
 
+    @Test fun sameGridTacticalEndSurvivesCommittedStrategicMovementRefresh() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        val viewer = GamePresence.Member("viewer", character, player, received::add)
+        hub.update(viewer)
+        val finished = player.copy(cpPaused = false, cpRecoveryAt = 100)
+        val committed = snapshot.copy(navigators = mapOf("pilot" to finished))
+        val move = NpcStrategicMovement(1, 1, 2487, 2488, 100, listOf(1), recipients)
+        hub.strategicMovement(move, committed, WorldBootstrap(galaxy)) { null }
+        assertEquals(finished, hub.detail("viewer", 10000)?.player)
+        received.clear()
+
+        val end = TacticalEnd(1, player.characterId, player.grid, "viewer")
+        val support = TacticalSupportResult(1, player.grid, TacticalSupportAction.SUPPLY,
+            1, 2, 100, 0, 0, recipients, cancelled = true, character = player.characterId)
+        hub.support(support, committed, galaxy) { null }
+        hub.tacticalEnd(end, committed)
+        assertEquals(listOf(0x0f1f), received.flatten().map(::opcode))
+
+        received.clear()
+        hub.tacticalEnd(end, committed)
+        hub.tacticalEnd(end, committed.copy(navigators = mapOf("pilot" to player)))
+        assertTrue(received.isEmpty())
+    }
+
     @Test fun committedReturnSuppressesMovementAndSupportBeforePresenceCatchesUp() {
         val hub = GamePresence()
         val received = mutableListOf<List<ByteArray>>()

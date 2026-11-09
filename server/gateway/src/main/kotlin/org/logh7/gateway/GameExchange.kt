@@ -688,7 +688,7 @@ class GameExchange(
                 tacticalInitializationPending = update.player.cpPaused && (update.stage != 0x0f02 || repeatTactical)
                 if(!tacticalInitializationPending)pendingTacticalRevision=-1
             }
-            val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0, onTacticalPresence), gameSeconds()) }
+            val shared = update?.let { presence?.update(GamePresence.Member(connection, it.character, it.player, onPresence, offices(it.character,it.player), administration?.stationedOutfit(it.player) ?: 0, sendTactical = onTacticalPresence), gameSeconds()) }
             val output = if (update?.initialize == true && shared != null) {
                 val index = messages.indexOfFirst { java.nio.ByteBuffer.wrap(it).getShort(4).toInt() == 0x0325 }
                 check(index >= 0)
