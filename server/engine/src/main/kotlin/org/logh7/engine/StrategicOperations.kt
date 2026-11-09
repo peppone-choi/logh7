@@ -134,6 +134,24 @@ internal object StrategicOperations {
         val next=stocks.copy(strategic=stocks.strategic.copy(operations=plans))
         return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
     }
+    fun awardSweep(stocks:PlanetStocks,shooter:Navigator,grid:Int,seconds:Long,destroyed:Int):PlanetStocks {
+        if(destroyed<=0 || CoupActions.rebel(stocks,shooter.characterId,shooter.country))return stocks
+        if(stocks.strategic.operations.none {plan->
+            val issued=plan.issuedAt
+            plan.live && plan.purpose==StrategicPurpose.SWEEP && plan.country==shooter.country &&
+                shooter.characterId in plan.characters && issued!=null && seconds in issued until OperationPlanRules.endGameSeconds(issued) &&
+                WarpCourse.cruiseCost(grid,plan.grid)<=400
+        })return stocks
+        if(stocks.outfits.values.any {shooter.characterId in it.members()})return stocks
+        val people=stocks.strategic.people
+        if(shooter.characterId !in people && people.size>=4096)return stocks
+        val person=people[shooter.characterId] ?: StrategicPerson()
+        // One merit per boat is the replacement value. The manual specifies per-boat credit without a value.
+        val merit=minOf(0xffffffffL,person.merit+destroyed)
+        if(merit==person.merit)return stocks
+        return stocks.copy(strategic=stocks.strategic.copy(people=people+(shooter.characterId to person.copy(merit=merit))))
+    }
+
     fun settle(galaxy:Galaxy,stocks:PlanetStocks,seconds:Long,navigators:Collection<Navigator>?=null):PlanetStocks {
         if(stocks.strategic.operations.none {it.live})return stocks
         var people=stocks.strategic.people
@@ -159,7 +177,7 @@ internal object StrategicOperations {
             val outcome=when(plan.purpose) {
                 StrategicPurpose.OCCUPY->when {ownership.size==ids.size->OperationOutcome.FULL_SUCCESS;ownership.isEmpty()->OperationOutcome.FAILURE;else->OperationOutcome.PARTIAL_SUCCESS}
                 StrategicPurpose.DEFEND->if(ownership.containsAll(plan.defended))OperationOutcome.FULL_SUCCESS else OperationOutcome.PARTIAL_SUCCESS
-                StrategicPurpose.SWEEP->null // No fabricated success/failure without the actual kill-linked battle event.
+                StrategicPurpose.SWEEP->null // Actual ship losses pay individually at the time of the hit.
             }
             val bonus=if(plan.state==StrategicPlanState.STARTED || reached)when(outcome) {
                 OperationOutcome.FULL_SUCCESS->100;OperationOutcome.PARTIAL_SUCCESS->50;OperationOutcome.FAILURE,null->0

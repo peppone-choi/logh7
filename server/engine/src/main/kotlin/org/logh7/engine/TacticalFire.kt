@@ -183,9 +183,11 @@ internal object TacticalCombat {
         var departed:Navigator?=null
         var earned=0L
         var pirateSunk=false
+        val destroyedBoats:Int
         val hit = if(victim.pirate!=null) {
             val before=checkNotNull(inventory.social.pirates.unit(targetId)).second.boats
             val (next,lost)=PirateActions.damage(inventory,targetId,damage);inventory=next
+            destroyedBoats=lost
             earned=EvaluationPoints.sunk(lost)
             pirateSunk=before>0 && before==lost
             if(pirateSunk)inventory=PirateActions.reward(inventory,EvaluationPoints.shooter(source,players,stocks))
@@ -194,7 +196,8 @@ internal object TacticalCombat {
             val (outfit,unit)=victim.regular
             val changed=TacticalLosses.apply(outfit,unit.id,damage)
             val survivor=changed.activeShips!!.values.single {it.id==targetId}
-            earned=EvaluationPoints.sunk(unit.boats-survivor.boats)
+            destroyedBoats=unit.boats-survivor.boats
+            earned=EvaluationPoints.sunk(destroyedBoats)
             inventory=inventory.copy(outfits=inventory.outfits+(outfit.id to changed))
             TacticalHit(sequence,grid,seconds,targetId,victim.spec.number-survivor.boats,
                 damaged=survivor.unavailable)
@@ -208,6 +211,7 @@ internal object TacticalCombat {
             val face=kotlin.math.floor(((angle+Math.PI/6)%circle+circle)%circle/(Math.PI/3)).toInt().coerceIn(0,5)
             val absorbed=minOf(damage,hull.levels()[face])
             val hp=hull.hp-(damage-absorbed)
+            destroyedBoats=if(hp<=0)1 else 0
             val shields=hull.shields.toMutableList().also {it[face]-=absorbed*100*hull.clockScale}
             val lost=FlagshipHull.capacity(hull.kind)-(shields[face]/(100*hull.clockScale)).toInt()
             if(hp<=0) {
@@ -223,6 +227,9 @@ internal object TacticalCombat {
             if(outfit==null)OutfitDiscipline.BASELINE else OutfitDiscipline.value(inventory,outfit,seconds))
         inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(morale=inventory.tacticalCommands.morale+(targetId to morale.coerceAtLeast(0))))
         inventory=EvaluationPoints.award(inventory,EvaluationPoints.shooter(source,players,stocks),earned)
+        if(destroyedBoats>0)players.values.firstOrNull {it.unitId==source}?.let {shooter->
+            inventory=StrategicOperations.awardSweep(inventory,shooter,grid,seconds,destroyedBoats)
+        }
         return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed,pirateSunk=pirateSunk)
     }
 

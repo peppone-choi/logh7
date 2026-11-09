@@ -25,7 +25,10 @@ class FlagshipCombatWireTest {
             "load-001" to Navigator(1,10001,Power.ALLIANCE,2488,1000,1000,900,cpPaused=true,returnBase=1000,
                 hull=FlagshipHull(89,now,hp=1,shields=List(6){0L}),
                 motion=TacticalMotion(2488,now,TacticalPose(targetPoint,0f),0f,0f,listOf(targetPoint))))
-        var inventory=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,100,100,100)))
+        val sweep=StrategicOperation(1,10002,26,CountryId(2),2488,StrategicForce.SOLO,StrategicPurpose.SWEEP,1,now,
+            StrategicPlanState.ISSUED,now,characters=setOf(10000),issuer=10003)
+        var inventory=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,100,100,100)),
+            strategic=StrategicState(operations=listOf(sweep)))
         val navStore=object:NavigationStore {
             override fun load()=savedPlayers
             override fun save(players:Map<String,Navigator>){savedPlayers=players.toMap()}
@@ -61,6 +64,12 @@ class FlagshipCombatWireTest {
             // No winner clock poll: the committed kill publishes damage before battle end.
             val won=through(clients[0],0x0f1f)
             assertEquals(0,won[6].toInt());assertEquals(2488,ByteBuffer.wrap(won).getInt(7))
+            val changed=through(clients[0],0x0356)
+            assertEquals(10000,ByteBuffer.wrap(changed).getInt(7))
+            val cards=1+6+6+1
+            val abilities=8*4+3
+            assertEquals(1,ByteBuffer.wrap(changed).getInt(changed.size-cards-abilities-4))
+            assertEquals(1L,inventory.strategic.people.getValue(10000).merit)
             val winner=savedPlayers.getValue("load-000")
             assertFalse(winner.cpPaused);assertEquals(now+120,winner.cpRecoveryAt)
             assertNull(winner.attack);assertNull(winner.motion);assertNull(winner.charge)
