@@ -3,6 +3,7 @@ package org.logh7.gateway
 import java.nio.file.Path
 import org.logh7.engine.PublishedOriginalCandidates
 import org.logh7.engine.WorldSnapshot
+import org.logh7.engine.members
 
 /** Preserve previous generations' files; a new session never reuses its previous characters. */
 class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
@@ -21,10 +22,14 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
         val snapshot = worldSnapshot()?.takeIf { it.session?.generation == generation }
         val navigators = snapshot?.navigators.orEmpty().values.asSequence()
             .filter { it.generation == generation }.map { it.characterId }
-        // Retired/deceased and unclaimed living personnel still have world identities.
-        val personnel = snapshot?.planetStocks?.takeIf { it.generation == generation }
-            ?.strategic?.people.orEmpty().keys.asSequence()
-        return navigators + personnel
+        val stocks = snapshot?.planetStocks?.takeIf { it.generation == generation } ?: return navigators
+        // An initial or legacy office holder may have no navigator or strategic person row yet.
+        val baseOfficers = stocks.bases.values.asSequence().flatMap {
+            sequenceOf(it.governorId,it.garrisonCommanderId,it.capitalAdministratorId,it.capitalDefenseCommanderId,it.guardInspectorId)
+        }
+        return navigators + stocks.strategic.people.keys.asSequence() + stocks.strategic.offices.asSequence().map { it.character } +
+            stocks.nationalOffices.values.asSequence() + stocks.logisticsOfficers.keys.asSequence() + baseOfficers +
+            stocks.outfits.values.asSequence().flatMap { it.members() }
     }
     private fun open(generation:Long)=CharacterCreation(path(generation),accountFame=fame.accounts,publishedOriginals=publishedOriginals,
         worldOccupiedOriginals = { worldCharacterIds(generation).filter { it in 1..9999 }.map { it.toLong() }.toSet() },
