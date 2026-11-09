@@ -360,13 +360,15 @@ internal object TacticalCombat {
         if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory);if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {inventory=EspionageActions.settle(galaxy,session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
         val departedIds=impacts.mapNotNull {it.departed?.characterId}+fortressSunk.map {it.characterId}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts,departedIds.toSet())
+        val sunkFlagships=impacts.mapNotNull {if(it.hit.destroyed>0)it.departed else null}+fortressSunk
         // A replacement flagship reuses the unit ID, so the lost hull's morale must not carry over.
-        val sunkUnits=impacts.mapNotNull {if(it.hit.destroyed>0)it.departed?.unitId else null}+fortressSunk.map {it.unitId}
-        if(sunkUnits.isNotEmpty())inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(
-            morale=inventory.tacticalCommands.morale-sunkUnits.toSet()))
-        inventory=BattleDeath.apply(inventory,departedIds,now)
-        inventory=SinkingExperience.apply(inventory,departedIds.distinct(),
-            departedIds.takeIf {it.isNotEmpty()}?.let {production.identities?.invoke()}.orEmpty())
+        if(sunkFlagships.isNotEmpty()) {
+            inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(
+                morale=inventory.tacticalCommands.morale-sunkFlagships.map {it.unitId}.toSet()))
+            val sunkCharacters=sunkFlagships.map {it.characterId}.distinct()
+            inventory=BattleDeath.apply(inventory,sunkCharacters,now)
+            inventory=SinkingExperience.apply(inventory,sunkCharacters,production.identities?.invoke().orEmpty())
+        }
         clearFinishedOrders(players,galaxy,inventory,now)
         if(inventory.social.coup!=stocks.social.coup)players.replaceAll {_,player->
             navigation.clearInvalidReturnBase(player,inventory)
