@@ -162,20 +162,31 @@ class FleetNavigationTest {
         val initial=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,100,100)),
             outfits=mapOf(2 to OutfitStock(2,2,OutfitKind.FLEET,1049,1002,number=2)),
             warehouses=mapOf(1002 to OutfitWarehouse(1002,2,OutfitKind.FLEET,1049,2)),deploymentInitialized=true)
-        val state=State(initial,Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000)).also {it.players=emptyMap()}
-        fun enter():NavigationResult {
+        val predecessor=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000)
+        val state=State(initial,predecessor)
+        val titled=StrategicPerson(rank=10,peerage=Peerage.COUNT)
+        fun enter(profile:StrategicPerson?=null):NavigationResult {
             val navigation=Navigation(world,state.nav,NavigationPolicy())
             val production=PlanetProduction(world,state.inventory,SessionRules.load().startSeconds,PlanetProductionPolicy())
             return FleetNavigation.apply(request,imperial,world,navigation,production,
-                production.settle(1,imperial.gameMillis/1000),state.commit) {false}
+                production.settle(1,imperial.gameMillis/1000),state.commit,profile) {false}
         }
+        assertEquals(NavigationRejection.IDENTITY,enter(titled).rejection)
+        assertEquals(predecessor,state.players.getValue("pilot"))
+        assertEquals(0,state.commits)
+        state.stocks=BattleDeath.apply(initial,listOf(predecessor.characterId),imperial.gameMillis/1000) {_,_->true}
+
         state.fail=true
-        assertFailsWith<java.io.IOException> {enter()}
-        assertTrue(state.players.isEmpty())
+        assertFailsWith<java.io.IOException> {enter(titled)}
+        assertEquals(predecessor,state.players.getValue("pilot"))
+        assertNull(state.stocks.strategic.people[1001])
         assertEquals(0,state.stocks.outfits.getValue(2).aideId)
 
         state.fail=false
-        val docked=assertNotNull(enter().player)
+        val docked=assertNotNull(enter(titled).player)
+        assertEquals(docked,state.players.getValue("pilot"))
+        assertEquals(titled,state.stocks.strategic.people[1001])
+        assertTrue(BattleDeath.deceased(state.stocks,predecessor.characterId))
         assertEquals(1049,docked.baseId)
         assertEquals(4,docked.mode)
         assertEquals(0,docked.spotId)
