@@ -119,4 +119,33 @@ class CompletenessSupplyWireTest {
             assertEquals(840,state.players.getValue("load-000").mcp)
         }
     }
+
+    @Test fun cargoAboardLimitsBothTheDirectoryQuoteAndConfirmedSupply() {
+        val state=State()
+        val target=state.stocks.outfits.getValue(2).copy(kind=OutfitKind.TRANSPORT,commanderId=0)
+        val capacity=OutfitSupplies.capacity(target)
+        val ships=target.activeShips!!.values
+        val stocked=OutfitSupplies.withBalances(target,ships.associate {
+            it.id to (OutfitSupplies.unitCapacity(it)-if(it==ships.last())100 else 0)
+        })
+        val cargo=TransportPackage(1,CountryId(2),1049,1050,90,carrier=target.id,carrierBoats=ships.sumOf {it.boats})
+        state.stocks=state.stocks.copy(outfits=state.stocks.outfits+(target.id to stocked),
+            warehouses=state.stocks.warehouses+(102 to state.stocks.warehouses.getValue(102).copy(kind=OutfitKind.TRANSPORT)),
+            strategic=state.stocks.strategic.copy(transports=listOf(cargo)))
+        fixture(state,"cargo-capacity").use { server ->
+            val client=server.join(server.account(0),true,false).client
+            start(client)
+            client.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(14).putShort(124)
+                .putShort(0x5351).putShort(99).also {it.putInt(19,2487)}.array())
+            assertEquals(10,ByteBuffer.wrap(client.expect(0x1200)).getInt(29))
+            client.expect(0x1200);client.expect(0x120b);client.expect(0x1201)
+            client.send(request().also {ByteBuffer.wrap(it).putInt(10,0x53510001).putInt(26,10)})
+            val ack=ByteBuffer.wrap(client.expect(0x0c01))
+            assertEquals(0,ack.int)
+            assertEquals(capacity-90,ack.getInt(30))
+            assertEquals(990,state.stocks.outfits.getValue(1).supplies)
+            assertEquals(capacity-90,state.stocks.outfits.getValue(2).supplies)
+            assertEquals(listOf(cargo),state.stocks.strategic.transports)
+        }
+    }
 }

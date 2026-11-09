@@ -29,7 +29,7 @@ data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetSt
  */
 object CompletenessSupply {
     /** Cargo and CP rules shared by the authorized directory and by the committing world actor. */
-    fun quote(player: Navigator, from: OutfitStock, to: OutfitStock): CompletenessSupplyQuote {
+    fun quote(player: Navigator, from: OutfitStock, to: OutfitStock, stocks: PlanetStocks): CompletenessSupplyQuote {
         if (player.cpPaused || player.navigationPending)
             return CompletenessSupplyQuote(rejection = LogisticsRejection.BUSY)
         val sourceUnits = from.activeShips?.values
@@ -39,7 +39,8 @@ object CompletenessSupply {
         if (sourceUnits == null || targetUnits == null || sourceUnits.size > 26 || targetUnits.size > 70 ||
             to.supplies > maximum || from.supplies > OutfitSupplies.capacity(from))
             return CompletenessSupplyQuote(rejection = LogisticsRejection.STOCK)
-        val amount = minOf(from.supplies, maximum - to.supplies)
+        val cargo = TransportActions.carriedCargo(to, stocks.strategic.transports).sumOf { it.first.toLong() }
+        val amount = minOf(from.supplies.toLong(), maximum - to.supplies - cargo).coerceAtLeast(0).toInt()
         if (amount == 0) return CompletenessSupplyQuote()
         val paid = CpPayment.charge(CpBalance(player.pcp.toLong(), player.mcp.toLong()), 160, CpPool.MCP)
         return if (paid is PaymentResult.Paid) CompletenessSupplyQuote(amount, paid)
@@ -70,7 +71,7 @@ object CompletenessSupply {
         if (base?.let(TacticalAuthority::camp) != camp ||
             (from.position?.baseId ?: from.baseId) != player.baseId || (to.position?.baseId ?: to.baseId) != player.baseId)
             return reject(LogisticsRejection.LOCATION)
-        val quote = quote(player, from, to)
+        val quote = quote(player, from, to, stocks)
         quote.rejection?.let { return reject(it) }
         if (r.expected != null && r.expected != quote.cost) return reject(LogisticsRejection.QUOTE_CHANGED)
         val paid = quote.payment ?: return CompletenessSupplyResult(player, stocks, source = from.id)

@@ -35,6 +35,10 @@ object TransportActions {
     fun unitSlots(o:OutfitStock):Int = o.activeShips?.values.orEmpty().filter {it.boats>0}.sumOf {slots(it.stack.kind)}
     fun unitCount(units:UnitInventory)=units.ships.values.sum()+units.troops.values.sum()
     fun boats(o:OutfitStock)=o.activeShips?.values.orEmpty().sumOf {it.boats}
+    internal fun carriedCargo(outfit:OutfitStock,packages:List<TransportPackage>):List<Pair<Int,UnitInventory>> {
+        val alive=boats(outfit)
+        return packages.filter {it.carrier==outfit.id}.map {delivered(it,alive)}
+    }
 
     private fun add(a:Map<UnitStack,Int>,b:Map<UnitStack,Int>,sign:Int)=(a.keys+b.keys).associateWith {
         (a[it] ?: 0)+sign*(b[it] ?: 0)}.filterValues {it!=0}
@@ -116,8 +120,8 @@ object TransportActions {
                 next=if(pack.carrier==0) {
                     if(pack.source!=base.baseId)return reject(StrategyActionRejection.LOCATION)
                     val alive=boats(o)
-                    val carried=packages.filter {it.carrier==o.id}.map {delivered(it,alive)}
-                    val room=OutfitSupplies.capacity(o)-o.supplies-carried.sumOf {it.first}
+                    val carried=carriedCargo(o,packages)
+                    val room=OutfitSupplies.capacity(o)-o.supplies-carried.sumOf {it.first.toLong()}
                     val slots=unitSlots(o)-(o.activeGround?.values.orEmpty().count {it.carrier>0})-carried.sumOf {unitCount(it.second)}
                     if(alive<=0 || pack.supplies>room || unitCount(pack.units)>slots)return reject(StrategyActionRejection.TROOPS)
                     stocks.copy(strategic=stocks.strategic.copy(transports=packages.map {if(it.id==pack.id)it.copy(carrier=o.id,carrierBoats=alive,survivingBoats=alive) else it}))
