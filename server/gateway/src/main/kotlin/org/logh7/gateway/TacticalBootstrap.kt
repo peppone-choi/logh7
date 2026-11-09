@@ -141,9 +141,9 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val stocks=checkNotNull(snapshot.planetStocks)
         val now=snapshot.session?.gameSeconds ?: 0
         val commanders=snapshot.navigators.values.filter {it.generation==viewer.generation}.associateBy {it.characterId}
-        val entries=people.filterNot {BattleDeath.deceased(stocks,it.characterId) || (it.hull?.woundedUntil ?: 0)>now}.mapNotNull {p->
+        val entries=people.filterNot {it.country in eliminated || BattleDeath.deceased(stocks,it.characterId) || (it.hull?.woundedUntil ?: 0)>now}.mapNotNull {p->
             p.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(p.unitId,p.characterId,it)}
-        } + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
+        } + stocks.outfits.values.filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
             o.activeShips?.values.orEmpty().filter {u->
                 u.boats>0 && u.motionCommander==TacticalAuthority.commander(o,u,stocks) &&
                     !BattleDeath.deceased(stocks,u.motionCommander) && commanders[u.motionCommander]?.let {

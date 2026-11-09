@@ -40,14 +40,15 @@ internal object TacticalMotionProgress {
         }
         for((account,player) in players.toMap()) {
             if(!player.cpPaused || player.baseId!=0 || player.hull==null)continue
-            val motion=player.motion?.takeIf {it.grid==player.grid} ?: if(BlackHoleTides.edge(galaxy,player.grid)==null)continue else {
+            val defeated=player.country in session.eliminated
+            val motion=player.motion?.takeIf {it.grid==player.grid} ?: if(defeated || BlackHoleTides.edge(galaxy,player.grid)==null)continue else {
                 // A flagship that has not moved yet still drifts from its deployment pose.
                 val pose=TacticalDeployment.initial(player.unitId,player.grid,players.values,original,galaxy)
                 TacticalMotion(player.grid,now,pose,0f,pose.direction,listOf(pose.position))
             }
             // Navigator allows a parallel motion only within half its engine output.
             val next=progress(player.unitId,player.characterId,motion,(player.energy ?: TacticalEnergy.ZERO).values[0]/100f*0.5f,
-                invalidCommander=player.hull.woundedUntil>now)
+                invalidCommander=player.hull.woundedUntil>now,lostAuthority=defeated)
             if(next!=motion)players[account]=player.copy(motion=next)
         }
         val commanders=players.values.associateBy {it.characterId}
@@ -65,7 +66,7 @@ internal object TacticalMotionProgress {
                     (it.hull?.woundedUntil ?: 0)>now || TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks)
                 }==true
                 val motion=progress(unit.id,unit.motionCommander,state.motion,invalidCommander=commanderUnavailable,
-                    lostAuthority=commanderChanged)
+                    lostAuthority=commanderChanged || outfit.country in session.eliminated)
                 if(motion==state.motion && !commanderChanged)unit else unit.copy(tactical=state.copy(motion=motion,
                     nextDecisionAt=maxOf(state.nextDecisionAt,motion.acceptedAt)),
                     motionCommander=if(commanderChanged && state.retreat==null)0 else unit.motionCommander)
