@@ -88,10 +88,10 @@ class CharacterCreationCountryTest {
         val file = dir.resolve("pending.properties")
         val start = Clock.fixed(Instant.ofEpochMilli(1000), ZoneOffset.UTC)
         CharacterCreation(file, clock = start, lotteryWindowMillis = 10).apply("hero", listOf(1001L))
-        val waiting = CharacterCreation(file, clock = start, worldDeaths = { setOf(1001L) })
+        val waiting = CharacterCreation(file, clock = start, worldOccupiedOriginals = { setOf(1001L) })
         assertFalse(waiting.candidates("other").any { it.character.id == 1001L })
         val settled = CharacterCreation(file, clock = Clock.offset(start, Duration.ofMillis(20)),
-            worldDeaths = { setOf(1001L) })
+            worldOccupiedOriginals = { setOf(1001L) })
         assertNull(settled.character("hero"))
         assertTrue(settled.entries("hero").isEmpty())
     }

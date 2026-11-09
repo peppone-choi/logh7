@@ -18,11 +18,14 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
         return open(generation).also { cached = generation to it }
     }
     private fun open(generation:Long)=CharacterCreation(path(generation),accountFame=fame.accounts,publishedOriginals=publishedOriginals,
-        worldDeaths = {
-            val stocks = worldSnapshot()?.takeIf { it.session?.generation == generation }?.planetStocks
-            stocks?.strategic?.people.orEmpty().asSequence()
-                .filter { (id, person) -> id in 1..9999 && person.deceasedAt > 0 }
-                .map { (id, _) -> id.toLong() }.toSet()
+        worldOccupiedOriginals = {
+            val snapshot = worldSnapshot()?.takeIf { it.session?.generation == generation }
+            val navigators = snapshot?.navigators.orEmpty().values.asSequence()
+                .filter { it.generation == generation }.map { it.characterId }
+            // Preserve retired/deceased IDs, and reserve living personnel even without an account record.
+            val personnel = snapshot?.planetStocks?.takeIf { it.generation == generation }
+                ?.strategic?.people.orEmpty().keys.asSequence()
+            (navigators + personnel).filter { it in 1..9999 }.map { it.toLong() }.toSet()
         })
     /** U-27 carry-over (W p.11): writes this generation's qualifying characters into the next generation's store. */
     @Synchronized fun carryOver(snapshot: WorldSnapshot): List<String> {
