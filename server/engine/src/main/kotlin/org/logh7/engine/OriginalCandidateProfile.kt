@@ -1,10 +1,12 @@
 package org.logh7.engine
 
-enum class OriginalStartingOffice(val key:String) {
-    REINHARD_FLEET_2("reinhard-fleet-2");
+enum class OriginalStartingOffice(val key:String,val country:CountryId,val fleetId:Int,val fleetNumber:Int,
+    val baseId:Int,val role:FleetOffice) {
+    REINHARD_FLEET_2("reinhard-fleet-2",CountryId(2),2,2,1049,FleetOffice.EMPIRE_COMMANDER),
+    VUCOCK_FLEET_5("vucock-fleet-5",CountryId(3),137,5,1086,FleetOffice.ALLIANCE_COMMANDER);
 
     fun accepts(id:Long,country:CountryId?,rank:Int):Boolean =
-        id in PublishedOriginalCandidates.NEW_IDS && country==Power.EMPIRE.country && rank==5
+        id in PublishedOriginalCandidates.NEW_IDS && country==this.country && rank==5
 
     companion object {
         fun fromKey(key:String):OriginalStartingOffice? = entries.singleOrNull {it.key==key}
@@ -58,6 +60,7 @@ interface OriginalCandidateStore {
     val supportsFemaleFaces:Boolean get()=true
     val supportsPortraits:Boolean get()=false
     val supportsStartingOffice:Boolean get()=false
+    val supportsAllianceStartingOffice:Boolean get()=false
     fun load():List<OriginalCandidateEdit>
     fun loadPortraits():Map<String,CandidatePortrait> = emptyMap()
     fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?=null):OriginalCandidateEdit?

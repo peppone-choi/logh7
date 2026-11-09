@@ -112,15 +112,19 @@ class OriginalCharacterLotteryTest {
         assertEquals(awarded,listOf("empire","alliance").map {reloaded.character(it)})
     }
     @Test fun onlyTheExplicitlyBoundAwardRetainsItsStartingOfficeAfterRestart() {
+        for(office in OriginalStartingOffice.entries)checkStartingOfficeAward(office)
+    }
+
+    private fun checkStartingOfficeAward(office:OriginalStartingOffice) {
         val clock = TestClock()
-        val file = directory.resolve("starting-office.properties")
-        val country = CountryId(2)
-        val office = OriginalStartingOffice.REINHARD_FLEET_2
-        val data = OriginalCandidateProfile("Reinhard", "Fixture", 26, 5, List(8) { 50 })
+        val file = directory.resolve("${office.key}.properties")
+        val country = office.country
+        val imperial=country.value==2
+        val data = OriginalCandidateProfile("Fixture", "Candidate", if(imperial)26 else 100059, 5, List(8) { 50+it })
         val published = PublishedOriginalCandidates()
         published.publish(listOf(OriginalCandidateEdit(1003, 1, data.copy(startingOffice = office), country),
             OriginalCandidateEdit(1004, 1, data, country)))
-        val selection = CharacterCreation.CountrySelection(country, 2, ShipStyleId("empire"))
+        val selection = CharacterCreation.CountrySelection(country,country.value,ShipStyleId(if(imperial)"empire" else "alliance"))
         val service = CharacterCreation(file, clock, 10, publishedOriginals = published)
         service.apply("marked", listOf(1003), selection)
         service.apply("unmarked", listOf(1004), selection)
@@ -128,6 +132,7 @@ class OriginalCharacterLotteryTest {
         assertEquals(office, service.profiles().getValue("marked").startingOffice)
         val restored = CharacterCreation(file, clock)
         assertEquals(office, restored.profiles().getValue("marked").startingOffice)
+        assertEquals(data.abilities, restored.profiles().getValue("marked").character.abilities)
         assertNull(restored.profiles().getValue("unmarked").startingOffice)
     }
 

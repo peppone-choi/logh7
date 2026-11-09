@@ -247,55 +247,64 @@ class FleetNavigationTest {
         assertEquals(0,state.stocks.outfits.getValue(2).aideId)
         assertEquals(1,state.commits)
     }
-    @Test fun aBoundOriginalTakesTheVacantSecondFleetCommandOnlyOnFirstEntry() {
-        val odin=home.copy(id=1049,name=Capital.EMPIRE.baseName)
-        val world=Galaxy(listOf(GalaxySystem(3,2487,4,"ヴァルハラ",2)),listOf(odin),Power.entries.associateWith {2487})
-        fun admitted(original:Boolean)=SessionSimulation(SessionRules.load()).also {
-            it.join("pilot",Power.EMPIRE,original,"c")
+    @Test fun aBoundOriginalTakesTheVacantFleetCommandOnlyOnFirstEntry() {
+        val vucock=OriginalStartingOffice.VUCOCK_FLEET_5
+        assertEquals(listOf(3,137,5,1086,175),listOf(vucock.country.value,vucock.fleetId,vucock.fleetNumber,vucock.baseId,vucock.role.card))
+        for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
+    }
+
+    private fun checkFirstFleetCommand(office:OriginalStartingOffice) {
+        val power=if(office.country.value==2)Power.EMPIRE else Power.ALLIANCE
+        val wrongPower=Power.entries.single {it!=power}
+        val base=home.copy(id=office.baseId,name=if(power==Power.EMPIRE)Capital.EMPIRE.baseName else "Santa Ana")
+        val world=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",office.country.value)),listOf(base),Power.entries.associateWith {2487})
+        fun admitted(original:Boolean,side:Power=power)=SessionSimulation(SessionRules.load()).also {
+            it.join("pilot",side,original,"c")
         }.exportState()
-        val imperial=admitted(true)
-        val request=NavigationRequest("pilot",1003,Power.EMPIRE.country,"c",1,rank=5,shipKind=3,
-            initializeOriginal=true,startingOffice=OriginalStartingOffice.REINHARD_FLEET_2)
-        val fleet=OutfitStock(2,2,OutfitKind.FLEET,1049,1002,number=2,aideId=1001)
-        val initial=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,100,100)),
-            outfits=mapOf(2 to fleet),warehouses=mapOf(1002 to OutfitWarehouse(1002,2,OutfitKind.FLEET,1049,2)),
+        val session=admitted(true)
+        val request=NavigationRequest("pilot",1003,office.country,"c",1,rank=5,
+            shipKind=if(power==Power.EMPIRE)3 else 93,initializeOriginal=true,startingOffice=office)
+        val fleet=OutfitStock(office.fleetId,office.country,OutfitKind.FLEET,base.id,1002,number=office.fleetNumber,aideId=1005)
+        val initial=PlanetStocks(1,0,mapOf(base.id to PlanetStock(base.id,office.country.value,0,100,100,100)),
+            outfits=mapOf(fleet.id to fleet),warehouses=mapOf(1002 to OutfitWarehouse(1002,office.country,OutfitKind.FLEET,base.id,fleet.id)),
             deploymentInitialized=true)
-        val state=State(initial,Navigator(1,1003,Power.EMPIRE,2487,1000,1000,1000)).also {it.players=emptyMap()}
-        fun enter(entry:NavigationRequest=request,session:SessionState=imperial):NavigationResult {
+        val state=State(initial,Navigator(1,1003,power,2487,1000,1000,1000)).also {it.players=emptyMap()}
+        fun enter(entry:NavigationRequest=request,admission:SessionState=session):NavigationResult {
             val navigation=Navigation(world,state.nav,NavigationPolicy())
             val production=PlanetProduction(world,state.inventory,SessionRules.load().startSeconds,PlanetProductionPolicy())
-            return FleetNavigation.apply(entry,session,world,navigation,production,
-                production.settle(1,session.gameMillis/1000),state.commit) {false}
+            return FleetNavigation.apply(entry,admission,world,navigation,production,
+                production.settle(1,admission.gameMillis/1000),state.commit) {false}
         }
-        for((entry,session) in listOf(request.copy(startingOffice=null) to imperial,
-            request.copy(rank=6) to imperial,request to admitted(false))) {
-            assertEquals(0,assertNotNull(enter(entry,session).player).baseId)
-            assertEquals(fleet,state.stocks.outfits.getValue(2))
+        for((entry,admission) in listOf(request.copy(startingOffice=null) to session,
+            request.copy(rank=6) to session,request to admitted(false),
+            request.copy(country=wrongPower.country,shipKind=if(wrongPower==Power.EMPIRE)3 else 93) to admitted(true,wrongPower))) {
+            assertEquals(0,assertNotNull(enter(entry,admission).player).baseId)
+            assertEquals(fleet,state.stocks.outfits.getValue(fleet.id))
             state.players=emptyMap()
         }
         val occupied=fleet.copy(commanderId=10004)
-        state.stocks=initial.copy(outfits=mapOf(2 to occupied))
+        state.stocks=initial.copy(outfits=mapOf(fleet.id to occupied))
         assertEquals(0,assertNotNull(enter().player).baseId)
-        assertEquals(occupied,state.stocks.outfits.getValue(2))
+        assertEquals(occupied,state.stocks.outfits.getValue(fleet.id))
         state.players=emptyMap()
         state.stocks=initial
         state.fail=true
         assertFailsWith<java.io.IOException> {enter()}
         assertTrue(state.players.isEmpty())
-        assertEquals(fleet,state.stocks.outfits.getValue(2))
+        assertEquals(fleet,state.stocks.outfits.getValue(fleet.id))
         state.fail=false
         val docked=assertNotNull(enter().player)
-        assertEquals(1049,docked.baseId)
+        assertEquals(base.id,docked.baseId)
         assertEquals(docked,state.players.getValue("pilot"))
-        assertEquals(fleet.copy(commanderId=1003),state.stocks.outfits.getValue(2))
+        assertEquals(fleet.copy(commanderId=1003),state.stocks.outfits.getValue(fleet.id))
         assertEquals(1,state.commits)
-        val resigned=OfficeResignation.evaluate(world,OfficeResignationRequest("pilot","c",1003,Power.EMPIRE,1,39),
-            imperial,docked,state.stocks)
+        val resigned=OfficeResignation.evaluate(world,OfficeResignationRequest("pilot","c",1003,power,1,office.role.card),
+            session,docked,state.stocks)
         assertTrue(resigned.changed)
         state.stocks=assertNotNull(resigned.stocks)
         state.players=mapOf("pilot" to assertNotNull(resigned.player))
         assertEquals(resigned.player,enter().player)
-        assertEquals(fleet,state.stocks.outfits.getValue(2))
+        assertEquals(fleet,state.stocks.outfits.getValue(fleet.id))
         assertEquals(1,state.commits)
     }
 
