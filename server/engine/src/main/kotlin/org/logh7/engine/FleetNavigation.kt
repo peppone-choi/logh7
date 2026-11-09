@@ -5,6 +5,7 @@ internal object FleetNavigation {
     fun apply(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
         production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?,
         initialProfile:StrategicPerson?=null,blocked: (Int) -> Boolean): NavigationResult {
+        if (BattleDeath.deceased(stocks, request.characterId)) return navigation.apply(request, session, stocks)
         val players = navigation.snapshot(session.generation)
         val before = players[request.account]
         val startingPerson=initialProfile?.takeIf {committer!=null && before==null &&

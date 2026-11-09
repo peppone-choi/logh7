@@ -5,6 +5,34 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NavigationTest {
+    @Test fun deceasedCaptainCanViewTheFrozenRecordButCannotNavigateAndCanBeReplaced() {
+        val store = Store()
+        val simulation = SessionSimulation(SessionRules.load()).also {
+            it.join("pilot", Power.EMPIRE, false, "connection")
+        }
+        val now = simulation.exportState().gameMillis / 1000
+        val dead = Navigator(1, request.characterId, Power.EMPIRE, 2487, 100, 100, 900, cpRecoveryAt = now,
+            hull = FlagshipHull(0, now, woundedUntil = now + 1))
+        store.saved = mapOf("pilot" to dead)
+        val nav = Navigation(galaxy(), store, NavigationPolicy())
+        val stocks = BattleDeath.apply(PlanetStocks(1, 0, emptyMap()), listOf(dead.characterId), now) { _, _ -> true }
+        val later = simulation.exportState().copy(gameMillis = (now + 7201) * 1000)
+        val captain = request.copy(unitId = dead.unitId, captainCard = 59)
+        store.fail = true
+        assertEquals(dead, nav.apply(captain, later, stocks).player)
+        for (action in listOf(captain.copy(destination = 2488), captain.copy(place = PlaceMove.Dock(1000, 4)),
+            captain.copy(supplyFuel = true), captain.copy(returnBase = 0))) {
+            val rejected = nav.apply(action, later, stocks)
+            assertEquals(NavigationRejection.IDENTITY, rejected.rejection)
+            assertEquals(dead, rejected.previous)
+        }
+        assertEquals(dead, store.saved.getValue("pilot"))
+        store.fail = false
+        val replacement = assertNotNull(nav.apply(request.copy(characterId = 10001), later, stocks).player)
+        assertEquals(10001, replacement.characterId)
+        assertEquals(replacement, store.saved.getValue("pilot"))
+    }
+
     @Test fun bothDepartureCommandsRejectCapturedBerthsAndAllowLeavingRemovedBerths() {
         val base = GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)), listOf(base),

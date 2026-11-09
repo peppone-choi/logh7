@@ -359,6 +359,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val formations=OutfitFormationService(clock=monotonicMillis)
     private fun recoverNavigation(request:NavigationRequest,session:SessionState):NavigationResult? {
         val navigation=navigation ?: return null
+        val stocks=production?.snapshot(session.generation)
+        if(BattleDeath.deceased(stocks,request.characterId))return navigation.apply(request,session,stocks)
         val player=navigation.snapshot(session.generation)[request.account]
         val now=session.gameMillis/1000
         if(player?.warpReadyAt?.let {it<=now}!=true && player?.dockReadyAt?.let {it<=now}!=true)
