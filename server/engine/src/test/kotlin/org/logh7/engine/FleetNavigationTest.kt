@@ -220,6 +220,18 @@ class FleetNavigationTest {
             assertEquals(before,state.players.getValue("aide"))
         }
     }
+    @Test fun oldForeignOfficeDoesNotPreventAnAideFromFollowingTheirCurrentFleet() {
+        val state = state(); addAide(state)
+        state.stocks = state.stocks.copy(outfits = state.stocks.outfits +
+            (2 to OutfitStock(2,2,OutfitKind.FLEET,1001,20,commanderId=10001)),
+            warehouses = state.stocks.warehouses + (20 to OutfitWarehouse(20,2,OutfitKind.FLEET,1001,2)))
+        apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2488))
+        val aide = state.players.getValue("aide")
+        assertEquals(2488,aide.grid)
+        assertEquals(900,aide.cruise)
+        assertEquals(1001,state.stocks.outfits.getValue(2).positionIn(galaxy).baseId)
+    }
+
     @Test fun memberFuelAndDestinationCapacityAreCheckedForTheWholeGroup() {
         for(lowFuel in listOf(false,true)) {
             val state=state();addAide(state,if(lowFuel)50 else 1000)
