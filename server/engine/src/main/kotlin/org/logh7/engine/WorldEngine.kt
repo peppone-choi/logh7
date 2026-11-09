@@ -494,11 +494,13 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         it.boats>0 && (it.motionCommander==0 || it.motionCommander==TacticalAuthority.commander(outfit,it,checkNotNull(snapshot.planetStocks)))
                     }.mapNotNull {it.tactical?.motion?.takeIf {m->m.grid==position.grid}}
             }
-        val shipOrderDeadlines=snapshot.navigators.values.mapNotNull {it.posture?.order?.readyAt} +
-            snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().flatMap {
-                listOfNotNull(it.posture?.order?.readyAt,it.support?.readyAt)}}
-        val groundDeadlines=snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order?.readyAt}}
         val nowSeconds=session.gameMillis/1000
+        val shipOrderDeadlines=snapshot.navigators.values.flatMap {listOfNotNull(it.posture?.order?.readyAt,
+            it.fire?.pending?.firesAt,it.attack?.nextAt?.takeIf {at->at>nowSeconds})} +
+            snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().flatMap {
+                listOfNotNull(it.posture?.order?.readyAt,it.support?.readyAt,it.shot?.firesAt,
+                    it.attack?.order?.nextAt?.takeIf {at->at>nowSeconds})}}
+        val groundDeadlines=snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order?.readyAt}}
         val commands=snapshot.planetStocks?.tacticalCommands
         val commandDeadlines=commands?.orders.orEmpty().map {it.readyAt}+commands?.air.orEmpty().values.map {it.nextAt}+
             commands?.fortresses.orEmpty().values.filter {it.motion.velocity>0}.map {it.reportedAt+rules.speed}+
