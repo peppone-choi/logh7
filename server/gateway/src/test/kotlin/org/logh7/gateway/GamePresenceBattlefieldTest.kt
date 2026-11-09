@@ -117,7 +117,8 @@ class GamePresenceBattlefieldTest {
         val impact = TacticalImpact(1, 1010001, TacticalWeapon.BEAM,
             TacticalHit(1, 2487, 100, 1, 2), recipients)
         for (current in listOf(player.copy(grid = 2488),
-            player.copy(baseId = 1049, mode = 4, cpPaused = false))) {
+            player.copy(baseId = 1049, mode = 4, cpPaused = false),
+            player.copy(cpPaused = false, hull = FlagshipHull(3, 100, woundedUntil = 86500)))) {
             hub.combat(impact, snapshot.copy(navigators = mapOf("pilot" to current)))
             assertTrue(received.isEmpty())
         }

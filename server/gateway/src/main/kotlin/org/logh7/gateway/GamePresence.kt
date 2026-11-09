@@ -573,7 +573,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 } else {
                     val location=if(snapshot==null)viewer.player else current ?: return@forEach
                     if(viewer.player.grid!=impact.hit.grid || location.grid!=impact.hit.grid ||
-                        (!impact.boarding && location.baseId!=0))return@forEach
+                        (!impact.boarding && (location.baseId!=0 ||
+                            !location.cpPaused && (location.hull?.woundedUntil ?: 0)>impact.hit.seconds)))return@forEach
                     val leave=impact.departed?.let {
                         listOf(org.logh7.protocol.TacticalRetreatMessages.warped(impact.hit.seconds,it.grid,listOf(it.unitId)))
                     }.orEmpty()
