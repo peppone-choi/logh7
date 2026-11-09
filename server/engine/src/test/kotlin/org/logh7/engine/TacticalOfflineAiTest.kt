@@ -247,6 +247,28 @@ class TacticalOfflineAiTest {
         assertEquals(listOf(12,42,99),TacticalOfflineAi.automaticTargets(offline,"pilot",pilot,disabled,candidates))
     }
 
+    @Test fun reconnectAndAiOffClearOnlyFleetOrdersIssuedByTheOfflineAi() {
+        val pilots=players()
+        val delegated=TacticalOfflineAi.advance(offline,galaxy,pilots,stocks(),1,mutableListOf())
+        val own=delegated.outfits.getValue(1)
+        val ship=own.activeShips!!.values.single()
+        val delegatedOrder=assertNotNull(ship.attack)
+        val playerOrder=delegatedOrder.copy(order=TacticalAttackOrder(2,now,now+5,now+5))
+        for(current in listOf(baseSession,offline)) {
+            val stock=if(current==offline)delegated.copy(tacticalCommands=
+                delegated.tacticalCommands.copy(aiSwitches=emptyMap())) else delegated
+            for(order in listOf(delegatedOrder,playerOrder)) {
+                val inventory=stock.copy(outfits=stock.outfits+(1 to own.copy(
+                    activeShips=ActiveShipUnits(listOf(ship.copy(attack=order))))))
+                val impacts=mutableListOf<TacticalImpact>()
+                val settled=TacticalFleetAttack.advance(current,galaxy,pilots,inventory,1,impacts)
+                assertTrue(impacts.isEmpty())
+                assertEquals(ship.copy(attack=playerOrder.takeIf {order==playerOrder}),
+                    settled.outfits.getValue(1).activeShips!!.values.single())
+            }
+        }
+    }
+
     @Test fun anExistingFleetAttackHonorsTheOfflineMissionBeforeTheNextAiDecision() {
         for(mission in listOf(3,4,5)) assertExistingFleetAttackIsSuppressed(mission)
     }
@@ -260,7 +282,7 @@ class TacticalOfflineAiTest {
         val own=plain.outfits.getValue(1)
         val enemy=plain.outfits.getValue(2)
         val shooting=own.activeShips!!.values.single().copy(
-            attack=TacticalUnitAttack(10000,TacticalAttackOrder(2,now,now,now)))
+            attack=TacticalUnitAttack(10000,TacticalAttackOrder(2,now,now+5,now+5)))
         val nearby=enemy.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion(0f,3f),now,now))
         val command=plain.tacticalCommands
         val assigned=command.missions.getValue(10000).let {if(mission==3 && !confused)it.copy(target=98) else it}
@@ -273,9 +295,9 @@ class TacticalOfflineAiTest {
         assertTrue(TacticalOfflineAi.automaticTargets(offline,"pilot",pilot,stock,listOf(99))
             .none {it==99})
         val impacts=mutableListOf<TacticalImpact>()
-        TacticalFleetAttack.advance(offline,galaxy,players(),stock,1,impacts)
+        TacticalFleetAttack.advance(offline.copy(gameMillis=(now+5)*1000),galaxy,players(),stock,1,impacts)
         assertTrue(impacts.isEmpty())
-        TacticalFleetAttack.advance(baseSession,galaxy,players(),stock,1,impacts)
+        TacticalFleetAttack.advance(baseSession.copy(gameMillis=(now+5)*1000),galaxy,players(),stock,1,impacts)
         assertTrue(impacts.any {it.hit.target==99},"the enemy is a valid target while the commander is online")
     }
 
