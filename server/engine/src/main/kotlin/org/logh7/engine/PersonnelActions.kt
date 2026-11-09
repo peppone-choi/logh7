@@ -30,8 +30,6 @@ internal object PersonnelActions {
         fun ladder(id:StrategicIdentity)=(stocks.strategic.people[id.id] ?: StrategicPerson()).let {
             if(ranks==Power.EMPIRE)it.ladderRank(id.rank) else it.rank ?: id.rank}
         fun holds(card:Int)=r.card==card && policy.holders(stocks,card,country).any {it.character==r.characterId}
-        fun cardCount()=policy.held(stocks,r.target).count {it.country==country}+
-            FundActions.governed(galaxy,stocks,r.target,country,countries,card=66).size
         var next=stocks
         var promoted=emptyMap<String,Navigator>()
         val cost=when(r.command){1,8,9->640L;2->320L;else->160L}
@@ -84,7 +82,7 @@ internal object PersonnelActions {
                 val title=Peerage.entries.getOrNull(r.value) ?: return reject(StrategyActionRejection.COMMAND)
                 if(identity.origin!=0 || rank !in 2..minOf(7,title.ordinal+2))return reject(StrategyActionRejection.RANK)
                 if(person.peerage?.let {title.ordinal>=it.ordinal}==true)return reject(StrategyActionRejection.MAXIMUM)
-                if(person.peerage==null && cardCount()>=14)
+                if(person.peerage==null && policy.cardCount(stocks,r.target)>=14)
                     return reject(StrategyActionRejection.MAXIMUM)
                 next=stocks.copy(strategic=stocks.strategic.copy(people=stocks.strategic.people+(r.target to person.copy(peerage=title))))
             }
@@ -105,7 +103,7 @@ internal object PersonnelActions {
                 if(r.command==8) {
                     if(person.peerage==null || person.peerage.ordinal>Peerage.BARON.ordinal)return reject(StrategyActionRejection.RANK)
                     if(r.base in stocks.strategic.fiefs)return reject(StrategyActionRejection.MAXIMUM)
-                    if(cardCount()+1>=14)
+                    if(policy.cardCount(stocks,r.target)>=14)
                         return reject(StrategyActionRejection.MAXIMUM)
                     next=stocks.copy(strategic=stocks.strategic.copy(fiefs=stocks.strategic.fiefs+(r.base to r.target)))
                 } else {
