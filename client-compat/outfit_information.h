@@ -123,10 +123,26 @@ static void invalidateOutfitGround(bool reset=false) {
     state.groundToken=0;state.groundWanted=true;state.groundPollAt=0;state.groundFailed=false;
     if(reset){state.groundPage=0;state.groundCursors[0]=0;state.groundLoaded=false;}
 }
+// Only the pending command's own reply may finish it. The GUI thread consumes the value.
+static void publishOutfitGround(void* world,void* record,unsigned action,unsigned reply) {
+    AcquireSRWLockExclusive(&outfitReplyLock);
+    if(outfitInbox.world==world && outfitInbox.groundAction==action &&
+        outfitInbox.groundCharacter==at<unsigned>(record,4) && outfitInbox.groundOutfit==at<unsigned>(record,16))
+        outfitInbox.groundReply=reply;
+    ReleaseSRWLockExclusive(&outfitReplyLock);
+}
 // Extension pages are view-only records. Keep them out of the native party/unit
 // editor caches, including when a delayed page arrives after the view is closed.
 static void __fastcall receivedOutfitPagePacket(void* world,void*,unsigned opcode,void* record) {
     if((opcode&65535)==0x1200 && at<unsigned short>(record,4)==0x7f00 && at<unsigned short>(record,6)==62)return;
+    // A marked outcome may stop short of the native 0b04/0b05 call, so report it from
+    // this verified dispatch call too. Publishing the same value twice is harmless, and
+    // unmarked success keeps its report after the native handler.
+    if((opcode&65535)==0x0b04 || (opcode&65535)==0x0b05) {
+        unsigned reason=0;
+        if(logh::groundTransferReason(static_cast<const BYTE*>(record),reason) && reason)
+            publishOutfitGround(world,record,(opcode&65535)==0x0b04 ? 0x40 : 0x41,1+reason);
+    }
     matchLobbySelectionRefusal(world,opcode,record);
     if((opcode&65535)==0x032f && (at<BYTE>(record,8)==4 || at<BYTE>(record,8)==6 ||
         at<BYTE>(record,8)==7 || at<BYTE>(record,8)==fuelStatusMode))return;
@@ -316,6 +332,9 @@ static void updateOutfitGroundControls() {
             state.groundPending=action;state.groundSentAt=now;state.groundArmed=0;
             state.groundMessage=L"서버에 전체 승하선을 요청했습니다.";
             AcquireSRWLockExclusive(&outfitReplyLock);
+            // A context reset clears the inbox world, and reopening the reused frame does not
+            // restore it. Without this the reply below would be dropped and read as a timeout.
+            outfitInbox.world=state.world;
             outfitInbox.groundCharacter=state.character;outfitInbox.groundOutfit=state.id;
             outfitInbox.groundAction=action;outfitInbox.groundReply=0;
             ReleaseSRWLockExclusive(&outfitReplyLock);
@@ -330,15 +349,11 @@ static void receivedOutfitGround(void* world,void* record,unsigned flags,unsigne
     // The server's single marked value ('LG' << 16 | reason) is an extension; clear it so
     // the native handler sees the plain whole-outfit record.
     unsigned reason=0;
-    if(at<BYTE>(record,20)==1 && (at<unsigned>(record,24)>>16)==0x4c47) {
-        reason=at<unsigned>(record,24)&0xffff;at<BYTE>(record,20)=0;at<unsigned>(record,24)=0;
+    if(logh::groundTransferReason(static_cast<const BYTE*>(record),reason)) {
+        at<BYTE>(record,20)=0;at<unsigned>(record,24)=0;
     }
     reinterpret_cast<void(__thiscall*)(void*,void*,unsigned)>(action==0x40 ? 0x4c00c0 : 0x4c0130)(world,record,flags);
-    AcquireSRWLockExclusive(&outfitReplyLock);
-    if(outfitInbox.world==world && outfitInbox.groundAction==action &&
-        outfitInbox.groundCharacter==at<unsigned>(record,4) && outfitInbox.groundOutfit==at<unsigned>(record,16))
-        outfitInbox.groundReply=1+reason;
-    ReleaseSRWLockExclusive(&outfitReplyLock);
+    publishOutfitGround(world,record,action,1+reason);
 }
 static void __fastcall receivedOutfitUnload(void* world,void*,void* record,unsigned flags) {receivedOutfitGround(world,record,flags,0x40);}
 static void __fastcall receivedOutfitLoad(void* world,void*,void* record,unsigned flags) {receivedOutfitGround(world,record,flags,0x41);}

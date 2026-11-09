@@ -751,6 +751,17 @@ static bool tacticalWaypointOrderTest() {
     return !logh::applyTacticalWaypointOrder(unit,model) && !logh::applyTacticalWaypointOrder(nullptr,model) &&
         !logh::applyTacticalWaypointOrder(unit,nullptr);
 }
+static bool groundTransferReasonTest() {
+    unsigned char record[36]={};unsigned reason=99;
+    auto value=[&](unsigned word){memcpy(record+24,&word,4);};
+    if(logh::groundTransferReason(record,reason) || reason!=99)return false; // Plain success.
+    record[20]=1;value(0x4c470008);
+    if(!logh::groundTransferReason(record,reason) || reason!=8)return false; // Observed refusal.
+    value(0x4c470040);if(!logh::groundTransferReason(record,reason) || reason!=0x40)return false;
+    reason=99;value(8);if(logh::groundTransferReason(record,reason) || reason!=99)return false; // Native value.
+    value(0x4c480008);if(logh::groundTransferReason(record,reason))return false;
+    record[20]=2;value(0x4c470008);return !logh::groundTransferReason(record,reason) && reason==99;
+}
 static bool groundLocationPageTest() {
     unsigned char wire[4+70*88]={};wire[0]=2;
     auto set=[&](unsigned row,unsigned field,unsigned value){memcpy(wire+4+row*88+field,&value,4);};
@@ -1483,6 +1494,7 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::systemEmblemAffiliation(10,2)!=10 || logh::systemEmblemAffiliation(11,3)!=11)return 81;
     if(!sessionEndingDataTest())return 86;
     if (!groundLocationPageTest()) return 85;
+    if (!groundTransferReasonTest()) return 915;
     if (!tacticalMotionOriginsTest()) return 81;
     if (!tacticalClockScaleTest()) return 81;
     if (!tacticalNoticesTest()) return 82;
