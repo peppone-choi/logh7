@@ -499,7 +499,9 @@ class GameExchangeTest {
                 if(outcome=="retreat") player=player.copy(grid=2488,cpPaused=false,motion=null)
                 if(outcome=="same-grid-return") {
                     player=player.copy(baseId=1000,mode=4,cpPaused=false,motion=null,returnBase=0)
-                    assertNotNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
+                    val returnUnit=BootstrapMessages.unit(assertNotNull(characters.character("user")),player.grid,
+                        player.cruise,player.baseId,player.mode)
+                    assertNotNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false),returnUnit)))
                     assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
                 }
                 if(outcome=="retreat" || outcome=="same-grid-return") {
