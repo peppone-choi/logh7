@@ -113,15 +113,28 @@ class TacticalGroundMessagesTest {
         val reply=java.nio.ByteBuffer.wrap(TacticalGroundMessages.reply(attack,100))
         kotlin.test.assertEquals(0x0417,reply.getShort(4).toInt())
         kotlin.test.assertEquals(100,reply.getInt(6))
-        for((opcode,command) in listOf(0x0417 to attack,0x0418 to attack.copy(target=0))) {
-            val refused=java.nio.ByteBuffer.wrap(TacticalGroundMessages.reply(command,100,false))
-            kotlin.test.assertEquals(1,refused.getInt(0))
-            kotlin.test.assertEquals(opcode,refused.getShort(4).toInt())
-            kotlin.test.assertEquals(1,refused.getInt(6))
-            kotlin.test.assertEquals(10002,refused.getInt(14))
-            val accepted=java.nio.ByteBuffer.wrap(TacticalGroundMessages.reply(command,1))
-            kotlin.test.assertEquals(0,accepted.getInt(0))
-            kotlin.test.assertEquals(2,accepted.getInt(6))
+        kotlin.test.assertEquals(1,TacticalGroundMessages.targetReplies(attack,100,false).size)
+        for((opcode,target) in listOf(0x0417 to 1902,0x0418 to null)) {
+            val tagged=raw(opcode,target)
+            java.nio.ByteBuffer.wrap(tagged).putInt(6,0x4c47002a)
+            val command=TacticalGroundMessages.target(tagged)
+            kotlin.test.assertEquals(42,command.resultToken)
+            for(accepted in listOf(false,true)) {
+                val (native,extension)=TacticalGroundMessages.targetReplies(command,100,accepted)
+                val header=java.nio.ByteBuffer.wrap(native)
+                kotlin.test.assertEquals(if(accepted)0 else 1,header.getInt(0))
+                kotlin.test.assertEquals(opcode,header.getShort(4).toInt())
+                kotlin.test.assertEquals(100,header.getInt(6))
+                val body=java.nio.ByteBuffer.wrap(extension)
+                kotlin.test.assertEquals(0x032f,body.getShort(4).toInt())
+                kotlin.test.assertEquals(1811,body.getInt(6))
+                kotlin.test.assertEquals(42,body.getInt(10))
+                kotlin.test.assertEquals(23,body.get(14).toInt())
+                kotlin.test.assertEquals(1,body.get(25).toInt())
+                kotlin.test.assertEquals(10002,body.getInt(26))
+                kotlin.test.assertEquals(if(accepted)1 else 0,body.get(30).toInt())
+                kotlin.test.assertEquals(if(target!=null)1 else 0,body.get(31).toInt())
+            }
         }
     }
 }
