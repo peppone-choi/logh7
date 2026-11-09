@@ -316,6 +316,32 @@ class NpcTacticsTest {
         assertEquals(6,state.stocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.sequence)
         assertEquals(6400,state.stocks.outfits.getValue(1).supplies)
     }
+    @Test fun sameInitialBattleReplaysAfterReopeningWithoutRepeatingShots() {
+        fun replay(reopen:Boolean):Pair<State,List<TacticalMovement>> {
+            val state=state()
+            var nav=Navigation(galaxy,state.nav,NavigationPolicy())
+            var stock=production(state)
+            val moves=mutableListOf<TacticalMovement>()
+            assertTrue(settle(now,nav,stock,state,moves).isEmpty())
+            val hits=settle(now+480,nav,stock,state,moves)
+            assertEquals(TacticalWeapon.entries,hits.map {it.weapon})
+            if(reopen) {
+                nav=Navigation(galaxy,state.nav,NavigationPolicy())
+                stock=PlanetProduction(galaxy,state.inventory,rules.startSeconds,PlanetProductionPolicy())
+            }
+            assertTrue(settle(now+480,nav,stock,state,moves).isEmpty())
+            assertEquals(hits.map {it.weapon},settle(now+960,nav,stock,state,moves).map {it.weapon})
+            return state to moves
+        }
+
+        val (continuous,continuousMoves)=replay(false)
+        val (reopened,reopenedMoves)=replay(true)
+        assertEquals(continuous.players,reopened.players)
+        assertEquals(continuous.stocks,reopened.stocks)
+        assertEquals(continuousMoves,reopenedMoves)
+        assertEquals(6400,reopened.stocks.outfits.getValue(1).supplies)
+    }
+
     @Test fun disabledSurvivorsCannotFireAndOnlyHealthyBoatsConsumeAmmunition() {
         for(disabled in listOf(150,300)) {
             val state=state();val outfit=state.stocks.outfits.getValue(1)
