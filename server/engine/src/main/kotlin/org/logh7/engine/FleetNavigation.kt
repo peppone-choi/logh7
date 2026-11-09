@@ -18,7 +18,7 @@ internal object FleetNavigation {
         val startingFleet=stocks.outfits[2]?.takeIf {fleet->
             startingRole!=null && request.initializeOriginal && request.shipKind!=null && request.country==Power.EMPIRE.country &&
                 session.participants[request.account]?.original==true && before==null && committer!=null &&
-                players.values.none {it.characterId==request.characterId} &&
+                players.values.none {it.characterId==request.characterId} && !BattleDeath.deceased(stocks,request.characterId) &&
                 fleet.country==request.country && fleet.kind==OutfitKind.FLEET && fleet.number==2 && fleet.baseId==1049 &&
                 fleet.positionIn(galaxy).baseId==1049 && startingRole.holders(fleet).isEmpty() && CoupActions.outfitCamp(stocks,fleet)==0 &&
                 stocks.bases[1049]?.let {it.country==request.country && it.camp==0}==true &&
