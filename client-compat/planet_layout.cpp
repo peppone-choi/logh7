@@ -691,6 +691,7 @@ static void install() {
     if (!installTaxWindow()) { status = -3; return; }
     if (!installStrategyActions()) { status = -3; return; }
     if (!installProposalApproval()) { status = -3; return; }
+    if (!installProposalDetailCaption()) { status = -3; return; }
     if (!installProposalReplyRows()) { status = -3; return; }
     if (!installProposalBody()) { status = -3; return; }
     if (!installSuggestVariant()) { status = -3; return; }

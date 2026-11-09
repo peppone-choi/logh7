@@ -5,6 +5,7 @@
 // Author: Peppone Choi.
 #pragma once
 #include "proposal_approval_state.h"
+#include "proposal_detail_caption.h"
 static constexpr unsigned approvalClickCall=0x53a5f3;
 static constexpr BYTE approvalClickExpected[5]={0xe8,0xf8,0x6f,0xfc,0xff};
 static constexpr unsigned approvalRowsOffset=0x14e8214;
@@ -110,6 +111,12 @@ static bool installProposalApproval() {
     BYTE call[5]={0xe8};
     *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&approvalClick)-reinterpret_cast<BYTE*>(approvalClickCall)-5);
     return patchBytes(reinterpret_cast<void*>(approvalClickCall),approvalClickExpected,call,sizeof(call));
+}
+static bool installProposalDetailCaption() {
+    if(memcmp(reinterpret_cast<void*>(proposalDetailCaptionCall),proposalDetailCaptionExpected,sizeof(proposalDetailCaptionExpected)))return false;
+    BYTE call[5]={0xe8};
+    *reinterpret_cast<LONG*>(call+1)=static_cast<LONG>(reinterpret_cast<BYTE*>(&proposalDetailCaption)-reinterpret_cast<BYTE*>(proposalDetailCaptionCall)-5);
+    return patchBytes(reinterpret_cast<void*>(proposalDetailCaptionCall),proposalDetailCaptionExpected,call,sizeof(call));
 }
 
 // Reply rows (0x0f14) in an office mailbox: 0053c1e0 keeps the 0x0f13 item pointer [esp+0x3c] at 0 for them and

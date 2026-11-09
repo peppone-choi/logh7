@@ -36,6 +36,7 @@
 #pragma comment(lib,"gdi32.lib")
 #include "mail_refresh.h"
 #include "proposal_approval_state.h"
+#include "proposal_detail_caption.h"
 #include "korean_windows.h"
 #include "dialog_text.h"
 #include "portrait_label.h"
@@ -310,6 +311,54 @@ static bool proposalApprovalTest() {
     if(state.outstanding || state.receive(&world,10001,7,20,0,2))return false;
     return wcscmp(logh::proposalApprovalFailure(10),logh::proposalApprovalFailure(8)) &&
         wcscmp(logh::proposalApprovalFailure(99),logh::proposalApprovalFailure(0));
+}
+static void* detailCaptionTable=nullptr;
+static unsigned detailCaptionGroup=0,detailCaptionIndex=0;
+static const char* __fastcall detailCaptionProbe(void* table,void*,unsigned group,unsigned index) {
+    detailCaptionTable=table;detailCaptionGroup=group;detailCaptionIndex=index;
+    return "caption";
+}
+/** Runs the wrapper on the stack 0053b588 has: row kind, parent's return, four saved registers, -1, index, group. */
+static bool detailCaptionCall(int rowKind,unsigned rowGroup,unsigned rowIndex,unsigned expected) {
+    unsigned catalogue=0x2217400,stackBefore=0,stackAfter=0,remaining=0,kindSlot=0;
+    const char* caption=nullptr;
+    detailCaptionTable=nullptr;detailCaptionGroup=detailCaptionIndex=0;
+    __asm {
+        mov stackBefore,esp
+        push rowKind
+        push 0x11111111
+        push 0x22222222
+        push 0x33333333
+        push 0x44444444
+        push 0x55555555
+        push -1
+        push rowIndex
+        push rowGroup
+        mov ecx,catalogue
+        call proposalDetailCaption
+        mov caption,eax
+        mov eax,dword ptr [esp]
+        mov remaining,eax
+        mov eax,dword ptr [esp+0x18]
+        mov kindSlot,eax
+        add esp,0x1c
+        mov stackAfter,esp
+    }
+    return stackBefore==stackAfter && remaining==0xffffffff && kindSlot==static_cast<unsigned>(rowKind) && caption && !strcmp(caption,"caption") &&
+        detailCaptionTable==reinterpret_cast<void*>(0x2217400) && detailCaptionGroup==rowGroup && detailCaptionIndex==expected;
+}
+static bool proposalDetailCaptionTest() {
+    if(proposalDetailCaptionCall+5+*reinterpret_cast<const unsigned*>(proposalDetailCaptionExpected+1)!=0x522010)return false;
+    const unsigned lookup=proposalDetailLookup;
+    proposalDetailLookup=reinterpret_cast<unsigned>(&detailCaptionProbe);
+    bool passed=true;
+    for(int kind:{0x0a,0x14})passed=passed && detailCaptionCall(kind,0x16,0x4d,0x4c); // unreplied order and proposal
+    for(int base:{0x0a,0x14})for(int digit:{1,2,3,4,5,6,9})
+        passed=passed && detailCaptionCall(base+digit,0x16,0x4d,0x4d); // replied and approved keep the original text
+    // Only 22/77 changes, even on a pending row.
+    passed=passed && detailCaptionCall(0x14,0x15,0x4d,0x4d) && detailCaptionCall(0x14,0x16,0x4e,0x4e) && detailCaptionCall(0x14,0x16,0x4c,0x4c);
+    proposalDetailLookup=lookup;
+    return passed;
 }
 static bool mailRefreshTest() {
     unsigned char peer[0x124]={};
@@ -1243,7 +1292,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(!environmentShaderTest())return 96;
     if(!fortressMenuAuthorityTest())return 97;
     if(!commanderMenuTest())return 196;
-    if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest() || !proposalApprovalTest()) return 252;
+    if (!mailTextTest() || !mailDeliveryTest() || !mailRefreshTest() || !proposalApprovalTest() || !proposalDetailCaptionTest()) return 252;
     if (!legacyKoreanGlyphTest()) return 253;
     if (!nameCardDisplayTest()) return 254;
     if (!messengerStatusTextTest()) return 255;
