@@ -89,10 +89,41 @@ class TransportActionsTest {
         assertEquals(StrategyActionRejection.MAXIMUM,unloaded.rejection)
         assertEquals(moved,unloaded.stocks)
         assertEquals(captain.copy(grid=2488,baseId=1050),unloaded.player)
-        val free=destination.copy(units=UnitInventory(ships=mapOf(cargo to 65533)))
+        val size=UnitSpecifications.ships.single {it.kind==cargo.kind}.number
+        val limit=minOf(65535,255*size)
+        val existing=limit/size-2
+        val spare=limit%size
+        val otherGrade=cargo.copy(level=2)
+        val free=destination.copy(units=UnitInventory(ships=mapOf(otherGrade to existing)),
+            spareShips=SpareShipBoats(if(spare>0)mapOf(otherGrade to spare) else emptyMap()))
+        val justOver=free.copy(spareShips=SpareShipBoats(mapOf(otherGrade to spare+1)))
+        val blocked=moved.copy(bases=moved.bases+(1050 to justOver))
+        val blockedResult=act(load(pack.id),blocked)
+        assertEquals(StrategyActionRejection.MAXIMUM,blockedResult.rejection)
+        assertEquals(blocked,blockedResult.stocks)
+        assertEquals(captain.copy(grid=2488,baseId=1050),blockedResult.player)
         val retried=assertNotNull(act(load(pack.id),moved.copy(bases=moved.bases+(1050 to free))).stocks)
-        assertEquals(65535,retried.bases.getValue(1050).units.ships[cargo])
+        assertEquals(mapOf(otherGrade to existing,cargo to 2),retried.bases.getValue(1050).units.ships)
+        assertEquals(free.spareShips,retried.bases.getValue(1050).spareShips)
         assertTrue(retried.strategic.transports.isEmpty())
+    }
+
+    @Test fun cancellationChecksShipCapacityWithoutBlockingSuppliesOnlyIntoLegacyStock() {
+        val initial=stocks()
+        val planned=assertNotNull(act(plan(),initial).stocks)
+        val full=planned.bases.getValue(1049).copy(units=UnitInventory(ships=mapOf(cargo.copy(level=2) to 256)))
+        val legacy=planned.copy(bases=planned.bases+(1049 to full))
+        val pack=legacy.strategic.transports.single()
+        val cancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=pack.id)
+        val rejected=act(cancel,legacy)
+        assertEquals(StrategyActionRejection.MAXIMUM,rejected.rejection)
+        assertEquals(legacy,rejected.stocks)
+        assertEquals(officer,rejected.player)
+        val suppliesOnly=legacy.copy(strategic=legacy.strategic.copy(transports=listOf(pack.copy(units=UnitInventory()))))
+        val accepted=act(cancel,suppliesOnly)
+        assertNull(accepted.rejection)
+        assertEquals(full.units,accepted.stocks?.bases?.getValue(1049)?.units)
+        assertEquals(full.supplies+pack.supplies,accepted.stocks?.bases?.getValue(1049)?.supplies)
     }
 
     @Test fun cancelledPackageIdCannotTargetAReplacement() {

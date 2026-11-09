@@ -47,7 +47,8 @@ object TransportActions {
         val ships = add(base.units.ships, units.ships, 1)
         val troops = add(base.units.troops, units.troops, 1)
         if (ships.size > 99 || troops.size > 24 ||
-            ships.values.any { it > 65535 } || troops.values.any { it > 65535 }) return null
+            ships.values.any { it > 65535 } || troops.values.any { it > 65535 } ||
+            !warehouseShipIncreaseFits(base.units.ships,base.spareShips,ships,base.spareShips)) return null
         return base.copy(supplies = base.supplies + supplies, units = UnitInventory(ships, troops, base.units.work))
     }
     private fun minus(a:UnitInventory,b:UnitInventory)=UnitInventory(add(a.ships,b.ships,-1),add(a.troops,b.troops,-1),a.work)
