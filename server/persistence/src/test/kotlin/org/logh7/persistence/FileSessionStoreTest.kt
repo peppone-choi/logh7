@@ -40,6 +40,21 @@ class FileSessionStoreTest {
         assertFails { localSessionStore(directory, rules).close() }
         assertContentEquals(bytes, Files.readAllBytes(path))
     }
+    @Test fun replacementJoinReplaysWithoutChangingTheCountryOrSlot() {
+        localSessionStore(directory, rules).use { store ->
+            apply(store, SessionAction.Join("pilot", Power.EMPIRE, false, "old", 1))
+            apply(store, SessionAction.Disconnect("pilot", "old"))
+            val replacement = SessionAction.Join("pilot", Power.EMPIRE.country, true, "new", 1, replacingDeceased = true)
+            assertEquals(Admission.ACCEPTED, apply(store, replacement).admission)
+        }
+        localSessionStore(directory, rules).use { store ->
+            val participants = store.load().session.participants
+            assertEquals(setOf("pilot"), participants.keys)
+            assertEquals(Power.EMPIRE.country, participants.getValue("pilot").country)
+            assertTrue(participants.getValue("pilot").original)
+        }
+    }
+
     @Test fun checkpointAndWholeJournalReplayMatchFullStateAndSubsequentEvents() {
         val expected: DurableWorldState
         val after: SessionTransition

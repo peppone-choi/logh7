@@ -154,6 +154,33 @@ class FleetNavigationTest {
         assertNull(reopened.snapshot(1)?.strategic?.people?.get(1001)?.peerage)
         assertEquals(1,state.commits)
     }
+    @Test fun admissionAllowsSameCountryOriginalReplacementOnlyAfterDeceasedPredecessorDisconnects() = runBlocking {
+        val state = state()
+        val old = state.players.getValue("pilot")
+        fun start() = WorldEngine(this, ticking = false, galaxy = galaxy, navigationStore = state.nav,
+            stockStore = state.inventory, worldStateCommitter = state.commit)
+        suspend fun WorldEngine.join(country: CountryId, id: Int, original: Boolean, connection: String): Admission {
+            val result = CompletableDeferred<Admission>()
+            submit(WorldCommand.Join("pilot", country, original, result, connection, 1, characterId = id))
+            return withTimeout(5000) { result.await() }
+        }
+        val engine = start()
+        try {
+            assertEquals(Admission.ACCEPTED, engine.join(CountryId(3), old.characterId, false, "old"))
+            engine.submit(WorldCommand.Disconnect("pilot", "old"))
+            assertEquals(Admission.IDENTITY_CHANGED, engine.join(CountryId(3), 1002, true, "new"))
+        } finally { engine.drainAndClose() }
+        state.stocks = BattleDeath.apply(state.stocks, listOf(old.characterId), 1) { _, _ -> true }
+        val restored = start()
+        try {
+            assertEquals(Admission.ACCEPTED, restored.join(CountryId(3), old.characterId, false, "old"))
+            assertEquals(Admission.IDENTITY_CHANGED, restored.join(CountryId(3), 1002, true, "new"))
+            restored.submit(WorldCommand.Disconnect("pilot", "old"))
+            assertEquals(Admission.IDENTITY_CHANGED, restored.join(CountryId(2), 1001, true, "new"))
+            assertEquals(Admission.ACCEPTED, restored.join(CountryId(3), 1002, true, "new"))
+        } finally { restored.drainAndClose() }
+    }
+
     @Test fun originalFleetAideEntryCommitsOnceWithoutReplacingAnExistingHolder() {
         val odin=home.copy(id=1049,name=Capital.EMPIRE.baseName)
         val world=Galaxy(listOf(GalaxySystem(3,2487,4,"ヴァルハラ",2)),listOf(odin),Power.entries.associateWith {2487})
