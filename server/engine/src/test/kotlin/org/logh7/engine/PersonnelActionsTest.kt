@@ -108,6 +108,41 @@ class PersonnelActionsTest {
         val noNoble=act(request(3,card=1).copy(value=4,identities=ids.map {if(it.id==10001)it.copy(origin=1) else it}),s)
         assertEquals(StrategyActionRejection.RANK,noNoble.rejection)
     }
+    @Test fun aDormantFiefUsesACardSlotButUpgradingATitleDoesNot() {
+        val initial = stocks(1)
+        val estates = (1051..1062).associateWith { id ->
+            PlanetStock(id, 2, if (id == 1062) 1 else 0, 100, 200, 300)
+        }
+        val world = Galaxy(galaxy.systems, galaxy.bases + estates.keys.map { id ->
+            galaxy.bases.first().copy(id = id, name = "Estate $id")
+        }, galaxy.starts)
+        val offices = OrganizationalOfficePolicy(world)
+        val full = initial.copy(bases = initial.bases + estates, strategic = initial.strategic.copy(
+            people = initial.strategic.people + (10001 to StrategicPerson(rank = 5, peerage = Peerage.BARON)),
+            fiefs = estates.keys.associateWith { 10001 }))
+        assertEquals(14, offices.cardCount(full, 10001))
+        val ids = identities.map { if (it.id == 10001) it.copy(rank = 5) else it }
+        val grant = request(8, card = 1).copy(base = 1050, identities = ids)
+        fun evaluate(r: StrategyActionRequest, s: PlanetStocks) = StrategyActions.evaluate(world, r, session, p, s)
+        val rejected = evaluate(grant, full)
+        assertEquals(StrategyActionRejection.MAXIMUM, rejected.rejection)
+        assertEquals(p, rejected.player)
+        assertEquals(full, rejected.stocks)
+
+        val upgraded = evaluate(request(3, card = 1).copy(value = Peerage.VISCOUNT.ordinal, identities = ids), full)
+        assertNull(upgraded.rejection)
+        val afterUpgrade = assertNotNull(upgraded.stocks)
+        assertEquals(Peerage.VISCOUNT, afterUpgrade.strategic.people.getValue(10001).peerage)
+        assertEquals(14, offices.cardCount(afterUpgrade, 10001))
+
+        val room = full.copy(strategic = full.strategic.copy(fiefs = full.strategic.fiefs - 1051))
+        val endowed = evaluate(grant, room)
+        assertNull(endowed.rejection)
+        val afterGrant = assertNotNull(endowed.stocks)
+        assertEquals(10001, afterGrant.strategic.fiefs[1050])
+        assertEquals(14, offices.cardCount(afterGrant, 10001))
+    }
+
     @Test fun decorationsRequireStoredAuthorityAndMeritAndCannotBeChargedTwice() {
         val s=stocks(17).let {it.copy(strategic=it.strategic.copy(people=it.strategic.people+(10001 to StrategicPerson(merit=100))))}
         val q=request(4,card=17).copy(identities=identities.map {if(it.id==10001)it.copy(rank=6) else it})

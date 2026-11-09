@@ -228,13 +228,16 @@ internal object TacticalSupportOperations {
         results: MutableList<TacticalSupportResult>): PlanetStocks {
         var stocks=initial
         val now=session.gameMillis/1000
+        // A retreat earlier in this tick can end contact before navigation clears cpPaused.
+        val forces by lazy { GridForces.collect(galaxy,session.generation,players.values,initial) }
         for(id in initial.outfits.values.flatMap {it.activeShips?.values.orEmpty()}.filter {it.support!=null}.map {it.id}.sorted()) {
             var source=ship(id,stocks) ?: continue
             val order=source.unit.support ?: continue
             val player=players.values.singleOrNull {it.characterId==order.character}
             if(session.ended!=null || source.outfit.country in session.eliminated ||
                 player==null || BattleDeath.deceased(stocks,order.character) ||
-                !eligible(source,player,order,now,players,stocks,galaxy)) {
+                !eligible(source,player,order,now,players,stocks,galaxy) ||
+                forces[order.grid].orEmpty().none {it.camp!=TacticalAuthority.camp(player,stocks) && (it.units>0 || it.base)}) {
                 results+=cancelled(session,source,order,players)
                 stocks=replace(stocks,source,source.unit.copy(support=null)); continue
             }
