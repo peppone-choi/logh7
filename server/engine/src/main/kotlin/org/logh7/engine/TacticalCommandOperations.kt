@@ -89,7 +89,7 @@ internal object TacticalCommandOperations {
         return p.characterId==best.characterId
     }
     private fun validate(c:TacticalCommand,p:Navigator,now:Long,players:Map<String,Navigator>,s:PlanetStocks,g:Galaxy,
-        checkRange:Boolean,sessionOnline:Map<String,Boolean> = emptyMap(),fortressStartAt:Long=now):NavigationRejection? {
+        checkRange:Boolean,eliminated:Set<CountryId>,sessionOnline:Map<String,Boolean> = emptyMap(),fortressStartAt:Long=now):NavigationRejection? {
         if(BattleDeath.deceased(s,p.characterId))return NavigationRejection.IDENTITY
         if(s.social.justice.detained(p.characterId))return NavigationRejection.BUSY
         if(p.hull?.woundedUntil?.let {it>now}==true)return NavigationRejection.WOUNDED
@@ -105,7 +105,7 @@ internal object TacticalCommandOperations {
             val commandsBase=if(base.kind==1)baseCommander(base,owner,s,g)==p.characterId
                 else GroundCommandAuthority.garrison(base.id,s,g)==p.characterId
             if(c.opcode!=0x422 && !openSupply && !commandsBase)return NavigationRejection.CARD
-            if(!TacticalContact.contested(GridForces.collect(g,p.generation,players.values,s)[p.grid].orEmpty()))return NavigationRejection.TACTICAL
+            if(!TacticalContact.contested(GridForces.collect(g,p.generation,players.values,s,eliminated)[p.grid].orEmpty()))return NavigationRejection.TACTICAL
         } else if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return NavigationRejection.TACTICAL
         val centre=if(base!=null)basePoint(base,now,s) else pose(p.unitId,p.grid,now,players,s,g)?.position ?: return NavigationRejection.UNIT
         val range=if(base!=null)TacticalCommandRange.MAXIMUM else p.commandRange?.radius(now) ?: 0f
@@ -267,7 +267,7 @@ internal object TacticalCommandOperations {
         if(c.base==0 && !n.captainCard(r,p))return reject(NavigationRejection.CARD)
         if(c.base==0 && p.hull?.kind!=r.shipKind)return reject(NavigationRejection.UNIT)
         var next=s.copy(tacticalCommands=s.tacticalCommands.copy(ranks=s.tacticalCommands.ranks+r.tacticalRanks+(p.characterId to r.rank)))
-        validate(c,p,now,players,next,g,true,session.participants.mapValues {it.value.online})?.let {return reject(it)}
+        validate(c,p,now,players,next,g,true,session.eliminated.keys,session.participants.mapValues {it.value.online})?.let {return reject(it)}
         val duration=when(c.opcode){0x41e->0L;0x419->35L;else->5L}*scale
         if(now>0xffffffffL-duration)return reject(NavigationRejection.CLOCK)
         // Personal abilities and supreme emergency supply spend PCP; squadron commands use CRC.
@@ -305,7 +305,7 @@ internal object TacticalCommandOperations {
         var stocks=s;val events=mutableListOf<TacticalCommandResult>()
         for(base in bases) {
             val c=TacticalCommand(0x41e,base=base)
-            if(validate(c,p,now,players,s,g,false)!=null)return null
+            if(validate(c,p,now,players,s,g,false,session.eliminated.keys)!=null)return null
             stocks=rebaseBerths(base,now,players,stocks,g)
             val cancelled=stocks.tacticalCommands.orders.filter {it.command.base==base}
             val moved=stocks.tacticalCommands.fortresses[base]?.let {f->val at=f.motion.pose(now)
@@ -534,7 +534,7 @@ internal object TacticalCommandOperations {
         fun advanceMissions(defeated:Set<Int>) {
             val state=stocks.tacticalCommands;val missions=state.missions.toMutableMap();val merits=state.merits.toMutableMap()
             val finished=mutableMapOf<Int,Pair<Int,Long>>()
-            val forces by lazy {GridForces.collect(g,session.generation,players.values,stocks)}
+            val forces by lazy {GridForces.collect(g,session.generation,players.values,stocks,session.eliminated.keys)}
             for((account,p) in players) {
                 val id=p.characterId
                 val existing=missions[id]
@@ -668,7 +668,7 @@ internal object TacticalCommandOperations {
             val p=commander?.value
             val country=commander?.key?.let {session.participants[it]?.country} ?: p?.country
             val valid=session.ended==null && country !in session.eliminated && p!=null &&
-                validate(o.command,p,battle.now,players,battle.stocks,g,false,
+                validate(o.command,p,battle.now,players,battle.stocks,g,false,session.eliminated.keys,
                 session.participants.mapValues {it.value.online},fortressStartAt=minOf(o.readyAt,battle.now))==null
             if(valid && o.readyAt>battle.now)continue
             battle.stocks=battle.stocks.copy(tacticalCommands=battle.stocks.tacticalCommands.copy(orders=battle.stocks.tacticalCommands.orders-o))
@@ -682,7 +682,7 @@ internal object TacticalCommandOperations {
         }
         battle.advanceWings();battle.advanceFortresses()
         if(battle.stocks.tacticalCommands.emergencySupplies.isNotEmpty()) {
-            val forces=GridForces.collect(g,session.generation,players.values,battle.stocks)
+            val forces=GridForces.collect(g,session.generation,players.values,battle.stocks,session.eliminated.keys)
             val open=battle.stocks.tacticalCommands.emergencySupplies.filter {(base,country)->
                 battle.stocks.bases[base]?.let {it.country?.value==country && it.camp==0}==true &&
                     g.bases.singleOrNull {it.id==base}?.let {TacticalContact.contested(forces[it.grid].orEmpty())}==true}

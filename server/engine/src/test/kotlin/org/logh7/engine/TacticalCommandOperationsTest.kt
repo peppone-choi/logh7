@@ -1403,6 +1403,27 @@ class TacticalCommandOperationsTest {
         assertTrue(state.stocks.tacticalCommands.orders.isEmpty())
     }
 
+    @Test fun theLastEnemyCountryDefeatClosesEmergencySupplyAndPreventsReopening() {
+        val r = run()
+        val command = TacticalCommand(0x422, base = 1000)
+        assertNotNull(accept(r, command).player)
+        settle(r, now + 5)
+        val stocked = r.state.stocks
+        assertEquals(Power.EMPIRE.country.value, stocked.tacticalCommands.emergencySupplies[1000])
+        val enemy = Power.ALLIANCE.country
+        val defeated = session.copy(gameMillis = (now + 6) * 1000,
+            countries = setOf(Power.EMPIRE.country, enemy, CountryId(42)),
+            eliminated = mapOf(enemy to CountryDefeat(EndReason.SYSTEMS_REDUCED, now + 6)))
+        val after = TacticalCommandOperations.advance(defeated, galaxy, r.state.players.toMutableMap(),
+            stocked, 1, mutableListOf(), mutableListOf())
+        assertTrue(after.tacticalCommands.emergencySupplies.isEmpty())
+        assertEquals(stocked.bases, after.bases)
+        assertEquals(stocked.outfits, after.outfits)
+        r.production.replace(stocked, after)
+        assertEquals(NavigationRejection.TACTICAL, TacticalCommandOperations.accept(request(command), defeated,
+            galaxy, r.navigation, r.production, after, r.state.commit, 1).rejection)
+    }
+
     @Test fun emergencySupplyOpensTheSelectedBaseAndDoesNotInventOrTeleportCargo() {
         val r=run();val before=r.state.stocks.bases.getValue(1000).supplies
         assertNotNull(accept(r,TacticalCommand(0x422,base=1000)).player);settle(r,now+5)

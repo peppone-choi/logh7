@@ -231,7 +231,7 @@ internal object TacticalSupportOperations {
         var stocks=initial
         val now=session.gameMillis/1000
         // A retreat earlier in this tick can end contact before navigation clears cpPaused.
-        val forces by lazy { GridForces.collect(galaxy,session.generation,players.values,initial) }
+        val forces by lazy { GridForces.collect(galaxy,session.generation,players.values,initial,session.eliminated.keys) }
         for(id in initial.outfits.values.flatMap {it.activeShips?.values.orEmpty()}.filter {it.support!=null}.map {it.id}.sorted()) {
             var source=ship(id,stocks) ?: continue
             val order=source.unit.support ?: continue

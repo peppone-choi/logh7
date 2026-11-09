@@ -80,6 +80,25 @@ class TacticalSupportTest {
         settle(s,nav,p,now+240,out);assertEquals(1,out.size)
     }
 
+    @Test fun savedSupportCancelsWhenTheOnlyEnemyCountryIsEliminated() {
+        val state = state()
+        val navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+        val production = production(state)
+        val ready = assertNotNull(accept(state, navigation, production,
+            request(TacticalSupportAction.SUPPLY, 2)).supportReadyAt)
+        val before = state.stocks.outfits.getValue(1)
+        val country = Power.ALLIANCE.country
+        val continuing = session.copy(gameMillis = ready * 1000,
+            countries = setOf(Power.EMPIRE.country, country, CountryId(42)),
+            eliminated = mapOf(country to CountryDefeat(EndReason.SYSTEMS_REDUCED, now)))
+        val results = mutableListOf<TacticalSupportResult>()
+        val after = TacticalSupportOperations.advance(continuing, galaxy, state.players.toMutableMap(), state.stocks, results)
+        val source = after.outfits.getValue(1)
+        assertTrue(results.single().cancelled)
+        assertNull(source.activeShips!!.values.first().support)
+        assertEquals(OutfitSupplies.distribution(before), OutfitSupplies.distribution(source))
+    }
+
     @Test fun supportRechecksContactAfterTheLastHostileRetreatsInTheSameTick() {
         for(leaves in listOf(true,false)) {
             val s=state()
