@@ -111,7 +111,8 @@ internal object NpcTactics {
             val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy,session.eliminated.keys)
             val detectsEnemies=enemies.isNotEmpty() && live.any { unit ->
                 val observer=initial(unit,outfit,position.grid,now,players,stocks,galaxy).position
-                enemies.any { !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,observer,it.pose.position,now,players.values,stocks) }
+                enemies.any { hypot(it.pose.position.x.toDouble()-observer.x,it.pose.position.y.toDouble()-observer.y)<=policy.sight &&
+                    !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,observer,it.pose.position,now,players.values,stocks) }
             }
             val returnJumps=if(policy.strategic && detectsEnemies)NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
             val cargo=OutfitSupplies.distribution(outfit)
