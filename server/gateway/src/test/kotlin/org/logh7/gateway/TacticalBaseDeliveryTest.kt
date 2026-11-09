@@ -120,6 +120,18 @@ class TacticalBaseDeliveryTest {
         received.clear();hub.tacticalCommand(event.copy(cancelled=true),snapshot(TacticalCommandState()),galaxy,::character)
         assertFalse(received.flatten().any {opcode(it) in setOf(0x440,0x43d,0x43e)})
     }
+    @Test fun reconnectShowsCannonReservationOnlyWhileItsCommanderIsPresent() {
+        val order=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(0x419,base=1000,direction=.5f))
+        val active=snapshot(TacticalCommandState(orders=listOf(order)))
+        val docked=player.copy(baseId=1000,mode=4,cpPaused=false)
+        fun cannon(commander:Navigator)=TacticalBootstrap(
+            active.copy(navigators=active.navigators+("pilot" to commander)),galaxy,opposing,::character)
+            .baseInformation.single().cannonStart
+
+        assertEquals(100L,cannon(docked))
+        assertEquals(0L,cannon(docked.copy(grid=2488)))
+    }
+
     @Test fun committedCannonStartsItsBeamAndNotifiesOnlyTheActualDestructionList() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,received::add));received.clear()

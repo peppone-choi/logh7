@@ -43,6 +43,21 @@ class TacticalCommandDeliveryTest {
         assertEquals(15,boot.units.single {it.id==1}.morale);assertTrue(boot.units.single {it.id==1}.confused)
         assertEquals(1,boot.corps.single().mission);assertEquals(6,boot.corps.single().formation)
     }
+    @Test fun reconnectDoesNotReplayOrdersFromAFormerOrDeceasedCombatant() {
+        val active=snapshot(TacticalCommandState(orders=listOf(order())))
+        fun replays(world:WorldSnapshot)=TacticalBootstrap(world,galaxy,player){person}.resume().any {opcode(it)==0x420}
+        assertTrue(replays(active))
+        assertFalse(replays(active.copy(navigators=mapOf("pilot" to player.copy(grid=2488)))))
+        assertFalse(replays(active.copy(navigators=mapOf("pilot" to player.copy(cpPaused=false)))))
+        assertFalse(replays(active.copy(navigators=mapOf(
+            "pilot" to player.copy(hull=FlagshipHull(0,100,woundedUntil=115))))))
+        val session=checkNotNull(active.session)
+        assertFalse(replays(active.copy(session=session.copy(eliminated=mapOf(
+            Power.EMPIRE.country to CountryDefeat(EndReason.CAPITAL_CAPTURED,105,Power.ALLIANCE.country))))))
+        val stocks=checkNotNull(active.planetStocks)
+        assertFalse(replays(active.copy(planetStocks=stocks.copy(
+            strategic=StrategicState(people=mapOf(player.characterId to StrategicPerson(deceasedAt=105)))))))
+    }
     @Test fun completionRefreshesOnlyItsAuthenticatedBattlefieldAndCancellationIsRejected() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         val viewer=GamePresence.Member("one",person,player,received::add)

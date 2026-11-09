@@ -38,8 +38,20 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         // 004c4240 imports wire x/y into native world x/z; wire z is not the map plane.
         TacticsMessages.Base(base.id,point.x,point.y,0f)
     }
+    private val commandOrders by lazy {
+        val stocks=checkNotNull(snapshot.planetStocks)
+        val actors=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==viewer.grid}
+            .groupBy {it.characterId}
+        stocks.tacticalCommands.orders.filter {order ->
+            val actor=actors[order.character]?.singleOrNull()
+            order.grid==viewer.grid && snapshot.session?.ended==null && actor!=null && actor.country !in eliminated &&
+                !BattleDeath.deceased(stocks,actor.characterId) &&
+                (actor.hull?.woundedUntil ?: 0)<=(snapshot.session?.gameSeconds ?: 0) &&
+                (order.command.base!=0 || actor.cpPaused && actor.baseId==0 && actor.mode==5)
+        }
+    }
     val baseInformation by lazy { bases.map {base ->
-        val cannon=snapshot.planetStocks!!.tacticalCommands.orders.singleOrNull {it.command.base==base.id && it.command.opcode==0x419}
+        val cannon=commandOrders.singleOrNull {it.command.base==base.id && it.command.opcode==0x419}
         TacticsMessages.BaseInformation(base,cannonStart=cannon?.acceptedAt ?: 0,
             cannonAngle=cannon?.command?.direction?.let {(((it/(2*Math.PI)*65536).toInt()%65536)+65536)%65536} ?: 0,
             stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id},eliminated))}}
@@ -163,7 +175,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         if(order.action==TacticalGroundAction.DEPLOY)TacticalGroundMessages.Action.DEPLOY else TacticalGroundMessages.Action.WITHDRAW,
         order.character,listOf(order.carrier)),snapshot.session?.gameSeconds ?: 0,
         (order.readyAt-(snapshot.session?.gameSeconds ?: 0)).coerceAtLeast(0))}
-    fun resume() = snapshot.planetStocks!!.tacticalCommands.orders.filter {it.grid==viewer.grid}.mapNotNull {order->
+    fun resume() = commandOrders.mapNotNull {order->
         TacticalCommandWire.command(order)?.let {org.logh7.protocol.TacticalCommandMessages.reply(it,snapshot.session?.gameSeconds ?: 0,
             (order.readyAt-(snapshot.session?.gameSeconds ?: 0)).coerceAtLeast(0))}}+
         groundOrderReplies()+postureOrders()+rotations()+people.filter {it.motion?.rotation==null && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
