@@ -377,6 +377,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         return player.strategy?.jobs.orEmpty().any {it.completesAtGameMillis/1000<=now} ||
             (player.strategy==null && player.fuelReadyAt?.let {it<=now}==true)
     }
+    private fun offlineAbilities(account:String,player:Navigator,stocks:PlanetStocks?):List<Int>? =
+        (stocks?.strategic?.people?.get(player.characterId)?.abilities ?: profiles[account]?.abilities)?.takeIf {it.size>2}
     /**
      * Runs the login settlement path for each offline captain whose job is due, so the fleet moves with the
      * flagship and observers see the arrival without waiting for a reconnect. A deferred fleet (a member is busy)
@@ -389,9 +391,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         for((account,player) in navigation.snapshot(session.generation).toSortedMap()) {
             if(!dueOfflineWork(session,account,player))continue
             val member=session.participants.getValue(account)
-            // CP recovery needs the captain's abilities (last join profile). Without them a warp waits for login:
+            // CP recovery needs the captain's saved abilities or last join profile. Otherwise a warp waits for login:
             // arriving in contact resets the recovery clock, which would forfeit the CP earned before arrival.
-            val abilities=profiles[account]?.abilities?.takeIf {it.size>2}
+            val abilities=offlineAbilities(account,player,production?.snapshot(session.generation))
             if(abilities==null && player.warpTarget!=null)continue
             val result=recoverNavigation(NavigationRequest(account,player.characterId,player.country,member.connection.orEmpty(),
                 session.generation,politics=abilities?.get(1) ?: 50,administration=abilities?.get(2) ?: 50,
@@ -504,7 +506,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val nowSeconds=session.gameMillis/1000
         val navigationDeadlines=snapshot.navigators.filter {(account,p)->p.generation==session.generation && !p.cpPaused &&
             session.participants[account]?.online==false &&
-            (p.warpTarget==null || (profiles[account]?.abilities?.size ?: 0)>2)}.values.flatMap {p->
+            (p.warpTarget==null || offlineAbilities(account,p,snapshot.planetStocks)!=null)}.values.flatMap {p->
             (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
