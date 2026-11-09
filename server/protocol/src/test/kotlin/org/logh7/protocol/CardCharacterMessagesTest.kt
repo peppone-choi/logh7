@@ -9,12 +9,22 @@ class CardCharacterMessagesTest {
         assertEquals(CardCharacterMessages.Query(190),CardCharacterMessages.query(byteArrayOf(3,0x4e,0,190.toByte())))
         assertFails { CardCharacterMessages.query(byteArrayOf(3,0x4e,0,54,0)) }
         assertFails { CardCharacterMessages.query(byteArrayOf(3,0x4f,0,54)) }
-        assertFails { CardCharacterMessages.query(byteArrayOf(3,0x4e,1,0)) }
+        assertEquals(CardCharacterMessages.Query(256), CardCharacterMessages.query(byteArrayOf(3, 0x4e, 1, 0)))
+        assertFails { CardCharacterMessages.query(byteArrayOf(3, 0x4e, 1, 1)) }
     }
     @Test fun compatibilityQueryKeepsTheLowCardAndReadsThePage() {
         assertEquals(CardCharacterMessages.Query(54,0),CardCharacterMessages.query(byteArrayOf(3,0x4e,0x80.toByte(),54)))
         assertEquals(CardCharacterMessages.Query(190,127),CardCharacterMessages.query(byteArrayOf(3,0x4e,0xff.toByte(),190.toByte())))
     }
+    @Test fun pagingCard256UsesThePreviouslyUnusedLowByteAndReturnsAFullWidthCard() {
+        for (page in listOf(0, 1, 127)) {
+            val query = ByteBuffer.allocate(4).putShort(0x034e).putShort((0x8000 or (page shl 8)).toShort()).array()
+            assertEquals(CardCharacterMessages.Query(256, page), CardCharacterMessages.query(query))
+        }
+        val response = CardCharacterMessages.response(256, emptyList())
+        assertContentEquals(byteArrayOf(1, 0, 0), response.copyOfRange(6, 9))
+    }
+
     @Test fun emptyRosterHasCardAndCountAndNativeLimitIsEnforced() {
         val empty=CardCharacterMessages.response(54,emptyList())
         assertEquals(9,empty.size)

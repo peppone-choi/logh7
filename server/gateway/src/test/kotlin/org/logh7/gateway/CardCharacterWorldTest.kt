@@ -17,11 +17,16 @@ class CardCharacterWorldTest {
     @Test fun encryptedPagesReturnTheLastHolderWithoutOverflowingTheNativeResponse() {
         val seats=(1..65).map {galaxy.bases.first().copy(id=it,grid=if(it==1)2487 else 2400+it)}
         val systems=seats.map {GalaxySystem(it.id+2,it.grid,4,"System "+it.id,2)}
-        val world=Galaxy(systems,seats,galaxy.starts)
-        val roster=stocks.copy(bases=seats.associate {it.id to PlanetStock(it.id,2,0,0,0,0,governorId=19000+it.id)},
+        val rebel = seats.first().copy(id = 66, grid = 2466)
+        val world=Galaxy(systems + GalaxySystem(68, rebel.grid, 4, "Rebel", 3), seats + rebel, galaxy.starts)
+        val roster=stocks.copy(bases=seats.associate {it.id to PlanetStock(it.id,2,0,0,0,0,governorId=19000+it.id)} +
+            (rebel.id to PlanetStock(rebel.id, 3, 1, 0, 0, 0)),
+            strategic = StrategicState(offices = listOf(OfficeHolding(256, rebel.id, 19066, CountryId(3)))),
             deploymentInitialized=true)
         val characters=CharacterCreation(directory.resolve("characters.properties"))
         for(id in 19001..19065)assertTrue(characters.carry("holder$id",CharacterProfile(character.copy(id=id.toLong()),CountryId(2),ShipStyleId("empire"))))
+        assertTrue(characters.carry("holder19066", CharacterProfile(character.copy(id = 19066, power = 3),
+            CountryId(3), ShipStyleId("alliance"))))
         val store=object:PlanetStockStore {
             override fun load()=roster
             override fun save(stocks:PlanetStocks) {}
@@ -49,6 +54,16 @@ class CardCharacterWorldTest {
             assertEquals(54,second.getShort(6).toInt());assertEquals(1,second.get(8).toInt())
             assertEquals(19065,second.getInt(9))
             assertEquals(0,page(0x8236).get(8).toInt())
+            for (request in listOf(0x0100, 0x8000)) {
+                val rebels = page(request)
+                assertEquals(0, rebels.getInt(0))
+                assertEquals(256, rebels.getShort(6).toInt())
+                assertEquals(1, rebels.get(8).toInt())
+                assertEquals(19066, rebels.getInt(9))
+            }
+            val emptyRebelPage = page(0x8100)
+            assertEquals(256, emptyRebelPage.getShort(6).toInt())
+            assertEquals(0, emptyRebelPage.get(8).toInt())
         }
     }
 
