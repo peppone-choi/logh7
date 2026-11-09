@@ -488,7 +488,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         // W p.68: CP and execution wait grow with distance. 40 per started 100 ly (CD help: x4 at most) and
         // one G-hour per grid beyond the first are revival policy (design 2026-10-30, evidence:guess).
         val grids = (WarpCourse.cruiseCost(before.grid, destination) + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID
-        val cost = policy.warpCost.toLong() * if (operationTarget(before, destination, stocks)) 1 else minOf(4, grids)
+        val cost = policy.warpCost.toLong() * if (operationTarget(before, destination, now, stocks)) 1 else minOf(4, grids)
         val waitHours = (grids - 1).toLong()
         if (waitHours > 0) {
             val pipeline = NavigationWork.pipeline(before, policy, warpCost = cost, warpWaitHours = waitHours)
@@ -533,10 +533,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         return request.captainCard==card
     }
     /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
-    private fun operationTarget(player: Navigator, destination: Int, stocks: PlanetStocks?): Boolean =
+    private fun operationTarget(player: Navigator, destination: Int, now: Long, stocks: PlanetStocks?): Boolean =
         stocks != null && !CoupActions.rebel(stocks,player.characterId,player.country) &&
         stocks.strategic.operations.any { operation -> operation.live &&
             operation.country==player.country && operation.state != StrategicPlanState.PLANNED && player.characterId in operation.characters &&
+            operation.issuedAt?.let { now in it until OperationPlanRules.endGameSeconds(it) } == true &&
             abs(operation.grid % 100 - destination % 100) <= 1 && abs(operation.grid / 100 - destination / 100) <= 1 }
     /** Runs on clock advances as well as requests, including while the captain is offline. */
     fun settleRetreats(session: SessionState, stocks: PlanetStocks?) {
