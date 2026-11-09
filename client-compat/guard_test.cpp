@@ -852,7 +852,8 @@ static bool tacticalNoticesTest() {
         logh::tacticalNoticeFallback(118, 63, missing) != missing) return false;
     if (strcmp(logh::tacticalNoticeFallback(118, 10, missing, 3), "LOGH7_TACTICAL_TURN") ||
         strcmp(logh::tacticalNoticeFallback(118, 10, missing, 4), "LOGH7_TACTICAL_PARALLEL") ||
-        strcmp(logh::tacticalNoticeFallback(118, 10, missing, 99), "LOGH7_TACTICAL_DESTINATION")) return false;
+        strcmp(logh::tacticalNoticeFallback(118, 10, missing, 99), "LOGH7_TACTICAL_DESTINATION") ||
+        strcmp(logh::tacticalNoticeFallback(118, 57, missing), "LOGH7_TACTICAL_PLAYER_DEPARTED")) return false;
     std::wstring decoded = L"unchanged";
     if (logh::tacticalNoticeFragment(missing, decoded) || decoded != L"unchanged" ||
         logh::tacticalNoticeFragment(nullptr, decoded)) return false;

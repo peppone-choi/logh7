@@ -62,6 +62,8 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
         {46, 0, "LOGH7_TACTICAL_BASE_SUPPLY_SELECT", L"보급할 주둔 함정을 목록에서 선택하세요.\n"},
         {47, 0, "LOGH7_TACTICAL_BASE_SUPPORT_SELECT", L"수리할 주둔 함정을 목록에서 선택하세요.\n"},
         {60, 0, "LOGH7_TACTICAL_BASE_SUPPORT_EMPTY", L"이 거점에 주둔한 함정이 없습니다.\n"},
+        // 0425 (004c1990): a warped-out unit was a grid player's flagship; the native code drops that player entry.
+        {57, 0, "LOGH7_TACTICAL_PLAYER_DEPARTED", L"플레이어 한 명이 전장을 이탈했습니다.\n"},
     };
     count = sizeof(rows) / sizeof(rows[0]);
     return rows;

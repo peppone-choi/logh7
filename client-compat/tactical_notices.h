@@ -25,7 +25,9 @@ static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x5
     // Fortress tab 鼓舞 sent (state 0x14 after 004b4710): 118/44, the fortress counterpart of 118/43.
     0x51012c,
     // Fortress tab 補給 target prompt (state 0x13, 118/46), the supply twin of the repair prompt 0x510363 (118/47).
-    0x51033a};
+    0x51033a,
+    // 0425 NotifyWarpedShip (004c1990): a departing unit matched a grid player's flagship (118/57, CD group has 0..6).
+    0x4c19e0};
 // 0x5104b2 (118/60) fills the base-support window's empty-list text, not the chat log, so the chat marker would show raw
 // (seen 2026-11-03, work/fortress-tab-20261103): that one caller gets the catalogue's private CP932 form instead.
 static const char* tacticalWindowNotice(unsigned index, const char* marker) {
