@@ -73,6 +73,36 @@ class TacticalFleetAttackTest {
         }
     }
 
+    @Test fun woundedCommanderCannotOrderOrFinishFleetFire() {
+        val s=state()
+        val player=s.players.getValue("pilot")
+        s.players=mapOf("pilot" to player.copy(hull=player.hull!!.copy(woundedUntil=now+121)))
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        val stock=production(s)
+        val shot=TacticalShoot(listOf(2),TacticalWeapon.BEAM.wire,1,99)
+        assertEquals(NavigationRejection.TACTICAL,attack(s,nav,stock).rejection)
+        assertEquals(NavigationRejection.TACTICAL,TacticalFleetShoot.accept(
+            request(shot.units).copy(tacticalMove=null,tacticalShoot=shot),
+            session,galaxy,nav,stock,stock.snapshot(1)!!,s.commit,24).rejection)
+
+        val outfit=s.stocks.outfits.getValue(1)
+        val ship=outfit.activeShips!!.values.last()
+        val automatic=TacticalUnitAttack(10000,TacticalAttackOrder(2,now,now+120,now+120))
+        val manual=TacticalUnitShot(10000,TacticalWeapon.BEAM,99,now,now+120)
+        val due=session.copy(gameMillis=(now+120)*1000)
+        for(pending in listOf(ship.copy(attack=automatic),ship.copy(shot=manual))) {
+            val saved=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(
+                activeShips=ActiveShipUnits(outfit.activeShips.values.dropLast(1)+pending))))
+            val players=s.players.toMutableMap()
+            val hits=mutableListOf<TacticalImpact>()
+            val afterShot=TacticalFleetShoot.advance(due,galaxy,players,saved,hits)
+            val settled=TacticalFleetAttack.advance(due,galaxy,players,afterShot,24,hits)
+            assertTrue(hits.isEmpty())
+            assertEquals(s.stocks,settled)
+            assertEquals(s.players,players)
+        }
+    }
+
     @Test fun commandedShipFiresPersistsAndStopsWithoutNpcPolicyOrRangeRechecks() {
         val s=state();var nav=Navigation(galaxy,s.nav,NavigationPolicy());var p=production(s)
         assertNotNull(attack(s,nav,p).player)
