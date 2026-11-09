@@ -38,8 +38,20 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         // 004c4240 imports wire x/y into native world x/z; wire z is not the map plane.
         TacticsMessages.Base(base.id,point.x,point.y,0f)
     }
+    private val commandOrders by lazy {
+        val stocks=checkNotNull(snapshot.planetStocks)
+        val actors=snapshot.navigators.values.filter {it.generation==viewer.generation && it.grid==viewer.grid}
+            .groupBy {it.characterId}
+        stocks.tacticalCommands.orders.filter {order ->
+            val actor=actors[order.character]?.singleOrNull()
+            order.grid==viewer.grid && snapshot.session?.ended==null && actor!=null && actor.country !in eliminated &&
+                !BattleDeath.deceased(stocks,actor.characterId) &&
+                (actor.hull?.woundedUntil ?: 0)<=(snapshot.session?.gameSeconds ?: 0) &&
+                (order.command.base!=0 || actor.cpPaused && actor.baseId==0 && actor.mode==5)
+        }
+    }
     val baseInformation by lazy { bases.map {base ->
-        val cannon=snapshot.planetStocks!!.tacticalCommands.orders.singleOrNull {it.command.base==base.id && it.command.opcode==0x419}
+        val cannon=commandOrders.singleOrNull {it.command.base==base.id && it.command.opcode==0x419}
         TacticsMessages.BaseInformation(base,cannonStart=cannon?.acceptedAt ?: 0,
             cannonAngle=cannon?.command?.direction?.let {(((it/(2*Math.PI)*65536).toInt()%65536)+65536)%65536} ?: 0,
             stamina=TacticalBaseDefense.strength(checkNotNull(snapshot.planetStocks),galaxy.bases.single {it.id==base.id},eliminated))}}
@@ -163,26 +175,43 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         if(order.action==TacticalGroundAction.DEPLOY)TacticalGroundMessages.Action.DEPLOY else TacticalGroundMessages.Action.WITHDRAW,
         order.character,listOf(order.carrier)),snapshot.session?.gameSeconds ?: 0,
         (order.readyAt-(snapshot.session?.gameSeconds ?: 0)).coerceAtLeast(0))}
-    fun resume() = snapshot.planetStocks!!.tacticalCommands.orders.filter {it.grid==viewer.grid}.mapNotNull {order->
+    private fun canReplayFleetFire(outfit:OutfitStock,unit:ActiveShipUnit,commander:Int):Boolean {
+        val stocks=checkNotNull(snapshot.planetStocks)
+        return outfit.country !in eliminated && unit.boats>unit.damaged && unit.support==null &&
+            unit.tactical?.motion?.grid==viewer.grid && TacticalAuthority.commander(outfit,unit,stocks)==commander &&
+            !BattleDeath.deceased(stocks,commander) && people.any {
+                it.characterId==commander && it.country==outfit.country && it.cpPaused &&
+                    TacticalAuthority.camp(it,stocks)==TacticalAuthority.camp(outfit,stocks)
+            }
+    }
+    fun resume() = commandOrders.mapNotNull {order->
         TacticalCommandWire.command(order)?.let {org.logh7.protocol.TacticalCommandMessages.reply(it,snapshot.session?.gameSeconds ?: 0,
             (order.readyAt-(snapshot.session?.gameSeconds ?: 0)).coerceAtLeast(0))}}+
         groundOrderReplies()+postureOrders()+rotations()+people.filter {it.motion?.rotation==null && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {TacticalMotionMessages.reply(it,snapshot.session?.gameSeconds ?: 0)} +
         snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {u -> u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation==null}
                 ?.let {TacticalMotionMessages.npc(u.id,it,snapshot.session?.gameSeconds ?: 0)}}} +
-        snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().mapNotNull {u ->u.support?.takeIf {it.grid==viewer.grid}?.let {order ->
-                val now=snapshot.session?.gameSeconds ?: 0
+        snapshot.planetStocks!!.outfits.values.filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
+            val stocks=checkNotNull(snapshot.planetStocks)
+            val now=snapshot.session?.gameSeconds ?: 0
+            o.activeShips?.values.orEmpty().filter {it.boats>it.damaged}.mapNotNull {u ->u.support?.takeIf {order ->
+                order.grid==viewer.grid && order.character==TacticalAuthority.commander(o,u,stocks) &&
+                    !BattleDeath.deceased(stocks,order.character) && people.any {p->
+                        p.characterId==order.character && p.cpPaused && p.mode==5 && p.country !in eliminated &&
+                            (p.hull?.woundedUntil ?: 0)<=now &&
+                            TacticalAuthority.camp(p,stocks)==TacticalAuthority.camp(o,stocks)
+                    }
+            }?.let {order ->
                 TacticalSupportMessages.reply(TacticalSupportMessages.Command(
                     if(order.action==TacticalSupportAction.REPAIR)TacticalSupportMessages.Action.REPAIR else TacticalSupportMessages.Action.SUPPLY,
                     order.character,u.id,order.target),now,(order.readyAt-now).coerceAtLeast(0))
             }} } + snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.attack?.takeIf {it.commander==TacticalAuthority.commander(o,u,snapshot.planetStocks!!)}?.let {a ->
+            o.activeShips?.values.orEmpty().mapNotNull {u -> u.attack?.takeIf {canReplayFleetFire(o,u,it.commander)}?.let {a ->
                 val now=snapshot.session?.gameSeconds ?: 0
                 TacticalAttackMessages.reply(TacticalAttackMessages.Attack(a.commander,listOf(u.id),a.order.mode,0),
                     now,(a.order.startsAt-now).coerceAtLeast(0))
             }} } + snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u -> u.shot?.takeIf {it.commander==TacticalAuthority.commander(o,u,snapshot.planetStocks!!)}?.let {shot ->
+            o.activeShips?.values.orEmpty().mapNotNull {u -> u.shot?.takeIf {canReplayFleetFire(o,u,it.commander)}?.let {shot ->
                 val now=snapshot.session?.gameSeconds ?: 0
                 TacticalAttackMessages.reply(TacticalAttackMessages.Shoot(shot.commander,listOf(u.id),shot.weapon.wire,1,shot.target),
                     now,(shot.firesAt-now).coerceAtLeast(0))
