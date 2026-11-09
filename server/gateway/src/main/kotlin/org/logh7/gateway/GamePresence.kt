@@ -34,6 +34,12 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             .forEach {send(it,messages)}
     }
 
+    /** Ownership is public on the strategic map, including outside the viewer's current system. */
+    @Synchronized internal fun refreshBaseOwnership(generation:Long,except:String,packets:List<ByteArray>) {
+        for(viewer in members.values.filter {it.connection!=except && it.player.generation==generation})
+            send(viewer,packets)
+    }
+
     /** Government approval is public base state; CP/influence peers use ordinary character publication. */
     @Synchronized fun refreshSocialBase(world:WorldBootstrap,stocks:org.logh7.engine.PlanetStocks,base:Int) {
         val grid=world.galaxy.bases.single {it.id==base}.grid
