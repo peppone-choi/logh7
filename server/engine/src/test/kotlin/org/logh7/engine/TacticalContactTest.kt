@@ -4,6 +4,23 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalContactTest {
+    @Test fun deceasedEnemyFlagshipNoLongerKeepsTheBattleActive() {
+        val allied=pilot.copy(cpPaused=true)
+        val enemy=pilot.copy(characterId=10001,country=Power.EMPIRE.country,
+            shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE),hull=FlagshipHull(0,100,woundedUntil=86500))
+        val players=mutableMapOf("pilot" to allied,"enemy" to enemy)
+        assertTrue(TacticalContact.active(galaxy,allied,players.values,stocks))
+
+        val afterDeath=BattleDeath.apply(stocks,listOf(enemy.characterId),100) {_,_->true}
+        val forces=GridForces.collect(galaxy,1,players.values,afterDeath)
+        assertEquals(1L,forces.getValue(allied.grid).sumOf {it.units})
+        assertFalse(TacticalContact.active(galaxy,allied,players.values,afterDeath))
+        TacticalContact.endUncontested(galaxy,players,afterDeath,100)
+        assertFalse(players.getValue("pilot").cpPaused)
+        assertEquals(100L,players.getValue("pilot").cpRecoveryAt)
+        assertEquals(enemy,players.getValue("enemy"))
+    }
+
     @Test fun survivingHostileGroundUnitsRetainBattleAndZeroInventoryEndsIt() {
         val battle=pilot.copy(grid=2017,cpPaused=true)
         val crew=UnitSpecifications.crews.first {it.category!=19}
