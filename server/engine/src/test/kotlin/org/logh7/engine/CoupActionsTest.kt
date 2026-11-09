@@ -52,6 +52,33 @@ class CoupActionsTest {
         assertEquals(0,ended.bases.getValue(1049).camp);assertTrue(ended.social.coup.plots.isEmpty())
         assertTrue(policy.held(ended,10000).isEmpty())
     }
+    @Test fun revoltSettlementClearsOnlyReturnDesignationsThatAreNoLongerFriendly() {
+        val start=stocks()
+        val state=start.copy(bases=start.bases.mapValues {(_,base)->base.copy(camp=1)},
+            social=start.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),0,revolt=5,bases=setOf(1049))))))
+        var saved=mapOf("a" to a.copy(returnBase=1049),"b" to b.copy(returnBase=1049,originBase=1049))
+        val nav=Navigation(galaxy,object:NavigationStore {
+            override fun load()=saved
+            override fun save(players:Map<String,Navigator>) {saved=players}
+        },NavigationPolicy())
+        var stockSnapshot=state
+        val production=PlanetProduction(galaxy,object:PlanetStockStore {
+            override fun load()=stockSnapshot
+            override fun save(stocks:PlanetStocks) {stockSnapshot=stocks}
+        },rules.startSeconds,PlanetProductionPolicy())
+        production.settle(session.generation,session.gameMillis/1000)
+        var committed:PlanetStocks?=null
+        val offline=session.copy(gameMillis=session.gameMillis+100_000,
+            participants=session.participants.mapValues {(_,member)->member.copy(online=false,connection=null)})
+        TacticalCombat.settle(offline,galaxy,nav,production,WorldStateCommitter {players,inventory->
+            saved=players;committed=inventory
+        },npcPolicy=NpcTacticalPolicy(enabled=false))
+        assertEquals(1,assertNotNull(committed).bases.getValue(1049).camp)
+        assertEquals(1049,saved.getValue("a").returnBase)
+        assertEquals(0,saved.getValue("b").returnBase)
+        assertEquals(1049,saved.getValue("b").originBase)
+    }
+
     @Test fun rebelsAndTheRegularCampOfTheSameSideAreEnemiesInTactics() {
         val s=stocks().let {it.copy(social=it.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),0,revolt=5)))))}
         val hull=FlagshipHull(Flagships.forType(2,0).kind,0)
