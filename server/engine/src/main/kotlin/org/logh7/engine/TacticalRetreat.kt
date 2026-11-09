@@ -17,8 +17,9 @@ internal object RetreatRules {
     fun outside(pose: TacticalPose) = hypot(pose.position.x.toDouble(), pose.position.y.toDouble()) > 250.0
 
     /** Provisional destination: prefer the adjacent legal exit in the radial direction. */
-    fun destination(galaxy: Galaxy, player: Navigator, players: Collection<Navigator>, stocks: PlanetStocks?, pose: TacticalPose): Int? {
-        val forces = GridForces.collect(galaxy, player.generation, players, stocks)
+    fun destination(galaxy: Galaxy, player: Navigator, players: Collection<Navigator>, stocks: PlanetStocks?, pose: TacticalPose,
+        eliminated: Set<CountryId> = emptySet()): Int? {
+        val forces = GridForces.collect(galaxy, player.generation, players, stocks, eliminated)
         val x = player.grid % 100; val y = player.grid / 100
         return (-1..1).flatMap { dy -> (-1..1).mapNotNull { dx ->
             if (dx == 0 && dy == 0 || x + dx !in 0..99 || y + dy !in 0..49) null
