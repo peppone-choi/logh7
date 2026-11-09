@@ -25,8 +25,9 @@ data class NpcStrategicMovement(val generation:Long,val outfit:Int,val source:In
 
 internal object NpcStrategy {
     private fun distance(a:Int,b:Int)=max(abs(a%100-b%100),abs(a/100-b/100))
-    private fun eligible(outfit:OutfitStock)=outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) &&
-        outfit.members().isEmpty() && outfit.activeGround?.values.orEmpty().none {it.order!=null} && outfit.activeShips?.values?.any {it.boats>0}==true &&
+    private fun eligible(outfit:OutfitStock,stocks:PlanetStocks)=outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) &&
+        TacticalAuthority.uncommanded(outfit,stocks) && outfit.activeGround?.values.orEmpty().none {it.order!=null} &&
+        outfit.activeShips?.values?.any {it.boats>0}==true &&
         outfit.activeShips.values.none {it.support!=null || it.attack!=null || it.shot!=null || it.posture?.order!=null || it.tactical?.retreat!=null}
     private fun allowed(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,target:Int):Boolean {
         val count=GridForces.mobileUnits(outfit)
@@ -50,19 +51,25 @@ internal object NpcStrategy {
     private data class DepotRoute(val base:GalaxyBase,val next:Int,val jumps:Int)
     private data class RouteVisit(val grid:Int,val first:Int,val jumps:Int,val estimatedTotal:Int)
 
-    private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,spentJumps:Int=0):DepotRoute? {
+    private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,
+        spentJumps:Int=0,relief:Boolean=false,firstStep:Int?=null):DepotRoute? {
         val origin=outfit.positionIn(galaxy).grid
         fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
         val depots=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
             !TacticalContact.contested(forces[b.grid].orEmpty())}
-            .sortedWith(compareBy<GalaxyBase> {stocked(it)}.thenByDescending {it.id}).associateBy {it.grid}
+            .sortedWith(compareBy<GalaxyBase> {if(relief)stocks.bases.getValue(it.id).supplies else if(stocked(it))1 else 0}
+                .thenByDescending {it.id}).associateBy {it.grid}
         if(depots.isEmpty())return null
         val local=depots[origin]?.let {DepotRoute(it,origin,0)}
         if(local!=null && stocked(local.base))return local
         val strength=GridForces.mobileUnits(outfit)
         if(strength !in 1..GridEntryRules.MAX_UNITS_PER_CAMP.toLong())return local
         val balances=OutfitSupplies.distribution(outfit)
-        val affordable=outfit.activeShips!!.values.filter {it.boats>0}.minOf {balances.getValue(it.id)/it.boats}-spentJumps
+        val live=outfit.activeShips!!.values.filter {it.boats>0}
+        val jumpCost=live.sumOf {it.boats}
+        val affordable=if(relief)minOf(live.minOf {OutfitSupplies.unitCapacity(it)/it.boats},
+            depots.values.maxOf {stocks.bases.getValue(it.id).supplies}/jumpCost)
+        else live.minOf {balances.getValue(it.id)/it.boats}-spentJumps
         val camp=Camp(outfit.country,false)
         val entry=GridEntry(camp,strength.toInt(),false)
         fun remaining(grid:Int)=depots.keys.minOf {distance(grid,it)}
@@ -77,16 +84,22 @@ internal object NpcStrategy {
             val current=queue.remove()
             if(best[current.grid]!=current.jumps)continue
             // A prospective advance cannot use a return path beyond its remaining fuel.
-            if(current.estimatedTotal>affordable && (fallback!=null || spentJumps>0))return fallback
+            if(current.estimatedTotal>affordable && (relief || fallback!=null || spentJumps>0))return fallback
             depots[current.grid]?.let {
                 val route=DepotRoute(it,current.first,current.jumps)
-                if(stocked(it) && current.jumps<=affordable)return route
-                if(fallback==null)fallback=route
+                if(relief) {
+                    if(stocks.bases.getValue(it.id).supplies>=jumpCost*current.jumps)return route
+                } else {
+                    if(stocked(it) && current.jumps<=affordable)return route
+                    if(fallback==null)fallback=route
+                }
             }
             val jumps=current.jumps+1
             for(grid in neighbors(current.grid)) {
+                if(current.jumps==0 && firstStep!=null && grid!=firstStep)continue
                 if(jumps>=(best[grid] ?: Int.MAX_VALUE) || grid in blocked)continue
-                if(hostile(forces,grid,camp)>strength*2 ||
+                if(hostile(forces,grid,camp)>(if(relief)0 else strength*2) ||
+                    relief && forces[grid].orEmpty().any {it.camp!=camp && it.base} ||
                     GridEntryRules.evaluate(GridForces.state(galaxy,grid,forces),entry)!=GridEntryVerdict.ALLOWED) {
                     blocked.add(grid)
                     continue
@@ -100,7 +113,7 @@ internal object NpcStrategy {
     }
     /** Reserve real cargo for every remaining jump to a reachable safe depot. */
     fun returnDistance(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):Int? =
-        if(!eligible(outfit) || outfit.positionIn(galaxy).baseId!=0)null else home(galaxy,forces,outfit,stocks)?.jumps
+        if(!eligible(outfit,stocks) || outfit.positionIn(galaxy).baseId!=0)null else home(galaxy,forces,outfit,stocks)?.jumps
     /**
      * Next adjacent grid: towards the nearest enemy it can take on (at most twice its own mobile units), or, when
      * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards a reachable own depot
@@ -156,6 +169,14 @@ internal object NpcStrategy {
         return jumpShortfall(ships,OutfitSupplies.distribution(outfit),if(source==null)1 else 2)<=(source?.supplies ?: 0)
     }
 
+    /** A safe depot can dispatch enough cargo for the shortest safe return route. */
+    private fun reliefRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
+        stocks:PlanetStocks,destination:Int?=null):DepotRoute? {
+        val position=outfit.positionIn(galaxy)
+        if(position.baseId!=0 || outfit.supplies!=0 || TacticalContact.contested(forces[position.grid].orEmpty()))return null
+        return home(galaxy,forces,outfit,stocks,relief=true,firstStep=destination)?.takeIf {it.jumps>0}
+    }
+
     private fun supplied(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy,departing:Boolean=true):Pair<PlanetStocks,OutfitStock>? {
         val live=outfit.activeShips!!.values.filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit).toMutableMap()
@@ -197,7 +218,7 @@ internal object NpcStrategy {
             var outfit=stocks.outfits.getValue(id)
             val position=outfit.positionIn(galaxy)
             val owner=stocks.bases[position.baseId]
-            val permitted=outfit.country !in session.eliminated && eligible(outfit) &&
+            val permitted=outfit.country !in session.eliminated && eligible(outfit,stocks) &&
                 (position.baseId==0 || owner?.let {it.country==outfit.country && it.camp==0}==true)
             if(!permitted) {
                 if(outfit.strategy!=null)stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=null)))
@@ -206,24 +227,36 @@ internal object NpcStrategy {
             val pending=outfit.strategy
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
-                val planned=target(galaxy,forces(),outfit,stocks,players.values,destination)
+                val normal=target(galaxy,forces(),outfit,stocks,players.values,destination)
+                val relief=if(normal?.grid==position.grid)null else reliefRoute(galaxy,forces(),outfit,stocks,destination)
+                val planned=relief?.let {OutfitPosition(it.next,if(it.jumps==1)it.base.id else 0)} ?: normal
                 if(planned?.grid==position.grid) {
                     dockLocally(outfit,planned)
                     continue
                 }
                 // Re-evaluate source hostility as well as destination capacity after earlier arrivals.
-                if(distance(position.grid,destination)!=1 || planned?.grid!=destination || !allowed(galaxy,forces(),outfit,destination)) {
+                if(distance(position.grid,destination)!=1 || planned?.grid!=destination || !allowed(galaxy,forces(),outfit,destination) ||
+                    position.baseId==0 && outfit.supplies==0 && relief==null) {
                     val unavailableDepot=galaxy.bases.any {base->base.grid==destination &&
                         stocks.bases[base.id]?.let {it.country!=outfit.country || it.camp!=0 || it.supplies==0}==true}
                     val reroute=if(unavailableDepot && position.baseId==0 && planned!=null)
                         home(galaxy,forces(),outfit,stocks)?.takeIf {it.next==planned.grid}
                     else null
-                    val strategy=if(reroute==null || !canDepart(stocks,outfit,galaxy))NpcStrategicState(now+21600)
-                        else NpcStrategicState(now+21600,reroute.next,now+3600)
+                    val next=if(canDepart(stocks,outfit,galaxy))reroute?.next
+                        else reliefRoute(galaxy,forces(),outfit,stocks)?.next
+                    val strategy=if(next==null)NpcStrategicState(now+21600)
+                        else NpcStrategicState(now+21600,next,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=strategy)))
                     continue
                 }
-                val provision=supplied(stocks,outfit,galaxy)
+                val provision=if(relief==null)supplied(stocks,outfit,galaxy) else {
+                    val depot=stocks.bases.getValue(relief.base.id)
+                    val ships=outfit.activeShips!!.values
+                    val cost=ships.sumOf {it.boats}*relief.jumps
+                    val cargo=ships.associate {it.id to it.boats*(relief.jumps-1)}
+                    stocks.copy(bases=stocks.bases+(depot.baseId to depot.copy(supplies=depot.supplies-cost))) to
+                        OutfitSupplies.withBalances(outfit,cargo)
+                }
                 if(provision==null) {
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=NpcStrategicState(now+21600))))
                     continue
@@ -253,7 +286,8 @@ internal object NpcStrategy {
                 if(destination?.grid==position.grid) {
                     dockLocally(outfit,destination)
                 } else {
-                    val next=if(destination==null || !canDepart(stocks,outfit,galaxy))NpcStrategicState(now+21600) else NpcStrategicState(now+21600,destination.grid,now+3600)
+                    val grid=if(canDepart(stocks,outfit,galaxy))destination?.grid else reliefRoute(galaxy,forces(),outfit,stocks)?.next
+                    val next=if(grid==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,grid,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
                 }
             }

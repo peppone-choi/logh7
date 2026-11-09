@@ -46,6 +46,88 @@ class NpcStrategyTest {
         } finally {engine.drainAndClose()}
     }
 
+    @Test fun adjacentDepotPaysOnceToRescueAZeroSupplyFleetOutsideCombat() {
+        val initial=stocks()
+        val fleet=initial.outfits.getValue(1).copy(position=OutfitPosition(2488))
+        val before=initial.copy(outfits=mapOf(1 to fleet))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=advance(0,before,mutableMapOf(),events)
+        assertEquals(NpcStrategicState(21600,2487,3600),reserved.outfits.getValue(1).strategy)
+        assertEquals(before.bases,reserved.bases)
+        assertTrue(events.isEmpty())
+
+        val blocked=advance(3600,reserved,players(),events)
+        assertEquals(OutfitPosition(2488),blocked.outfits.getValue(1).position)
+        assertEquals(before.bases,blocked.bases)
+        assertTrue(events.isEmpty())
+
+        val depot=before.bases.getValue(1000)
+        for (unavailable in listOf(depot.copy(supplies=1),depot.copy(owner=Allegiance.Country(Power.ALLIANCE.country)))) {
+            val changed=reserved.copy(bases=mapOf(1000 to unavailable))
+            val cancelled=advance(3600,changed,mutableMapOf(),events)
+            assertEquals(OutfitPosition(2488),cancelled.outfits.getValue(1).position)
+            assertEquals(changed.bases,cancelled.bases)
+            assertTrue(events.isEmpty())
+        }
+
+        val arrived=advance(3600,reserved,mutableMapOf(),events)
+        val docked=arrived.outfits.getValue(1)
+        assertEquals(OutfitPosition(2487,1000),docked.position)
+        val jumpCost=fleet.activeShips!!.values.single().boats
+        assertEquals(before.bases.getValue(1000).supplies-jumpCost-docked.supplies,arrived.bases.getValue(1000).supplies)
+        assertTrue(docked.supplies>0)
+        assertEquals(2487,events.single().destination)
+        assertEquals(arrived,advance(3600,arrived,mutableMapOf(),events))
+        assertEquals(1,events.size)
+    }
+
+    @Test fun distantDepotFundsTheSafeReturnRouteOnlyOnce() {
+        val initial=stocks()
+        val fleet=initial.outfits.getValue(1).copy(position=OutfitPosition(2489))
+        val before=initial.copy(outfits=mapOf(1 to fleet))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val pilots=mutableMapOf<String,Navigator>()
+        val reserved=advance(0,before,pilots,events)
+        val first=assertNotNull(reserved.outfits.getValue(1).strategy?.arrivesAt)
+        assertEquals(before.bases,reserved.bases)
+        val mid=advance(first,reserved,pilots,events)
+        val jumpCost=fleet.activeShips!!.values.single().boats
+        assertEquals(0,mid.outfits.getValue(1).position!!.baseId)
+        assertEquals(jumpCost,mid.outfits.getValue(1).supplies)
+        assertEquals(before.bases.getValue(1000).supplies-2*jumpCost,mid.bases.getValue(1000).supplies)
+
+        val homeReserved=advance(first+21600,mid,pilots,events)
+        val arrival=assertNotNull(homeReserved.outfits.getValue(1).strategy?.arrivesAt)
+        val home=advance(arrival,homeReserved,pilots,events)
+        assertEquals(OutfitPosition(2487,1000),home.outfits.getValue(1).position)
+        assertEquals(mid.bases.getValue(1000).supplies-home.outfits.getValue(1).supplies,home.bases.getValue(1000).supplies)
+        assertEquals(2,events.size)
+    }
+
+    @Test fun blockedFirstReliefJumpReservesAnAlternateRouteWithoutChargingTheDepot() {
+        val initial=stocks()
+        val fleet=initial.outfits.getValue(1).copy(position=OutfitPosition(2489))
+        val before=initial.copy(outfits=mapOf(1 to fleet))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=advance(0,before,mutableMapOf(),events)
+        val first=checkNotNull(reserved.outfits.getValue(1).strategy)
+        val pilots=players()
+        pilots["pilot"]=pilots.getValue("pilot").copy(grid=checkNotNull(first.destination))
+
+        val rerouted=advance(3600,reserved,pilots,events)
+        val retry=checkNotNull(rerouted.outfits.getValue(1).strategy)
+        val alternate=assertNotNull(retry.destination)
+        assertNotEquals(first.destination,alternate)
+        assertEquals(7200L,retry.arrivesAt)
+        assertEquals(fleet.position,rerouted.outfits.getValue(1).position)
+        assertEquals(before.bases,rerouted.bases)
+        assertTrue(events.isEmpty())
+
+        val moved=advance(7200,rerouted,pilots,events)
+        assertEquals(alternate,moved.outfits.getValue(1).position?.grid)
+        assertEquals(alternate,events.single().destination)
+    }
+
     @Test fun eliminatedCountryCancelsAnUncommandedFleetJumpWithoutSpendingDepotSupplies() {
         val before=stocks()
         val pilots=players()
@@ -330,6 +412,23 @@ class NpcStrategyTest {
             assertEquals(reserved.bases,result.bases);assertEquals(OutfitPosition(2487,1000),result.outfits.getValue(1).position)
             assertTrue(events.isEmpty())
         }
+    }
+    @Test fun tacticalCommandTransferCancelsAReservedNpcJumpWithoutSpendingSupplies() {
+        val players=players()
+        val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=advance(0,stocks(),players,events)
+        val fleet=reserved.outfits.getValue(1)
+        assertNotNull(fleet.strategy?.destination)
+        val unit=fleet.activeShips!!.values.single()
+        val assigned=reserved.copy(tacticalCommands=reserved.tacticalCommands.copy(authority=mapOf(unit.id to 10001)))
+
+        val settled=advance(3600,assigned,players,events)
+        assertEquals(fleet.copy(strategy=null),settled.outfits.getValue(1))
+        assertEquals(assigned.bases,settled.bases)
+        assertEquals(assigned.tacticalCommands,settled.tacticalCommands)
+        assertTrue(events.isEmpty())
+        assertEquals(settled,advance(25200,settled,players,events))
+        assertTrue(events.isEmpty())
     }
     @Test fun capacityIsRecheckedAtArrivalAndCannotOverfillAnotherEmpireForce() {
         val players=players();val events=mutableListOf<NpcStrategicMovement>()
