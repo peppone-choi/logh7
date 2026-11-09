@@ -34,6 +34,18 @@ class FlagshipReturnContestedTest {
         assertEquals(0,recovered.returnBase)
         assertEquals(1060,recovered.originBase)
     }
+    @Test fun removedEnemyBaseDoesNotBlockReturnToOtherwiseSafeSpace() {
+        val captured=stocks.copy(bases=mapOf(1048 to PlanetStock(1048,3,0,0,0,0)))
+        val g=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,
+            initialOwners=mapOf(1048 to Allegiance.Country(Power.EMPIRE.country),1060 to Allegiance.Country(Power.ALLIANCE.country)))
+        val present=GridForces.collect(g,1,emptyList(),null)
+        assertTrue(present.getValue(2490).single().base)
+        val hostile=enemy.copy(grid=2015)
+        val moved=FlagshipRecovery.defeated(victim,100,g,captured,listOf(hostile))
+        assertEquals(2490,moved.grid)
+        assertEquals(0,moved.baseId)
+        assertEquals(0,moved.returnBase)
+    }
     @Test fun noSafeSystemFallsBackToTheDesignatedFriendlyDock() {
         val hostilePresence=listOf(enemy,enemy.copy(characterId=10002,grid=2490),enemy.copy(characterId=10003,grid=2015))
         val recovered=FlagshipRecovery.defeated(victim.copy(originBase=1060),100,galaxy,stocks,hostilePresence)

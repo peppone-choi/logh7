@@ -1,6 +1,8 @@
 package org.logh7.gateway
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
@@ -29,7 +31,7 @@ class ReturnBaseWireTest {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)), listOf(base),
             Power.entries.associateWith { 2487 })
         var players = mapOf("load-000" to Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000,
-            returnBase = base.id))
+            returnBase = base.id).copy(originBase=base.id))
         var inventory = PlanetStocks(1, 0, mapOf(base.id to PlanetStock(base.id, 3, 0, 0, 0, 0)))
         val navigation = object : NavigationStore {
             override fun load() = players
@@ -40,7 +42,16 @@ class ReturnBaseWireTest {
             override fun save(stocks: PlanetStocks) { inventory = stocks }
         }
         LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false, stockStore = stocks,
-            navigationStore = navigation).use { fixture ->
+            navigationStore = navigation,worldStateCommitter=WorldStateCommitter {next,stock->
+                players=next
+                inventory=checkNotNull(stock)
+            }).use { fixture ->
+            fixture.engine.submit(WorldCommand.AdvanceTo(1000))
+            val committed=CompletableDeferred<Navigator>()
+            fixture.engine.submit(WorldCommand.Quiesce({players.getValue(fixture.account(0))},committed))
+            val beforeLogin=withTimeout(5000){committed.await()}
+            assertEquals(0,beforeLogin.returnBase)
+            assertEquals(base.id,beforeLogin.originBase)
             val client = fixture.join(fixture.account(0), true, false).client
             client.send(SyntheticClient.opcode(0x0f00))
             val startup = through(client, 0x0f01).filter { code(it) == 0x0323 && ByteBuffer.wrap(it).getInt(6) == 10000 }
