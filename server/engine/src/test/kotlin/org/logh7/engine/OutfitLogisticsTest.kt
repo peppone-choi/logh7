@@ -44,6 +44,39 @@ class OutfitLogisticsTest {
         assertFalse(f.logistics.blocksMovement(offline,1))
         assertFalse(f.logistics.blocksSupply(offline,f.store.saved,setOf(1)))
     }
+    @Test fun onlyCommittedCommanderChangesReleaseReorganizationReservations() {
+        for (checkMovementFirst in listOf(true, false)) {
+            val f = Fixture()
+            val previous = f.prepare(f.request())
+            val before = assertNotNull(f.production.snapshot(1))
+            val office = OrganizationalOfficePolicy(f.galaxy)
+            val seat = OfficeHolding(FleetOffice.EMPIRE_COMMANDER.card, 1, 11, Power.EMPIRE.country)
+            val dismissed = office.set(before, seat, remove = true)
+            val appointed = office.set(dismissed, seat.copy(character = 12))
+            assertEquals(0, dismissed.outfits.getValue(1).commanderId)
+            assertEquals(12, appointed.outfits.getValue(1).commanderId)
+
+            f.store.fail = true
+            assertFailsWith<java.io.IOException> { f.production.replace(before, appointed) }
+            assertEquals(before, f.production.snapshot(1))
+            assertTrue(f.logistics.blocksMovement(f.session, 1, f.production.snapshot(1)))
+            assertEquals(previous.reservation, f.act(f.request()).reservation)
+
+            f.store.fail = false
+            f.production.replace(before, appointed)
+            assertEquals(f.store.saved, f.production.snapshot(1))
+            if (checkMovementFirst) {
+                assertFalse(f.logistics.blocksMovement(f.session, 1, f.production.snapshot(1)))
+            }
+            val next = f.prepare(f.request(12))
+            assertNotEquals(previous.reservation, next.reservation)
+            assertTrue(f.logistics.blocksMovement(f.session, 1, f.production.snapshot(1)))
+            assertEquals(LogisticsRejection.ACCESS, f.act(previous).rejection)
+            assertNull(f.act(next.copy(phase = LogisticsPhase.CANCEL)).rejection)
+            assertFalse(f.logistics.blocksMovement(f.session, 1, f.production.snapshot(1)))
+        }
+    }
+
     @Test fun anExistingOversizedFormationIsPreservedAndCanReturnToItsLegalLimit() {
         val f=Fixture()
         val original=f.store.saved.outfits.getValue(1).copy(
@@ -276,6 +309,51 @@ class OutfitLogisticsTest {
         assertFailsWith<UnsupportedOperationException> { (snapshot.warehouses as MutableMap).clear() }
         assertFailsWith<UnsupportedOperationException> { (snapshot.logisticsOfficers as MutableMap).clear() }
     }
+    @Test fun commanderReappointmentDoesNotReviveAnOldWorldActorReservation() = runBlocking {
+        val f = Fixture()
+        f.store.saved = f.store.saved.copy(nationalOffices = mapOf(NationalOffice.MILITARY_MINISTER to 10))
+        val navigation = object : NavigationStore {
+            override fun load() = mapOf("p10" to f.player(10), "p11" to f.player(11))
+            override fun save(players: Map<String, Navigator>) = Unit
+        }
+        val engine = WorldEngine(this, rules = f.rules, ticking = false, galaxy = f.galaxy,
+            navigationStore = navigation, stockStore = f.store, worldStateCommitter = WorldStateCommitter { _, stocks ->
+                f.store.save(checkNotNull(stocks))
+            })
+        try {
+            for (id in 10..11) {
+                val joined = CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join("p$id", Power.EMPIRE, false, joined, "c$id", 1))
+                assertEquals(Admission.ACCEPTED, withTimeout(5000) { joined.await() })
+            }
+            suspend fun act(request: LogisticsRequest): LogisticsResult {
+                val result = CompletableDeferred<LogisticsResult>()
+                engine.submit(WorldCommand.Logistics(request, result))
+                return withTimeout(5000) { result.await() }
+            }
+
+            val request = f.request()
+            val old = assertNotNull(act(request).reservation)
+            val card = FleetOffice.EMPIRE_COMMANDER.card
+            val dismissed = CompletableDeferred<OfficeDismissalResult>()
+            engine.submit(WorldCommand.DismissOffice(
+                OfficeDismissalRequest("p10", "c10", 10, Power.EMPIRE, 1, 11, card, 2, 2), dismissed))
+            assertTrue(withTimeout(5000) { dismissed.await() }.changed)
+            assertEquals(0, f.store.saved.outfits.getValue(1).commanderId)
+
+            val appointed = CompletableDeferred<GarrisonAppointmentResult>()
+            engine.submit(WorldCommand.AppointGarrison(
+                GarrisonAppointmentRequest("p10", "c10", 10, Power.EMPIRE, 1, 0, 11, card, 2, 5, 2, outfit = 1), appointed))
+            assertTrue(withTimeout(5000) { appointed.await() }.changed)
+            assertEquals(11, f.store.saved.outfits.getValue(1).commanderId)
+
+            assertEquals(LogisticsRejection.PREPARATION, act(request.copy(phase = LogisticsPhase.COMMIT, reservation = old)).rejection)
+            assertNotEquals(old, assertNotNull(act(request).reservation))
+        } finally {
+            engine.drainAndClose()
+        }
+    }
+
     @Test fun worldActorSerializesCompetingConnectionsAndStopsAfterStorageFailure() = runBlocking {
         val f = Fixture()
         val navigation = object : NavigationStore {
