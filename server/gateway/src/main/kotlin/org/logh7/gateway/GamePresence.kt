@@ -495,7 +495,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     if(!finalWarp)return@forEach
                 }
                 if(event.formation.isNotEmpty()) {
-                    send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character))
+                    send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character),event.grid)
                     return@forEach
                 }
                 val packet=if(event.reverseTarget!=null)org.logh7.protocol.TacticalTurnMessages.turned(event.seconds,event.unit,checkNotNull(event.reverseTarget))
@@ -511,8 +511,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     org.logh7.protocol.TacticalMoveMessages.moved(event.seconds,event.unit,pose.direction,
                         org.logh7.protocol.TacticalMoveMessages.Point(pose.position.x,pose.position.y,0f),index)
                 } else TacticalMotionMessages.npc(event.unit,checkNotNull(event.motion),event.seconds,event.character)
+                // The final warp can share a tick with the transition out of tactics.
                 send(viewer,(if(event.stopped)listOf(org.logh7.protocol.TacticalStopMessages.reply(
-                    org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),event.seconds)) else emptyList())+packet)
+                    org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),event.seconds)) else emptyList())+packet,
+                    event.grid.takeIf {event.destination==null})
             }
     }
 
