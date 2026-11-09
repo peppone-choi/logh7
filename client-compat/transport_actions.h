@@ -111,7 +111,7 @@ static void transportSystemLabel(unsigned destination,wchar_t (&label)[96]) {
     if(catalog && !logh::japaneseFragment(catalog,system)) {
         wchar_t raw[64]={};MultiByteToWideChar(932,0,catalog,-1,raw,_countof(raw));system=raw;
     }
-    swprintf_s(label,L"%ls (%u,%u)",system.empty() ? L"이름 미수신" : system.c_str(),grid%100+1,grid/100+1);
+    wcscpy_s(label,system.empty() ? L"이름 미수신" : system.c_str());
 }
 static void drawTransportAction() {
     auto& state=taxWindow;auto& transport=transportWindow;unsigned command=state.strategyCommand;
