@@ -87,6 +87,9 @@ interface NavigationStore : AutoCloseable {
     fun save(players: Map<String, Navigator>)
     override fun close() {}
 }
+internal fun Navigator.blocksFirstEntry(request: NavigationRequest, stocks: PlanetStocks?): Boolean =
+    generation == request.generation && (characterId == request.characterId || !BattleDeath.deceased(stocks,characterId))
+
 data class NavigationRequest(val account: String, val characterId: Int, val country: CountryId?,
     val connection: String, val generation: Long, val destination: Int? = null, val unitId: Int? = null,
     val captainCard: Int? = null, val place: PlaceMove? = null, val rank: Int = 20,
@@ -216,8 +219,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val deceased = BattleDeath.deceased(stocks,request.characterId)
         if (persist && !deceased) settleRetreats(session, stocks)
         // U-11: a dead character's navigator gives way to the account's next character.
-        val existing = players[request.account]?.takeIf { it.generation == request.generation &&
-            !(it.characterId != request.characterId && BattleDeath.deceased(stocks,it.characterId)) }
+        val existing = players[request.account]?.takeIf { it.blocksFirstEntry(request,stocks) }
         if (existing != null && (existing.characterId != request.characterId || existing.country != request.country))
             return reject(NavigationRejection.IDENTITY)
         if(existing!=null && request.shipStyle!=null && existing.shipStyle!=request.shipStyle)

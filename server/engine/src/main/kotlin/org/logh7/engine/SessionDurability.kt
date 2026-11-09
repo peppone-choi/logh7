@@ -17,7 +17,7 @@ sealed interface SessionAction {
     data object Probe : SessionAction
     data class Advance(val elapsed: Long) : SessionAction
     data class Join(val account: String, val country: CountryId?, val original: Boolean,
-        val connection: String?, val generation: Long?) : SessionAction {
+        val connection: String?, val generation: Long?, val replacingDeceased: Boolean = false) : SessionAction {
         constructor(account: String, power: Power, original: Boolean, connection: String?, generation: Long?) :
             this(account, power.country, original, connection, generation)
     }
@@ -64,7 +64,7 @@ fun transitionSession(rules: SessionRules, before: DurableWorldState, action: Se
         }
         is SessionAction.Join -> {
             admission = if (action.generation != null && action.generation != before.session.generation) Admission.STALE_SESSION
-                else simulation.join(action.account, action.country, action.original, action.connection)
+                else simulation.join(action.account, action.country, action.original, action.connection, action.replacingDeceased)
             emptyList()
         }
         is SessionAction.Disconnect -> { simulation.disconnect(action.account, action.connection); emptyList() }
@@ -90,10 +90,10 @@ fun transitionSession(rules: SessionRules, before: DurableWorldState, action: Se
             if (action == SessionAction.Probe) 1 else 0)), admission, events)
 }
 
-fun WorldCommand.sessionAction(): SessionAction = when (this) {
+fun WorldCommand.sessionAction(replacingDeceased: Boolean = false): SessionAction = when (this) {
     WorldCommand.Probe -> SessionAction.Probe
     is WorldCommand.AdvanceTo -> SessionAction.Advance(elapsedRealMillis)
-    is WorldCommand.Join -> SessionAction.Join(account, country, original, connection, generation)
+    is WorldCommand.Join -> SessionAction.Join(account, country, original, connection, generation, replacingDeceased)
     is WorldCommand.Disconnect -> SessionAction.Disconnect(account, connection)
     is WorldCommand.Exclude -> SessionAction.Exclude(account)
     is WorldCommand.OpenBattle -> SessionAction.OpenBattle(id)

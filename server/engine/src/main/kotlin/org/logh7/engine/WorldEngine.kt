@@ -11,7 +11,7 @@ sealed interface WorldCommand {
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
     data class Join(val account: String, val country: CountryId?, val original: Boolean, val result: CompletableDeferred<Admission>, val connection: String? = null, val generation: Long? = null,
         /** The character store's current profile; seeds the strategic record when CP experience first raises an ability. */
-        val profile: StrategicPerson? = null) : WorldCommand {
+        val profile: StrategicPerson? = null, val characterId: Int? = null) : WorldCommand {
         constructor(account:String,power:Power,original:Boolean,result:CompletableDeferred<Admission>,
             connection:String?=null,generation:Long?=null,profile:StrategicPerson?=null):
             this(account,power.country,original,result,connection,generation,profile)
@@ -491,6 +491,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         navigation.publishCommitted(players, next, session.generation); production.publishCommitted(stocks, prepared)
         return next.filter { (account, p) -> players[account] != p }.values.map { it.characterId }
     }
+    private fun replacingDeceased(join: WorldCommand.Join, session: SessionState): Boolean {
+        val participant = session.participants[join.account] ?: return false
+        if (participant.online || participant.country != join.country || participant.original == join.original ||
+            join.characterId == null || join.generation != null && join.generation != session.generation) return false
+        val predecessor = navigation?.snapshot(session.generation)?.get(join.account) ?: return false
+        return predecessor.characterId != join.characterId &&
+            BattleDeath.deceased(production?.snapshot(session.generation), predecessor.characterId)
+    }
+
     private fun publish(snapshot:WorldSnapshot) {
         val old=published.get().planetStocks
         val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
@@ -1374,8 +1383,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if (durability != null) {
                 try {
                     storageFailure?.let { throw java.io.IOException("Session storage is unavailable; restart and verify the journal", it) }
-                    val next = transitionSession(rules, checkNotNull(durableState), command.sessionAction())
-                    durability.commit(command.sessionAction(), next)
+                    val before = checkNotNull(durableState)
+                    val action = command.sessionAction(command is WorldCommand.Join && replacingDeceased(command, before.session))
+                    val next = transitionSession(rules, before, action)
+                    durability.commit(action, next)
                     durableState = next.state
                     if (command is WorldCommand.AdvanceTo) {
                         production?.settle(next.state.session)
@@ -1421,8 +1432,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     events
                 }
                 is WorldCommand.Join -> {
-                    admission = if (command.generation != null && command.generation != simulation.snapshot().generation) Admission.STALE_SESSION
-                        else simulation.join(command.account, command.country, command.original, command.connection)
+                    val session = simulation.exportState()
+                    admission = if (command.generation != null && command.generation != session.generation) Admission.STALE_SESSION
+                        else simulation.join(command.account, command.country, command.original, command.connection, replacingDeceased(command, session))
                     if (admission == Admission.ACCEPTED) command.profile?.let { profiles[command.account] = it }
                     emptyList()
                 }

@@ -107,14 +107,16 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
     fun join(account: String, power: Power, original: Boolean, connection: String? = null): Admission {
         return join(account, power.country, original, connection)
     }
-    fun join(account: String, country: CountryId?, original: Boolean, connection: String? = null): Admission {
+    fun join(account: String, country: CountryId?, original: Boolean, connection: String? = null,
+        replacingDeceased: Boolean = false): Admission {
         require(account.isNotBlank())
         if (ended != null) return Admission.ENDED
         if (country in eliminated) return Admission.COUNTRY_ELIMINATED
         participants[account]?.let {
-            if (it.country != country || it.original != original) return Admission.IDENTITY_CHANGED
+            if (it.country != country || it.original != original && !(replacingDeceased && !it.online))
+                return Admission.IDENTITY_CHANGED
             if (it.online && it.connection != null && it.connection != connection) return Admission.ALREADY_ONLINE
-            participants[account] = it.copy(online = true, connection = connection)
+            participants[account] = it.copy(original = original, online = true, connection = connection)
             return Admission.ACCEPTED
         }
         if (account in excluded) {
