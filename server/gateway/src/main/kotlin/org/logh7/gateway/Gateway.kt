@@ -102,6 +102,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var occupationSubscription:AutoCloseable?=null
     private var fortressSinkingSubscription:AutoCloseable?=null
     private var characterRefreshSubscription:AutoCloseable?=null
+    private var tacticalOfficeRefreshSubscription: AutoCloseable? = null
     private var groundBattleSubscription:AutoCloseable?=null
     private var groundSubscription:AutoCloseable?=null
     private var postureSubscription:AutoCloseable? = null
@@ -262,6 +263,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                     snapshot.session?.gameSeconds ?: 0L,administration?.stationedOutfit(player) ?: 0)
             }}
         }}
+        tacticalOfficeRefreshSubscription = presence?.let { p -> navigation!!.observeTacticalOfficeRefresh { generation, outfits ->
+            p.refreshTacticalOffices(generation, outfits, checkNotNull(world), navigation::snapshot, currentCharacters()::characterById)
+        } }
         groundBattleSubscription=presence?.let {p->navigation!!.observeGroundBattles {event->
             navigation.snapshot()?.let {snapshot->
                 val bootstrap=checkNotNull(world)
@@ -453,6 +457,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         movementSubscription?.close()
         strategicMovementSubscription?.close()
         groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close();fortressSinkingSubscription?.close();characterRefreshSubscription?.close()
+        tacticalOfficeRefreshSubscription?.close()
         postureSubscription?.close()
         tacticalCommandSubscription?.close()
         supportSubscription?.close()
