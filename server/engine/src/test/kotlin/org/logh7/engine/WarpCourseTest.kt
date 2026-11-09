@@ -85,6 +85,31 @@ class WarpCourseTest {
         assertEquals(920, result.player.mcp); assertEquals(0, result.player.moves)
     }
 
+    @Test fun restoredReservationRechecksRangeWithoutMovingOrRefunding() {
+        val store = Store()
+        val pending = Navigation(galaxy, store, NavigationPolicy())
+            .apply(request.copy(destination = 2687), start).player!!
+        assertEquals(2687, pending.warpTarget)
+        assertEquals(920, pending.mcp)
+
+        val due = later(1)
+        val offline = due.copy(participants = due.participants.mapValues { (_, member) -> member.copy(online = false) })
+        val navigation = Navigation(galaxy, store, NavigationPolicy(maximumRange = 1))
+        val result = navigation.apply(request.copy(offlineSettle = true, offlineAbilities = true), offline)
+        assertTrue(result.completedWarp)
+        assertEquals(NavigationRejection.RANGE, result.warpCancellation)
+        val player = result.player!!
+        assertEquals(pending.grid, player.grid)
+        assertEquals(pending.cruise, player.cruise)
+        assertEquals(pending.mcp, player.mcp)
+        assertEquals(pending.pcp, player.pcp)
+        assertEquals(pending.moves, player.moves)
+        assertNull(player.warpTarget)
+        assertEquals(NavigationRejection.RANGE, player.offlineWarpCancellation)
+        val reopened = Navigation(galaxy, store, NavigationPolicy(maximumRange = 1))
+        assertEquals(player, reopened.snapshot(start.generation).getValue("pilot"))
+    }
+
     @Test fun shortCruiseIsRejectedBeforeAnyPayment() {
         val store = Store()
         val navigation = Navigation(galaxy, store, NavigationPolicy())

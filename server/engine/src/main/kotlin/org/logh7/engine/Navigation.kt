@@ -49,7 +49,8 @@ data class Navigator(val generation: Long, val characterId: Int, val country: Co
         pcp >= 0 && mcp >= 0 && cruise >= 0 && pcpUsed in 0..CpExperience.USED_LIMIT && mcpUsed in 0..CpExperience.USED_LIMIT && moves >= 0 && baseId in 0..65535 && mode in 0..5 &&
         spotId >= 0 && spotOwner >= 0 && returnBase in 0..65535 && originBase in 0..65535 && supplies in 0..10_000 &&
         (offlineWarpCancellation == null || offlineWarpCancellation == NavigationRejection.GRID ||
-            offlineWarpCancellation == NavigationRejection.CRUISE || offlineWarpCancellation == NavigationRejection.STAR_SYSTEM_NOT_ADJACENT) &&
+            offlineWarpCancellation == NavigationRejection.CRUISE || offlineWarpCancellation == NavigationRejection.STAR_SYSTEM_NOT_ADJACENT ||
+            offlineWarpCancellation == NavigationRejection.RANGE) &&
         (hull == null || Flagships.find(hull.kind)?.power == shipStyle.nativePower) &&
         (charge == null || cpPaused && baseId == 0 && mode == 5) &&
         (commandRange == null || cpPaused && baseId == 0 && mode == 5) &&
@@ -327,9 +328,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 GridEntry(Camp.of(player, stocks?.let { CoupActions.rebel(it, player.characterId,player.country) } == true), units, solo)) == GridEntryVerdict.ALLOWED }
         }
         fun warpObstacle(player: Navigator, target: Int): NavigationRejection? {
-            val reach = maxOf(abs(target % 100 - player.grid % 100), abs(target / 100 - player.grid / 100))
+            val dx = abs(target % 100 - player.grid % 100)
+            val dy = abs(target / 100 - player.grid / 100)
+            if (dx * dx + dy * dy > policy.maximumRange * policy.maximumRange) return NavigationRejection.RANGE
             return when (WarpPreconditions.evaluate(WarpContext(player.cruise, galaxy.kind(target) == GridKind.STAR_SYSTEM,
-                reach == 1))) {
+                maxOf(dx, dy) == 1))) {
                 WarpDecision.STAR_SYSTEM_NOT_ADJACENT -> NavigationRejection.STAR_SYSTEM_NOT_ADJACENT
                 WarpDecision.INSUFFICIENT_CRUISE -> NavigationRejection.CRUISE
                 WarpDecision.ALLOWED -> if (player.cruise < warpCruise(player.grid, target)) NavigationRejection.CRUISE else null
@@ -490,9 +493,6 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
         if (destination == null || destination !in 0..4999) return reject(NavigationRejection.GRID)
         if (destination == before.grid) return reject(NavigationRejection.SAME_GRID)
-        val dx = abs(destination % 100 - before.grid % 100)
-        val dy = abs(destination / 100 - before.grid / 100)
-        if (dx * dx + dy * dy > policy.maximumRange * policy.maximumRange) return reject(NavigationRejection.RANGE)
         // Cruise is light-years (CD p.31); policy.cruiseCost is the cost of one 100-ly grid.
         warpObstacle(before, destination)?.let { return reject(it) }
         val enterable = enterableFrom(before, movingUnits, soloShip)

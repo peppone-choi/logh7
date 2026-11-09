@@ -391,6 +391,7 @@ class GameExchange(
     private fun reservedWarpNotice(cancellation: NavigationRejection?, characterId: Int, seconds: Long): List<ByteArray> {
         val reason = when (cancellation) {
             NavigationRejection.GRID -> "진입 불가"
+            NavigationRejection.RANGE -> "워프 거리 초과"
             NavigationRejection.CRUISE -> "항속 부족"
             NavigationRejection.STAR_SYSTEM_NOT_ADJACENT -> "성계 거리 초과"
             null -> return emptyList()
