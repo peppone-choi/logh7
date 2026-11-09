@@ -3,6 +3,11 @@
 #pragma once
 #include "planet_info_data.h"
 namespace logh {
+// Decoded 0b04/0b05 reply: the single value ('LG' << 16 | reason) is a revival extension.
+inline bool groundTransferReason(const unsigned char* record,unsigned& reason) {
+    if(record[20]!=1 || (infoWord(record,24)>>16)!=0x4c47)return false;
+    reason=infoWord(record,24)&0xffff;return true;
+}
 struct GroundPage {
     unsigned count=0;
     unsigned char rows[70*88]={};
