@@ -10,6 +10,23 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredCapitalOccupationTransfersPowerAtItsDeadline() = runTest {
+        val hold=CoupActions.CAPITAL_DAYS*Justice.DAY
+        val rig=Rig(this,testScheduler,resumedAt=hold*1000/SessionRules.load().speed,coupDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun stock()=rig.engine.snapshot().planetStocks!!
+            advanceTimeBy(624);runCurrent()
+            assertEquals(1,stock().bases.getValue(1049).camp)
+            assertEquals(15L,stock().social.coup.plots.getValue(10000).capitalSince)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(hold+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(0,stock().bases.getValue(1049).camp)
+            assertTrue(stock().social.coup.plots.isEmpty())
+            assertTrue(stock().strategic.offices.any {it.card==1 && it.character==10000 && it.seat==1049})
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun blockedPersonalRetreatKeepsItsReservationAndLetsTheClockAdvance() = runTest {
         val rig=Rig(this,testScheduler,retreatDeadline=true,blockedRetreat=true)
         try {
@@ -234,7 +251,7 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false) {
+        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,coupDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -245,6 +262,12 @@ class TacticalDeadlineTest {
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         init {
+            if(coupDeadline) {
+                players=emptyMap()
+                val plot=Plot(10000,CountryId(2),0,revolt=10,bases=setOf(1049),capitalSince=15,capitalBase=1049)
+                stocks=stocks.copy(bases=stocks.bases+(1049 to PlanetStock(1049,2,1,0,0,0)),
+                    social=stocks.social.copy(coup=CoupState(plots=mapOf(10000 to plot))))
+            }
             if(retreatDeadline) {
                 val point=TacticalPoint(-300f,0f)
                 val motion=TacticalMotion(2488,start,TacticalPose(point,0f),0f,0f,listOf(point))
@@ -299,8 +322,11 @@ class TacticalDeadlineTest {
                     warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
             }
         }
-        private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
-            listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2488})
+        private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3))+
+            listOfNotNull(GalaxySystem(4,2487,4,"Odin",2).takeIf {coupDeadline}),
+            listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f))+
+            listOfNotNull(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f).takeIf {coupDeadline}),
+            Power.entries.associateWith {2488})
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
             private var saved=DurableWorldState(SessionSimulation(rules).apply {advance(elapsed)}.exportState(),elapsed)
             override fun load()=saved
