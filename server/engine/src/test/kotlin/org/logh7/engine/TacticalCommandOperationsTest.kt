@@ -908,6 +908,26 @@ class TacticalCommandOperationsTest {
         }
     }
 
+    @Test fun admittedFleetRetreatCancelsWhenTheCommandersSessionCountryIsEliminated() {
+        val s=state()
+        val fleet=s.stocks.outfits.getValue(1)
+        val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=true)
+        val ships=ActiveShipUnits(fleet.activeShips!!.values.map {it.copy(motionCommander=10000,
+            tactical=NpcTacticalState(motion(260f,it.id*.4f),now,now,retreat=retreat))})
+        val prepared=fleet.copy(position=OutfitPosition(2488),activeShips=ships)
+        val before=s.stocks.copy(outfits=s.stocks.outfits+(1 to prepared))
+        val due=session.copy(gameMillis=(now+155)*1000,
+            participants=session.participants+("pilot" to session.participants.getValue("pilot").copy(country=Power.ALLIANCE.country)),
+            eliminated=mapOf(Power.ALLIANCE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        val events=mutableListOf<TacticalMovement>()
+        val after=TacticalFleetRetreat.advance(due,galaxy,s.players.toMutableMap(),before,events)
+        val expected=prepared.copy(activeShips=ActiveShipUnits(ships.values.map {
+            it.copy(tactical=it.tactical!!.copy(retreat=null))
+        }))
+        assertEquals(before.copy(outfits=before.outfits+(1 to expected)),after)
+        assertTrue(events.isEmpty())
+    }
+
     @Test fun fleetRetreatCancelsOrdersAfterAuthorityChangesBeforeOrAfterAdmission() {
         for (admitted in listOf(false,true)) {
             val s=state()
