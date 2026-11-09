@@ -53,10 +53,13 @@ class OfflineSupportRestartTest {
             withTimeout(5000) {done.await()}
         }
         FileWorldStateStore(worldPath).use {it.saveWorld(mapOf("pilot" to pilot,"ally" to ally),stocks)}
-        runWorld { engine,store ->
+        suspend fun join(engine:WorldEngine,account:String,connection:String) {
             val joined=CompletableDeferred<Admission>()
-            engine.submit(WorldCommand.Join("pilot",Power.EMPIRE,false,joined,"pilot-connection"))
+            engine.submit(WorldCommand.Join(account,Power.EMPIRE,false,joined,connection))
             assertEquals(Admission.ACCEPTED,withTimeout(5000) {joined.await()})
+        }
+        runWorld { engine,store ->
+            join(engine,"pilot","pilot-connection")
             engine.submit(WorldCommand.Disconnect("pilot","pilot-connection"))
             step(engine,0)
             assertEquals(TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,ally.unitId,grid,now,now+5*rules.speed),order(store))
@@ -64,6 +67,7 @@ class OfflineSupportRestartTest {
         }
         runWorld { engine,store ->
             assertEquals(ally.unitId,order(store)?.target)
+            join(engine,"ally","ally-after-restart")
             val results=mutableListOf<TacticalSupportResult>()
             engine.observeSupport(results::add).use {
                 step(engine,4999)
@@ -74,6 +78,7 @@ class OfflineSupportRestartTest {
                 step(engine,5000)
                 val result=results.single()
                 assertFalse(result.cancelled)
+                assertEquals(mapOf(ally.characterId to "ally-after-restart"),result.recipients)
                 assertEquals(before+cargo,result.targetSupplies)
                 assertNull(order(store))
                 assertEquals(result.targetSupplies,store.loadNavigation().getValue("ally").supplies)
