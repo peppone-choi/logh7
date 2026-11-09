@@ -2333,7 +2333,9 @@ class GameExchange(
                                             val eligible=if(query.argument==2)inventory.flagshipMarket.offers.filter {
                                                 it.receiver==character.id.toInt() && it.expiresAt>gameSeconds()}.map {it.giver}.toSet() else null
                                             val candidates=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).values
-                                                .filter {country!=null && it.country==country}.map {currentCharacterById(it.character.id.toInt()) ?: it.character}.filter {
+                                                .filter {country!=null && it.country==country &&
+                                                    !org.logh7.engine.BattleDeath.deceased(inventory,it.character.id.toInt())}
+                                                .map {currentCharacterById(it.character.id.toInt()) ?: it.character}.filter {
                                                 it.id!=character.id && it.id>query.target && (it.rank==0 || it.rank in 2..20) &&
                                                     (eligible==null || it.id.toInt() in eligible)}.sortedBy {it.id}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,candidates.map {

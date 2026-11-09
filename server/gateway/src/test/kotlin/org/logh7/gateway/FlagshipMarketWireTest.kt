@@ -56,12 +56,14 @@ class FlagshipMarketWireTest {
         val path=directory.resolve("directory");Files.createDirectories(path)
         val characters=CharacterCreation(path.resolve("characters.properties"))
         for((account,id,country) in listOf(Triple("load-000",10000,2),Triple("load-001",10001,2),
-            Triple("foreign",10002,43),Triple("different_display",10003,42))) {
+            Triple("foreign",10002,43),Triple("different_display",10003,42),Triple("deceased",10004,42))) {
             val data=CharacterMessages.Generate(4,id.toLong(),if(id==10003)3 else 2,0,0,"Pilot$id","Test",30,1,1,1000001,
                 List(8){50},0,0,0,20,0,0,"Ship",1)
             assertTrue(characters.carry(account,CharacterProfile(data,CountryId(country),ShipStyleId("empire"))))
         }
         val state=State();val directoryOnly=AtomicBoolean(false)
+        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=
+            state.stocks.strategic.people+(10004 to StrategicPerson(rank=5,deceasedAt=1))))
         LoadFixture(path,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,stockStore=state.inventory,
             worldStateCommitter=state,navigationDecorator={delegate->object:GameNavigation by delegate {
                 // This tests the directory projection; full runtime admission of country 42 is still fenced.

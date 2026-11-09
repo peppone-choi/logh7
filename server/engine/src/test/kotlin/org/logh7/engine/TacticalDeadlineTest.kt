@@ -27,6 +27,19 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
 
+    @Test fun restoredFlagshipOfferExpiresBetweenRegularTicksWithoutEitherPartyOnline() = runTest {
+        val rig=Rig(this,testScheduler,exchangeOffer=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun offers()=rig.engine.snapshot().planetStocks!!.flagshipMarket.offers
+            advanceTimeBy(624);runCurrent()
+            assertEquals(rig.start+15,offers().single().expiresAt)
+            advanceTimeBy(1);runCurrent()
+            assertTrue(offers().isEmpty())
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredTradePassageExpiresBetweenRegularTicks() = runTest {
         val rig=Rig(this,testScheduler,tradeDeadline=true)
         try {
@@ -316,7 +329,7 @@ class TacticalDeadlineTest {
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
         uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
-        operationDeadline:Boolean=false) {
+        operationDeadline:Boolean=false,exchangeOffer:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -332,6 +345,11 @@ class TacticalDeadlineTest {
                 val plan=StrategicOperation(1,10000,147,CountryId(3),2488,StrategicForce.FLEET,StrategicPurpose.DEFEND,1,
                     start+15,StrategicPlanState.STARTED,start+15,defended=setOf(1000),issuer=10001)
                 stocks=stocks.copy(strategic=stocks.strategic.copy(operations=listOf(plan)))
+            }
+            if(exchangeOffer) {
+                players=emptyMap()
+                stocks=stocks.copy(flagshipMarket=FlagshipMarketState(listOf(
+                    FlagshipExchangeOffer(10000,10001,89,93,1000,10002321,start+15))))
             }
             if(tradeDeadline) {
                 players=emptyMap()
