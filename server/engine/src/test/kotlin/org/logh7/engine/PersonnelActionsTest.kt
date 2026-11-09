@@ -64,6 +64,38 @@ class PersonnelActionsTest {
         val denied=act(request(0,10002),s)
         assertEquals(StrategyActionRejection.RANK,denied.rejection);assertEquals(s,denied.stocks);assertEquals(p,denied.player)
     }
+    @Test fun promotionRevokesTheOldFleetDelegationEvenAfterAppointmentToAnotherFleet() {
+        val stack = UnitStack(ProductionUnits.definitions.first { it.ship && it.power == 2 }.kind)
+        val oldDelegated = ActiveShipUnit(1100, stack)
+        val oldOther = ActiveShipUnit(1101, stack)
+        val detached = ActiveShipUnit(1200, stack)
+        val old = OutfitStock(200, 2, OutfitKind.FLEET, 1049, 300, number = 1, commanderId = 10002, aideId = 10001,
+            units = UnitInventory(mapOf(stack to 2)), activeShips = ActiveShipUnits(listOf(oldDelegated, oldOther)))
+        val detachment = OutfitStock(201, 2, OutfitKind.FLEET, 1049, 301, number = 2,
+            units = UnitInventory(mapOf(stack to 1)), activeShips = ActiveShipUnits(listOf(detached)))
+        val new = OutfitStock(202, 2, OutfitKind.FLEET, 1049, 302, number = 3, commanderId = 10000)
+        val outfits = listOf(old, detachment, new)
+        val initial = stocks().copy(outfits = outfits.associateBy { it.id }, nextShipId = detached.id + 1,
+            warehouses = outfits.associate { it.warehouseId to OutfitWarehouse(it.warehouseId, 2, it.kind, it.baseId, it.id) },
+            tacticalCommands = TacticalCommandState(authority = mapOf(oldDelegated.id to 10001, oldOther.id to 10002, detached.id to 10001)))
+        assertEquals(10001, TacticalAuthority.commander(old, oldDelegated, initial))
+
+        val promotion = act(request(0), initial)
+        assertNull(promotion.rejection)
+        val promoted = assertNotNull(promotion.stocks)
+        assertEquals(0, promoted.outfits.getValue(old.id).aideId)
+        assertEquals(mapOf(oldOther.id to 10002, detached.id to 10001), promoted.tacticalCommands.authority)
+
+        val appointment = GarrisonAppointmentRequest("actor", "c", 10000, Power.EMPIRE, 1, 0, 10001,
+            FleetOffice.EMPIRE_AIDE.card, 5, 8, 2, outfit = new.id)
+        val result = GarrisonAppointment.evaluate(galaxy, appointment, session, p, promoted)
+        assertTrue(result.changed, result.rejection.toString())
+        val appointed = assertNotNull(result.stocks)
+        assertEquals(10001, appointed.outfits.getValue(new.id).aideId)
+        assertEquals(10002, TacticalAuthority.commander(appointed.outfits.getValue(old.id), oldDelegated, appointed))
+        assertEquals(10001, TacticalAuthority.commander(detachment, detached, appointed))
+    }
+
     @Test fun promotionRaisesTheFlagshipToTheNewRankDefaultButNeverTradesItDown() {
         // U-24: rank 9 -> 8 is the cruiser band; a destroyer is replaced, a battleship is kept.
         val target=Navigator(1,10001,Power.EMPIRE,2487,1000,1000,1000)

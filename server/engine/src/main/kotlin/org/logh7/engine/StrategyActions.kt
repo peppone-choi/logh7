@@ -230,8 +230,13 @@ internal object StrategyActions {
         val outfits=stocks.outfits.mapValues {(_,o)->o.copy(commanderId=o.commanderId.takeUnless {it==character} ?: 0,
             aideId=o.aideId.takeUnless {it==character} ?: 0,staff=FleetStaff(o.staff.deputy.takeUnless {it==character} ?: 0,
                 o.staff.chief.takeUnless {it==character} ?: 0,o.staff.officers-character))}
+        val authority = stocks.tacticalCommands.authority
+        val released = stocks.outfits.values.asSequence().filter { character in it.members() }
+            .flatMap { it.activeShips?.values.orEmpty().asSequence() }
+            .map { it.id }.filter { authority[it] == character }.toSet()
         return stocks.copy(bases=bases,outfits=outfits,nationalOffices=stocks.nationalOffices.filterValues {it!=character},
             logisticsOfficers=stocks.logisticsOfficers-character,
+            tacticalCommands = stocks.tacticalCommands.copy(authority = authority - released),
             strategic=stocks.strategic.copy(offices=stocks.strategic.offices.filter {it.character!=character}))
     }
     fun settle(stocks:PlanetStocks,seconds:Long,galaxy:Galaxy?=null,navigators:Collection<Navigator>?=null,
