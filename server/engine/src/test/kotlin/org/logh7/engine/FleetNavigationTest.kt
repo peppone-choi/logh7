@@ -232,6 +232,43 @@ class FleetNavigationTest {
         assertEquals(1001,state.stocks.outfits.getValue(2).positionIn(galaxy).baseId)
     }
 
+    @Test fun aRebelAideNeitherFollowsNorBlocksARegularFleet() {
+        val now=session.gameMillis/1000
+        for (hull in listOf(null,FlagshipHull(93,now,woundedUntil=now+1))) {
+            val state=state();addAide(state)
+            val aide=state.players.getValue("aide").copy(hull=hull)
+            state.players=state.players+("aide" to aide)
+            val coup=CoupState(mapOf(aide.characterId to Plot(aide.characterId,CountryId(3),now,revolt=now+1)))
+            state.stocks=state.stocks.copy(social=state.stocks.social.copy(coup=coup))
+            assertNull(apply(state,request.copy(place=PlaceMove.SwitchMode(5))).single().rejection)
+            assertEquals(OutfitPosition(2487),state.stocks.outfits.getValue(1).position)
+            assertEquals(aide,state.players.getValue("aide"))
+        }
+    }
+
+    @Test fun aRebelCommanderCannotDepartWithAnOutfitThatStayedRegular() {
+        val state=state()
+        val now=session.gameMillis/1000
+        val coup=CoupState(mapOf(10000 to Plot(10000,CountryId(3),now,revolt=now+1)))
+        state.stocks=state.stocks.copy(social=state.stocks.social.copy(coup=coup),
+            bases=state.stocks.bases+(1000 to state.stocks.bases.getValue(1000).copy(camp=1)))
+        assertNull(apply(state,request.copy(place=PlaceMove.SwitchMode(5))).single().rejection)
+        assertEquals(0,state.players.getValue("pilot").baseId)
+        assertEquals(OutfitPosition(2487,1000),state.stocks.outfits.getValue(1).positionIn(galaxy))
+    }
+
+    @Test fun anOldOppositeCampOfficeDoesNotPreventAFollowerFromDeparting() {
+        val state=state();addAide(state)
+        val now=session.gameMillis/1000
+        val coup=CoupState(mapOf(10002 to Plot(10002,CountryId(3),now,revolt=now+1)),loyalty=mapOf(2 to CoupActions.LOYAL))
+        state.stocks=state.stocks.copy(social=state.stocks.social.copy(coup=coup),
+            outfits=state.stocks.outfits+(2 to OutfitStock(2,3,OutfitKind.FLEET,1000,20,commanderId=10002,aideId=10001)),
+            warehouses=state.stocks.warehouses+(20 to OutfitWarehouse(20,3,OutfitKind.FLEET,1000,2)))
+        assertNull(apply(state,request.copy(place=PlaceMove.SwitchMode(5))).single().rejection)
+        assertEquals(0,state.players.getValue("aide").baseId)
+        assertEquals(OutfitPosition(2487,1000),state.stocks.outfits.getValue(2).positionIn(galaxy))
+    }
+
     @Test fun memberFuelAndDestinationCapacityAreCheckedForTheWholeGroup() {
         for(lowFuel in listOf(false,true)) {
             val state=state();addAide(state,if(lowFuel)50 else 1000)

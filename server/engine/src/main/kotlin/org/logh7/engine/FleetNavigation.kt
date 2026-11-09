@@ -41,16 +41,21 @@ internal object FleetNavigation {
         val outfit = before?.let { player -> stocks.outfits.values.singleOrNull {
             it.commanderId == player.characterId && it.kind != OutfitKind.GROUND &&
                 player.country!=null && it.country == player.country &&
+                TacticalAuthority.camp(it,stocks) == TacticalAuthority.camp(player,stocks) &&
                 it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
         } }
         if (before == null || outfit == null) return personal()
+        val camp = TacticalAuthority.camp(outfit,stocks)
         fun deferred(reason:NavigationRejection)=if(request.offlineDirection!=null)
             commitPersonal(NavigationResult(before,before)) else NavigationResult(null,before,reason)
         val followers = players.filter { (account, player) ->
             account != request.account && player.country == before.country && player.characterId in outfit.members() &&
+                TacticalAuthority.camp(player,stocks) == camp &&
                 player.grid == before.grid && player.baseId == before.baseId && player.mode in 4..5 &&
                 !stocks.social.justice.detained(player.characterId) &&
-                stocks.outfits.values.count { it.country == player.country && player.characterId in it.members() } == 1 &&
+                stocks.outfits.values.count {
+                    it.country == player.country && player.characterId in it.members() && TacticalAuthority.camp(it,stocks) == camp
+                } == 1 &&
                 (player.spotId == 0 || player.spotOwner == 0 && galaxy.facilities[player.baseId].orEmpty().any { facility ->
                     facility.kind == 4 && facility.spots.any { it.id == player.spotId && it.kind == 6 }
                 })
