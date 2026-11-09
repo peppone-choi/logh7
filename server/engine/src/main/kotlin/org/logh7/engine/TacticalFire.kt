@@ -253,7 +253,8 @@ internal object TacticalCombat {
         /** Flagships sunk inside a breached fortress (docked players get no combat impact). */
         onFortressSunk:(Navigator)->Unit = {},
         settleOfficeRecovery:(PlanetStocks, PlanetStocks, Map<String, Navigator>)->Map<String, Navigator> =
-            { _, _, players -> players }): List<TacticalImpact> {
+            { _, _, players -> players },
+        onCoupDockCancellations: (List<Navigator>) -> Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
@@ -377,8 +378,11 @@ internal object TacticalCombat {
             inventory=SinkingExperience.apply(inventory,sunkCharacters,production.identities?.invoke().orEmpty())
         }
         clearFinishedOrders(players,galaxy,inventory,now,session.eliminated.keys)
-        if(inventory.social.coup!=stocks.social.coup)players.replaceAll {_,player->
-            navigation.clearInvalidReturnBase(player,inventory)
+        val cancelledDocking = mutableListOf<String>()
+        if(inventory.social.coup!=stocks.social.coup)players.replaceAll {account,player->
+            val after = navigation.clearLostDockReservation(player, stocks, inventory)
+            if (after != player) cancelledDocking += account
+            navigation.clearInvalidReturnBase(after,inventory)
         }
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory,cargoBaseline)
@@ -386,6 +390,7 @@ internal object TacticalCombat {
         checkNotNull(committer) { "Pending combat requires durable world storage" }.saveWorld(recovered, prepared)
         navigation.publishCommitted(original, recovered, session.generation)
         production.publishCommitted(stocks, prepared)
+        if (cancelledDocking.isNotEmpty()) onCoupDockCancellations(cancelledDocking.map(recovered::getValue))
         strategicMovements.forEach(onStrategicMovement)
         movements.forEach(onMovement)
         support.forEach(onSupport)

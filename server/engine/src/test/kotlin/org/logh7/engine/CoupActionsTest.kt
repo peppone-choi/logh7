@@ -61,11 +61,17 @@ class CoupActionsTest {
         assertEquals(dead.bases,ended.bases)
         assertSame(ended,CoupActions.settle(galaxy,ended,101))
     }
-    @Test fun revoltSettlementClearsOnlyReturnDesignationsThatAreNoLongerFriendly() {
+    @Test fun revoltSettlementClearsOnlyDockAndReturnTargetsThatAreNoLongerFriendly() {
         val start=stocks()
+        val holding=Plot(10000,CountryId(2),0,revolt=5,bases=setOf(1049))
+        val losing=Plot(10002,CountryId(2),0,revolt=5)
         val state=start.copy(bases=start.bases.mapValues {(_,base)->base.copy(camp=1)},
-            social=start.social.copy(coup=CoupState(mapOf(10000 to Plot(10000,CountryId(2),0,revolt=5,bases=setOf(1049))))))
-        var saved=mapOf("a" to a.copy(returnBase=1049),"b" to b.copy(returnBase=1049,originBase=1049))
+            social=start.social.copy(coup=CoupState(mapOf(holding.leader to holding, losing.leader to losing))))
+        val pilot=Navigator(1,losing.leader,Power.EMPIRE,2487,1000,1000,1000)
+        val travel=NavigationWork.pipeline(pilot,NavigationPolicy())
+        travel.submit(NavigationWork.DOCK,listOf(NavigationWork.CAPTAIN),session.gameMillis,false)
+        val reserved=pilot.copy(dockTarget=1049,strategy=travel.checkpoint()).paidWith(travel.balance)
+        var saved=mapOf("a" to a.copy(returnBase=1049),"b" to b.copy(returnBase=1049,originBase=1049),"c" to reserved)
         val nav=Navigation(galaxy,object:NavigationStore {
             override fun load()=saved
             override fun save(players:Map<String,Navigator>) {saved=players}
@@ -79,10 +85,16 @@ class CoupActionsTest {
         var committed:PlanetStocks?=null
         val offline=session.copy(gameMillis=session.gameMillis+100_000,
             participants=session.participants.mapValues {(_,member)->member.copy(online=false,connection=null)})
+        val cancellations=mutableListOf<Navigator>()
         TacticalCombat.settle(offline,galaxy,nav,production,WorldStateCommitter {players,inventory->
             saved=players;committed=inventory
-        },npcPolicy=NpcTacticalPolicy(enabled=false))
-        assertEquals(1,assertNotNull(committed).bases.getValue(1049).camp)
+        },npcPolicy=NpcTacticalPolicy(enabled=false),onCoupDockCancellations={cancellations.addAll(it)})
+        val updated=assertNotNull(committed)
+        assertEquals(1,updated.bases.getValue(1049).camp)
+        assertEquals(setOf(holding.leader),updated.social.coup.plots.keys)
+        val cancelled=reserved.copy(dockTarget=null,strategy=null)
+        assertEquals(cancelled,saved.getValue("c"))
+        assertEquals(listOf(cancelled),cancellations)
         assertEquals(1049,saved.getValue("a").returnBase)
         assertEquals(0,saved.getValue("b").returnBase)
         assertEquals(1049,saved.getValue("b").originBase)

@@ -529,6 +529,14 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if(player.returnBase!=0 && returnBaseRejection(player,player.returnBase,stocks)!=null)
             player.copy(returnBase=0) else player
 
+    internal fun clearLostDockReservation(player: Navigator, previous: PlanetStocks, updated: PlanetStocks): Navigator {
+        val target = player.dockTarget ?: return player
+        val before = previous.bases[target] ?: return player
+        val after = updated.bases[target] ?: return player
+        if (!ownBase(player, before.owner, before.camp, previous) || ownBase(player, after.owner, after.camp, updated)) return player
+        return player.copy(dockTarget = null, strategy = null)
+    }
+
     private fun returnBaseRejection(player: Navigator, target: Int, stocks: PlanetStocks?): NavigationRejection? {
         val condition = galaxy.conditions[target] ?: return NavigationRejection.BASE
         if (condition.habitability == 0) return NavigationRejection.BASE

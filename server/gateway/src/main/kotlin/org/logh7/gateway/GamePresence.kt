@@ -164,7 +164,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 player.grid==previous.player.grid && player.baseId==previous.player.baseId) {
                 packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
                     event.seconds,player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)
-                packets+=ChatMessages.spot(ChatMessages.Spot(player.characterId,"[기항] 거점 점령으로 예약이 취소됐습니다."),event.seconds)
+                packets+=ChatMessages.spot(ChatMessages.Spot(player.characterId,"[기항] 거점 점령·취소"),event.seconds)
             }
             if(expelled) {
                 packets+=unit(member)
