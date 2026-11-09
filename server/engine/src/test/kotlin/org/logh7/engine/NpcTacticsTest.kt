@@ -469,6 +469,29 @@ class NpcTacticsTest {
             }
         }
     }
+    @Test fun uncommandedFleetApproachesAndFiresOnLivingPiratesInItsGrid() {
+        val state=state()
+        val outfit=state.stocks.outfits.getValue(1)
+        val ship=outfit.activeShips!!.values.single()
+        val origin=TacticalPoint(0f,-20f)
+        val motion=TacticalMotion(2488,now,TacticalPose(origin,0f),0f,0f,listOf(origin))
+        val pirates=PirateState(mapOf(1 to PirateFleet(1,2488,now,listOf(PirateUnit(900_001,300),PirateUnit(900_002,0))),
+            2 to PirateFleet(2,2487,now,listOf(PirateUnit(900_003,300)))),3)
+        val stocks=state.stocks.copy(social=state.stocks.social.copy(pirates=pirates),outfits=mapOf(1 to outfit.copy(
+            activeShips=ActiveShipUnits(listOf(ship.copy(tactical=NpcTacticalState(motion,now,now)))))))
+        val players=mutableMapOf<String,Navigator>()
+        val hits=mutableListOf<TacticalImpact>()
+        val moves=mutableListOf<TacticalMovement>()
+        val underway=NpcTactics.advance(session,galaxy,players,stocks,NpcTacticalPolicy(),24,hits,moves)
+        assertEquals(900_001,underway.outfits.getValue(1).activeShips!!.values.single().tactical?.target)
+        assertEquals(TacticalPoint(0f,-12f),moves.single().motion?.waypoints?.last())
+        assertTrue(hits.isEmpty())
+        val fired=NpcTactics.advance(session.copy(gameMillis=(now+480)*1000),galaxy,players,underway,
+            NpcTacticalPolicy(),24,hits,moves)
+        assertEquals(setOf(900_001),hits.map {it.hit.target}.toSet())
+        assertTrue(fired.social.pirates.fleets.getValue(1).units.first().boats<300)
+        assertEquals(pirates.fleets.getValue(2),fired.social.pirates.fleets.getValue(2))
+    }
     @Test fun failedMovementOrShotSavePublishesNeitherMovementNorDamageAndRetryIsSingle() {
         val state=state();val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state);val moves=mutableListOf<TacticalMovement>()
         val initial=state.stocks;state.fail=true

@@ -53,7 +53,10 @@ internal object NpcTactics {
             TacticalDeployment.initial(p.unitId,grid,players.values,stocks,galaxy))} +
         stocks.outfits.values.filter {it.country !in eliminated && TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) &&
             it.positionIn(galaxy)==OutfitPosition(grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}.map {u -> Contact(u.id,initial(u,o,grid,now,players,stocks,galaxy))}}
+            o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}.map {u -> Contact(u.id,initial(u,o,grid,now,players,stocks,galaxy))}} +
+        stocks.social.pirates.fleets.values.filter {it.grid==grid}.flatMap {fleet ->
+            fleet.units.filter {it.boats>0}.mapNotNull {unit -> PirateActions.pose(stocks,unit.id)?.let {Contact(unit.id,it)}}
+        }
 
     private fun replace(stocks:PlanetStocks,outfit:OutfitStock,unit:ActiveShipUnit):PlanetStocks {
         val ships=ActiveShipUnits(outfit.activeShips!!.values.map {if(it.id==unit.id)unit else it})
