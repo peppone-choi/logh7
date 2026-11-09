@@ -503,7 +503,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val groundDeadlines=snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order?.readyAt}}
         val commands=snapshot.planetStocks?.tacticalCommands
         val commandDeadlines=commands?.orders.orEmpty().map {it.readyAt}+commands?.air.orEmpty().values.map {it.nextAt}+
-            commands?.fortresses.orEmpty().values.filter {it.motion.velocity>0}.map {it.reportedAt+rules.speed}+
+            commands?.fortresses.orEmpty().values.filter {it.motion.velocity>0}.map {
+                minOf(it.reportedAt+rules.speed,it.motion.arrivalAt?.takeIf {at->at>it.reportedAt} ?: Long.MAX_VALUE)}+
             commands?.missions.orEmpty().values.filter {!it.completed && it.mission!=0}.map {it.checkedAt+TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS}+
             snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().mapNotNull {
                 it.tactical?.retreat?.let {r->maxOf(if(r.membershipChecked)r.completesAt else r.startsAt,session.gameMillis/1000+rules.speed)}}}

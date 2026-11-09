@@ -63,6 +63,10 @@ data class TacticalMotion(val grid: Int, val acceptedAt: Long, val origin: Tacti
             low
         }
     }
+    internal val arrivalAt:Long? by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        if(reportedWaypoints==waypoints.lastIndex)nextProgressAt
+        else copy(reportedWaypoints=waypoints.lastIndex).nextProgressAt
+    }
     fun completedWaypoints(seconds:Long):Int {
         require(seconds in 0..0xffffffffL)
         if(rotation!=null)return if(seconds>=startsAt)1 else 0
