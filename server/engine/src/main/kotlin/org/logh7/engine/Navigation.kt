@@ -662,15 +662,18 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             }
             is PlaceMove.Spot -> {
                 if (before.baseId == 0) return reject(NavigationRejection.BASE)
-                val condition = galaxy.conditions.getValue(before.baseId)
+                val condition = galaxy.conditions[before.baseId]
                 val stored = stocks?.bases?.get(before.baseId)
-                val friendly = ownBase(before,stored?.owner ?: galaxy.initialOwners.getValue(condition.baseId),
-                    stored?.camp ?: condition.camp,stocks)
-                val facilities = galaxy.facilitiesAt(before.baseId, stocks,countries)
+                val available = condition != null && (stocks == null || stored != null)
+                if (move.id != 0 && !available) return reject(NavigationRejection.BASE)
+                val facilities = if (available) galaxy.facilitiesAt(before.baseId, stocks,countries) else emptyList()
                 val target = facilities.singleOrNull { f -> f.spots.any { it.id == move.id } }
                 if (move.id == 0) {
                     if (move.owner != before.characterId || before.spotId == 0) return reject(NavigationRejection.SPOT)
                 } else {
+                    val base = checkNotNull(condition)
+                    val friendly = ownBase(before,stored?.owner ?: galaxy.initialOwners.getValue(base.baseId),
+                        stored?.camp ?: base.camp,stocks)
                     val spot = target?.spots?.single { it.id == move.id } ?: return reject(NavigationRejection.SPOT)
                     if (move.id == before.spotId && move.owner == before.spotOwner) return reject(NavigationRejection.SPOT)
                     val allowed = when (spot.access) {

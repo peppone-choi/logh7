@@ -139,6 +139,21 @@ class CountryNavigationRoutingTest {
         }
     }
 
+    @Test fun missingWorldBaseBlocksFacilityEntryButDoesNotTrapAnExistingOccupant() {
+        val quay=galaxy.facilitiesAt(1049,stocks,catalog).single {it.kind==4}.spots.single {it.kind==6}
+        val inside=pilot.copy(baseId=1049,mode=4,spotId=quay.id)
+        val store=Store(mapOf("pilot" to inside))
+        val nav=navigation(store)
+        val missing=stocks.copy(bases=emptyMap())
+        val command=request().copy(unitId=pilot.unitId,place=PlaceMove.Spot(quay.id,0))
+        assertEquals(NavigationRejection.BASE,nav.apply(command,session(),missing).rejection)
+        assertEquals(inside.pcp,store.saved.getValue("pilot").pcp)
+        val exited=assertNotNull(nav.apply(command.copy(place=PlaceMove.Spot(0,pilot.characterId)),session(),missing).player)
+        assertEquals(0,exited.spotId)
+        assertEquals(1049,exited.baseId)
+        assertEquals(NavigationRejection.BASE,nav.apply(command,session(),missing).rejection)
+    }
+
     @Test fun rebelDockingAndQuayAccessFollowTheCurrentCamp() {
         val country=assertNotNull(pilot.country)
         val rebel=CoupState(mapOf(pilot.characterId to Plot(pilot.characterId,country,0,revolt=5,bases=setOf(1049))))
