@@ -1719,9 +1719,16 @@ class GameExchange(
                             world.warehouse(base)
                         } else {
                             val character = checkNotNull(currentCharacter(identity.account))
-                            pendingWorld = stocks().thenApply { listOf(if (outfit == 0) world.warehouse(base, it) else
-                                world.outfitWarehouse(base,outfit,character.id.toInt(),currentProfile(identity.account,character.id.toInt()).country?.value,
-                                    checkNotNull(it),reportUnavailable=true)) }
+                            pendingWorld = stocks().thenApply { stored ->
+                                var limited=false
+                                val onLimited={limited=true}
+                                val packet=if(outfit==0)world.warehouse(base,stored,onLimited) else
+                                    world.outfitWarehouse(base,outfit,character.id.toInt(),
+                                        currentProfile(identity.account,character.id.toInt()).country?.value,checkNotNull(stored),
+                                        reportUnavailable=true,onLimited=onLimited)
+                                if(!limited)listOf(packet) else listOf(packet,ChatMessages.spot(ChatMessages.Spot(character.id.toInt(),
+                                    "[창고] 표시 한도를 초과해 일부 함선 재고만 표시합니다."),gameSeconds()))
+                            }
                             return null
                         }
                     }

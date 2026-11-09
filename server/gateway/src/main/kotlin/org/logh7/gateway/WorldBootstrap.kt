@@ -344,22 +344,34 @@ class WorldBootstrap(val galaxy: Galaxy,
             org.logh7.engine.CoupActions.outfitCamp(stocks,it),it.number,it.supplies) }))
     }
     private fun warehouseShips(values: Map<org.logh7.engine.UnitStack,Int>?,
-        spare: Map<org.logh7.engine.UnitStack,Int> = emptyMap()) = (values.orEmpty().keys+spare.keys).map {it.kind}.distinct().sorted().map { kind ->
+        spare: Map<org.logh7.engine.UnitStack,Int> = emptyMap(), onLimited:(()->Unit)?=null):List<WorldMessages.WarehouseShips> {
+        val kinds=(values.orEmpty().keys+spare.keys).map {it.kind}.distinct().sorted()
+        var limited=kinds.size>99
+        require(!limited || onLimited!=null) { "Ship stock exceeds native warehouse kind limit" }
+        val rows=kinds.take(99).map {kind ->
             val stacks=values.orEmpty().entries.filter {it.key.kind==kind}
             val count = stacks.sumOf { it.value.toLong() }
             val spec = UnitSpecifications.ships.single { it.kind == kind }
             val boats = Math.multiplyExact(count,spec.number.toLong())+spare.filterKeys {it.kind==kind}.values.sumOf {it.toLong()}
             val slots=(boats+spec.number-1)/spec.number
-            require(slots in 1..255 && boats in 1..65535) { "Ship stock exceeds native warehouse capacity" }
-            WorldMessages.WarehouseShips(kind,slots.toInt(),boats.toInt())
+            if(slots in 1..255 && boats in 1..65535)WorldMessages.WarehouseShips(kind,slots.toInt(),boats.toInt())
+            else {
+                require(onLimited!=null) { "Ship stock exceeds native warehouse capacity" }
+                limited=true
+                val visibleUnits=minOf(255,65535/spec.number)
+                WorldMessages.WarehouseShips(kind,visibleUnits,visibleUnits*spec.number)
+            }
         }
+        if(limited)onLimited?.invoke()
+        return rows
+    }
     fun assignmentInventory(units: org.logh7.engine.UnitInventory,
         spare: org.logh7.engine.SpareShipBoats = org.logh7.engine.SpareShipBoats()) = LogisticsMessages.Inventory(
         warehouseShips(units.ships,spare.values).map { LogisticsMessages.ShipStock(it.kind,it.units,it.boats) },
         units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { LogisticsMessages.TroopStock(1000+it.key.kind,it.key.level,it.value) })
     fun outfitWarehouse(base: Int, outfitId: Int, character: Int, countryId:Int?, stocks: org.logh7.engine.PlanetStocks,
-        reportUnavailable: Boolean = false): ByteArray {
+        reportUnavailable: Boolean = false,onLimited:()->Unit={}): ByteArray {
         fun unavailable(reason: String): ByteArray {
             require(reportUnavailable) { reason }
             return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base,0,0,0,outfit=outfitId,unavailable=true))
@@ -379,15 +391,16 @@ class WorldBootstrap(val galaxy: Galaxy,
         fun entries(values: Map<org.logh7.engine.UnitStack,Int>) = values.entries
             .sortedWith(compareBy({ it.key.kind },{ it.key.level })).map { WorldMessages.Stock(it.key.kind,it.key.level,it.value) }
         return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base,warehouse.supplies,warehouse.food,warehouse.mineral,
-            warehouseShips(warehouse.units.ships,warehouse.spareShips.values),entries(warehouse.units.troops),outfitId))
+            warehouseShips(warehouse.units.ships,warehouse.spareShips.values,onLimited),entries(warehouse.units.troops),outfitId))
     }
-    fun warehouse(base: Int, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
+    fun warehouse(base: Int, stocks: org.logh7.engine.PlanetStocks? = null,onLimited:()->Unit={}): ByteArray {
         val state = requireNotNull(galaxy.conditions[base]) { "Unknown warehouse base" }
         val stored = stocks?.let { checkNotNull(it.bases[base]) }
         fun entries(values: Map<org.logh7.engine.UnitStack, Int>?) = values.orEmpty().entries
             .sortedWith(compareBy({ it.key.kind }, { it.key.level })).map { WorldMessages.Stock(it.key.kind, it.key.level, it.value) }
         return LoginMessages.sessionMessage(0x0327, WorldMessages.warehouse(base, stored?.supplies ?: state.supplies,
-            stored?.food ?: state.food, stored?.mineral ?: 100_000, warehouseShips(stored?.units?.ships,stored?.spareShips?.values.orEmpty()), entries(stored?.units?.troops)))
+            stored?.food ?: state.food, stored?.mineral ?: 100_000,
+            warehouseShips(stored?.units?.ships,stored?.spareShips?.values.orEmpty(),onLimited),entries(stored?.units?.troops)))
     }
     internal fun baseWire(base: org.logh7.engine.GalaxyBase) = WorldMessages.Base(base.id, base.grid,
         base.model, base.kind, KoreanDisplayNames.base(base.name), base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
