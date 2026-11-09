@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
+import org.logh7.engine.strategy.*
 import org.logh7.gateway.load.*
 import org.logh7.protocol.*
 import java.nio.ByteBuffer
@@ -37,6 +38,18 @@ class FleetNavigationWireTest {
             override fun load()=stocks
             override fun save(stocks:PlanetStocks) {this@State.stocks=stocks}
         }
+    }
+    private fun State.restoreWarpWithLowFuelAide() {
+        val now = SessionRules.load().startSeconds * 1000
+        val due = now + 3600_000
+        val job = StrategyJob(0, "operation/ワープ航行", now, due, due,
+            PaymentResult.Paid(CpBalance(1000, 920), CpPool.MCP, 80, 80, false), JobState.WAITING)
+        players = players.mapValues { (account, player) ->
+            val underway = player.copy(baseId = 0, mode = 5, spotId = 0, moves = 1)
+            if (account == "load-000") underway.copy(mcp = 920, warpTarget = 2489,
+                strategy = StrategyCheckpoint(1, now, listOf(job))) else underway.copy(cruise = 100)
+        }
+        stocks = stocks.copy(outfits = mapOf(1 to stocks.outfits.getValue(1).copy(position = OutfitPosition(2487))))
     }
     private fun through(client:SyntheticClient,opcode:Int,character:Int?=null):ByteArray {
         repeat(300) {val bytes=client.receive();val body=ByteBuffer.wrap(bytes)
@@ -189,10 +202,34 @@ class FleetNavigationWireTest {
         }
     }
 
+    @Test fun lowFuelAideRejectsNewWarpReservationWithoutChargingOrDisconnecting() {
+        val state = State(aide = true)
+        state.players = state.players + ("load-001" to state.players.getValue("load-001").copy(cruise = 199))
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false, stockStore = state.inventory,
+            navigationStore = state.nav, worldStateCommitter = state).use { fixture ->
+            val commander = fixture.join(fixture.account(0), true, false).client
+            commander.send(SyntheticClient.opcode(0x0f00))
+            through(commander, 0x0f01)
+            val departure = PlaceMessages.switched(PlaceMessages.SwitchMode(10000, 59, 5), 0, 0, 0, 5, 0, 0, true)
+            commander.send(departure.copyOfRange(4, departure.size))
+            through(commander, 0x0b0b)
+            val players = state.players
+            val stocks = state.stocks
+            val warp = NavigationMessages.accepted(NavigationMessages.Warp(10000, 59, 2489, 0, 5), 0, 0, 0)
+            commander.send(warp.copyOfRange(4, warp.size))
+            assertEquals(1, ByteBuffer.wrap(through(commander, 0x0b01)).int)
+            assertEquals(2487, ByteBuffer.wrap(through(commander, 0x0b07, 10000)).getInt(14))
+            assertEquals(players, state.players)
+            assertEquals(stocks, state.stocks)
+            commander.send(SyntheticClient.opcode(0x0300))
+            through(commander, 0x0301)
+        }
+    }
+
     @Test fun aiSwitchesAtWarpCompletionMoveTheWholeFleetOrKeepTheReservationIntact()=runBlocking {
       for(blocker in 0..2) {
         val state=State(aide=true)
-        if(blocker==2)state.players=state.players+("load-001" to state.players.getValue("load-001").copy(cruise=100))
+        if(blocker==2)state.restoreWarpWithLowFuelAide()
         LoadFixture(directory.resolve("ai-arrival-$blocker"),2,LoadMetrics(),galaxy,ticking=false,
             stockStore=state.inventory,navigationStore=state.nav,worldStateCommitter=state).use {fixture ->
             val commander=fixture.join(fixture.account(0),true,false).client
@@ -200,13 +237,13 @@ class FleetNavigationWireTest {
             val aide=fixture.join(fixture.account(1),true,false).client
             aide.send(SyntheticClient.opcode(0x0f00));through(aide,0x0f01)
             val depart=PlaceMessages.switched(PlaceMessages.SwitchMode(10000,59,5),0,0,0,5,0,0,true)
-            commander.send(depart.copyOfRange(4,depart.size));through(commander,0x0b0b)
+            if(blocker!=2) {commander.send(depart.copyOfRange(4,depart.size));through(commander,0x0b0b)}
             fun reserve(client:SyntheticClient,id:Int) {
                 val warp=NavigationMessages.accepted(NavigationMessages.Warp(id,59,2489,0,5),0,0,0)
                 client.send(warp.copyOfRange(4,warp.size))
                 assertEquals(3600,ByteBuffer.wrap(through(client,0x0b01)).getInt(10))
             }
-            reserve(commander,10000)
+            if(blocker!=2)reserve(commander,10000)
             if(blocker==1) {fixture.engine.submit(WorldCommand.AdvanceTo(42));reserve(aide,10001)}
             fixture.engine.submit(WorldCommand.AdvanceTo(150_000))
             val settings=ByteBuffer.allocate(15).putShort(0x0f18).putInt(0).putInt(10000)
@@ -240,7 +277,7 @@ class FleetNavigationWireTest {
     @Test fun deferredFleetArrivalsKeepClockRefreshAliveUntilTheBlockingMemberMoves()=runBlocking {
       for(lowFuel in listOf(false,true)) {
         val state=State(aide=true)
-        if(lowFuel)state.players=state.players+("load-001" to state.players.getValue("load-001").copy(cruise=100))
+        if(lowFuel)state.restoreWarpWithLowFuelAide()
         LoadFixture(directory.resolve("deferred-$lowFuel"),2,LoadMetrics(),galaxy,ticking=false,
             stockStore=state.inventory,navigationStore=state.nav,worldStateCommitter=state).use {fixture ->
             val commander=fixture.join(fixture.account(0),true,false).client
@@ -248,13 +285,13 @@ class FleetNavigationWireTest {
             val aide=fixture.join(fixture.account(1),true,false).client
             aide.send(SyntheticClient.opcode(0x0f00));through(aide,0x0f01)
             val depart=PlaceMessages.switched(PlaceMessages.SwitchMode(10000,59,5),0,0,0,5,0,0,true)
-            commander.send(depart.copyOfRange(4,depart.size));through(commander,0x0b0b)
+            if(!lowFuel) {commander.send(depart.copyOfRange(4,depart.size));through(commander,0x0b0b)}
             fun reserve(client:SyntheticClient,id:Int) {
                 val warp=NavigationMessages.accepted(NavigationMessages.Warp(id,59,2489,0,5),0,0,0)
                 client.send(warp.copyOfRange(4,warp.size))
                 assertEquals(3600,ByteBuffer.wrap(through(client,0x0b01)).getInt(10))
             }
-            reserve(commander,10000)
+            if(!lowFuel)reserve(commander,10000)
             if(!lowFuel) {
                 fixture.engine.submit(WorldCommand.AdvanceTo(42))
                 reserve(aide,10001)

@@ -194,6 +194,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     init { require(cpIntervalSeconds in 1..86400 && clockScale in 1..1000) }
     private var players = restored.toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
+
+    fun warpCruise(origin: Int, target: Int) = Math.toIntExact((WarpCourse.cruiseCost(origin, target).toLong() *
+        policy.cruiseCost + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID)
     fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null,
         persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true, initialDock:OutfitPosition?=null): NavigationResult {
         require(stocks == null || stocks.generation == session.generation)
@@ -315,8 +318,6 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             return { grid -> GridEntryRules.evaluate(GridForces.state(galaxy, grid, forces),
                 GridEntry(Camp.of(player, stocks?.let { CoupActions.rebel(it, player.characterId,player.country) } == true), units, solo)) == GridEntryVerdict.ALLOWED }
         }
-        fun warpCruise(origin: Int, target: Int) = Math.toIntExact((WarpCourse.cruiseCost(origin, target).toLong() *
-            policy.cruiseCost + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID)
         fun warpObstacle(player: Navigator, target: Int): NavigationRejection? {
             val reach = maxOf(abs(target % 100 - player.grid % 100), abs(target / 100 - player.grid / 100))
             return when (WarpPreconditions.evaluate(WarpContext(player.cruise, galaxy.kind(target) == GridKind.STAR_SYSTEM,

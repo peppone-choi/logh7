@@ -337,6 +337,27 @@ class FleetNavigationTest {
             assertEquals(before,state.players)
         }
     }
+    @Test fun reservedWarpChecksMemberFuelBeforePayment() {
+        val state = state()
+        addAide(state, cruise = 199)
+        apply(state, request.copy(place = PlaceMove.SwitchMode(5)))
+        val before = state.players.toMap()
+        val inventory = state.stocks
+        val commits = state.commits
+        val warp = request.copy(destination = 2489)
+
+        assertEquals(NavigationRejection.CRUISE, apply(state, warp).single().rejection)
+        assertEquals(before, state.players)
+        assertEquals(inventory, state.stocks)
+        assertEquals(commits, state.commits)
+
+        state.players = state.players + ("aide" to state.players.getValue("aide").copy(cruise = 200))
+        val accepted = apply(state, warp).single()
+        assertNull(accepted.rejection)
+        assertEquals(2489, state.players.getValue("pilot").warpTarget)
+        assertEquals(920, state.players.getValue("pilot").mcp)
+        assertEquals(200, state.players.getValue("aide").cruise)
+    }
     @Test fun dockCompletionMovesOfflineMemberAndAtomicFailureMovesNobody() {
         val state=state();addAide(state)
         apply(state,request.copy(place=PlaceMove.SwitchMode(5)))
@@ -479,8 +500,8 @@ class FleetNavigationTest {
     @Test fun strategicRecoveryCannotBypassAMembersBlockingStateWhenTheCommandersWarpBecomesDue()=runBlocking {
       for(lowFuel in listOf(false,true)) {
         val state=state();addAide(state)
-        if(lowFuel)state.players=state.players+("aide" to state.players.getValue("aide").copy(cruise=100))
         apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2489))
+        if(lowFuel)state.players=state.players+("aide" to state.players.getValue("aide").copy(cruise=100))
         if(!lowFuel)reserveAide(state,2,session.copy(gameMillis=1000))
         val before=state.players.toMap();val inventory=state.stocks
         val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=state.nav,
@@ -548,8 +569,8 @@ class FleetNavigationTest {
     @Test fun aiSettingsCanChangeWithoutBypassingOrCancellingADeferredFleetArrival()=runBlocking {
       for(lowFuel in listOf(false,true)) {
         val state=state();addAide(state)
-        if(lowFuel)state.players=state.players+("aide" to state.players.getValue("aide").copy(cruise=100))
         apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(destination=2489))
+        if(lowFuel)state.players=state.players+("aide" to state.players.getValue("aide").copy(cruise=100))
         if(!lowFuel)reserveAide(state,2,session.copy(gameMillis=1000))
         val engine=WorldEngine(this,ticking=false,galaxy=galaxy,navigationStore=state.nav,
             stockStore=state.inventory,worldStateCommitter=state.commit,npcPolicy=NpcTacticalPolicy(enabled=false))
