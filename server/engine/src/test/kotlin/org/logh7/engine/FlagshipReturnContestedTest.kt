@@ -18,6 +18,19 @@ class FlagshipReturnContestedTest {
         val moved=FlagshipRecovery.defeated(victim,100,galaxy,stocks,listOf(victim,enemy))
         assertEquals(1060,moved.baseId);assertEquals(2490,moved.grid)
     }
+    @Test fun aFlagshipFromAnEliminatedCountryDoesNotBlockTheDesignatedOrOriginPlanet() {
+        val third = CountryId(42)
+        val ghost = enemy.copy(country = third)
+        val birth = victim.copy(returnBase = 0, originBase = 1048)
+        for (pilot in listOf(victim, birth)) {
+            val moved = FlagshipRecovery.defeated(pilot, 100, galaxy, stocks, listOf(ghost), setOf(third))
+            assertEquals(1048, moved.baseId)
+            assertEquals(2487, moved.grid)
+            assertEquals(pilot.returnBase, moved.returnBase)
+            assertEquals(pilot.originBase, moved.originBase)
+        }
+    }
+
     @Test fun lostReturnAndOriginPlanetsDoNotSendTheFlagshipToTheEnemyStart() {
         val captured=stocks.copy(bases=listOf(1048,1060).associateWith {PlanetStock(it,3,0,0,0,0)})
         val moved=FlagshipRecovery.defeated(victim.copy(originBase=1060),100,galaxy,captured)

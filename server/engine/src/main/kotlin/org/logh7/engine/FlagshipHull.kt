@@ -23,7 +23,7 @@ data class FlagshipHull(val kind: Int, val at: Long, val hp: Int = 100, val woun
 internal object FlagshipRecovery {
     /** Manual: return planet, injury, destroyer replacement (REVIEW05). Fallback and 24G-hour delay are design. */
     fun defeated(player:Navigator,seconds:Long,galaxy:Galaxy,stocks:PlanetStocks,
-        players:Collection<Navigator> = emptyList()):Navigator {
+        players:Collection<Navigator> = emptyList(),eliminated:Set<CountryId> = emptySet()):Navigator {
         val country=player.country
         val start=galaxy.startFor(country)
         val playerCamp=CoupActions.camp(stocks,player.characterId,country)
@@ -34,7 +34,7 @@ internal object FlagshipRecovery {
         }
         // Manual P04: a return system that is in tactics sends the flagship to another system.
         val forces=GridForces.collect(galaxy,stocks.generation,
-            players.filter {it.characterId!=player.characterId && it.generation==stocks.generation},stocks)
+            players.filter {it.characterId!=player.characterId && it.generation==stocks.generation},stocks,eliminated)
         val busy=forces.filterValues {TacticalContact.contested(it)}.keys
         val safeBases=owned.filter {it.grid !in busy}
         val safeSystem=if (safeBases.isEmpty()) {
