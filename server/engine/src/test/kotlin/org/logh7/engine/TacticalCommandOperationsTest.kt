@@ -1168,6 +1168,52 @@ class TacticalCommandOperationsTest {
         assertEquals(21,s.stocks.strategic.lastTransportId)
     }
 
+    @Test fun retreatOfLastSurvivingTransportKeepsOutfitAndCargo() {
+        val s=state()
+        s.players=s.players+("pilot" to s.players.getValue("pilot").copy(motion=motion(260f)))
+        val original=s.stocks.outfits.getValue(1)
+        val transport=UnitStack(ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith("輸送艦")}.kind)
+        val ships=ActiveShipUnits(original.activeShips!!.values.map {
+            it.copy(stack=transport,tactical=NpcTacticalState(motion(260f,it.id*.4f),now,now))
+        })
+        val outfit=original.copy(kind=OutfitKind.TRANSPORT,activeShips=ships,units=UnitInventory(ships.quantities()))
+        val cargo=TransportPackage(10,outfit.country,1000,1001,101,carrier=1,carrierBoats=600)
+        val loaded=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit),
+            warehouses=s.stocks.warehouses+(10 to s.stocks.warehouses.getValue(10).copy(kind=OutfitKind.TRANSPORT)),
+            strategic=s.stocks.strategic.copy(transports=listOf(cargo),lastTransportId=10),outfitSequence=OutfitSequence(50,60))
+        val damaged=TacticalLosses.apply(outfit,2,300)
+        s.stocks=TransportActions.settleCargo(loaded.copy(outfits=loaded.outfits+(1 to damaged)),loaded)
+        val r=run(s)
+        val req=request(TacticalCommand(0x40d,listOf(1))).copy(tacticalCommand=null,tacticalRetreat=listOf(1))
+        assertNotNull(TacticalFleetRetreat.accept(req,session,galaxy,r.navigation,r.production,r.production.snapshot(1)!!,s.commit,1).player)
+        settle(r,now+5)
+        val before=s.stocks
+        val events=mutableListOf<TacticalMovement>()
+        val due=session.copy(gameMillis=(now+155)*1000)
+        val after=TacticalFleetRetreat.advance(due,galaxy,s.players.toMutableMap(),before,events)
+        val moved=after.outfits.getValue(1)
+        assertEquals(before.outfits.keys,after.outfits.keys)
+        assertEquals(before.warehouses,after.warehouses)
+        assertEquals(before.outfitSequence,after.outfitSequence)
+        assertEquals(outfit.commanderId,moved.commanderId)
+        assertEquals(outfit.warehouseId,moved.warehouseId)
+        assertEquals(listOf(cargo.copy(survivingBoats=300)),after.strategic.transports)
+        assertNotEquals(2488,moved.positionIn(galaxy).grid)
+        assertEquals(listOf(1 to 300,2 to 0),moved.activeShips!!.values.map {it.id to it.boats})
+        assertTrue(moved.activeShips.values.all {it.tactical==null})
+        assertEquals(listOf(1 to moved.positionIn(galaxy).grid),events.map {it.unit to it.destination})
+
+        val crew=UnitSpecifications.crews.first {it.power==outfit.shipStyle.nativePower && GroundUnits.isGround(it.kind)}
+        val ground=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(crew.kind),base=1000,origin=1)))
+        val source=before.outfits.getValue(1)
+        val withGround=before.copy(outfits=before.outfits+(1 to source.copy(
+            activeGround=ground,units=UnitInventory(source.units.ships,ground.quantities()))))
+        val split=TacticalFleetRetreat.advance(due,galaxy,s.players.toMutableMap(),withGround,mutableListOf())
+        assertEquals(ground,split.outfits.getValue(1).activeGround)
+        assertEquals(2488,split.outfits.getValue(1).positionIn(galaxy).grid)
+        assertEquals(moved.positionIn(galaxy).grid,split.outfits.getValue(50).positionIn(galaxy).grid)
+    }
+
     @Test fun fortressCannonHitsFriendlyAndEnemyShipsAlongTheRay() {
         val s=state();val outfit=s.stocks.outfits.getValue(1)
         val ships=ActiveShipUnits(outfit.activeShips!!.values.map {if(it.id==2)it.copy(stack=UnitStack(32)) else it})
