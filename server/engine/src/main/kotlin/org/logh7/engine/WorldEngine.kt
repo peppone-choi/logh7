@@ -76,7 +76,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val budgetObservers=java.util.concurrent.CopyOnWriteArrayList<(BudgetChange)->Unit>()
     fun provideIdentities(supplier:()->List<StrategicIdentity>):AutoCloseable {
-        production?.identities=supplier;return AutoCloseable {production?.identities={emptyList()}}
+        production?.identities=supplier
+        tickPulse.trySend(Unit)
+        return AutoCloseable {production?.identities={emptyList()}}
     }
     private val resultObservers=java.util.concurrent.CopyOnWriteArrayList<(WorldSnapshot)->Unit>()
     /** U-27: each published snapshot carrying a session result; observers must be idempotent per generation. */
@@ -489,6 +491,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             for(observer in tidalObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Tidal delivery failed: ${failure.javaClass.simpleName}")}
         }
+        scheduleDeadline(snapshot)
+    }
+
+    private fun scheduleDeadline(snapshot:WorldSnapshot) {
         val session=durableState?.session ?: simulation.exportState()
         val personal=snapshot.navigators.values.asSequence().filter {it.generation==session.generation && it.cpPaused && it.baseId==0 && it.hull!=null}
             .mapNotNull {it.motion?.takeIf {m->m.grid==it.grid}}
@@ -526,10 +532,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         }.filter {it>nowSeconds}
         // A ready retreat blocked by position or destination is retried by ordinary ticks.
         val retreatDeadlines=snapshot.navigators.values.mapNotNull {it.retreat?.completesAt?.takeIf {at->at>nowSeconds}}
-        val identities by lazy {production?.identities?.invoke().orEmpty().associateBy {it.id}}
+        // The registry can attach after startup scheduling; execution still checks warp abilities.
         val navigationDeadlines=snapshot.navigators.filter {(account,p)->p.generation==session.generation && !p.cpPaused &&
-            session.participants[account]?.online==false &&
-            (p.warpTarget==null || offlineAbilities(account,p,snapshot.planetStocks) {identities[p.characterId]?.abilities}!=null)}.values.flatMap {p->
+            session.participants[account]?.online==false}.values.flatMap {p->
             (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
@@ -571,6 +576,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val worker = scope.launch {
         var state = published.get()
+        val generation=(durableState?.session ?: simulation.exportState()).generation
+        scheduleDeadline(state.copy(navigators=navigation?.snapshot(generation).orEmpty(),
+            planetStocks=production?.snapshot(generation)))
         var restartAt: Long? = null
         fun restart(): List<WorldEvent> {
             val snapshot = simulation.snapshot()
@@ -1395,6 +1403,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val interval = minOf(rules.strategyTickRealMillis, rules.tacticsTickRealMillis)
         var regularAt=Math.addExact(origin,interval)
         while (isActive) {
+            if(awaitIdentities && production!=null && production.identities==null) {
+                tickPulse.receive()
+                continue
+            }
             val now=monotonicMillis()
             val wakeAt=if(storageFailed)regularAt else minOf(regularAt,tacticalTickAt.get() ?: regularAt)
             val wait=maxOf(0,wakeAt-now)
