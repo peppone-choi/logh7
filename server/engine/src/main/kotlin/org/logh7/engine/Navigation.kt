@@ -345,7 +345,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val arrival = WarpCourse.arrival(galaxy, player.grid, target,
                 session.generation * 0x9E3779B1L xor (player.characterId.toLong() shl 20) xor player.moves, enterable)
             return contact(player.copy(grid = arrival, cruise = player.cruise - warpCruise(player.grid, target),
-                moves = Math.addExact(player.moves, 1), motion = null))
+                moves = Math.addExact(player.moves, 1), motion = null,
+                posture = player.posture.takeIf { arrival == player.grid }))
         }
         val before = if (dueWarp == null) settled else {
             // The reserved route is rechecked at execution without refunding the paid CP.

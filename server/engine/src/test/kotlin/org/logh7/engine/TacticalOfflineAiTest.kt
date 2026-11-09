@@ -39,6 +39,31 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun offlineAiOnlyHonorsAnchoredPostureInTheCurrentGrid() {
+        val original = stocks()
+        val fleet = original.outfits.getValue(1)
+        val unit = fleet.activeShips!!.values.single()
+        for (postureGrid in listOf(2487, 2488)) {
+            val pilots = players()
+            val pilot = pilots.getValue("pilot")
+            pilots["pilot"] = pilot.copy(posture = TacticalPosture(2487, TacticalShipMode.ANCHORED, 1001))
+            val anchored = unit.copy(posture = TacticalPosture(postureGrid, TacticalShipMode.ANCHORED,
+                if (postureGrid == 2488) 1000 else 1001))
+            val before = original.copy(outfits = original.outfits + (1 to fleet.copy(activeShips = ActiveShipUnits(listOf(anchored)))))
+            val after = TacticalOfflineAi.advance(offline, galaxy, pilots, before, 1, mutableListOf())
+
+            assertNotNull(pilots.getValue("pilot").attack)
+            val nextUnit = after.outfits.getValue(1).activeShips!!.values.single()
+            if (postureGrid == 2488) assertEquals(anchored, nextUnit)
+            else assertNotNull(nextUnit.attack)
+        }
+        val pilots = players()
+        val anchored = pilots.getValue("pilot").copy(posture = TacticalPosture(2488, TacticalShipMode.ANCHORED, 1000))
+        pilots["pilot"] = anchored
+        TacticalOfflineAi.advance(offline, galaxy, pilots, original, 1, mutableListOf())
+        assertEquals(anchored, pilots.getValue("pilot"))
+    }
+
     @Test fun detainedCommanderCannotDelegateOrChooseAutomaticTargets() {
         val players=players()
         val pilot=players.getValue("pilot")
