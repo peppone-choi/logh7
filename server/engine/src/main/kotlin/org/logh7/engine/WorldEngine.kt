@@ -520,10 +520,13 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
         val pirateDeadlines=if(galaxy==null || session.ended!=null)emptyList() else snapshot.planetStocks?.let {stocks->
-            stocks.social.pirates.fleets.values.mapNotNull {fleet->
-                (fleet.firedAt+PirateActions.FIRE_SECONDS).takeIf {at->at>nowSeconds && fleet.alive &&
-                    PirateActions.engaged(galaxy,stocks,snapshot.navigators.values,fleet.grid)}
+            val pirates=stocks.social.pirates
+            val fleetDeadlines=pirates.fleets.values.filter {it.alive}.map {fleet->
+                if(PirateActions.engaged(galaxy,stocks,snapshot.navigators.values,fleet.grid))
+                    fleet.firedAt+PirateActions.FIRE_SECONDS
+                else fleet.since+PirateActions.SPAWN_DAYS*Justice.DAY
             }
+            (fleetDeadlines+pirates.nextSpawnAt).filter {it>nowSeconds}
         }.orEmpty()
         val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+pirateDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
