@@ -279,6 +279,30 @@ class TacticalGroundOperationsTest {
         assertEquals(NavigationRejection.CARD,order(listOf(2),50).rejection,"observing another commander does not grant command")
         assertTrue(s.stocks.tacticalCommands.groundTargets.isEmpty())
     }
+    @Test fun groundTargetLimitRejectsNewEntriesButAllowsChangingAndClearingSavedOrders() {
+        val s=state()
+        val own=s.stocks.outfits.getValue(1)
+        val landed=ActiveGroundUnits(own.activeGround!!.values.map {if(it.id in 2..3)it.copy(carrier=0,base=1000,origin=1) else it})
+        val enemies=ActiveGroundUnits(listOf(50,51).map {ActiveGroundUnit(it,UnitStack(4),base=1000)})
+        val orders=(1001..1999).associateWith {50}+(2 to 50)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(activeGround=landed))+
+            (9 to OutfitStock(9,3,OutfitKind.GROUND,1001,11,10009,UnitInventory(troops=enemies.quantities()),activeGround=enemies)),
+            warehouses=s.stocks.warehouses+(11 to OutfitWarehouse(11,3,OutfitKind.GROUND,1001)),
+            tacticalCommands=s.stocks.tacticalCommands.copy(groundTargets=orders))
+        val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+        fun order(units:List<Int>,target:Int)=accept(s,n,p,request().copy(tacticalGround=TacticalGroundCommand(
+            if(target>0)TacticalGroundAction.TARGET else TacticalGroundAction.CLEAR,units,target=target)))
+        val before=s.stocks
+        val saves=s.saves
+        assertEquals(NavigationRejection.BUSY,order(listOf(2,3),51).rejection)
+        assertEquals(before,s.stocks);assertEquals(saves,s.saves)
+        assertNotNull(order(listOf(2),51).player)
+        assertEquals(orders+(2 to 51),s.stocks.tacticalCommands.groundTargets)
+        assertNotNull(order(listOf(2),0).player)
+        assertNotNull(order(listOf(3),50).player)
+        assertEquals(orders-2+(3 to 50),s.stocks.tacticalCommands.groundTargets)
+    }
+
     @Test fun anExistingGarrisonCommanderCanOrderLocalUnassignedGroundDefendersUntilDismissed() {
         val s=state();val defenders=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),base=1000)))
         val enemy=ActiveGroundUnits(listOf(ActiveGroundUnit(50,UnitStack(4),base=1000)))
