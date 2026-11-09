@@ -25,6 +25,13 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
     private var sequence = 0L
     init { require(leaseMillis in 1..3_600_000) }
 
+    private fun lostCommand(request:LogisticsRequest,outfit:OutfitStock?):Boolean =
+        request.mode==LogisticsMode.REORGANIZATION && outfit?.commanderId!=request.characterId
+
+    fun expireFormerCommanders(stocks:PlanetStocks) {
+        reservations.removeAll {lock->lostCommand(lock.request,stocks.outfits[lock.request.outfitId])}
+    }
+
     private fun expireReservations(session:SessionState,now:Long,stocks:PlanetStocks?) {
         reservations.removeAll { lock ->
             val request=lock.request
@@ -32,9 +39,11 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
                 session.participants[request.account]?.let {
                     !it.online || it.connection!=request.connection || it.country!=request.country
                 }!=false || stocks?.let {inventory->
+                    val outfit=inventory.outfits[request.outfitId]
                     inventory.bases[lock.base]?.camp!=lock.camp ||
                         CoupActions.camp(inventory,request.characterId,request.country)!=lock.camp ||
-                        inventory.outfits[request.outfitId]?.let {CoupActions.outfitCamp(inventory,it)}!=lock.camp
+                        outfit?.let {CoupActions.outfitCamp(inventory,it)}!=lock.camp ||
+                        lostCommand(request,outfit)
                 }==true
         }
     }

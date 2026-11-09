@@ -506,12 +506,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
 
     private fun publish(snapshot:WorldSnapshot) {
         val old=published.get().planetStocks
+        val inventory=snapshot.planetStocks
+        // Retire the old berth reservation even if the same commander is appointed again before the next logistics request.
+        if(inventory!=null && inventory!==old)logistics.expireFormerCommanders(inventory)
         val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
             SessionResults.fromWorld(galaxy,snapshot) else null
         val previousResult=published.get().result
         published.set(snapshot.copy(result=result))
         if(result!=null && previousResult==null)published.get().let {s->resultObservers.forEach {it(s)}}
-        val inventory=snapshot.planetStocks
         if(inventory!=null && old!=null && old.generation==inventory.generation && old.social.coup!=inventory.social.coup) {
             val bases=inventory.bases.keys.filter {id->old.bases[id]?.camp!=inventory.bases.getValue(id).camp}
             if(bases.isNotEmpty())for(observer in coupBaseObservers)try {observer(inventory,bases)}
