@@ -1155,6 +1155,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                                 } else simulation.defect(action.account,action.country)
                                 result = result.copy(tacticalOfficeOutfits =
                                     changedTacticalOfficeOutfits(inventory, prepared, i.characterId))
+                            } else if (i.command == Justice.ARREST && result.outcome == JusticeActions.Outcome.ARRESTED.ordinal) {
+                                result = result.copy(tacticalOfficeOutfits =
+                                    changedTacticalOfficeOutfits(inventory, prepared, i.target))
                             }
                         }
                     }
