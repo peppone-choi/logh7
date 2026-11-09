@@ -197,7 +197,8 @@ internal object NpcStrategy {
             var outfit=stocks.outfits.getValue(id)
             val position=outfit.positionIn(galaxy)
             val owner=stocks.bases[position.baseId]
-            val permitted=eligible(outfit) && (position.baseId==0 || owner?.let {it.country==outfit.country && it.camp==0}==true)
+            val permitted=outfit.country !in session.eliminated && eligible(outfit) &&
+                (position.baseId==0 || owner?.let {it.country==outfit.country && it.camp==0}==true)
             if(!permitted) {
                 if(outfit.strategy!=null)stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=null)))
                 continue

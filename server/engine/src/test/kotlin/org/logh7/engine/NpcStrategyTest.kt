@@ -45,6 +45,22 @@ class NpcStrategyTest {
         } finally {engine.drainAndClose()}
     }
 
+    @Test fun eliminatedCountryCancelsAnUncommandedFleetJumpWithoutSpendingDepotSupplies() {
+        val before=stocks()
+        val pilots=players()
+        val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=advance(0,before,pilots,events)
+        val arrival=assertNotNull(reserved.outfits.getValue(1).strategy?.arrivesAt)
+        val eliminated=simulation.copy(gameMillis=arrival*1000,
+            eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,0)))
+
+        val cancelled=NpcStrategy.advance(eliminated,galaxy,pilots,reserved,events)
+        assertEquals(before.outfits,cancelled.outfits)
+        assertEquals(before.bases,cancelled.bases)
+        assertTrue(events.isEmpty())
+        assertEquals(cancelled,NpcStrategy.advance(eliminated,galaxy,pilots,cancelled,events))
+    }
+
     @Test fun reservedAdjacentJumpRestoresThenConsumesRealDepotSuppliesOnceAndStartsContact() {
         val before=stocks();val players=players();val events=mutableListOf<NpcStrategicMovement>()
         val reserved=advance(0,before,players,events)

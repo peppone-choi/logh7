@@ -66,6 +66,15 @@ class TacticalRetreatTest {
             energy=TacticalEnergy.ZERO),session,stocks).player!!
         assertNull(energy.retreat)
     }
+    @Test fun eliminatedFlagshipCancelsRestoredRetreatWithoutWarping() {
+        val store=store()
+        val prepared=Navigation(galaxy,store,NavigationPolicy()).apply(request,session,stocks).player!!
+        val due=session.copy(gameMillis=prepared.retreat!!.completesAt*1000,participants=emptyMap(),
+            eliminated=mapOf(Power.ALLIANCE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,seconds)))
+        Navigation(galaxy,store,NavigationPolicy()).settleRetreats(due,stocks)
+        assertEquals(prepared.copy(retreat=null),store.players.getValue("pilot"))
+    }
+
     @Test fun completedPreparationWaitsForLegalExitAndBattleEndCancelsItWithoutWarping() {
         val store=store();val nav=Navigation(galaxy,store,NavigationPolicy())
         val prepared=nav.apply(request,session,stocks).player!!
