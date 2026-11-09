@@ -494,9 +494,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         it.boats>0 && (it.motionCommander==0 || it.motionCommander==TacticalAuthority.commander(outfit,it,checkNotNull(snapshot.planetStocks)))
                     }.mapNotNull {it.tactical?.motion?.takeIf {m->m.grid==position.grid}}
             }
-        val shipOrderDeadlines=snapshot.navigators.values.mapNotNull {it.posture?.order?.readyAt} +
+        val nowSeconds=session.gameMillis/1000
+        val shipOrderDeadlines=snapshot.navigators.values.flatMap {listOfNotNull(it.posture?.order?.readyAt,
+            it.fire?.pending?.firesAt,it.attack?.nextAt?.takeIf {at->at>nowSeconds})} +
             snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeShips?.values.orEmpty().flatMap {
-                listOfNotNull(it.posture?.order?.readyAt,it.support?.readyAt)}}
+                listOfNotNull(it.posture?.order?.readyAt,it.support?.readyAt,it.shot?.firesAt,
+                    it.attack?.order?.nextAt?.takeIf {at->at>nowSeconds})}}
         val groundDeadlines=snapshot.planetStocks?.outfits?.values.orEmpty().flatMap {o->o.activeGround?.values.orEmpty().mapNotNull {it.order?.readyAt}}
         val commands=snapshot.planetStocks?.tacticalCommands
         val commandDeadlines=commands?.orders.orEmpty().map {it.readyAt}+commands?.air.orEmpty().values.map {it.nextAt}+
@@ -509,7 +512,6 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0) else null}}.orEmpty()
         val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}
         // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
-        val nowSeconds=session.gameMillis/1000
         // A ready retreat blocked by position or destination is retried by ordinary ticks.
         val retreatDeadlines=snapshot.navigators.values.mapNotNull {it.retreat?.completesAt?.takeIf {at->at>nowSeconds}}
         val identities by lazy {production?.identities?.invoke().orEmpty().associateBy {it.id}}
