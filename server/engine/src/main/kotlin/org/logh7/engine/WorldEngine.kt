@@ -510,7 +510,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val aiDeadlines=snapshot.planetStocks?.let {stocks->snapshot.navigators.mapNotNull {(account,p)->
             if(TacticalOfflineAi.eligible(session,account,p,stocks))maxOf(session.gameMillis/1000+rules.speed,
                 stocks.tacticalCommands.aiNextAt[p.characterId] ?: 0) else null}}.orEmpty()
-        val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}
+        val civicDeadlines=snapshot.planetStocks?.civic?.active.orEmpty().map {it.readyAt}+
+            snapshot.planetStocks?.strategic?.suppressions.orEmpty().mapNotNull {it.readyAt.takeIf {at->at>nowSeconds}}
         // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
         // A ready retreat blocked by position or destination is retried by ordinary ticks.
         val retreatDeadlines=snapshot.navigators.values.mapNotNull {it.retreat?.completesAt?.takeIf {at->at>nowSeconds}}
@@ -531,7 +532,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val harmAt=pirates.harmedThrough.takeIf {it>0 && fleetDeadlines.isNotEmpty()}?.plus(Justice.DAY)
             (fleetDeadlines+listOfNotNull(pirates.nextSpawnAt,harmAt)).filter {it>nowSeconds}
         }.orEmpty()
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+pirateDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val shipProductionDeadlines=snapshot.planetStocks?.social?.production?.orders.orEmpty().values
+            .map {it.readyAt}.filter {it>nowSeconds}
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+pirateDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
