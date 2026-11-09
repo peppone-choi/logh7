@@ -234,14 +234,17 @@ internal object NpcStrategy {
                     continue
                 }
                 // Re-evaluate source hostility as well as destination capacity after earlier arrivals.
-                if(distance(position.grid,destination)!=1 || planned?.grid!=destination || !allowed(galaxy,forces(),outfit,destination)) {
+                if(distance(position.grid,destination)!=1 || planned?.grid!=destination || !allowed(galaxy,forces(),outfit,destination) ||
+                    position.baseId==0 && outfit.supplies==0 && relief==null) {
                     val unavailableDepot=galaxy.bases.any {base->base.grid==destination &&
                         stocks.bases[base.id]?.let {it.country!=outfit.country || it.camp!=0 || it.supplies==0}==true}
                     val reroute=if(unavailableDepot && position.baseId==0 && planned!=null)
                         home(galaxy,forces(),outfit,stocks)?.takeIf {it.next==planned.grid}
                     else null
-                    val strategy=if(reroute==null || !canDepart(stocks,outfit,galaxy))NpcStrategicState(now+21600)
-                        else NpcStrategicState(now+21600,reroute.next,now+3600)
+                    val next=if(canDepart(stocks,outfit,galaxy))reroute?.next
+                        else reliefRoute(galaxy,forces(),outfit,stocks)?.next
+                    val strategy=if(next==null)NpcStrategicState(now+21600)
+                        else NpcStrategicState(now+21600,next,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=strategy)))
                     continue
                 }

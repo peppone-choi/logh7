@@ -104,6 +104,30 @@ class NpcStrategyTest {
         assertEquals(2,events.size)
     }
 
+    @Test fun blockedFirstReliefJumpReservesAnAlternateRouteWithoutChargingTheDepot() {
+        val initial=stocks()
+        val fleet=initial.outfits.getValue(1).copy(position=OutfitPosition(2489))
+        val before=initial.copy(outfits=mapOf(1 to fleet))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=advance(0,before,mutableMapOf(),events)
+        val first=checkNotNull(reserved.outfits.getValue(1).strategy)
+        val pilots=players()
+        pilots["pilot"]=pilots.getValue("pilot").copy(grid=checkNotNull(first.destination))
+
+        val rerouted=advance(3600,reserved,pilots,events)
+        val retry=checkNotNull(rerouted.outfits.getValue(1).strategy)
+        val alternate=assertNotNull(retry.destination)
+        assertNotEquals(first.destination,alternate)
+        assertEquals(7200L,retry.arrivesAt)
+        assertEquals(fleet.position,rerouted.outfits.getValue(1).position)
+        assertEquals(before.bases,rerouted.bases)
+        assertTrue(events.isEmpty())
+
+        val moved=advance(7200,rerouted,pilots,events)
+        assertEquals(alternate,moved.outfits.getValue(1).position?.grid)
+        assertEquals(alternate,events.single().destination)
+    }
+
     @Test fun eliminatedCountryCancelsAnUncommandedFleetJumpWithoutSpendingDepotSupplies() {
         val before=stocks()
         val pilots=players()
