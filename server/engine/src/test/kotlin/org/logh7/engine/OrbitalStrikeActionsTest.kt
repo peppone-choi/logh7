@@ -150,6 +150,23 @@ class OrbitalStrikeActionsTest {
         val r=act(p,s,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES)
         assertNull(r.rejection,"${r.rejection}");assertEquals(2,r.outcome,"the flagship and the one unit in range")
         assertTrue(assertNotNull(r.stocks).outfits.getValue(1).activeGround!!.values.all {it.strength==1000-2*OrbitalStrikeActions.DAMAGE})
+
+        val previousGrid=ship(11,5f).let {u->
+            val tactical=checkNotNull(u.tactical)
+            u.copy(tactical=tactical.copy(motion=tactical.motion.copy(grid=2486)))
+        }
+        val arrived=s.copy(outfits=s.outfits+(2 to fleet.copy(activeShips=ActiveShipUnits(
+            ships.values.map {if(it.id==11)previousGrid else it}))))
+        val arrivalQuote=act(p,arrived,phase=OrbitalStrikeActions.QUOTE_PHASE)
+        assertNull(arrivalQuote.rejection)
+        assertEquals(1,arrivalQuote.outcome,"the escort's old-grid pose is not its arrival position")
+        assertEquals(SocialRejection.QUOTE_CHANGED,
+            act(p,arrived,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES).rejection)
+        val arrivalStrike=act(p,arrived,base=arrivalQuote.found,attackers=arrivalQuote.outcome,supplies=OrbitalStrikeActions.SUPPLIES)
+        assertNull(arrivalStrike.rejection)
+        assertTrue(assertNotNull(arrivalStrike.stocks).outfits.getValue(1).activeGround!!.values.all {
+            it.strength==1000-OrbitalStrikeActions.DAMAGE
+        })
     }
     @Test fun aGarrisonSavedOnlyAsQuantitiesGetsIdentitiesAndIsDamaged() {
         val legacy=OutfitStock(3,3,OutfitKind.GROUND,1000,101,units=UnitInventory(troops=mapOf(UnitStack(4) to 2)))
