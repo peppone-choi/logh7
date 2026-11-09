@@ -104,7 +104,7 @@ object ProposalActions {
             if(session.participants[key]?.online==true)continue
             val recipient=players.getValue(key)
             val country=recipient.country?.takeIf {it==mail.originCountry && it.value in countries.countries} ?: continue
-            if(recipient.cpPaused || recipient.navigationPending)continue
+            if(recipient.cpPaused || recipient.navigationPending || settled.social.justice.detained(recipient.characterId))continue
             val cost=costs[mail.command]?.div(2) ?: continue
             val paid=CpPayment.charge(CpBalance(recipient.pcp.toLong(),recipient.mcp.toLong()),cost,CpPool.MCP)
             if(paid !is PaymentResult.Paid)continue
