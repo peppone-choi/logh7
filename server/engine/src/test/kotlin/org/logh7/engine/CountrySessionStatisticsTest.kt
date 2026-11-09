@@ -20,11 +20,13 @@ class CountrySessionStatisticsTest {
         val warehouses=outfits.values.associate {o->o.warehouseId to OutfitWarehouse(o.warehouseId,o.country,
             OutfitKind.FLEET,1000,o.id,units=if(o.country==CountryId(42))UnitInventory(ships=mapOf(UnitStack(32) to 2),
                 troops=mapOf(UnitStack(0) to 3)) else UnitInventory(),shipStyle=ShipStyleId("empire"))}
-        val stock=PlanetStocks(1,0,bases,outfits,warehouses,nextShipId=3)
+        val stock=PlanetStocks(1,0,bases,outfits,warehouses,nextShipId=3,
+            strategic=StrategicState(people=mapOf(10004 to StrategicPerson(deceasedAt=100))))
         fun player(id:Int,country:CountryId?,generation:Long=1)=Navigator(generation,id,country,2487,1000,1000,1000,
             shipStyle=ShipStyleId("empire"))
         val players=mapOf("a" to player(10000,CountryId(42)),"b" to player(10001,CountryId(43)),
-            "independent" to player(10002,null),"another-generation" to player(10003,CountryId(43),2))
+            "independent" to player(10002,null),"another-generation" to player(10003,CountryId(43),2),
+            "deceased" to player(10004,CountryId(43)))
         val session=SessionSimulation(SessionRules.load()).snapshot()
         val snapshot=WorldSnapshot(0,0,session,navigators=players,planetStocks=stock)
         val result=SessionResults.statistics(galaxy,snapshot)

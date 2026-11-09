@@ -87,7 +87,9 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
             val target = if (unit.ship) ships else troops
             val key = UnitStack(unit.kind)
             while (hours >= unit.hours) {
-                val count = minOf(line.batch, 65535 - (target[key] ?: 0))
+                val room = if (unit.ship) warehouseShipProductionRoom(unit.kind, ships, stock.spareShips)
+                    else 65535 - (target[key] ?: 0)
+                val count = minOf(line.batch, room)
                 val mineralCost = count.toLong() * if (unit.ship) unit.hours.toLong() * policy.mineralPerShipHour else policy.mineralPerTroop.toLong()
                 val supplyCost = count.toLong() * if (unit.ship) unit.hours.toLong() * policy.suppliesPerShipHour else policy.suppliesPerTroop.toLong()
                 val foodCost = if (unit.ship) 0 else count.toLong() * policy.foodPerTroop

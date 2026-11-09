@@ -63,14 +63,12 @@ internal object BaseOccupationOperations {
                     changed=changed.copy(units=UnitInventory(troops=roster?.quantities().orEmpty()),
                         activeShips=ActiveShipUnits(emptyList()),activeGround=roster,supplies=0)
                 }
-                // Ineligible garrison reserves are eliminated too, never converted into the victor's troop type.
-                if(changed.kind==OutfitKind.GROUND) {
-                    val old=changed.activeGround
-                    if(old!=null) {
-                        val roster=ActiveGroundUnits(old.values.filter {it.base!=base.id})
-                        changed=changed.copy(activeGround=roster,units=UnitInventory(changed.units.ships,
-                            changed.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}+roster.quantities()))
-                    }
+                // Landed reserves belong to the defeated garrison regardless of their outfit kind.
+                val old=changed.activeGround
+                if(old!=null && old.values.any {it.base==base.id}) {
+                    val roster=ActiveGroundUnits(old.values.filter {it.base!=base.id})
+                    changed=changed.copy(activeGround=roster,units=UnitInventory(changed.units.ships,
+                        changed.units.troops.filterKeys {!GroundUnits.isGround(it.kind)}+roster.quantities()))
                 }
                 changed
             }

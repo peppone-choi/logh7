@@ -1221,4 +1221,30 @@ class TacticalCommandOperationsTest {
         assertTrue(s.players.getValue("enemy").hull!!.woundedUntil>now+5)
         assertEquals(target.supplies,s.players.getValue("enemy").supplies)
     }
+
+    @Test fun boardingRequiresSharedContactAtAcceptanceAndCompletion() {
+        val s=state()
+        val source=s.players.getValue("pilot").copy(hull=FlagshipHull(4,now),motion=motion(.5f))
+        val target=Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,hull=FlagshipHull(89,now),motion=motion(.2f))
+        val ally=s.players.getValue("ally")
+        s.players=s.players+mapOf("pilot" to source,"enemy" to target)
+        val base=s.stocks.bases.getValue(1000).copy(owner=Allegiance.Country(Power.ALLIANCE.country),garrisonCommanderId=0)
+        s.stocks=s.stocks.copy(bases=mapOf(base.baseId to base))
+        val req=request(TacticalCommand(0x407,listOf(source.unitId),target=target.unitId)).copy(shipKind=4)
+        fun board(r:Run)=TacticalCommandOperations.accept(req,session,galaxy,r.navigation,r.production,
+            r.production.snapshot(1)!!,s.commit,1)
+
+        assertEquals(NavigationRejection.RANGE,board(run(s)).rejection)
+        assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+        s.players=s.players+("ally" to ally.copy(motion=motion(.2f)))
+        val readyAt=assertNotNull(board(run(s)).commandReadyAt)
+
+        s.players=s.players+("ally" to ally)
+        val events=mutableListOf<TacticalCommandResult>()
+        val impacts=mutableListOf<TacticalImpact>()
+        settle(run(s),readyAt,events,impacts)
+        assertTrue(events.single().cancelled)
+        assertTrue(impacts.isEmpty())
+        assertEquals(target.hull,s.players.getValue("enemy").hull)
+    }
 }

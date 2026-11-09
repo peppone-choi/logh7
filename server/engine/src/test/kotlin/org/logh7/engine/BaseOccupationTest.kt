@@ -260,6 +260,29 @@ class BaseOccupationTest {
         assertEquals(2,result.bases.getValue(1000).power);assertEquals(500,result.bases.getValue(1000).supplies)
         assertTrue(result.outfits.getValue(3).activeGround!!.values.isEmpty())
     }
+    @Test fun fortressCaptureClearsOnlyTheLosingFleetsLandedReservesAtThatBase() {
+        val fortress=base.copy(kind=1)
+        val remoteBase=base.copy(id=1001)
+        val world=Galaxy(galaxy.systems,listOf(fortress,remoteBase),galaxy.starts)
+        val original=stocks()
+        val fleet=original.outfits.getValue(2)
+        val aboard=fleet.activeGround!!.values.single {it.carrier==3}
+        val reserve=ActiveGroundUnit(6,UnitStack(6),base=fortress.id)
+        val remote=ActiveGroundUnit(7,UnitStack(6),base=remoteBase.id)
+        val roster=ActiveGroundUnits(listOf(aboard,reserve,remote))
+        val crew=UnitStack(UnitSpecifications.crews.first {it.type==3 && it.power==fleet.shipStyle.nativePower}.kind)
+        val prepared=original.copy(bases=original.bases+(remoteBase.id to PlanetStock(remoteBase.id,3,0,0,0,0)),
+            outfits=original.outfits+(fleet.id to fleet.copy(activeGround=roster,
+                units=UnitInventory(fleet.units.ships,roster.quantities()+(crew to 2)))),nextShipId=8)
+
+        val captured=advance(prepared,world=world)
+        val remaining=captured.outfits.getValue(fleet.id)
+        assertEquals(Power.EMPIRE.country,captured.bases.getValue(fortress.id).country)
+        assertEquals(listOf(aboard,remote),remaining.activeGround!!.values)
+        assertEquals(mapOf(aboard.stack to 1,remote.stack to 1,crew to 2),remaining.units.troops)
+        assertEquals(fleet.units.ships,remaining.units.ships)
+        assertEquals(listOf(3),remaining.activeShips!!.values.filter {it.boats>0}.map {it.id})
+    }
     @Test fun occupationAndExpulsionPublishOnlyAfterOneDurableCommitAndRestartCannotDuplicateLoot() {
         var stored=stocks();var fail=true
         val store=object:PlanetStockStore {override fun load()=stored;override fun save(stocks:PlanetStocks){stored=stocks}}

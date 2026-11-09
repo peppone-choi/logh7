@@ -22,6 +22,7 @@
 #include "unicode_text.h"
 #include "input_text.h"
 #include "ime_status.h"
+#include "ime_key_gate_test.h"
 #include "mail_text.h"
 #include "mail_caption_text.h"
 #include "office_text.h"
@@ -1418,6 +1419,7 @@ static int runGuard(int argc, wchar_t** argv) {
         !logh::imeStatusFragment("\x89\x70",imeStatus,japaneseKeyboard,932) || imeStatus!=L"A" ||
         logh::imeStatusFragment("\x81",imeStatus,koreanKeyboard,949) || imeStatus!=L"A" ||
         logh::imeStatusFragment(nullptr,imeStatus,koreanKeyboard,949) || imeStatus!=L"A")return 256;
+    if (!imeKeyGateTest()) return 939;
     if (!wideResourceTest()) return 253;
     if (!dialogTextTest()) return 251;
     if (!displayNameTest()) return 250;
