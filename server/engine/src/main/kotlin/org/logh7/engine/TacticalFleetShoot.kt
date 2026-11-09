@@ -39,7 +39,8 @@ internal object TacticalFleetShoot {
             if(id !in 1..999999)return reject(NavigationRejection.UNIT)
             val(o,u)=stocks.outfits.values.flatMap {o->o.activeShips?.values.orEmpty().filter {it.id==id}.map {o to it}}
                 .singleOrNull() ?: return reject(NavigationRejection.UNIT)
-            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.country!=player.country ||
+            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId ||
+                TacticalAuthority.camp(o,stocks)!=TacticalAuthority.camp(player,stocks) ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
             if(u.boats<=u.damaged || u.shot!=null || u.support!=null)return reject(NavigationRejection.BUSY)
             if(u.tactical?.sequence==Long.MAX_VALUE)return reject(NavigationRejection.CLOCK)
@@ -95,7 +96,8 @@ internal object TacticalFleetShoot {
             if(outfit.country in session.eliminated || BattleDeath.deceased(stocks,shot.commander) ||
                 TacticalAuthority.commander(outfit,unit,stocks)!=shot.commander || position.baseId!=0 || state.motion.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null || commander==null ||
-                commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid) {
+                commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid ||
+                TacticalAuthority.camp(commander,stocks)!=TacticalAuthority.camp(outfit,stocks)) {
                 stocks=replace(stocks,outfit,unit.copy(shot=null));continue
             }
             if(now<shot.firesAt)continue
