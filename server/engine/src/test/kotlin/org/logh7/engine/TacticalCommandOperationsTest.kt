@@ -1318,15 +1318,18 @@ class TacticalCommandOperationsTest {
         assertEquals(TacticalPoint(20f,.4f),ship.tactical!!.motion.pose(now+60,ship.posture,galaxy,s.stocks).position)
         assertEquals(0f,s.stocks.tacticalCommands.fortresses.getValue(1000).motion.velocity)
     }
-    @Test fun detainedHigherRankOfficerCannotOpenEmergencySupplyOrBlockTheFreeCommander() {
+    @Test fun detainedAndDeceasedHigherRankOfficersCannotBlockTheFreeCommander() {
         val state = state()
         val ally = state.players.getValue("ally")
         val prisoner = ally.copy(baseId = 1000, mode = 4, spotId = 10000019, cpPaused = false,
             motion = null, commandRange = null)
-        state.players = state.players + ("ally" to prisoner)
+        val deceased = prisoner.copy(characterId = 10009, spotId = 0)
+        state.players = state.players + mapOf("ally" to prisoner, "deceased" to deceased)
         val detention = Detention(ally.characterId, Power.EMPIRE.country, now, now + Justice.DAY, base = 1000)
         state.stocks = state.stocks.copy(
-            strategic = state.stocks.strategic.copy(people = mapOf(ally.characterId to StrategicPerson(rank = 1))),
+            strategic = state.stocks.strategic.copy(people = mapOf(
+                ally.characterId to StrategicPerson(rank = 1),
+                deceased.characterId to StrategicPerson(rank = 1, deceasedAt = 1))),
             social = state.stocks.social.copy(justice = JusticeState(detentions = mapOf(ally.characterId to detention))),
         )
         val run = run(state)

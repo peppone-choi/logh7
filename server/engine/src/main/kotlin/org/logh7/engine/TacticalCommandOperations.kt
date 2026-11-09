@@ -81,7 +81,8 @@ internal object TacticalCommandOperations {
         // Native rank numbers decrease with rank. Merit breaks equal ranks (update04).
         val candidates=players.values.filter {
             it.grid==p.grid && TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) &&
-                (it.cpPaused || it.baseId>0) && !s.social.justice.detained(it.characterId)
+                (it.cpPaused || it.baseId>0) && !s.social.justice.detained(it.characterId) &&
+                !BattleDeath.deceased(s,it.characterId)
         }
         val best=candidates.maxWithOrNull(compareBy<Navigator> {-TacticalPersonnel.rank(s,it.characterId)}
             .thenBy {TacticalPersonnel.merit(s,it.characterId)}.thenByDescending {it.characterId}) ?: return false
