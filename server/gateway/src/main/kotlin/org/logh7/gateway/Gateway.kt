@@ -256,7 +256,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                     org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
                         seconds,player.spotId,if(player.spotId==0)player.characterId else player.spotOwner),
                     org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(
-                        player.characterId,"[기항] 진영 변경으로 예약이 취소됐습니다."),seconds)))
+                        player.characterId,"[기항] 진영 변경·취소"),seconds)))
             }
         }}
         occupationSubscription=presence?.let {p->navigation!!.observeOccupations {event->
