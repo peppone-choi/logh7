@@ -10,6 +10,36 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun blockedPersonalRetreatKeepsItsReservationAndLetsTheClockAdvance() = runTest {
+        val rig=Rig(this,testScheduler,retreatDeadline=true,blockedRetreat=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            val prepared=rig.players.getValue("pilot").retreat
+            assertNotNull(prepared)
+            advanceTimeBy(625);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(prepared,rig.players.getValue("pilot").retreat)
+            advanceTimeBy(375);runCurrent()
+            assertEquals(rig.start+24,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(prepared,rig.players.getValue("pilot").retreat)
+            assertEquals(2488,rig.players.getValue("pilot").grid)
+        } finally {rig.engine.drainAndClose()}
+    }
+    @Test fun restoredPersonalRetreatCompletesBetweenPeriodicTicks() = runTest {
+        val rig=Rig(this,testScheduler,retreatDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(624);runCurrent()
+            assertEquals(2488,rig.players.getValue("pilot").grid)
+            advanceTimeBy(1);runCurrent()
+            val player=rig.players.getValue("pilot")
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(2487,player.grid)
+            assertNull(player.retreat)
+            assertEquals(1,player.moves)
+            assertEquals(player,rig.engine.snapshot().navigators.getValue("pilot"))
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun unchargedAutomaticAttackLeavesTheClockFreeToAdvance() = runTest {
         val rig=Rig(this,testScheduler,automaticFireDeadline=true,uncharged=true)
         val impacts=mutableListOf<TacticalImpact>()
@@ -204,7 +234,7 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false) {
+        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -215,6 +245,22 @@ class TacticalDeadlineTest {
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         init {
+            if(retreatDeadline) {
+                val point=TacticalPoint(-300f,0f)
+                val motion=TacticalMotion(2488,start,TacticalPose(point,0f),0f,0f,listOf(point))
+                val pilot=players.getValue("pilot").copy(motion=motion,energy=TacticalEnergy(listOf(0,50)+List(9){0}),
+                    retreat=TacticalRetreat(2487,start,1,14))
+                val enemy=Navigator(1,10001,Power.ALLIANCE,2488,1000,1000,1000,
+                    cpPaused=true,hull=FlagshipHull(89,start))
+                players=mapOf("pilot" to pilot,"enemy" to enemy)
+                if(blockedRetreat) {
+                    val stack=UnitStack(119)
+                    val blocker=OutfitStock(1,3,OutfitKind.FLEET,1000,10,units=UnitInventory(mapOf(stack to 1)),
+                        activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack))),position=OutfitPosition(2487))
+                    stocks=stocks.copy(outfits=mapOf(1 to blocker),nextShipId=2,
+                        warehouses=mapOf(10 to OutfitWarehouse(10,3,OutfitKind.FLEET,1000,1)))
+                }
+            }
             if(fireDeadline || fleetFireDeadline || automaticFireDeadline) {
                 fun at(y:Float):TacticalMotion {
                     val point=TacticalPoint(180f,y)
