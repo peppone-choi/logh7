@@ -35,7 +35,7 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
     private fun expireReservations(session:SessionState,now:Long,stocks:PlanetStocks?) {
         reservations.removeAll { lock ->
             val request=lock.request
-            lock.expires<=now || request.generation!=session.generation ||
+            lock.expires<=now || request.generation!=session.generation || request.country in session.eliminated ||
                 session.participants[request.account]?.let {
                     !it.online || it.connection!=request.connection || it.country!=request.country
                 }!=false || stocks?.let {inventory->
@@ -69,7 +69,7 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
         val now = clock()
         expireReservations(session,now,production.snapshot(session.generation))
         val member = session.participants[request.account]
-        if (session.ended != null || request.generation != session.generation || member == null || !member.online ||
+        if (session.ended != null || request.country in session.eliminated || request.generation != session.generation || member == null || !member.online ||
             member.connection != request.connection) return reject(LogisticsRejection.SESSION)
         if (member.country != request.country || player == null || player.generation != session.generation ||
             player.characterId != request.characterId || player.country != request.country) return reject(LogisticsRejection.IDENTITY)

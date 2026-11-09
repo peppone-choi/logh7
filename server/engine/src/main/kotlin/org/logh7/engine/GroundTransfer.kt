@@ -27,7 +27,7 @@ internal object GroundTransfer {
     fun evaluate(r:GroundTransferRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):GroundTransferResult {
         fun reject(reason:LogisticsRejection)=GroundTransferResult(p,stocks,reason)
         val member=s.participants[r.account]
-        if(s.ended!=null || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
+        if(s.ended!=null || r.country in s.eliminated || s.generation!=r.generation || stocks.generation!=r.generation || member==null ||
             !member.online || member.connection!=r.connection)return reject(LogisticsRejection.SESSION)
         if(p==null || p.characterId!=r.characterId || p.generation!=r.generation || p.country!=r.country || member.country!=r.country)
             return reject(LogisticsRejection.IDENTITY)
