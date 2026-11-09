@@ -155,7 +155,10 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
                 else TacticalGroundMessages.reply(TacticalGroundMessages.Posture(order.character,ids,order.mode.wire,order.base),
                     now,(order.readyAt-now).coerceAtLeast(0))}}
     }
-    val groundOrders by lazy { pendingGroundOrders(snapshot.planetStocks, viewer.grid) }
+    val groundOrders by lazy {
+        TacticalGroundOrder.pending(snapshot.planetStocks,viewer.grid,snapshot.navigators.values,galaxy,
+            snapshot.session?.eliminated.orEmpty().keys)
+    }
     private fun groundOrderReplies():List<ByteArray> = groundOrders.map {order->TacticalGroundMessages.reply(TacticalGroundMessages.Command(
         if(order.action==TacticalGroundAction.DEPLOY)TacticalGroundMessages.Action.DEPLOY else TacticalGroundMessages.Action.WITHDRAW,
         order.character,listOf(order.carrier)),snapshot.session?.gameSeconds ?: 0,
