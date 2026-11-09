@@ -52,19 +52,26 @@ internal object TacticalSupportOperations {
             unit.tactical?.takeIf {it.motion.grid==grid}?.retreat!=null
     private fun eligible(source: Ship, player: Navigator, order: TacticalSupportOrder, now: Long,
         players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy,commandRadius:Float?=null): Boolean {
+        val to=eligibleTarget(source,player,order,now,players,stocks,galaxy,commandRadius) ?: return false
+        val from=pose(source,order.grid,now,players.values,stocks,galaxy).position
+        return hypot((to.x-from.x).toDouble(),(to.y-from.y).toDouble())<TacticalSupportRules.SUPPORT_RANGE
+    }
+    private fun eligibleTarget(source:Ship,player:Navigator,order:TacticalSupportOrder,now:Long,
+        players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy,commandRadius:Float?=null):TacticalPoint? {
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5 || player.grid!=order.grid ||
             player.hull?.woundedUntil?.let {now<it}==true || source.unit.boats<=source.unit.damaged || source.unit.id==order.target ||
             stocks.tacticalCommands.confused(source.unit.id) || movingOrder(source.unit,order.grid) ||
             TacticalAuthority.commander(source.outfit,source.unit,stocks)!=player.characterId || TacticalAuthority.camp(source.outfit,stocks)!=TacticalAuthority.camp(player,stocks) ||
-            source.outfit.positionIn(galaxy)!=OutfitPosition(order.grid))return false
+            source.outfit.positionIn(galaxy)!=OutfitPosition(order.grid))return null
         val spec=UnitSpecifications.ships.single {it.kind==source.unit.stack.kind}
-        if(spec.type!=(if(order.action==TacticalSupportAction.REPAIR)11 else 12))return false
-        val to=targetPoint(order,player,now,players,stocks,galaxy) ?: return false
-        val from=pose(source,order.grid,now,players.values,stocks,galaxy).position
-        val commander=(player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.grid,
-            players.values,stocks,galaxy)).position
-        if(commandRadius!=null && hypot((commander.x-from.x).toDouble(),(commander.y-from.y).toDouble())>commandRadius)return false
-        return hypot((to.x-from.x).toDouble(),(to.y-from.y).toDouble())<TacticalSupportRules.SUPPORT_RANGE
+        if(spec.type!=(if(order.action==TacticalSupportAction.REPAIR)11 else 12))return null
+        if(commandRadius!=null) {
+            val from=pose(source,order.grid,now,players.values,stocks,galaxy).position
+            val commander=(player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId,player.grid,
+                players.values,stocks,galaxy)).position
+            if(hypot((commander.x-from.x).toDouble(),(commander.y-from.y).toDouble())>commandRadius)return null
+        }
+        return targetPoint(order,player,now,players,stocks,galaxy)
     }
     private fun replace(stocks: PlanetStocks, source: Ship, unit: ActiveShipUnit): PlanetStocks =
         stocks.copy(outfits=stocks.outfits+(source.outfit.id to source.outfit.copy(activeShips=ActiveShipUnits(
@@ -167,9 +174,11 @@ internal object TacticalSupportOperations {
     private fun repairCost(kind:Int)=UnitSpecifications.ships.single {it.kind==kind}
         .number("修理消費物資(１隻):修理消費物資(１隻)")
 
-    fun offlineOrder(outfit:OutfitStock,unit:ActiveShipUnit,player:Navigator,now:Long,scale:Long,
+    data class OfflineSupport(val order:TacticalSupportOrder,val approach:TacticalPoint?=null)
+
+    fun offlineSupport(outfit:OutfitStock,unit:ActiveShipUnit,player:Navigator,now:Long,scale:Long,
         players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy,alliedTargets:List<Int>,
-        reserved:Set<Pair<TacticalSupportAction,Int>>):TacticalSupportOrder? {
+        reserved:Set<Pair<TacticalSupportAction,Int>>,commander:TacticalPoint):OfflineSupport? {
         val type=UnitSpecifications.ships.single {it.kind==unit.stack.kind}.type
         val action=when(type) {
             11 -> TacticalSupportAction.REPAIR
@@ -179,17 +188,24 @@ internal object TacticalSupportOperations {
         val available=OutfitSupplies.distribution(outfit).getValue(unit.id)
         if(available==0)return null
         val source=Ship(outfit,unit)
+        val from=pose(source,player.grid,now,players.values,stocks,galaxy).position
+        val radius=player.commandRange?.radius(now) ?: 0f
+        var approach:OfflineSupport?=null
         for(target in listOf(player.unitId)+alliedTargets) {
             if(target==unit.id || (action to target) in reserved)continue
             val order=TacticalSupportOrder(action,player.characterId,target,player.grid,now,now+5*scale)
-            if(!eligible(source,player,order,now,players,stocks,galaxy) || !needed(order,players,stocks))continue
+            val point=eligibleTarget(source,player,order,now,players,stocks,galaxy) ?: continue
+            if(!needed(order,players,stocks))continue
             if(action==TacticalSupportAction.REPAIR) {
                 val kind=players.values.singleOrNull {it.unitId==target}?.hull?.kind ?: checkNotNull(ship(target,stocks)).unit.stack.kind
                 if(repairCost(kind) !in 1..available)continue
             }
-            return order
+            if(hypot((point.x-from.x).toDouble(),(point.y-from.y).toDouble())<TacticalSupportRules.SUPPORT_RANGE)
+                return OfflineSupport(order)
+            if(approach==null && hypot(point.x-commander.x,point.y-commander.y)<=radius)
+                approach=OfflineSupport(order,point)
         }
-        return null
+        return approach
     }
 
     private fun needed(order: TacticalSupportOrder, players: Map<String,Navigator>, stocks: PlanetStocks): Boolean {
