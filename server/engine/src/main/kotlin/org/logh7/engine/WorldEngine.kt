@@ -544,6 +544,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             (fleetDeadlines+listOfNotNull(pirates.nextSpawnAt,harmAt)).filter {it>nowSeconds}
         }.orEmpty()
         val justiceDeadlines=snapshot.planetStocks?.social?.justice?.deadlines().orEmpty().filter {it>nowSeconds}
+        val coupDeadlines=snapshot.planetStocks?.social?.coup?.plots.orEmpty().values
+            .filter {it.revolt>0 && it.capitalSince>0}
+            .map {it.capitalSince+CoupActions.CAPITAL_DAYS*Justice.DAY}.filter {it>nowSeconds}
         val trade=snapshot.planetStocks?.social?.trade
         val tradeDeadlines=(trade?.routes.orEmpty().values.map {minOf(it.until,it.paidThrough+Justice.DAY)}+
             trade?.convoys.orEmpty().values+trade?.pacts.orEmpty().values+trade?.passages.orEmpty().values)
@@ -558,7 +561,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             .filter {it>nowSeconds}.minOrNull()
         val exchangeDeadline=snapshot.planetStocks?.flagshipMarket?.offers.orEmpty().asSequence()
             .map {it.expiresAt}.filter {it>nowSeconds}.minOrNull()
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+justiceDeadlines+pirateDeadlines+mailDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline,operationDeadline,exchangeDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+justiceDeadlines+coupDeadlines+pirateDeadlines+mailDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline,operationDeadline,exchangeDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed

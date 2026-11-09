@@ -10,6 +10,23 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredCapitalOccupationTransfersPowerAtItsDeadline() = runTest {
+        val hold=CoupActions.CAPITAL_DAYS*Justice.DAY
+        val rig=Rig(this,testScheduler,resumedAt=hold*1000/SessionRules.load().speed,coupDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun stock()=rig.engine.snapshot().planetStocks!!
+            advanceTimeBy(624);runCurrent()
+            assertEquals(1,stock().bases.getValue(1049).camp)
+            assertEquals(15L,stock().social.coup.plots.getValue(10000).capitalSince)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(hold+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(0,stock().bases.getValue(1049).camp)
+            assertTrue(stock().social.coup.plots.isEmpty())
+            assertTrue(stock().strategic.offices.any {it.card==1 && it.character==10000 && it.seat==1049})
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredPirateOccupationReducesPublicOrderOnceAtItsDailyDeadline() = runTest {
         val day=Justice.DAY
         val rig=Rig(this,testScheduler,resumedAt=day*1000/SessionRules.load().speed,pirateHarmDeadline=true)
@@ -449,7 +466,7 @@ class TacticalDeadlineTest {
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
         uncharged:Boolean=false,pirateDeadline:Boolean=false,pirateRegularTarget:Boolean=false,pirateStrategyDeadline:Boolean=false,
         pirateHarmDeadline:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
-        mailDeadline:Boolean=false,orderDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,fortressDeadline:Boolean=false,shipOrder:Boolean=false,
+        mailDeadline:Boolean=false,orderDeadline:Boolean=false,coupDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,fortressDeadline:Boolean=false,shipOrder:Boolean=false,
         operationDeadline:Boolean=false,exchangeOffer:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
@@ -462,9 +479,11 @@ class TacticalDeadlineTest {
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         private val homeGrid=if(orderDeadline)2487 else 2488
         val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(orderDeadline)2 else 3))+
-            listOfNotNull(GalaxySystem(4,2490,4,"Frontier").takeIf {pirateStrategyDeadline}),
+            listOfNotNull(GalaxySystem(4,2490,4,"Frontier").takeIf {pirateStrategyDeadline},
+                GalaxySystem(5,2487,4,"Odin",2).takeIf {coupDeadline}),
             listOf(GalaxyBase(if(orderDeadline)1049 else 1000,homeGrid,80,if(fortressDeadline)1 else 0,
-                if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),
+                if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline))+
+            listOfNotNull(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f).takeIf {coupDeadline}),
             Power.entries.associateWith {homeGrid})
         init {
             if(mailDeadline) {
@@ -498,6 +517,12 @@ class TacticalDeadlineTest {
                 val detention=Detention(10000,CountryId(2),start,start+15,base=1000)
                 stocks=stocks.copy(strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=8,merit=100))),
                     social=stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
+            }
+            if(coupDeadline) {
+                players=emptyMap()
+                val plot=Plot(10000,CountryId(2),0,revolt=10,bases=setOf(1049),capitalSince=15,capitalBase=1049)
+                stocks=stocks.copy(bases=stocks.bases+(1049 to PlanetStock(1049,2,1,0,0,0)),
+                    social=stocks.social.copy(coup=CoupState(plots=mapOf(10000 to plot))))
             }
             if(operationDeadline) {
                 players=emptyMap()
