@@ -502,17 +502,29 @@ class TacticalOfflineAiTest {
         assertEquals(ready,after.outfits.getValue(1))
     }
 
-    @Test fun onlineOrDisabledCharactersAreNotDrivenAndPendingPersonalShotsArePreserved() {
+    @Test fun onlineOrDisabledCharactersAreNotDriven() {
         for((session,stock) in listOf(baseSession to stocks(),offline to stocks().copy(tacticalCommands=TacticalCommandState()))) {
             val p=players();val before=p.toMap()
             assertEquals(stock,TacticalOfflineAi.advance(session,galaxy,p,stock,1,mutableListOf()))
             assertEquals(before,p)
         }
-        val p=players();val shot=TacticalPendingFire(1,2488,0,99,now,now+5)
-        p["pilot"]=p.getValue("pilot").copy(fire=TacticalFire(1,pending=shot))
-        val before=p.toMap();TacticalOfflineAi.advance(offline,galaxy,p,stocks(),1,mutableListOf())
-        assertEquals(before,p)
     }
+
+    @Test fun pendingFlagshipBeamPreservesTheFlagshipAndLetsTheEscortAct() {
+        val pilots=players()
+        val shot=TacticalPendingFire(1,2488,0,99,now,now+5)
+        val flagship=pilots.getValue("pilot").copy(fire=TacticalFire(1,pending=shot))
+        pilots["pilot"]=flagship
+        val events=mutableListOf<TacticalCommandResult>()
+        val next=TacticalOfflineAi.advance(offline,galaxy,pilots,stocks(),1,events)
+        val updatedFlagship=pilots.getValue("pilot")
+        assertEquals(flagship,updatedFlagship.copy(commandRange=flagship.commandRange))
+        val escort=next.outfits.getValue(1).activeShips!!.values.single()
+        assertEquals(flagship.characterId,escort.motionCommander)
+        assertNotNull(escort.attack)
+        assertEquals(setOf(escort.id),events.single().motions.keys)
+    }
+
     @Test fun reconnaissanceRoutesFlagshipAndFleetAroundTheStar() {
         val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases,galaxy.starts)
         val observers=players()
