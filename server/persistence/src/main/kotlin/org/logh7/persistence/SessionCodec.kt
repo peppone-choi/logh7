@@ -134,7 +134,8 @@ internal object SessionCodec {
     private fun DataOutputStream.action(value: SessionAction, schema: Int) { when (value) {
         SessionAction.Probe -> writeByte(0)
         is SessionAction.Advance -> { writeByte(1); writeLong(value.elapsed) }
-        is SessionAction.Join -> { writeByte(2); writeUTF(value.account); country(value.country, schema); writeBoolean(value.original)
+        is SessionAction.Join -> { writeByte(if (value.replacingDeceased) 12 else 2)
+            writeUTF(value.account); country(value.country, schema); writeBoolean(value.original)
             optional(value.connection) { writeUTF(it) }; optional(value.generation) { writeLong(it) } }
         is SessionAction.Disconnect -> { writeByte(3); writeUTF(value.account); optional(value.connection) { writeUTF(it) } }
         is SessionAction.Exclude -> { writeByte(4); writeUTF(value.account) }
@@ -153,10 +154,11 @@ internal object SessionCodec {
             countries(value.reductionEligible)
         }
     } }
-    private fun DataInputStream.action(schema: Int): SessionAction = when (readUnsignedByte()) {
+    private fun DataInputStream.action(schema: Int): SessionAction = when (val opcode = readUnsignedByte()) {
         0 -> SessionAction.Probe
         1 -> SessionAction.Advance(readLong())
-        2 -> SessionAction.Join(readUTF(), country(schema), readBoolean(), optional { readUTF() }, optional { readLong() })
+        2, 12 -> SessionAction.Join(readUTF(), country(schema), readBoolean(), optional { readUTF() }, optional { readLong() },
+            replacingDeceased = opcode == 12)
         3 -> SessionAction.Disconnect(readUTF(), optional { readUTF() })
         4 -> SessionAction.Exclude(readUTF())
         5 -> SessionAction.OpenBattle(readUTF())
