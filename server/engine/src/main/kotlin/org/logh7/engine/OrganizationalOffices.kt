@@ -152,8 +152,16 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy,private val configure
         if(!remove)return store(stocks,holding,false)
         // A seat may sit in its concrete field or in the general seat list; removal clears both.
         val cleared=store(stocks,holding,true)
-        return if(holding in cleared.strategic.offices)
+        val replacement=if(holding in cleared.strategic.offices)
             cleared.copy(strategic=cleared.strategic.copy(offices=cleared.strategic.offices-holding)) else cleared
+        if(role(holding.card,holding.country)?.scope!=OfficeScope.OUTFIT)return replacement
+        val outfit=replacement.outfits[holding.seat] ?: return replacement
+        if(holding.character in outfit.members())return replacement
+        val released=outfit.activeShips?.values.orEmpty().filter {
+            replacement.tacticalCommands.authority[it.id]==holding.character
+        }.map {it.id}
+        return replacement.copy(tacticalCommands=replacement.tacticalCommands.copy(
+            authority=replacement.tacticalCommands.authority-released))
     }
     private fun store(stocks:PlanetStocks,holding:OfficeHolding,remove:Boolean):PlanetStocks {
         val role=checkNotNull(role(holding.card,holding.country));val card=holding.card

@@ -41,6 +41,26 @@ class OfficeResignationTest {
             assertFalse(replay.changed);assertEquals(result.player,replay.player);assertEquals(result.stocks,replay.stocks)
         }
     }
+    @Test fun fleetResignationRevokesOnlyTheDepartingOfficersTacticalAuthorityInThatFleet() {
+        val s=stock(39,10001)
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32)),ActiveShipUnit(2,UnitStack(32))))
+        val fleet=s.outfits.getValue(1).copy(aideId=10000,activeShips=ships,units=UnitInventory(ships.quantities()))
+        val otherShips=ActiveShipUnits(listOf(ActiveShipUnit(3,UnitStack(32))))
+        val other=fleet.copy(id=2,warehouseId=3,commanderId=10000,aideId=0,
+            activeShips=otherShips,units=UnitInventory(otherShips.quantities()))
+        val before=s.copy(outfits=mapOf(1 to fleet,2 to other),nextShipId=4,
+            warehouses=s.warehouses+(3 to OutfitWarehouse(3,2,OutfitKind.FLEET,1048,2)),
+            tacticalCommands=TacticalCommandState(authority=mapOf(1 to 10000,2 to 10001,3 to 10000)))
+
+        val result=act(request(43),before)
+        assertNull(result.rejection)
+        val after=assertNotNull(result.stocks)
+        assertEquals(0,after.outfits.getValue(1).aideId)
+        assertEquals(10000,after.outfits.getValue(2).commanderId)
+        assertEquals(mapOf(2 to 10001,3 to 10000),after.tacticalCommands.authority)
+        assertEquals(10001,TacticalAuthority.commander(after.outfits.getValue(1),ships.values.first(),after))
+    }
+
     @Test fun aCommanderCannotResignWhileItsWarpIsReserved() {
         val q=request(39);val stocks=stock(39)
         val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,false,"c")}.exportState()
