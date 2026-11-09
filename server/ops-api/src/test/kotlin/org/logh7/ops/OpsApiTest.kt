@@ -390,9 +390,18 @@ class OpsApiTest {
     @Test fun requestedWriteFailureFailsClosed() {
         val sink = Sink()
         val audit = OpsAudit.open(file, clock)
-        audit.close() // Open succeeded; exercise actual append IOException, not open failure.
-        serve(sink, audit) { endpoint ->
-            paths.forEach { assertEquals(503, endpoint.send(it).statusCode()) }
+        audit.use {
+            serve(sink, audit) { endpoint ->
+                fun assertFailures(expected: Int) {
+                    val metrics = endpoint.send("/metrics", method = "GET")
+                    assertEquals(200, metrics.statusCode())
+                    assertTrue(metrics.body().lineSequence().any { it == "logh7_audit_write_failures_total $expected" })
+                }
+                assertFailures(0)
+                audit.close() // Open succeeded; exercise actual append IOException, not open failure.
+                paths.forEach { assertEquals(503, endpoint.send(it).statusCode()) }
+                assertFailures(paths.size)
+            }
         }
         assertTrue(sink.commands.isEmpty()); assertTrue(rows().isEmpty())
     }

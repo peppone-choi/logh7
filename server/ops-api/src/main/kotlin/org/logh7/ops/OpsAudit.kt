@@ -1,17 +1,22 @@
 package org.logh7.ops
 
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption.*
 import java.time.Clock
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 enum class OpsAction { PROBE, SESSION_RESTART, ACCOUNT_SET, ACCOUNT_REMOVE, PLAYER_DISCONNECT, BACKUP, WORLD_BASE_EDIT, COUNTRY_COLOR_EDIT, COUNTRY_DEFINITION_EDIT, MAINTENANCE, NOTICE, FACILITY_DEFINITION_EDIT, IMAGE_EDIT, IMAGE_RESTORE, IMAGE_BIND, NPC_DIALOGUE_EDIT, ORIGINAL_CANDIDATE_EDIT }
 enum class OpsOutcome { QUEUED, RESTARTED, CONFLICT, FAILED, CHANGED, NOT_FOUND, INVALID, UNCHANGED, UNAVAILABLE }
 
 /** Append-only JSON Lines. Each line is fsync'd before the call returns. */
 class OpsAudit private constructor(private val channel: FileChannel, private val clock: Clock) : AutoCloseable {
+    private val failures = AtomicLong()
+    internal fun writeFailures() = failures.get()
+
     companion object {
         internal val operatorPattern = Regex("[A-Za-z0-9._-]{1,64}")
         private val remotePattern = Regex("[0-9A-Fa-f:.]{1,45}")
@@ -47,8 +52,13 @@ class OpsAudit private constructor(private val channel: FileChannel, private val
 
     @Synchronized private fun append(fields: String) {
         val bytes = ByteBuffer.wrap("{\"at\":\"${clock.instant()}\",$fields}\n".toByteArray(Charsets.UTF_8))
-        while (bytes.hasRemaining()) channel.write(bytes)
-        channel.force(true)
+        try {
+            while (bytes.hasRemaining()) channel.write(bytes)
+            channel.force(true)
+        } catch (failure: IOException) {
+            failures.incrementAndGet()
+            throw failure
+        }
     }
 
     @Synchronized override fun close() { channel.close() }
