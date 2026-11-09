@@ -146,7 +146,8 @@ internal object TacticalCombat {
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)
         val candidates=TacticalOfflineAi.automaticTargets(session,account,player,stocks,ids)
         return candidates.firstOrNull {id -> target(id,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players)?.let {
-            effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
+            (player.attack?.issuedByOfflineAi!=true || TacticalOfflineAi.activeEnemy(it,session.eliminated.keys)) &&
+                effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
     }
 
     // CD manual omits later ammunition costs. One supply per flagship shot is explicit replacement policy.

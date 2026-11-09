@@ -39,6 +39,34 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun offlineAiPursuesTheRemainingEnemyAndIgnoresAnEliminatedMissionTarget() {
+        val third=CountryId(4)
+        val session=offline.copy(countries=offline.countries+third,
+            eliminated=mapOf(Power.ALLIANCE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        for(mission in listOf(0,3)) {
+            val initial=stocks(mission)
+            val defeated=initial.outfits.getValue(2)
+            val farther=defeated.activeShips!!.values.single().copy(id=100,
+                tactical=NpcTacticalState(motion(0f,60f),now,now))
+            val surviving=defeated.copy(id=3,country=third,warehouseId=30,activeShips=ActiveShipUnits(listOf(farther)))
+            val inventory=initial.copy(outfits=initial.outfits+(3 to surviving),nextShipId=101,
+                warehouses=initial.warehouses+(30 to initial.warehouses.getValue(20).copy(id=30,country=third,outfitId=3)))
+            val pilots=players()
+            val next=TacticalOfflineAi.advance(session,galaxy,pilots,inventory,1,mutableListOf())
+            val pilot=pilots.getValue("pilot")
+            val own=next.outfits.getValue(1).activeShips!!.values.single()
+            if(mission==0) {
+                assertEquals(TacticalPoint(0f,58f),pilot.motion!!.waypoints.single())
+                assertNotNull(pilot.attack)
+                assertNotNull(own.attack)
+            } else {
+                assertEquals(TacticalPoint(0f,0f),pilot.motion!!.waypoints.single())
+                assertNull(pilot.attack)
+                assertNull(own.attack)
+            }
+            assertEquals(defeated,next.outfits.getValue(2))
+        }
+    }
     @Test fun offlineAiOnlyHonorsAnchoredPostureInTheCurrentGrid() {
         val original = stocks()
         val fleet = original.outfits.getValue(1)
