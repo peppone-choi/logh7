@@ -42,6 +42,30 @@ class TacticalFleetAttackTest {
         TacticalFleetAttack.accept(request(ids).copy(tacticalMove=null,tacticalAttack=TacticalAttack(ids,mode)),
             session.copy(gameMillis=at*1000),galaxy,nav,p,p.snapshot(1)!!,s.commit,24)
 
+    @Test fun confusedShipCannotStartFleetAttackOrEraseItsPendingShot() {
+        val s = state()
+        val outfit = s.stocks.outfits.getValue(1)
+        val units = outfit.activeShips!!.values
+        val confused = units.last()
+        val shot = TacticalUnitShot(10000, TacticalWeapon.BEAM, 99, now, now + 120)
+        s.stocks = s.stocks.copy(
+            outfits = s.stocks.outfits + (1 to outfit.copy(
+                activeShips = ActiveShipUnits(units.dropLast(1) + confused.copy(shot = shot)))),
+            tacticalCommands = s.stocks.tacticalCommands.copy(morale = mapOf(confused.id to 20)))
+        val nav = Navigation(galaxy, s.nav, NavigationPolicy())
+        val stock = production(s)
+        val before = stock.snapshot(1)
+        val players = nav.snapshot(1)
+
+        assertEquals(NavigationRejection.BUSY, attack(s, nav, stock, ids = listOf(1, confused.id)).rejection)
+        assertEquals(before, stock.snapshot(1))
+        assertEquals(players, nav.snapshot(1))
+        assertEquals(shot, s.stocks.outfits.getValue(1).activeShips!!.values.last().shot)
+
+        assertNull(attack(s, nav, stock, ids = listOf(confused.id), mode = 0).rejection)
+        assertNull(s.stocks.outfits.getValue(1).activeShips!!.values.last().shot)
+    }
+
     @Test fun commanderChangingCampCannotFireShipsThatStayedWithTheOtherCamp() {
         val s=state()
         val outfit=s.stocks.outfits.getValue(1)

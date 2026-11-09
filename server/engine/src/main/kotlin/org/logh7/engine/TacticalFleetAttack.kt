@@ -38,7 +38,8 @@ internal object TacticalFleetAttack {
             if(TacticalAuthority.commander(o,u,stocks)!=player.characterId ||
                 TacticalAuthority.camp(o,stocks)!=TacticalAuthority.camp(player,stocks) ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
-            if(u.boats<=u.damaged || u.support!=null)return reject(NavigationRejection.BUSY)
+            if(u.boats<=u.damaged || u.support!=null ||
+                command.mode!=0 && stocks.tacticalCommands.confused(id))return reject(NavigationRejection.BUSY)
             val pose=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion?.pose(now,u.posture,galaxy,stocks) ?:
                 TacticalDeployment.initial(id,player.grid,players.values,stocks,galaxy)
             if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
