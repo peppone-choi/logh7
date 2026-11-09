@@ -95,8 +95,12 @@ class TacticalCombatDeliveryTest {
                 val hits=List(2){ByteBuffer.wrap(through(clients[1],0x0426))}
                 assertEquals(listOf(1,21),hits.map {it.getInt(16)})
                 assertTrue(hits.all {it.getShort(22)>0})
-                assertEquals(listOf(1,21),observed.map {it.hit.target})
-                assertTrue(observed.all {it.recipients.keys==setOf(10000,10001)})
+                // The gateway can send both packets before the actor invokes this later observer.
+                val settled=CompletableDeferred<List<TacticalImpact>>()
+                fixture.engine.submit(WorldCommand.Quiesce({observed.toList()},settled))
+                val committed=withTimeout(5000){settled.await()}
+                assertEquals(listOf(1,21),committed.map {it.hit.target})
+                assertTrue(committed.all {it.recipients.keys==setOf(10000,10001)})
                 clients[1].send(SyntheticClient.opcode(0x0300))
                 for(index in 0 until 300) {
                     val opcode=ByteBuffer.wrap(clients[1].receive()).getShort(4).toInt()
