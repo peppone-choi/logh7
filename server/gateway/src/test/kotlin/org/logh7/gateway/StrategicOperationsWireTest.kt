@@ -10,19 +10,27 @@ import kotlin.test.*
 
 class StrategicOperationsWireTest {
     @TempDir lateinit var directory:Path
-    private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2),GalaxySystem(4,2490,4,"There",3)),listOf(
+    private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2),GalaxySystem(4,2490,4,"There",3),
+        GalaxySystem(5,2491,4,"Rebel",2)),listOf(
         GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f),
-        GalaxyBase(1050,2490,80,0,Capital.ALLIANCE.baseName,0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        GalaxyBase(1050,2490,80,0,Capital.ALLIANCE.baseName,0,20f,86400,0,0f,2f),
+        GalaxyBase(1051,2491,80,0,"Rebel",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
     private val now=SessionRules.load().startSeconds
     private inner class State:WorldStateCommitter {
         var players=mapOf("load-000" to Navigator(1,10000,Power.EMPIRE,2487,2000,2000,1000,cpRecoveryAt=now))
         private val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32))))
         private val foreign=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(119))))
-        var stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300),1050 to PlanetStock(1050,3,0,100,200,300)),
+        private val rebels=ActiveShipUnits(listOf(ActiveShipUnit(3,UnitStack(32))))
+        var stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300),1050 to PlanetStock(1050,3,0,100,200,300),
+            1051 to PlanetStock(1051,2,1,100,200,300)),
             mapOf(200 to OutfitStock(200,2,OutfitKind.FLEET,1049,300,10001,UnitInventory(ships=ships.quantities()),activeShips=ships),
-                201 to OutfitStock(201,3,OutfitKind.FLEET,1050,301,10002,UnitInventory(ships=foreign.quantities()),activeShips=foreign)),
-            mapOf(300 to OutfitWarehouse(300,2,OutfitKind.FLEET,1049,200),301 to OutfitWarehouse(301,3,OutfitKind.FLEET,1050,201)),
-            deploymentInitialized=true,nextShipId=3,strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=2)),
+                201 to OutfitStock(201,3,OutfitKind.FLEET,1050,301,10002,UnitInventory(ships=foreign.quantities()),activeShips=foreign),
+                202 to OutfitStock(202,2,OutfitKind.FLEET,1051,302,10003,UnitInventory(ships=rebels.quantities()),activeShips=rebels)),
+            mapOf(300 to OutfitWarehouse(300,2,OutfitKind.FLEET,1049,200),301 to OutfitWarehouse(301,3,OutfitKind.FLEET,1050,201),
+                302 to OutfitWarehouse(302,2,OutfitKind.FLEET,1051,202)),
+            social=SocialState(coup=CoupState(mapOf(10003 to Plot(10003,CountryId(2),now,revolt=maxOf(1,now),bases=setOf(1051))),
+                loyalty=mapOf(202 to CoupActions.LOYAL))),
+            deploymentInitialized=true,nextShipId=4,strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=2)),
                 offices=listOf(OfficeHolding(24,1049,10000),OfficeHolding(28,1049,10000)),
                 operations=listOf(StrategicOperation(9,10000,24,CountryId(43),2490,StrategicForce.FLEET,StrategicPurpose.OCCUPY,999,now))))
         val navigation=object:NavigationStore {override fun load()=players;override fun save(value:Map<String,Navigator>){players=value}}
@@ -56,6 +64,7 @@ class StrategicOperationsWireTest {
             val rows=ByteBuffer.wrap(next(client,0x1202));assertEquals(1,rows.get(6).toInt());assertEquals(200,rows.getInt(7))
             next(client,0x1201)
             action(client,24,201,StrategyActionRejection.AUTHORITY.ordinal+1)
+            action(client,24,202,StrategyActionRejection.AUTHORITY.ordinal+1)
             assertEquals(720,state.players.getValue("load-000").mcp)
             action(client,24,200);assertEquals(719,state.players.getValue("load-000").mcp)
             assertEquals(setOf(200),state.stocks.strategic.operations.single {it.id==10}.outfits)
