@@ -268,9 +268,10 @@ pub fn revert(root: &Path) -> Result<usize, String> {
             }
         }
     }
+    // 상태 삭제에 실패하면 재시도에서 복원 여부를 확인할 수 있도록 백업을 남긴다.
+    fs::remove_file(root.join(STATE)).map_err(|_| "패치 상태를 지우지 못했습니다")?;
     let _ = fs::remove_dir_all(root.join(BACKUP));
     let _ = fs::remove_file(root.join(NEXT));
-    fs::remove_file(root.join(STATE)).map_err(|_| "패치 상태를 지우지 못했습니다")?;
     Ok(entries.len())
 }
 
@@ -408,6 +409,33 @@ mod tests {
         apply(&root, &patch).unwrap();
         fs::write(root.join("exe/dinput8.dll"), b"d").unwrap();
         assert!(revert(&root).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn rollback_can_retry_when_state_file_deletion_is_blocked() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let (root, patch) = setup("state-locked");
+        apply(&root, &patch).unwrap();
+        let state = root.join(STATE);
+        let lock = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1) // FILE_SHARE_READ; deny deletion until this handle closes.
+            .open(&state)
+            .unwrap();
+
+        assert_eq!(revert(&root).unwrap_err(), "패치 상태를 지우지 못했습니다");
+        assert_eq!(
+            b"original",
+            &fs::read(root.join("exe/String.txt")).unwrap()[..]
+        );
+        assert!(!root.join("exe/dinput8.dll").exists());
+        drop(lock);
+
+        assert_eq!(2, revert(&root).unwrap());
+        assert!(!state.exists() && !root.join(BACKUP).exists());
+        assert_eq!(2, apply(&root, &patch).unwrap());
     }
 
     #[test]
