@@ -189,6 +189,26 @@ class TacticalCombatTest {
         assertEquals(valid,state.players.getValue("other"))
     }
 
+    @Test fun reconnectAndAiOffClearOnlyFlagshipOrdersIssuedByTheOfflineAi() {
+        val offline=session.copy(participants=session.participants.mapValues {(_,p)->p.copy(online=false,connection=null)})
+        val delegated=TacticalAttackOrder(2,now,now,now+5)
+        val playerOrder=TacticalAttackOrder(2,now,now+5,now+5)
+        for(current in listOf(session,offline)) for(order in listOf(delegated,playerOrder)) {
+            val state=state()
+            val pilot=state.players.getValue("pilot").copy(attack=order,mode=5,hull=FlagshipHull(89,now))
+            state.players=mapOf("pilot" to pilot)
+            if(current==session)state.stocks=state.stocks.copy(tacticalCommands=
+                state.stocks.tacticalCommands.copy(aiSwitches=mapOf(pilot.characterId to 16)))
+            val nav=Navigation(galaxy,state.nav,NavigationPolicy())
+            val stock=production(state)
+            assertTrue(TacticalCombat.settle(current,galaxy,nav,stock,state.commit).isEmpty())
+            val saved=Navigation(galaxy,state.nav,NavigationPolicy()).snapshot(1).getValue("pilot")
+            assertEquals(playerOrder.takeIf {order==playerOrder},saved.attack)
+            assertEquals(pilot.supplies,saved.supplies)
+            assertEquals(pilot.fire,saved.fire)
+        }
+    }
+
     @Test fun deceasedFlagshipRejectsNewFireAndCancelsSavedOrdersAtomically() {
         assertSavedFlagshipOrdersCancelled(deceased=true)
     }

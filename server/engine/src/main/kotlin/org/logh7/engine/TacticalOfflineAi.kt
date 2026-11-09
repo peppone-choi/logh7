@@ -25,16 +25,15 @@ internal object TacticalOfflineAi {
 
     fun automaticTargets(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks,ids:List<Int>):List<Int> {
         if(session.participants[account]?.country in session.eliminated)return emptyList()
-        val mission=currentMission(p,stocks)
-        val preferred=mission?.takeIf {it.mission==3}?.target
         if(eligible(session,account,p,stocks)) {
             if(stocks.tacticalCommands.confused(p.unitId))return emptyList()
+            val mission=currentMission(p,stocks)
             when(mission?.mission) {
                 3 -> return listOf(mission.target)
                 4,5 -> return emptyList()
             }
         }
-        return ids.distinct().sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {it})
+        return ids.distinct().sorted()
     }
 
     fun advance(session:SessionState,g:Galaxy,players:MutableMap<String,Navigator>,initial:PlanetStocks,scale:Long,
