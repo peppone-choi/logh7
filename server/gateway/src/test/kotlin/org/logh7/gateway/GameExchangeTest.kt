@@ -539,6 +539,12 @@ class GameExchangeTest {
                         assertNotNull(game.finishWorld(assertNotNull(game.takePendingWorld()).join()))
                         assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))),
                             "A queued exit must not close the reentered battlefield")
+                        val staleExit=TacticsMessages.notify(2488,false)
+                        assertNull(game.notifyWorld(listOf(staleExit)),
+                            "An exit from another grid must not reach the initialized battlefield")
+                        player=player.copy(grid=2488)
+                        assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))),
+                            "The previous grid exit must not close a committed tactical arrival")
                     }
                 } else {
                     assertNotNull(game.notifyWorld(queuedMovement,tacticalGrid=2487))

@@ -730,17 +730,20 @@ class GameExchange(
     private fun deduplicateSameGridExit(messages:List<ByteArray>):List<ByteArray> {
         val prior=deliveredPlayer ?: return messages
         if(!worldInitialized || deliveredTactics==null)return messages
-        fun exitsCurrentGrid(message:ByteArray)=message.size>=11 && java.nio.ByteBuffer.wrap(message).let {
-            it.getShort(4).toInt()==0x0f1f && it.get(6).toInt()==0 && it.getInt(7)==prior.grid
+        fun exitGrid(message:ByteArray):Int? {
+            if(message.size<11)return null
+            val bytes=java.nio.ByteBuffer.wrap(message)
+            return bytes.getInt(7).takeIf {bytes.getShort(4).toInt()==0x0f1f && bytes.get(6).toInt()==0}
         }
-        if(messages.none(::exitsCurrentGrid))return messages
-        val current=navigation?.snapshot()?.navigators?.get(ticket?.account) ?: return messages
-        if(current.grid!=prior.grid || current.generation!=prior.generation)return messages
-        // The event loop may drain an old exit after the world has reopened this same battlefield.
-        if(current.cpPaused)return messages.filterNot(::exitsCurrentGrid)
+        val relevant=messages.filter {message->exitGrid(message)?.let {it==prior.grid}!=false}
+        if(relevant.none {exitGrid(it)!=null})return relevant
+        val current=navigation?.snapshot()?.navigators?.get(ticket?.account) ?: return relevant
+        // A delayed exit cannot close a new battlefield, even when its initialization is still queued.
+        if(current.generation!=prior.generation || current.cpPaused)return relevant.filter {exitGrid(it)==null}
+        if(current.grid!=prior.grid)return relevant
         // The world observer and request publication can both report this same transition.
-        return messages.filter {message->
-            if(!exitsCurrentGrid(message))true
+        return relevant.filter {message->
+            if(exitGrid(message)==null)true
             else if(deliveredTactics!=true)false
             else {
                 deliveredTactics=false
