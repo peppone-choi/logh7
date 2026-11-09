@@ -4,6 +4,27 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NpcTacticsTest {
+    @Test fun weakenedFleetOnlyBeginsRetreatWhenAnEnemyIsInSight() {
+        for(distance in listOf(501f,500f)) {
+            val state=state(boats=75)
+            val outfit=state.stocks.outfits.getValue(1)
+            val ship=outfit.activeShips!!.values.single()
+            val start=TacticalPoint(0f,-250f)
+            fun pose(point:TacticalPoint)=TacticalMotion(2488,now,TacticalPose(point,0f),0f,0f,listOf(point))
+            val ready=ship.copy(tactical=NpcTacticalState(pose(start),now,now))
+            val stocks=state.stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(ready)))))
+            val pilots=state.players.mapValues {(_,pilot)->pilot.copy(motion=pose(start.copy(y=start.y+distance)))}.toMutableMap()
+            val movements=mutableListOf<TacticalMovement>()
+            val next=NpcTactics.advance(session,galaxy,pilots,stocks,NpcTacticalPolicy(),24,mutableListOf(),movements)
+            val updated=next.outfits.getValue(1).activeShips!!.values.single()
+            assertEquals(if(distance==500f)2487 else null,updated.tactical?.retreat?.destination)
+            if(distance>500f) {
+                assertEquals(stocks,next)
+                assertTrue(movements.isEmpty())
+            }
+        }
+    }
+
     @Test fun precisionPrioritizesTheBestLegalShotWithoutAnAdvisor() {
         for(behavior in listOf(NpcCombatBehavior.STANDARD,NpcCombatBehavior.PRECISION)) {
             val state=state()
