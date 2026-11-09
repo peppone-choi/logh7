@@ -103,6 +103,21 @@ class FlagshipMarketActionsTest {
         val cancelled=act(cancel,offered,receiver.copy(spotId=0));assertNull(cancelled.rejection)
         assertTrue(assertNotNull(cancelled.stocks).flagshipMarket.offers.isEmpty());assertEquals(receiver.copy(spotId=0),cancelled.player)
     }
+    @Test fun deathCancelsTheOfferAndAStaleSaveCannotExchangeTheDeceasedOwnersHull() {
+        val offered=assertNotNull(act(request(1)).stocks)
+        for(id in listOf(10000,10001)) {
+            val deceased=BattleDeath.apply(offered,listOf(id),now) {_,_->true}
+            assertTrue(deceased.flagshipMarket.offers.isEmpty())
+            val stale=deceased.copy(flagshipMarket=offered.flagshipMarket)
+            assertTrue(FlagshipMarketActions.settle(stale,now).flagshipMarket.offers.isEmpty())
+            val accept=request(2).copy(account="receiver",connection="r",characterId=10001,target=10000)
+            val rejected=act(accept,stale,receiver)
+            assertNotNull(rejected.rejection)
+            assertEquals(receiver,rejected.player)
+            assertEquals(stale,rejected.stocks)
+            assertTrue(rejected.navigators.isEmpty())
+        }
+    }
     @Test fun alliancePurchaseUsesItsOwnYardAndFlagshipKinds() {
         val galaxyA=Galaxy(listOf(GalaxySystem(3,2015,4,"Alliance",3)),listOf(
             GalaxyBase(1177,2015,80,0,Capital.ALLIANCE.baseName,0,20f,86400,0,0f,2f)),

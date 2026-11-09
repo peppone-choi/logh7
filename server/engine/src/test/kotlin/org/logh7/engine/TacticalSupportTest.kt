@@ -102,6 +102,25 @@ class TacticalSupportTest {
         }
     }
 
+    @Test fun eliminatedFleetCancelsSavedRepairAndSupplyWithoutSpendingCargo() {
+        for(action in TacticalSupportAction.entries) {
+            val s=state(repair=action==TacticalSupportAction.REPAIR)
+            val command=request(action,2)
+            val accepted=accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command)
+            val readyAt=assertNotNull(accepted.supportReadyAt)
+            val before=s.stocks.outfits.getValue(1)
+            val units=before.activeShips!!.values
+            val defeated=session.copy(gameMillis=readyAt*1000,
+                eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+            val out=mutableListOf<TacticalSupportResult>()
+            TacticalCombat.settle(defeated,galaxy,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),
+                s.commit,onSupport=out::add)
+            assertTrue(out.single().cancelled)
+            assertEquals(before.copy(activeShips=ActiveShipUnits(listOf(units.first().copy(support=null),units.last()))),
+                s.stocks.outfits.getValue(1))
+        }
+    }
+
     @Test fun deceasedFlagshipCannotReceiveNewOrSavedSupport() {
         for(action in TacticalSupportAction.entries) {
             val s=state(repair=action==TacticalSupportAction.REPAIR)

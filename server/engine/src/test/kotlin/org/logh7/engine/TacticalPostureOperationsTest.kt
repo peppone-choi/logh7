@@ -67,6 +67,24 @@ class TacticalPostureOperationsTest {
         assertEquals(TacticalPosture(2487),player.posture)
         assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture==TacticalPosture(2487)})
     }
+    @Test fun eliminatedCountryCancelsSavedStationingForFlagshipAndFleet() {
+        val s=state()
+        val command=request(TacticalShipMode.STATIONED,1000)
+        val readyAt=assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).postureReadyAt)
+        val defeated=session.copy(gameMillis=readyAt*1000,participants=emptyMap(),
+            eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        val out=mutableListOf<TacticalPostureResult>()
+        TacticalCombat.settle(defeated,galaxy,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),
+            s.commit,onPosture=out::add)
+
+        assertEquals(setOf(1010000,1,2),out.flatMap {it.units.keys}.toSet())
+        assertTrue(out.all {it.cancelled})
+        val pilot=s.players.getValue("pilot")
+        assertEquals(0,pilot.baseId)
+        assertEquals(TacticalPosture(2487),pilot.posture)
+        assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture==TacticalPosture(2487)})
+    }
+
     @Test fun mixedStationingCompletesForShipsEvenWhenTheirCommanderEntersTheBase() {
         val s=state();val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,n,p,request(TacticalShipMode.STATIONED,1000)).player)

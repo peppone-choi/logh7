@@ -65,7 +65,7 @@ internal object TacticalFleetRetreat {
                 val state=u.tactical ?: return@map u;val retreat=state.retreat ?: return@map u
                 if(u.motionCommander==0)return@map u
                 val commander=players.values.singleOrNull {it.characterId==u.motionCommander}
-                if(position.baseId!=0 || state.motion.grid!=grid ||
+                if(outfit.country in session.eliminated || position.baseId!=0 || state.motion.grid!=grid ||
                     BattleDeath.deceased(stocks,u.motionCommander) ||
                     TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander ||
                     commander?.let {TacticalAuthority.camp(it,stocks)!=outfitCamp}==true)

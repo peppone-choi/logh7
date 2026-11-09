@@ -40,7 +40,9 @@ internal object FlagshipMarketActions {
     val supported=setOf(96)
     private fun busy(p:Navigator,now:Long)=p.cpPaused || p.navigationPending || (p.hull?.woundedUntil ?: 0)>now
     fun settle(stocks:PlanetStocks,now:Long):PlanetStocks {
-        val remaining=stocks.flagshipMarket.offers.filter {it.expiresAt>now}
+        val remaining=stocks.flagshipMarket.offers.filter {
+            it.expiresAt>now && !BattleDeath.deceased(stocks,it.giver) && !BattleDeath.deceased(stocks,it.receiver)
+        }
         return if(remaining.size==stocks.flagshipMarket.offers.size)stocks else stocks.copy(flagshipMarket=FlagshipMarketState(remaining))
     }
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
@@ -51,7 +53,7 @@ internal object FlagshipMarketActions {
         if(country in s.eliminated)return reject(StrategyActionRejection.SESSION)
         val now=s.gameMillis/1000
         val rank=stocks.strategic.people[r.characterId]?.rank ?: r.rank
-        val live=stocks.flagshipMarket.offers.filter {it.expiresAt>now}
+        val live=settle(stocks,now).flagshipMarket.offers
         var next=stocks
         var after=p
         var updates=emptyMap<String,Navigator>()
@@ -83,6 +85,7 @@ internal object FlagshipMarketActions {
             cost=80
         } else {
             if(r.target<=0 || r.target==r.characterId || r.value!=0)return reject(StrategyActionRejection.TARGET)
+            if(BattleDeath.deceased(stocks,r.target))return reject(StrategyActionRejection.TARGET)
             val target=r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}
                 ?: return reject(StrategyActionRejection.TARGET)
             val other=target.value

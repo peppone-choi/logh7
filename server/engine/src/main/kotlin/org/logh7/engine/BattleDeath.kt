@@ -16,7 +16,7 @@ object BattleDeath {
             next=StrategyActions.clearOffices(next,id).let {c->c.copy(strategic=c.strategic.copy(
                 people=c.strategic.people+(id to person.copy(deceasedAt=maxOf(1L,seconds)))))}
         }
-        return next
+        return if(next===stocks)stocks else FlagshipMarketActions.settle(next,seconds)
     }
     fun deceased(stocks:PlanetStocks?,character:Int)=(stocks?.strategic?.people?.get(character)?.deceasedAt ?: 0)>0
 }
