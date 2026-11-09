@@ -3,6 +3,7 @@ package org.logh7.persistence
 import org.logh7.engine.OriginalCandidateEdit
 import org.logh7.engine.OriginalCandidateProfile
 import org.logh7.engine.OriginalCandidateStore
+import org.logh7.engine.OriginalStartingOffice
 import org.logh7.engine.CandidatePortrait
 import org.logh7.engine.CountryId
 import org.logh7.engine.Peerage
@@ -17,6 +18,8 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
     @Volatile override var supportsFemaleFaces=false
         private set
     @Volatile override var supportsPortraits=false
+        private set
+    @Volatile override var supportsStartingOffice=false
         private set
 
     override fun load():List<OriginalCandidateEdit> = connect().use { db ->
@@ -37,18 +40,23 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                 val scoped="country_id" in labels
                 val peerageColumn="peerage" in labels
                 val portraitColumn="portrait_asset" in labels
+                val officeColumn="starting_office" in labels
                 while(rows.next()) {
                     val values=rows.getArray("abilities")
                     val abilities=try {(values.array as Array<*>).map {(it as Number).toInt()}} finally {values.free()}
                     val country=if(scoped)rows.getInt("country_id").takeUnless {rows.wasNull()}?.let(::CountryId) else null
                     val peerage=if(peerageColumn)rows.getInt("peerage").takeUnless {rows.wasNull()}?.let {Peerage.entries[it-1]} else null
+                    val office=if(officeColumn)rows.getString("starting_office")?.let {key->
+                        checkNotNull(OriginalStartingOffice.fromKey(key))
+                    } else null
                     add(OriginalCandidateEdit(rows.getLong("candidate_id"),rows.getLong("revision"),
                         OriginalCandidateProfile(rows.getString("surname"),rows.getString("given_name"),
                             rows.getInt("face"),rows.getInt("rank"),abilities,peerage,
-                            if(portraitColumn)rows.getString("portrait_asset") else null),country))
+                            if(portraitColumn)rows.getString("portrait_asset") else null,startingOffice=office),country))
                 }
                 supportsEditing=peerageColumn
                 supportsPortraits=portraitColumn
+                supportsStartingOffice=officeColumn
             } }
         }
     }
@@ -77,12 +85,19 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
         require(id in 1..9999 && expected>=0)
         val portraitColumn=supportsPortraits
         val portrait=profile.portraitKey
+        val officeColumn=supportsStartingOffice
+        val office=profile.startingOffice
         require(portrait==null || portraitColumn)
+        require(office==null || officeColumn && office.accepts(id,country,profile.rank))
         val sql=if(expected==0L)"""INSERT INTO original_candidate_profile
-            (surname,given_name,face,rank,abilities,country_id,peerage${if(portraitColumn)",portrait_asset" else ""},world_identity,candidate_id,revision)
-            VALUES (?,?,?,?,?,?,?${if(portraitColumn)",?" else ""},?,?,1) ON CONFLICT (world_identity,candidate_id) DO NOTHING RETURNING revision"""
-        else """UPDATE original_candidate_profile SET surname=?,given_name=?,face=?,rank=?,abilities=?,country_id=?,peerage=?${if(portraitColumn)",portrait_asset=?" else ""},revision=revision+1
-            WHERE world_identity=? AND candidate_id=? AND revision=? RETURNING revision"""
+            (surname,given_name,face,rank,abilities,country_id,peerage${if(portraitColumn)",portrait_asset" else ""}
+                ${if(officeColumn)",starting_office" else ""},world_identity,candidate_id,revision)
+            VALUES (?,?,?,?,?,?,?${if(portraitColumn)",?" else ""}${if(officeColumn)",?" else ""},?,?,1)
+            ON CONFLICT (world_identity,candidate_id) DO NOTHING RETURNING revision"""
+        else """UPDATE original_candidate_profile SET surname=?,given_name=?,face=?,rank=?,abilities=?,country_id=?,peerage=?
+            ${if(portraitColumn)",portrait_asset=?" else ""}${if(officeColumn)",starting_office=?" else ""},revision=revision+1
+            WHERE world_identity=? AND candidate_id=? AND revision=?
+            ${if(officeColumn)"AND (starting_office IS NULL OR starting_office=?)" else ""} RETURNING revision"""
         return connect().use { db ->
             db.autoCommit=false
             try {
@@ -94,7 +109,8 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                     query.setString(1,portrait)
                     query.executeQuery().use {require(it.next()) {"Unknown portrait asset"}}
                 }
-                if(country!=null && countryIsFull(db,country,id)) {
+                if(country!=null)lockWorld(db)
+                if((country!=null && countryIsFull(db,country,id)) || (office!=null && officeIsTaken(db,office,id))) {
                     db.rollback()
                     return null
                 }
@@ -112,9 +128,13 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                         if(peerage==null)query.setNull(7,Types.SMALLINT) else query.setInt(7,peerage.ordinal+1)
                         var index=8
                         if(portraitColumn)query.setString(index++,portrait)
+                        if(officeColumn)query.setString(index++,office?.key)
                         query.setObject(index++,world)
                         query.setInt(index++,id.toInt())
-                        if(expected>0)query.setLong(index,expected)
+                        if(expected>0) {
+                            query.setLong(index++,expected)
+                            if(officeColumn)query.setString(index,office?.key)
+                        }
                         query.executeQuery().use {rows ->
                             if(rows.next())OriginalCandidateEdit(id,rows.getLong(1),profile,country) else null
                         }
@@ -129,19 +149,30 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
         }
     }
 
-    private fun countryIsFull(db:Connection,country:CountryId,id:Long):Boolean {
+    private fun lockWorld(db:Connection) {
         // Concurrent additions and transfers must count rows after earlier writes in this world commit.
         db.prepareStatement("SELECT pg_advisory_xact_lock(?)").use {
             it.queryTimeout=5
             it.setLong(1,world.mostSignificantBits xor world.leastSignificantBits)
             it.execute()
         }
-        return db.prepareStatement("SELECT count(*) FROM original_candidate_profile WHERE world_identity=? AND country_id=? AND candidate_id<>?").use {
+    }
+
+    private fun countryIsFull(db:Connection,country:CountryId,id:Long):Boolean =
+        db.prepareStatement("SELECT count(*) FROM original_candidate_profile WHERE world_identity=? AND country_id=? AND candidate_id<>?").use {
             it.queryTimeout=5
             it.setObject(1,world)
             it.setLong(2,country.value.toLong())
             it.setLong(3,id)
             it.executeQuery().use {rows -> rows.next();rows.getInt(1)>=PublishedOriginalCandidates.SCOPED_LIMIT}
         }
-    }
+
+    private fun officeIsTaken(db:Connection,office:OriginalStartingOffice,id:Long):Boolean =
+        db.prepareStatement("SELECT 1 FROM original_candidate_profile WHERE world_identity=? AND starting_office=? AND candidate_id<>?").use {
+            it.queryTimeout=5
+            it.setObject(1,world)
+            it.setString(2,office.key)
+            it.setLong(3,id)
+            it.executeQuery().use {rows -> rows.next()}
+        }
 }

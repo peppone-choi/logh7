@@ -16,6 +16,10 @@ private val peerageNames=listOf("공작","후작","백작","자작","남작","�
 private fun CountryCatalog.candidatePower(id:Int)=countries[id]?.takeIf {it.nativePower in 2..3}
     ?.let {families.getValue(it.family).creationPower}
 
+private fun OriginalStartingOffice.label()=when(this) {
+    OriginalStartingOffice.REINHARD_FLEET_2 -> "라인하르트 · 제2함대 사령관 (오딘)"
+}
+
 internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,published:PublishedOriginalCandidates,images:CountryImageStore?,
     port:Int,audit:OpsAudit?,authenticated:Boolean) {
     get("/admin/original-candidates") {
@@ -35,7 +39,7 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         call.response.headers.append(HttpHeaders.CacheControl,"no-store")
         val editable=loaded && audit!=null && store?.supportsEditing==true && (!store.supportsPortraits || portraits!=null)
         call.respondText(candidatePage(published,id,newCountry,editable,store?.supportsFemaleFaces==true,
-            store?.supportsPortraits==true,portraits),ContentType.Text.Html)
+            store?.supportsPortraits==true,portraits,store?.supportsStartingOffice==true),ContentType.Text.Html)
     }
     post("/admin/original-candidates") {
         if(!authenticated) {
@@ -49,12 +53,18 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
         val country=rawCountry?.toIntOrNull()?.takeIf {it>0}?.let(::CountryId)
         val creating=form["create"]=="1"
         val portrait=form["portrait"]?.takeIf {it.isNotEmpty()}
+        val existingOffice=id?.let {published.current()[it]?.profile?.startingOffice}
         val profile=runCatching {
             val title=requireNotNull(form["peerage"]).toInt()
             require(title in 0..Peerage.entries.size)
+            val office=when(val key=form["startingOffice"]) {
+                null -> existingOffice
+                "" -> null
+                else -> requireNotNull(OriginalStartingOffice.fromKey(key))
+            }
             OriginalCandidateProfile(form["surname"].orEmpty().trim(),form["given"].orEmpty().trim(),
                 form["face"].orEmpty().toInt(),form["rank"].orEmpty().toInt(),
-                abilities.indices.map {form["ability$it"].orEmpty().toInt()},Peerage.entries.getOrNull(title-1),portrait)
+                abilities.indices.map {form["ability$it"].orEmpty().toInt()},Peerage.entries.getOrNull(title-1),portrait,office)
         }.getOrNull()
         call.audited(audit,OpsAction.ORIGINAL_CANDIDATE_EDIT,form["operator"],
             "candidate=$id,revision=$revision,country=${country?.value},create=$creating,portrait=${profile?.portraitKey}",
@@ -74,6 +84,7 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
             if(store?.supportsEditing!=true || (profile.gender==1 && !store.supportsFemaleFaces))
                 return@audited OpsOutcome.UNAVAILABLE
             if(portrait!=null && !store.supportsPortraits)return@audited OpsOutcome.UNAVAILABLE
+            if(profile.startingOffice!=null && !store.supportsStartingOffice)return@audited OpsOutcome.UNAVAILABLE
             if(store.supportsPortraits && form["portrait"]==null)return@audited OpsOutcome.INVALID
             withContext(Dispatchers.IO) {
                 val saved=try {store.save(id,revision,profile,country)}
@@ -87,7 +98,7 @@ internal fun Route.originalCandidateRoutes(store:OriginalCandidateStore?,publish
 }
 
 private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCountry:Int?,editable:Boolean,femaleFaces:Boolean,
-    portraitSchema:Boolean,portraits:List<CountryImageInfo>?)=buildString {
+    portraitSchema:Boolean,portraits:List<CountryImageInfo>?,officeSchema:Boolean)=buildString {
     fun escape(text:String)=text.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;")
     fun number(name:String,value:Int,min:Int,max:Int)=
         "<input type=\"number\" name=\"$name\" value=\"$value\" min=\"$min\" max=\"$max\" required>"
@@ -165,7 +176,27 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
     }
     append("</select></label><label>시작 작위 <select name=\"peerage\"><option value=\"0\">작위 없음</option>")
     for(peerage in Peerage.entries)append("<option value=\"${peerage.ordinal+1}\"${if(profile.peerage==peerage)" selected" else ""}>${peerageNames[peerage.ordinal]}</option>")
-    append("</select></label><p>작위를 주려면 제국 작위 카드를 지원하는 응모 국가와 영속 월드 저장이 필요합니다.</p><div class=\"abilities\">")
+    append("</select></label><p>작위를 주려면 제국 작위 카드를 지원하는 응모 국가와 영속 월드 저장이 필요합니다.</p>")
+    val boundOffice=edit?.profile?.startingOffice
+    val office=boundOffice ?: OriginalStartingOffice.REINHARD_FLEET_2
+    val empireCountry=Power.EMPIRE.country
+    val officeRank=(2..20).first {office.accepts(PublishedOriginalCandidates.NEW_IDS.first,empireCountry,it)}
+    val officeRankName=militaryRanks[officeRank-2]
+    val officeHolder=edits.values.firstOrNull {it.id!=selected && it.profile.startingOffice==office}
+    val officeEligible=empire && scoped==empireCountry.value &&
+        (creating || (selected!=null && selected !in definitions && selected in PublishedOriginalCandidates.NEW_IDS))
+    if(boundOffice!=null) {
+        append("<p>시작 직책 <strong>${boundOffice.label()}</strong> · 게시 후에는 변경할 수 없습니다. 응모 국가나 시작 계급($officeRankName)을 바꾸면 저장되지 않습니다.</p>")
+    } else if(!officeSchema) {
+        if(empire)append("<p>시작 직책을 지정하려면 정의 DB V16을 적용하세요.</p>")
+    } else if(officeEligible && officeHolder!=null) {
+        append("<p>시작 직책 ${office.label()}은 후보 ${officeHolder.id}에 이미 지정되어 있습니다.</p>")
+    } else if(officeEligible) {
+        append("<label>시작 직책 <select name=\"startingOffice\" data-country=\"${empireCountry.value}\" data-rank=\"$officeRank\"><option value=\"\">지정 없음</option>")
+        append("<option value=\"${office.key}\">${office.label()}</option></select></label>")
+        append("<p>시작 계급이 ${officeRankName}일 때만 지정할 수 있습니다. 게시 후에는 해제하거나 다른 후보로 옮길 수 없습니다.</p>")
+    }
+    append("<div class=\"abilities\">")
     for((index,name) in abilities.withIndex())append("<label>$name ${number("ability$index",profile.abilities[index],0,255)}</label>")
     append("</div><button>저장</button></fieldset></form><p id=\"status\" role=\"status\"></p>")
     append("""<script>const form=document.querySelector('#edit'),status=document.querySelector('#status');
@@ -173,6 +204,9 @@ const portrait=form.elements.portrait,preview=document.querySelector('#portrait-
 if(portrait){const update=()=>{preview.hidden=!portrait.value;
 if(portrait.value)preview.src='/admin/images/file/'+encodeURIComponent(portrait.value)+'?revision='+portrait.selectedOptions[0].dataset.revision;
 else preview.removeAttribute('src');};portrait.onchange=update;update();}
+const office=form.elements.startingOffice;
+if(office){const sync=()=>{const allowed=form.elements.country.value===office.dataset.country&&form.elements.rank.value===office.dataset.rank;
+office.disabled=!allowed;if(!allowed)office.value='';};form.elements.country.onchange=sync;form.elements.rank.onchange=sync;sync();}
 form.onsubmit=async e=>{e.preventDefault();const fields=form.querySelector('fieldset'),body=new URLSearchParams(new FormData(form));fields.disabled=true;
 try{const response=await fetch(form.action,{method:'POST',body});if(!response.ok){status.textContent=await response.text();return;}
 location.replace('?candidate='+encodeURIComponent(body.get('candidate')));}catch{status.textContent='저장 상태를 확인할 수 없습니다.';}finally{fields.disabled=false;}};</script></html>""")
