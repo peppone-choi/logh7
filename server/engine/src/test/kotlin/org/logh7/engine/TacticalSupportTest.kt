@@ -80,6 +80,35 @@ class TacticalSupportTest {
         settle(s,nav,p,now+240,out);assertEquals(1,out.size)
     }
 
+    @Test fun supportRechecksContactAfterTheLastHostileRetreatsInTheSameTick() {
+        for(leaves in listOf(true,false)) {
+            val s=state()
+            val enemy=s.stocks.outfits.getValue(2)
+            val ship=assertNotNull(enemy.activeShips).values.single()
+            val supportAt=now+40
+            val ready=supportAt+120
+            val retreat=TacticalRetreat(2489,ready-155+if(leaves)0 else 1,5,150)
+            val edge=TacticalPoint(280f,0f)
+            val motion=TacticalMotion(2488,now,TacticalPose(edge,0f),0f,0f,listOf(edge))
+            val withdrawing=ship.copy(tactical=NpcTacticalState(motion,ready+1,ready+1,retreat=retreat))
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(withdrawing)))))
+            val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+            val p=production(s)
+            assertEquals(ready,accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2),at=supportAt).supportReadyAt)
+            val out=mutableListOf<TacticalSupportResult>()
+            TacticalCombat.settle(session.copy(gameMillis=ready*1000),galaxy,nav,p,s.commit,
+                npcPolicy=NpcTacticalPolicy(),onSupport=out::add)
+
+            assertEquals(if(leaves)2489 else 2488,s.stocks.outfits.getValue(2).positionIn(galaxy).grid)
+            assertEquals(!leaves,s.players.getValue("pilot").cpPaused)
+            val source=s.stocks.outfits.getValue(1)
+            assertNull(assertNotNull(source.activeShips).values.first().support)
+            assertEquals(leaves,out.single().cancelled)
+            val transferred=if(leaves)0 else 10000
+            assertEquals(mapOf(1 to 10000-transferred,2 to transferred),OutfitSupplies.distribution(source))
+        }
+    }
+
     @Test fun deceasedCommanderCannotStartOrFinishSavedSupport() {
         for(action in TacticalSupportAction.entries) {
             val s=state(repair=action==TacticalSupportAction.REPAIR)
