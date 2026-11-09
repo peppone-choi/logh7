@@ -68,6 +68,27 @@ class PirateActionsTest {
         assertEquals(2L,TradeActions.routeProfit(at(2488),route,galaxy),"one cell from the route end at 2487")
         assertEquals(4L,TradeActions.routeProfit(at(2687),route,galaxy),"two cells away is out of reach")
     }
+    @Test fun piratesStayAndCounterattackWhenOnlyRegularShipsAreDeployed() {
+        val session=SessionSimulation(SessionRules.load()).exportState()
+        val now=7*Justice.DAY
+        val fleet=PirateFleet(1,2490,0,listOf(PirateUnit(900_001,300)))
+        val point=TacticalPoint(0f,-9f)
+        val motion=TacticalMotion(2490,now,TacticalPose(point,0f),0f,0f,listOf(point))
+        val stack=UnitStack(32)
+        val ship=ActiveShipUnit(1,stack,tactical=NpcTacticalState(motion,now,now))
+        val outfit=OutfitStock(1,2,OutfitKind.FLEET,1049,10,units=UnitInventory(mapOf(stack to 1)),
+            activeShips=ActiveShipUnits(listOf(ship)),position=OutfitPosition(2490))
+        val start=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
+            warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,1)),
+            social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2)))
+        assertTrue(PirateActions.engaged(galaxy,start,emptyList(),2490))
+        assertSame(start,PirateActions.move(galaxy,start,now,setOf(2490)))
+        val impacts=mutableListOf<TacticalImpact>()
+        PirateActions.counter(session,galaxy,mutableMapOf(),start,now,impacts)
+        assertEquals(900_001,impacts.single().source)
+        val docked=start.copy(outfits=mapOf(1 to outfit.copy(position=OutfitPosition(2490,1050))))
+        assertFalse(PirateActions.engaged(galaxy,docked,emptyList(),2490))
+    }
     @Test fun theSharedFleetPoseResolverPlacesAPirateTarget() {
         val s=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to PirateFleet(1,2490,0,listOf(PirateUnit(900_001,300),PirateUnit(900_002,300)))),2)))
         val target=TacticalCombat.Target(pirate=900_002,spec=PirateActions.spec())
