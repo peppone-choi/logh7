@@ -2712,16 +2712,19 @@ class GameExchange(
                                         org.logh7.protocol.AppointmentDirectoryMessages.Base(base.id,base.grid,base.name)
                                     })
                                     4 -> {
-                                        require(role!=null && selected.isNotEmpty() && (query.base==0 || selected.any {
-                                            (if(role.scope==org.logh7.engine.OfficeScope.OUTFIT)inventory.outfits[it]?.baseId else it)==query.base
-                                        })) {"No appointment authority at selected seat"}
+                                        requireNotNull(role) {"No appointment authority at selected seat"}
+                                        val seats = if (query.base == 0) selected else selected.filter {
+                                            (if (role.scope == org.logh7.engine.OfficeScope.OUTFIT) inventory.outfits[it]?.baseId else it) == query.base
+                                        }
+                                        require(seats.isNotEmpty()) {"No appointment authority at selected seat"}
                                         val country=checkNotNull(scope.country)
                                         val eligible=characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}.filter {target ->
                                             target.id!=character.id && countryOf[target.id.toInt()]==country &&
                                                 !org.logh7.engine.BattleDeath.deceased(inventory,target.id.toInt()) &&
                                                 !inventory.social.justice.detained(target.id.toInt()) &&
                                                 role.eligible(actorRank,scope.rank(inventory,target.id.toInt(),target.rank)) &&
-                                                policy.cardCount(inventory,target.id.toInt())<14
+                                                policy.cardCount(inventory,target.id.toInt())<14 &&
+                                                policy.canTakeAnySeat(inventory, role, target.id.toInt(), seats)
                                         }
                                         org.logh7.protocol.AppointmentDirectoryMessages.people(query,eligible.map {target ->
                                             org.logh7.protocol.AppointmentDirectoryMessages.Person(target,listOf(0,scope.captainCard())+
