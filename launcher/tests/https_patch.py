@@ -101,14 +101,16 @@ def exercise(launcher, root):
         base = f"https://localhost:{https_port}"
         out = root / "patch"
         assert download(base + "/patch", out, trust=False).returncode != 0
-        assert download(f"https://127.0.0.1:{https_port}/patch", out).returncode != 0
+        mismatch = download(f"https://127.0.0.1:{https_port}/patch", out)
+        assert mismatch.returncode != 0 and "HTTPS 인증 또는 암호화 연결 실패" in mismatch.stderr, mismatch
+        assert "127.0.0.1" not in mismatch.stderr, mismatch
         assert not requests and not out.exists(), requests
         redirected = download(base + "/redirect", out)
         assert redirected.returncode != 0 and not insecure, redirected.stderr
         assert requests == ["/redirect/patch.manifest"] and not out.exists(), requests
 
         result = download(base + "/patch/", out)
-        assert result.returncode != 0 and "data/b.dat" in result.stderr, result
+        assert result.returncode != 0 and "패치 파일 받기: HTTPS 패치 응답 본문" in result.stderr, result
         partial = out.with_suffix(".partial")
         assert not out.exists() and (partial / "exe/a.dll").read_bytes() == payload["exe/a.dll"]
         assert not (partial / "data/b.dat").exists()
@@ -121,7 +123,40 @@ def exercise(launcher, root):
         assert not partial.exists()
 
 
+def safe_failure_output(launcher, root):
+    secret = "sensitive-fixture"
+    out = root / secret
+    out.mkdir()
+
+    def fail(args, reason):
+        result = subprocess.run([launcher, *args], capture_output=True, encoding="utf-8", timeout=15)
+        assert result.returncode == 1 and reason in result.stderr, result
+        assert secret not in result.stdout + result.stderr, result
+
+    fail(["--download-patch", f"https://localhost/{secret}", out], "받을 디렉터리가 이미 있습니다")
+
+    def rejected(request):
+        request.send_response(403, secret)
+        request.send_header("Content-Length", "0")
+        request.end_headers()
+
+    with serve(rejected) as port:
+        fail(["--download-patch", f"http://127.0.0.1:{port}/{secret}", root / "unused"],
+             "패치 목록 받기: 패치 서버 응답 HTTP 403")
+
+    client = root / secret
+    config = root / "launcher.ini"
+    config.write_text(f"host=127.0.0.1\nport=47900\naccount=fixture\nclient_root={client.name}\n", encoding="utf-8")
+    (out / "patch.manifest").write_text(f"LOGH7-PATCH-1\ninvalid {secret}\n", encoding="utf-8")
+    fail(["--config", config, "--apply-patch", out], "패치 적용: 패치 목록 항목 형식")
+    (client / "logh7-patch.state").write_text(f"LOGH7-PATCH-STATE-1\ninvalid {secret}\n", encoding="utf-8")
+    fail(["--config", config, "--revert-patch"], "패치 되돌리기: 패치 상태 항목 형식")
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="logh7-https-") as folder:
-        exercise(Path(sys.argv[1]).resolve(), Path(folder))
-    print("HTTPS trust, hostname, redirect refusal and interrupted download resume passed")
+        launcher = Path(sys.argv[1]).resolve()
+        root = Path(folder)
+        exercise(launcher, root)
+        safe_failure_output(launcher, root)
+    print("HTTPS trust, hostname, redirect refusal, interrupted download resume, and safe failure output passed")

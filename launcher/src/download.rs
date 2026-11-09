@@ -60,19 +60,26 @@ fn get_https(agent: &ureq::Agent, base: &str, relative: &str) -> Result<Vec<u8>,
             write!(url, "%{byte:02X}").expect("writing to a String cannot fail");
         }
     }
-    let mut reply = agent
-        .get(url)
-        .call()
-        .map_err(|error| format!("HTTPS 패치 요청 실패: {relative} ({error})"))?;
+    let mut reply = agent.get(url).call().map_err(|error| match error {
+        ureq::Error::StatusCode(code) => format!("패치 서버 응답 HTTP {code}"),
+        ureq::Error::Tls(_) | ureq::Error::Rustls(_) => "HTTPS 인증 또는 암호화 연결 실패".into(),
+        ureq::Error::Io(ref error) if error.kind() == std::io::ErrorKind::InvalidData => {
+            "HTTPS 인증 또는 암호화 연결 실패".into()
+        }
+        ureq::Error::HostNotFound => "패치 서버 주소를 찾지 못했습니다".into(),
+        ureq::Error::Timeout(_) => "HTTPS 패치 요청 시간이 초과됐습니다".into(),
+        ureq::Error::TooManyRedirects => "패치 서버가 다른 주소로 이동을 요청했습니다".into(),
+        _ => "HTTPS 패치 요청 실패".into(),
+    })?;
     if reply.status() != 200 {
-        return Err(format!("패치 서버 응답 {}: {relative}", reply.status()));
+        return Err(format!("패치 서버 응답 HTTP {}", reply.status().as_u16()));
     }
     if reply
         .body()
         .content_length()
         .is_some_and(|length| length > LIMIT as u64)
     {
-        return Err(format!("패치 파일이 너무 큽니다: {relative}"));
+        return Err("패치 파일이 너무 큽니다".into());
     }
     let mut body = Vec::new();
     reply
@@ -80,9 +87,9 @@ fn get_https(agent: &ureq::Agent, base: &str, relative: &str) -> Result<Vec<u8>,
         .as_reader()
         .take((LIMIT + 1) as u64)
         .read_to_end(&mut body)
-        .map_err(|error| format!("HTTPS 패치 응답을 읽지 못했습니다: {relative} ({error})"))?;
+        .map_err(|_| "HTTPS 패치 응답 본문을 읽지 못했습니다")?;
     if body.len() > LIMIT {
-        return Err(format!("패치 파일이 너무 큽니다: {relative}"));
+        return Err("패치 파일이 너무 큽니다".into());
     }
     Ok(body)
 }
@@ -108,10 +115,9 @@ fn get_http(base: &str, relative: &str) -> Result<Vec<u8>, String> {
         relative
     );
     if path.contains(['\r', '\n', ' ']) {
-        return Err(format!("허용하지 않는 경로: {relative}"));
+        return Err("허용하지 않는 요청 경로입니다".into());
     }
-    let mut stream = TcpStream::connect(&address)
-        .map_err(|_| format!("패치 서버에 연결하지 못했습니다: {address}"))?;
+    let mut stream = TcpStream::connect(&address).map_err(|_| "패치 서버에 연결하지 못했습니다")?;
     let timeout = Some(Duration::from_secs(30));
     stream.set_read_timeout(timeout).ok();
     stream.set_write_timeout(timeout).ok();
@@ -121,7 +127,7 @@ fn get_http(base: &str, relative: &str) -> Result<Vec<u8>, String> {
         .map_err(|_| "패치 요청을 보내지 못했습니다")?;
     // Read until Content-Length is satisfied (or EOF without one): a server that resets the
     // connection after a complete body must not fail the download.
-    let failed = || format!("패치 응답을 읽지 못했습니다: {relative}");
+    let failed = || "패치 응답 본문을 읽지 못했습니다".into();
     let (mut response, mut chunk) = (Vec::new(), [0u8; 65536]);
     let mut framing: Option<(usize, Option<usize>)> = None;
     loop {
@@ -142,7 +148,7 @@ fn get_http(base: &str, relative: &str) -> Result<Vec<u8>, String> {
         }
         response.extend_from_slice(&chunk[..n]);
         if response.len() > LIMIT + 65536 {
-            return Err(format!("패치 파일이 너무 큽니다: {relative}"));
+            return Err("패치 파일이 너무 큽니다".into());
         }
         if framing.is_none() {
             if let Some(end) = response.windows(4).position(|w| w == b"\r\n\r\n") {
@@ -157,16 +163,21 @@ fn get_http(base: &str, relative: &str) -> Result<Vec<u8>, String> {
     }
     let (end, length) = framing.ok_or("패치 응답 머리가 없습니다")?;
     let head = String::from_utf8_lossy(&response[..end]);
-    let status = head.lines().next().unwrap_or("");
-    if status.split_whitespace().nth(1) != Some("200") {
-        return Err(format!("패치 서버 응답 {status}: {relative}"));
+    let status = head
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .filter(|code| code.len() == 3 && code.bytes().all(|b| b.is_ascii_digit()))
+        .ok_or("패치 서버의 HTTP 상태 코드가 올바르지 않습니다")?;
+    if status != "200" {
+        return Err(format!("패치 서버 응답 HTTP {status}"));
     }
     let body = response[end + 4..].to_vec();
     if length.is_some_and(|length| body.len() != length) {
         return Err(failed());
     }
     if body.len() > LIMIT {
-        return Err(format!("패치 파일이 너무 큽니다: {relative}"));
+        return Err("패치 파일이 너무 큽니다".into());
     }
     Ok(body)
 }
@@ -181,17 +192,20 @@ pub fn download(
     trusted: Option<&str>,
 ) -> Result<usize, String> {
     if out.exists() {
-        return Err(format!("받을 디렉터리가 이미 있습니다: {}", out.display()));
+        return Err("받을 디렉터리가 이미 있습니다".into());
     }
     let https = base
         .starts_with("https://")
         .then(|| https_agent(base))
         .transpose()?;
-    let get = |relative: &str| match &https {
-        Some(agent) => get_https(agent, base, relative),
-        None => get_http(base, relative),
+    let get = |relative: &str, kind: &str| {
+        let result = match &https {
+            Some(agent) => get_https(agent, base, relative),
+            None => get_http(base, relative),
+        };
+        result.map_err(|error| format!("{kind}: {error}"))
     };
-    let manifest = get("patch.manifest")?;
+    let manifest = get("patch.manifest", "패치 목록 받기")?;
     if let Some(expected) = expected {
         if sha256(&manifest) != expected.to_ascii_lowercase() {
             return Err("패치 목록 해시가 고정값과 다릅니다. 받지 않았습니다".into());
@@ -199,7 +213,7 @@ pub fn download(
     }
     let signature = match trusted {
         Some(key) => {
-            let signature = get("patch.manifest.sig")?;
+            let signature = get("patch.manifest.sig", "목록 서명 받기")?;
             let text =
                 String::from_utf8(signature.clone()).map_err(|_| "서명 파일 형식이 아닙니다")?;
             crate::signature::verify(key, &manifest, &text)?;
@@ -214,14 +228,14 @@ pub fn download(
         if let Some(rest) = line.strip_prefix("file\t") {
             let (relative, hash) = rest
                 .split_once('\t')
-                .ok_or_else(|| format!("패치 목록을 해석하지 못했습니다: {line}"))?;
+                .ok_or("패치 목록의 파일 항목 형식이 올바르지 않습니다")?;
             if relative
                 .split('/')
                 .any(|part| part.is_empty() || part == "." || part == "..")
                 || relative.contains('\\')
                 || relative.contains(':')
             {
-                return Err(format!("허용하지 않는 패치 경로: {relative}"));
+                return Err("허용하지 않는 패치 경로입니다".into());
             }
             files.push((relative.to_string(), hash.to_ascii_lowercase()));
         }
@@ -236,11 +250,12 @@ pub fn download(
     let staging = out.with_extension("partial");
     let fresh = out.with_extension("partial-next");
     let _ = fs::remove_dir_all(&fresh);
-    fs::create_dir_all(&fresh).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&fresh).map_err(|_| "임시 다운로드 디렉터리를 만들지 못했습니다")?;
     let write = |root: &Path, relative: &str, data: &[u8]| -> Result<(), String> {
         let target = root.join(relative);
-        fs::create_dir_all(target.parent().unwrap()).map_err(|e| e.to_string())?;
-        fs::write(&target, data).map_err(|_| format!("받은 파일을 쓰지 못했습니다: {relative}"))
+        fs::create_dir_all(target.parent().unwrap())
+            .map_err(|_| "받은 파일을 넣을 디렉터리를 만들지 못했습니다")?;
+        fs::write(&target, data).map_err(|_| "받은 파일을 쓰지 못했습니다".into())
     };
     let mut pending = Vec::new();
     let mut reused = 0usize;
@@ -263,15 +278,17 @@ pub fn download(
         eprintln!("이어받기: 이미 받은 파일 {reused}개를 다시 쓰고 나머지만 받습니다");
     }
     for (relative, hash) in pending {
-        let data = get(relative)?;
+        let data = get(relative, "패치 파일 받기")?;
         if sha256(&data) != *hash {
-            return Err(format!("받은 파일 해시가 목록과 다릅니다: {relative}"));
+            return Err("받은 파일 해시가 목록과 다릅니다".into());
         }
         write(&staging, relative, &data)?;
     }
-    fs::write(staging.join("patch.manifest"), manifest).map_err(|e| e.to_string())?;
+    fs::write(staging.join("patch.manifest"), manifest)
+        .map_err(|_| "받은 패치 목록을 쓰지 못했습니다")?;
     if let Some(signature) = signature {
-        fs::write(staging.join("patch.manifest.sig"), signature).map_err(|e| e.to_string())?;
+        fs::write(staging.join("patch.manifest.sig"), signature)
+            .map_err(|_| "받은 목록 서명을 쓰지 못했습니다")?;
     }
     // 모두 받고 확인한 뒤에만 최종 이름으로 바꾼다.
     fs::rename(&staging, out).map_err(|_| "받은 패치를 최종 위치로 옮기지 못했습니다")?;
@@ -392,7 +409,10 @@ file	exe/dinput8.dll	11
             ("/patch/exe/dinput8.dll", b"dll".to_vec()),
         ]);
         let failure = download(&base, &out, None, Some(key)).unwrap_err();
-        assert!(failure.contains("exe/dinput8.dll"), "{failure}");
+        assert!(
+            failure.contains("받은 파일 해시가 목록과 다릅니다"),
+            "{failure}"
+        );
         assert!(!out.exists());
     }
 
