@@ -251,7 +251,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 if(!current.cpPaused)queueGroundResult(viewer.copy(player=current),event.base,notice)
                 else if(current.baseId==0)packets+=notice
             }
-            if(packets.isNotEmpty())send(viewer,packets)
+            if(packets.isNotEmpty())send(viewer,packets,event.grid)
         }
     }
     /** U-31: an orbital strike changes a garrison outside any ground battle; refresh every tactical viewer of the grid. */
@@ -263,7 +263,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             val stamina=tactical.baseInformation.singleOrNull {it.position.id==base}?.stamina ?: return@forEach
             send(viewer,listOf(org.logh7.protocol.TacticsMessages.definitions(grid,tactical.units,tactical.groundDefinitions),
                 org.logh7.protocol.TacticsMessages.baseInformation(tactical.baseInformation),
-                org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(seconds,base,stamina)))
+                org.logh7.protocol.TacticalGroundMessages.baseDefenseChanged(seconds,base,stamina)),grid)
         }
     }
     @Synchronized fun ground(event:org.logh7.engine.TacticalGroundResult,snapshot:org.logh7.engine.WorldSnapshot,
@@ -291,7 +291,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             val notice=if(viewer.character.id.toInt()==order.character)listOf(org.logh7.protocol.ChatMessages.spot(
                 org.logh7.protocol.ChatMessages.Spot(order.character,TacticalGroundNotices.finished(deploy,event.cancelled,event.troops.size)),
                 event.seconds)) else emptyList()
-            send(viewer,packet+notice)
+            send(viewer,packet+notice,order.grid)
         }
     }
     @Synchronized fun posture(event:org.logh7.engine.TacticalPostureResult,snapshot:org.logh7.engine.WorldSnapshot) {
@@ -317,7 +317,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 val frozen=if(event.cancelled)emptyList() else event.units.map {(id,pose)->
                     TacticalMotionMessages.npc(id,org.logh7.engine.TacticalMotion(event.grid,event.seconds,pose,0f,pose.direction,
                         listOf(pose.position)),event.seconds,event.character)}
-                send(viewer,frozen+packet)
+                send(viewer,frozen+packet,event.grid.takeUnless {enteredBase})
             }
     }
     /** 0421 mission kinds in the CD's submenu order (constmsg group 118 notices 14..19). */
