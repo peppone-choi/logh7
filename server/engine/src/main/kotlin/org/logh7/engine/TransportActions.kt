@@ -119,7 +119,7 @@ object TransportActions {
                     source.camp!=0 || destination.camp!=0)return reject(StrategyActionRejection.TARGET)
                 if(r.amount !in 0..source.supplies.toLong() || r.argument<0 || r.value!=NO_UNIT && r.argument==0 ||
                     r.value==NO_UNIT && r.argument!=0)return reject(StrategyActionRejection.RESOURCE)
-                if(packages.count {it.source==source.baseId && it.carrier==0}>=PER_BASE || packages.size>=4096)
+                if(packages.count {it.source==source.baseId && it.country==country && it.carrier==0}>=PER_BASE || packages.size>=4096)
                     return reject(StrategyActionRejection.MAXIMUM)
                 var remaining=r.argument
                 val ships=linkedMapOf<UnitStack,Int>();val troops=linkedMapOf<UnitStack,Int>()
