@@ -78,6 +78,59 @@ class TradeActionsTest {
         assertEquals(200_001_440L,after.nationalTreasuries[CountryId(2)])
         assertEquals(360L,after.nationalTreasuries[CountryId(3)])
     }
+    @Test fun aConvoyCannotQuoteOrSellWhileTravelingBetweenPlanets() {
+        val world = Galaxy(galaxy.systems, galaxy.bases.map { if (it.id == 1050) it.copy(grid = 2487) else it }, galaxy.starts)
+        var players = mapOf("a" to a.copy(spotId = 0, cpRecoveryAt = now))
+        val initial = stocks()
+        val transport = UnitStack(ProductionUnits.definitions.first { it.ship && it.power == 2 && it.name.startsWith("輸送艦") }.kind)
+        val outfit = initial.outfits.getValue(7).copy(units = UnitInventory(mapOf(transport to 1)), activeShips = null)
+        var inventory = OrganizationalOfficePolicy(world).set(initial.copy(outfits = mapOf(7 to outfit), deploymentInitialized = true),
+            OfficeHolding(44, 7, 10000))
+        val navigation = Navigation(world, object : NavigationStore {
+            override fun load() = players
+            override fun save(next: Map<String, Navigator>) { players = next }
+        }, NavigationPolicy())
+        val production = PlanetProduction(world, object : PlanetStockStore {
+            override fun load() = inventory
+            override fun save(stocks: PlanetStocks) { inventory = stocks }
+        }, rules.startSeconds, PlanetProductionPolicy())
+        val commit = WorldStateCommitter { next, stocks -> players = next; inventory = checkNotNull(stocks) }
+        val travel = NavigationRequest("a", 10000, Power.EMPIRE, "a", 1, unitId = a.unitId, captainCard = 59)
+        fun navigate(request: NavigationRequest, at: SessionState) = FleetNavigation.apply(request, at, world, navigation,
+            production, production.settle(at), commit) { false }
+        val reserved = assertNotNull(navigate(travel.copy(place = PlaceMove.Dock(1050, 4)), session).player)
+        assertEquals(1050, reserved.dockTarget)
+        assertEquals(1049, reserved.baseId)
+        assertEquals(OutfitPosition(2487, 1049), inventory.outfits.getValue(7).position)
+
+        val order = StrategyActionRequest("a", "a", 10000, Power.EMPIRE, 1, TradeActions.CONVOY, 44, 1, target = 3, amount = 1000)
+        val quote = SocialRequest(order, phase = TradeActions.QUOTE_PHASE)
+        val confirm = SocialRequest(order.copy(argument = 1350))
+        for (request in listOf(quote, confirm)) {
+            val denied = TradeActions.evaluate(world, request, session, reserved, inventory)
+            assertEquals(SocialRejection.BUSY, denied.rejection)
+            assertFalse(denied.changed)
+            assertNull(denied.tradeQuote)
+            assertSame(reserved, denied.player)
+            assertSame(inventory, denied.stocks)
+        }
+
+        val arrival = session.copy(gameMillis = assertNotNull(reserved.dockReadyAt) * 1000)
+        val arrived = assertNotNull(navigate(travel, arrival).player)
+        assertEquals(1050, arrived.baseId)
+        assertEquals(OutfitPosition(2487, 1050), inventory.outfits.getValue(7).position)
+        assertEquals(TradeActions.Quote(1350, 10), TradeActions.evaluate(world, quote, arrival, arrived, inventory).tradeQuote)
+        val fuelOnly = arrived.copy(fuelReadyAt = arrival.gameMillis / 1000 + 60, strategy = null)
+        assertEquals(TradeActions.Quote(1350, 10), TradeActions.evaluate(world, quote, arrival, fuelOnly, inventory).tradeQuote)
+        val sold = TradeActions.evaluate(world, confirm, arrival, arrived, inventory)
+        assertNull(sold.rejection)
+        assertEquals(arrived.mcp - 320, sold.player?.mcp)
+        val after = assertNotNull(sold.stocks)
+        assertEquals(0, after.outfits.getValue(7).supplies)
+        assertEquals(200_001_350L, after.nationalTreasuries[CountryId(2)])
+        assertEquals(150L, after.nationalTreasuries[CountryId(3)])
+    }
+
     @Test fun buyingIntelligenceReportsTheEnemyCapitalOrSpendsNothingOnFailure() {
         val s=policy.set(stocks(),OfficeHolding(5,1049,10000))
         val r=act(TradeActions.DIPLOMACY,5,s,value=TradeActions.INTELLIGENCE)

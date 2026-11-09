@@ -142,6 +142,7 @@ object TradeActions {
                 if(i.argument>0 && i.argument-1!=routeIncome)return reject(SocialRejection.QUOTE_CHANGED)
             }
             CONVOY -> {
+                if(p.dockTarget!=null || p.warpTarget!=null)return reject(SocialRejection.BUSY)
                 if(s.bases[p.baseId]?.let {it.country==i.country && it.camp==0}!=true)return reject(SocialRejection.LOCATION)
                 outfit=s.outfits.values.singleOrNull {it.kind==OutfitKind.TRANSPORT && it.country==i.country && it.commanderId==i.characterId &&
                     it.positionIn(g).baseId==p.baseId && p.baseId!=0} ?: return reject(SocialRejection.LOCATION)
