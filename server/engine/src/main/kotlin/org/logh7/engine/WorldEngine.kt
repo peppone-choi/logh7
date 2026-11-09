@@ -213,6 +213,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add,fortressSunk::add,
             settleOfficeRecovery = { old, updated, players -> settleOfficeRecovery(session.gameMillis / 1000, old, updated, players) },
             assignmentBlocked = { stocks, payload -> assignmentBlocked(session, stocks, payload) },
+            npcWarehouseBlocked = { stocks, outfit -> logistics.blocksSupply(session, stocks, setOf(outfit)) },
             onCoupDockCancellations = { cancelledDocking.addAll(it) })
         // A later recapture must not restore a warehouse reservation from before occupation.
         occupations.forEach {logistics.occupationCommitted(it.base)}

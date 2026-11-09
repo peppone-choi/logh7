@@ -204,7 +204,8 @@ internal object NpcStrategy {
         return inventory to OutfitSupplies.withBalances(outfit,balances)
     }
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
-        movements:MutableList<NpcStrategicMovement>):PlanetStocks {
+        movements:MutableList<NpcStrategicMovement>,
+        warehouseBlocked: (PlanetStocks, Int) -> Boolean = { _, _ -> false }):PlanetStocks {
         if(session.ended!=null)return original
         val now=session.gameMillis/1000
         if(now>0xffffffffL-21600)return original
@@ -231,6 +232,32 @@ internal object NpcStrategy {
             if(available==before)return outfit
             stocks=stocks.copy(bases=stocks.bases+(depot.baseId to depot.copy(supplies=depot.supplies-(before-available))))
             return outfit.copy(activeShips=ActiveShipUnits(repaired))
+        }
+        fun replaceBoatsAtHome(outfit: OutfitStock): OutfitStock {
+            val berth = outfit.positionIn(galaxy)
+            if (outfit.guard != null || berth.baseId != outfit.baseId || depot(stocks, outfit, galaxy) == null ||
+                TacticalContact.contested(forces()[berth.grid].orEmpty())) return outfit
+            val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
+            if (warehouse.units.ships.isEmpty() && warehouse.spareShips.values.isEmpty() ||
+                warehouseBlocked(stocks, outfit.id)) return outfit
+            val ships = checkNotNull(outfit.activeShips)
+            val crewKinds = UnitSpecifications.crews.filter { it.power == outfit.shipStyle.nativePower && it.type == 3 }
+                .map { it.kind }.toSet()
+            val onboardCrew = outfit.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
+            for (unit in ships.values) {
+                if (unit.boats == 0) continue
+                val (remaining, restored) = try {
+                    ReplacementBoats.restoreUnit(warehouse, unit)
+                } catch (_: IllegalArgumentException) {
+                    continue
+                }
+                if (restored == unit) continue
+                val replacement = outfit.copy(activeShips = ActiveShipUnits(ships.values.map { if (it.id == unit.id) restored else it }))
+                if (ReplacementBoats.crewRequired(replacement) > onboardCrew || !canDepart(stocks, replacement, galaxy)) continue
+                stocks = stocks.copy(warehouses = stocks.warehouses + (warehouse.id to remaining))
+                return replacement
+            }
+            return outfit
         }
         fun dockLocally(outfit:OutfitStock,destination:OutfitPosition) {
             val repaired=repairAtDepot(outfit.copy(position=destination))
@@ -314,7 +341,7 @@ internal object NpcStrategy {
                 movements+=NpcStrategicMovement(session.generation,id,position.grid,destination,now,
                     moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
-                if(position.baseId!=0)outfit=repairAtDepot(outfit)
+                if (position.baseId != 0) outfit = replaceBoatsAtHome(repairAtDepot(outfit))
                 val destination=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys)
                 val relief=reliefRoute(galaxy,forces(),outfit,stocks)
                 if(relief==null && destination?.grid==position.grid) {

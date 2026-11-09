@@ -146,7 +146,8 @@ internal object TacticalCombat {
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)
         val candidates=TacticalOfflineAi.automaticTargets(session,account,player,stocks,ids)
         return candidates.firstOrNull {id -> target(id,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players)?.let {
-            effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
+            (player.attack?.issuedByOfflineAi!=true || TacticalOfflineAi.activeEnemy(it,session.eliminated.keys)) &&
+                effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
     }
 
     // CD manual omits later ammunition costs. One supply per flagship shot is explicit replacement policy.
@@ -255,6 +256,7 @@ internal object TacticalCombat {
         settleOfficeRecovery:(PlanetStocks, PlanetStocks, Map<String, Navigator>)->Map<String, Navigator> =
             { _, _, players -> players },
         assignmentBlocked: (PlanetStocks, StockAssignmentProposal) -> Boolean = { _, _ -> false },
+        npcWarehouseBlocked: (PlanetStocks, Int) -> Boolean = { _, _ -> false },
         onCoupDockCancellations: (List<Navigator>) -> Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
@@ -345,7 +347,7 @@ internal object TacticalCombat {
         if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
         if(session.ended==null)inventory=PirateActions.counter(session,galaxy,players,inventory,now,impacts)
         if(npcPolicy.enabled && session.ended==null) {
-            if(npcPolicy.strategic)inventory=NpcStrategy.advance(session,galaxy,players,inventory,strategicMovements)
+            if(npcPolicy.strategic)inventory=NpcStrategy.advance(session,galaxy,players,inventory,strategicMovements,npcWarehouseBlocked)
             inventory=NpcTactics.advance(session,galaxy,players,inventory,npcPolicy,scale,impacts,movements)
         }
         val support=mutableListOf<TacticalSupportResult>()

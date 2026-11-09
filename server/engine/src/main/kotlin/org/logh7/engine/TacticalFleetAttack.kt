@@ -38,7 +38,8 @@ internal object TacticalFleetAttack {
             if(TacticalAuthority.commander(o,u,stocks)!=player.characterId ||
                 TacticalAuthority.camp(o,stocks)!=TacticalAuthority.camp(player,stocks) ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
-            if(u.boats<=u.damaged || u.support!=null)return reject(NavigationRejection.BUSY)
+            if(u.boats<=u.damaged || u.support!=null ||
+                command.mode!=0 && stocks.tacticalCommands.confused(id))return reject(NavigationRejection.BUSY)
             val pose=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion?.pose(now,u.posture,galaxy,stocks) ?:
                 TacticalDeployment.initial(id,player.grid,players.values,stocks,galaxy)
             if(hypot((pose.position.x-own.position.x).toDouble(),(pose.position.y-own.position.y).toDouble())>
@@ -93,7 +94,8 @@ internal object TacticalFleetAttack {
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
             val ids=(players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks))
                 .distinct().sorted()
-            if(ids.none {TacticalCombat.target(it,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)!=null}) {
+            if(ids.none {TacticalCombat.target(it,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)?.let {
+                !command.order.issuedByOfflineAi || TacticalOfflineAi.activeEnemy(it,session.eliminated.keys)}==true}) {
                 stocks=replace(stocks,outfit,unit.copy(attack=null));continue
             }
             if(command.order.mode==1 && !TacticalReload.salvoReady(unit,now,scale))continue
@@ -106,6 +108,7 @@ internal object TacticalFleetAttack {
                 val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
                 val candidates=TacticalOfflineAi.automaticTargets(session,commanderEntry.key,commander,stocks,ids)
                 val victim=candidates.asSequence().mapNotNull {targetId -> TacticalCombat.target(targetId,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players)
+                    ?.takeIf {!command.order.issuedByOfflineAi || TacticalOfflineAi.activeEnemy(it,session.eliminated.keys)}
                     ?.let {targetId to it}}.firstOrNull {(_,t)->
                         val targetPosition=pose(t,now,players,stocks,galaxy).position
                         !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,TacticalAuthority.camp(outfit,stocks),

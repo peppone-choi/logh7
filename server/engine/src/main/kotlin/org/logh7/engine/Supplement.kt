@@ -50,9 +50,9 @@ internal object Supplement {
         val restored=try {
             active.values.map {unit ->
                 if(unit.id !in selected)unit else {
-                    val full=UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number
-                    warehouse=ReplacementBoats.take(warehouse,unit.stack.kind,full-unit.boats)
-                    unit.copy(boats=full)
+                    val (remaining, replacement) = ReplacementBoats.restoreUnit(warehouse, unit)
+                    warehouse = remaining
+                    replacement
                 }
             }
         } catch(_:IllegalArgumentException){return reject(LogisticsRejection.STOCK)}

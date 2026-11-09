@@ -157,6 +157,27 @@ class TacticalBaseDeliveryTest {
         assertEquals(0L,cannon(docked.copy(grid=2488)))
     }
 
+    @Test fun reconnectDoesNotReplayCannonAfterItsCommanderIsDetained() {
+        val payload = ByteBuffer.allocate(20).putInt(100).putInt(40).putInt(10000).putInt(1000).putFloat(.5f)
+            .array().map { it.toInt() and 255 }
+        val order = TacticalQueuedCommand(10000, 2487, 100, 140,
+            TacticalCommand(0x419, base = 1000, direction = .5f, payload = payload))
+        val pending = snapshot(TacticalCommandState(orders = listOf(order)))
+        val actor = player.copy(baseId = 1000, mode = 4, cpPaused = false)
+        val present = pending.copy(navigators = pending.navigators + ("pilot" to actor))
+        fun bootstrap(world: WorldSnapshot) = TacticalBootstrap(world, galaxy, opposing, ::character)
+
+        assertEquals(100L, bootstrap(present).baseInformation.single().cannonStart)
+        assertTrue(bootstrap(present).resume().any { opcode(it) == 0x0419 })
+
+        val stocks = checkNotNull(present.planetStocks)
+        val detention = Detention(actor.characterId, Power.EMPIRE.country, 115, 115 + Justice.DAY, base = 1000)
+        val detained = present.copy(planetStocks = stocks.copy(social = stocks.social.copy(
+            justice = JusticeState(detentions = mapOf(actor.characterId to detention)))))
+        assertEquals(0L, bootstrap(detained).baseInformation.single().cannonStart)
+        assertFalse(bootstrap(detained).resume().any { opcode(it) == 0x0419 })
+    }
+
     @Test fun committedCannonStartsItsBeamAndNotifiesOnlyTheActualDestructionList() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,received::add));received.clear()
