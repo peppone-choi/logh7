@@ -1,6 +1,9 @@
 package org.logh7.gateway
 
 import org.logh7.engine.Galaxy
+import org.logh7.engine.Camp
+import org.logh7.engine.CoupActions
+import org.logh7.engine.TacticalAuthority
 import org.logh7.protocol.BootstrapMessages
 import org.logh7.protocol.WorldMessages
 import org.logh7.protocol.LoginMessages
@@ -252,6 +255,7 @@ class WorldBootstrap(val galaxy: Galaxy,
      * one base as 0331 rows. Kind 1000+k selects the artwork, while the extension's loyalty byte identifies
      * friendly/foreign troops. Only a viewer in tactics on that grid may read it. */
     fun outfitBattle(query:OutfitPartyMessages.Query,countryId:Int?,stocks:org.logh7.engine.PlanetStocks,viewerGrid:Int?,nativePower:Int=0,
+        eliminated:Set<org.logh7.engine.CountryId> = emptySet(),viewerCharacter:Int=0,
         characterCountryById:(Int)->org.logh7.engine.CountryId? = {null},
         characterById:(Int)->org.logh7.protocol.CharacterMessages.Generate? = {null}):List<ByteArray> {
         require(query.mode==3 && query.outfit==0)
@@ -260,27 +264,32 @@ class WorldBootstrap(val galaxy: Galaxy,
         val power=viewerDisplay(countryId,nativePower)
         val registered=countries.countries.keys
         val base=galaxy.bases.singleOrNull {it.id==query.base}
-        val fighting=base?.let {org.logh7.engine.GroundBattleView.fighting(stocks,it)}.orEmpty()
+        val fighting=base?.let {org.logh7.engine.GroundBattleView.fighting(stocks,it,eliminated)}.orEmpty()
+        val viewerCamp=country?.let {Camp(it,CoupActions.rebel(stocks,viewerCharacter,it))}
+        val eliminatedTroops=stocks.outfits.values.asSequence().filter {it.country in eliminated}
+            .flatMap {it.activeGround?.values.orEmpty().asSequence()}.map {it.id}.toSet()
         // Public strength: every registered country's troops on this base (kind 1000+k keeps the model's own
-        // faction). Private command (commander) only for the viewer's actual country. Records of a country that is
+        // faction). Private command (commander) only for the viewer's current camp. Records of a country that is
         // not in the catalogue are left out rather than shown as the empire or the alliance.
-        val entries=if(base==null || viewerGrid!=base.grid)emptyList() else stocks.outfits.values.filter {it.country.value in registered}.flatMap {o->
+        val entries=if(base==null || viewerGrid!=base.grid)emptyList() else stocks.outfits.values.filter {it.country.value in registered && it.country !in eliminated}.flatMap {o->
+            val camp=TacticalAuthority.camp(o,stocks)
             // Only troops that may fight here (p.51: no 装甲兵 on special planets/fortresses).
             o.activeGround?.values.orEmpty().filter {it.base==base.id && org.logh7.engine.GroundBattleRules.admitsCrewType(base,
                 UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}.map {u->
-                val commander=if(o.country==country)org.logh7.engine.GroundCommandAuthority.commander(o,u,stocks,galaxy) else 0
-                o.country to OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,base.grid,o.id,u.base,
+                val commander=if(camp==viewerCamp)org.logh7.engine.GroundCommandAuthority.commander(o,u,stocks,galaxy) else 0
+                camp to OutfitPartyMessages.UnitInformation(u.id,1000+u.stack.kind,base.grid,o.id,u.base,
                     // destroyed=1 marks a reserve beyond the side's 30 fighting units (window display only).
-                    supplies=stocks.tacticalCommands.groundTargets[u.id] ?: 0,damaged=u.strength,destroyed=if(u.id in fighting)0 else 1,
+                    supplies=stocks.tacticalCommands.groundTargets[u.id]?.takeUnless {it in eliminatedTroops} ?: 0,damaged=u.strength,destroyed=if(u.id in fighting)0 else 1,
                     morale=stocks.tacticalCommands.morale[u.id] ?: 100,
-                    rebellion=if(o.country==country)1 else 2,
-                    commander=commander.takeIf {it>0 && characterCountryById(it)==country} ?: 0,
+                    rebellion=if(camp==viewerCamp)1 else 2,
+                    commander=commander.takeIf {it>0 && characterCountryById(it)==country &&
+                        CoupActions.rebel(stocks,it,country)==camp.insurgent} ?: 0,
                     mode=if(u.origin>0)9 else 4)}
         }
         val allRows=entries.map {it.second}
         val rows=if(allRows.size<=70) allRows.sortedBy {it.id} else {
             val (fighters,reserves)=entries.sortedBy {it.second.id}.partition {it.second.destroyed==0}
-            val (friendly,foreign)=fighters.partition {it.first==country}
+            val (friendly,foreign)=fighters.partition {it.first==viewerCamp}
             // Keep the viewer's commands usable even if three or more countries fill the native packet.
             val targetIds=friendly.map {it.second.supplies}.toSet()
             val (targets,others)=foreign.partition {it.second.id in targetIds}

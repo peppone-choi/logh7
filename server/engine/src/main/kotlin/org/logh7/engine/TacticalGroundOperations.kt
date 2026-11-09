@@ -12,7 +12,13 @@ data class TacticalGroundCommand(val action:TacticalGroundAction,val units:List<
 /** Manual waiting five seconds plus twenty seconds operation, separate from automatic ground exchanges. Author: Peppone Choi. */
 data class TacticalGroundOrder(val action:TacticalGroundAction,val character:Int,val grid:Int,val carrier:Int,val base:Int,
     val acceptedAt:Long,val readyAt:Long) {
-    companion object {const val PREPARATION_SECONDS=25}
+    companion object {
+        const val PREPARATION_SECONDS=25
+
+        fun pending(stocks:PlanetStocks?,grid:Int,players:Collection<Navigator>,galaxy:Galaxy,
+            eliminated:Set<CountryId>):Set<TacticalGroundOrder> =
+            TacticalGroundOperations.pending(stocks,grid,players,galaxy,eliminated)
+    }
     init {require(character>0 && grid in 0..4999 && carrier in 1..999999 && base in 1..65535 &&
         acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL)}
 }
@@ -49,6 +55,22 @@ internal object TacticalGroundOperations {
                 TacticalGroundAction.WITHDRAW -> hasRoom(o,carrier,units.size)
                 else -> false
             }
+    }
+
+    fun pending(stocks:PlanetStocks?,grid:Int,players:Collection<Navigator>,galaxy:Galaxy,
+        eliminated:Set<CountryId>):Set<TacticalGroundOrder> {
+        if(stocks==null)return emptySet()
+        val bases=galaxy.bases.filter {it.grid==grid}.associateBy {it.id}
+        return buildSet {
+            for(outfit in stocks.outfits.values) {
+                if(outfit.country in eliminated)continue
+                val reserved=outfit.activeGround?.values.orEmpty().filter {it.order?.grid==grid}.groupBy {checkNotNull(it.order)}
+                for((order,units) in reserved) {
+                    val base=bases[order.base] ?: continue
+                    if(validOrder(outfit,order,units,base,players,stocks,galaxy))add(order)
+                }
+            }
+        }
     }
 
     internal fun landingSlotsUsed(base:GalaxyBase,camp:Camp,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=

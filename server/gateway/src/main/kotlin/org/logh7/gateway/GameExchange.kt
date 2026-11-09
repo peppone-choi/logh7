@@ -496,8 +496,9 @@ class GameExchange(
                 val snapshot = navigation?.snapshot()
                 val now = snapshot?.session?.gameSeconds
                 val speed = navigation?.clockSpeed
-                val text = if (player.cpPaused && now != null && speed != null) TacticalGroundNotices.resumed(
-                    restored.intersect(pendingGroundOrders(snapshot.planetStocks, player.grid)), now, speed) else null
+                val text = if (player.cpPaused && now != null && speed != null && world != null) TacticalGroundNotices.resumed(
+                    restored.intersect(TacticalGroundOrder.pending(snapshot.planetStocks,player.grid,snapshot.navigators.values,
+                        world.galaxy,snapshot.session?.eliminated.orEmpty().keys)), now, speed) else null
                 text?.let { ChatMessages.spot(ChatMessages.Spot(player.characterId, it), gameSeconds()) }
             } else null
             // A screen change clears chat. Release the ground result on the clock after the new grid is ready.
@@ -1558,9 +1559,10 @@ class GameExchange(
                                 val snapshot=navigation?.snapshot()
                                 val countries=WorldCharacters.profiles(characters.profiles(),snapshot).values
                                     .associate {it.character.id.toInt() to it.country}
-                                world.outfitBattle(party,country,checkNotNull(stored),
+                                world.outfitBattle(party,country,snapshot?.planetStocks ?: checkNotNull(stored),
                                     snapshot?.navigators?.get(identity.account)?.takeIf {it.cpPaused && it.baseId==0}?.grid,
-                                    characterCountryById={countries[it]},characterById=::currentCharacterById,nativePower=character.power)
+                                    characterCountryById={countries[it]},characterById=::currentCharacterById,nativePower=character.power,
+                                    eliminated=snapshot?.session?.eliminated.orEmpty().keys,viewerCharacter=character.id.toInt())
                             } else if(country==null) {
                                 val emptyUnits=LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(emptyList()))
                                 if(party==null)listOf(emptyUnits) else listOf(LoginMessages.sessionMessage(0x032f,

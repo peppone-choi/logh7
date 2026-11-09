@@ -1,7 +1,6 @@
 package org.logh7.gateway
 
 import org.logh7.engine.NavigationRejection
-import org.logh7.engine.PlanetStocks
 import org.logh7.engine.TacticalGroundAction
 import org.logh7.engine.TacticalGroundOrder
 
@@ -40,12 +39,6 @@ object TacticalGroundNotices {
         return "[$action] $why"
     }
 }
-
-internal fun pendingGroundOrders(stocks: PlanetStocks?, grid: Int): Set<TacticalGroundOrder> =
-    stocks?.outfits.orEmpty().values.asSequence()
-        .flatMap { it.activeGround?.values.orEmpty() }
-        .mapNotNull { it.order?.takeIf { order -> order.grid == grid } }
-        .toSet()
 
 /** Refused 041f of a mobile fortress whose propulsion an orbital attack broke (CD p.46); the CD shows no result. */
 internal const val FORTRESS_PROPULSION_LOST = "[이동] 추진 장치가 파괴되어 요새를 움직일 수 없습니다."

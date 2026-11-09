@@ -17,8 +17,10 @@ class GroundBattleRosterTest {
         2 to OutfitStock(2,3,OutfitKind.GROUND,1049,2,units=UnitInventory(troops=alliance.quantities()),activeGround=alliance)),
         mapOf(1 to OutfitWarehouse(1,2,OutfitKind.GROUND,1049),2 to OutfitWarehouse(2,3,OutfitKind.GROUND,1049)),
         tacticalCommands=TacticalCommandState(groundTargets=mapOf(11 to 21)),nextShipId=30)
-    private fun rows(grid:Int?):List<Triple<Int,Int,Int>> {
-        val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,grid)
+    private fun rows(grid:Int?):List<Triple<Int,Int,Int>> =
+        rows(WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,grid))
+
+    private fun rows(packets:List<ByteArray>):List<Triple<Int,Int,Int>> {
         val b=ByteBuffer.wrap(packets[1]);b.position(6)
         return List(b.get().toInt()) {
             val id=b.int;val kind=b.short.toInt();b.get();b.int;b.int;b.int;b.get();b.int;b.get();b.get()
@@ -33,6 +35,34 @@ class GroundBattleRosterTest {
         val packets=WorldBootstrap(special).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,2487)
         assertEquals(1,ByteBuffer.wrap(packets[1]).get(6).toInt(),"the empire's armored infantry cannot fight on a special planet")
     }
+    @Test fun eliminatedCountriesAreExcludedFromRowsTargetsAndBattleFlag() {
+        val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,2487,
+            eliminated=setOf(Power.ALLIANCE.country))
+        assertEquals(listOf(Triple(11,1002,700_000_000)),rows(packets))
+        assertEquals(1,ByteBuffer.wrap(packets[0]).getInt(21))
+        assertEquals(mapOf(11 to 21),stocks.tacticalCommands.groundTargets)
+    }
+
+    @Test fun regularAndRebelTroopsOfTheSameCountryAreOpponentsInTheWireRoster() {
+        val country=Power.EMPIRE.country
+        val rebel=10002
+        val s=stocks.copy(outfits=stocks.outfits.mapValues {(id,o)->o.copy(country=country,commanderId=10000+id)},
+            warehouses=stocks.warehouses.mapValues {(_,w)->w.copy(country=country)},
+            social=stocks.social.copy(coup=CoupState(mapOf(rebel to Plot(rebel,country,0,revolt=5)),loyalty=mapOf(2 to 100))))
+        for(viewer in listOf(10001,rebel)) {
+            val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),country.value,s,2487,
+                viewerCharacter=viewer,characterCountryById={country})
+            assertEquals(3,ByteBuffer.wrap(packets[0]).getInt(21))
+            val units=ByteBuffer.wrap(packets[1])
+            for(index in 0..1) {
+                val start=7+42*index
+                val commander=10001+index
+                assertEquals(if(commander==viewer)1 else 2,units.get(start+25).toInt())
+                assertEquals(if(commander==viewer)commander else 0,units.getInt(start+34))
+            }
+        }
+    }
+
     @Test fun troopsBeyondThirtyPerSideAreMarkedAsReserve() {
         val many=ActiveGroundUnits((1..75).map {ActiveGroundUnit(100+it,UnitStack(1),base=1049)})
         val foes=ActiveGroundUnits(listOf(ActiveGroundUnit(200,UnitStack(5),base=1049)))

@@ -6,15 +6,16 @@ data class BaseOccupation(val generation:Long,val grid:Int,val base:Int,val prev
     val recipients:Map<Int,String>,val camp:Int=0)
 
 internal object BaseOccupationOperations {
-    fun victor(stocks:PlanetStocks,base:GalaxyBase):Camp? {
+    fun victor(stocks:PlanetStocks,base:GalaxyBase,eliminated:Set<CountryId> = emptySet()):Camp? {
         val owner=stocks.bases.getValue(base.id)
         // U-07 (CD manual p.39): armed occupation of neutral Fezzan ends its neutrality; it becomes the occupier's planet.
         if(owner.country==null && owner.owner !is Allegiance.Independent &&
             !(owner.owner==Allegiance.Neutral && base.name==TradeActions.FEZZAN_NAME))return null
-        val winner=GroundBattleOperations.sides(stocks,base).singleOrNull()?.first ?: return null
+        val winner=GroundBattleOperations.sides(stocks,base,eliminated).singleOrNull()?.first ?: return null
         return Camp(winner.first,winner.second==1).takeUnless {it==TacticalAuthority.camp(owner)}
     }
-    fun pending(stocks:PlanetStocks,galaxy:Galaxy)=galaxy.bases.any {victor(stocks,it)!=null}
+    fun pending(stocks:PlanetStocks,galaxy:Galaxy,eliminated:Set<CountryId>)=
+        galaxy.bases.any {victor(stocks,it,eliminated)!=null}
 
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
         maximumStock:Int,scale:Long,events:MutableList<BaseOccupation>,
@@ -23,7 +24,7 @@ internal object BaseOccupationOperations {
         val now=session.gameMillis/1000
         var stocks=original
         for(base in galaxy.bases.sortedBy {it.id}) {
-            val winningSide=victor(stocks,base) ?: continue
+            val winningSide=victor(stocks,base,session.eliminated.keys) ?: continue
             val winner=checkNotNull(winningSide.country)
             val winningCamp=if(winningSide.insurgent)1 else 0
             // Occupation evaluation (design-evaluation-points.md): the victor's ground commanders here and its
