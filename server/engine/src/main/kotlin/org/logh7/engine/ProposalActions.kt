@@ -72,12 +72,25 @@ object ProposalActions {
      * arrival; a proposal waits for the recipient. */
     const val ABSENT_ORDER_SECONDS=3600L
 
-    internal fun approvedOfficeTargets(before:ProposalState,after:ProposalState):Set<Int> {
-        if(before==after)return emptySet()
-        val pending=before.mails.filter {it.pending}.mapTo(hashSetOf()) {it.id}
-        return after.mails.filter {it.id in pending && it.reply==Proposals.APPROVE && it.target>0 &&
-            (it.command==APPOINTMENT || it.command==DISMISSAL)}.mapTo(hashSetOf()) {it.target}
+    private fun newlyApproved(before: ProposalState, after: ProposalState): List<ProposalMail> {
+        if (before == after) return emptyList()
+        val pending = before.mails.filter { it.pending }.mapTo(hashSetOf()) { it.id }
+        return after.mails.filter { it.id in pending && it.reply == Proposals.APPROVE }
     }
+
+    internal fun approvedOfficeTargets(before: ProposalState, after: ProposalState): Set<Int> =
+        newlyApproved(before, after).filter {
+            it.target > 0 && (it.command == APPOINTMENT || it.command == DISMISSAL)
+        }.mapTo(hashSetOf()) { it.target }
+
+    internal fun approvedOfficeRemovals(before: ProposalState, after: ProposalState): Set<Int> =
+        newlyApproved(before, after).mapNotNullTo(hashSetOf()) {
+            when (it.command) {
+                RESIGNATION -> it.recipient
+                DISMISSAL -> it.target.takeIf { target -> target > 0 }
+                else -> null
+            }
+        }
     /** Expired rows refund the sender's half and absent recipients' due orders are approved (the recipient pays the
      * other half and the command runs). Runs in the periodic world tick and before each proposal action. */
     fun settle(g:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks,
