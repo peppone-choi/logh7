@@ -4,7 +4,7 @@ import kotlin.math.hypot
 
 /** Manual W53: five seconds to begin, 150 seconds preparation. Author: Peppone Choi. */
 data class TacticalRetreat(val destination: Int, val acceptedAt: Long, val waitSeconds: Long,
-    val preparationSeconds: Long,val membershipChecked:Boolean=false) {
+    val preparationSeconds: Long,val membershipChecked:Boolean=false,val issuedByOfflineAi:Boolean=false) {
     val startsAt get() = acceptedAt + waitSeconds
     val completesAt get() = startsAt + preparationSeconds
     init {
