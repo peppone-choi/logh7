@@ -82,9 +82,15 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val stocks=checkNotNull(snapshot.planetStocks)
         sources.sortedBy {it.id}.map {u->
             val initial by lazy {TacticalDeployment.initial(u.id,viewer.grid,people,stocks,galaxy,countries)}
-            val pose=org.logh7.engine.PirateActions.pose(stocks,u.id) ?: people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
-                ?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks) ?: stocks.outfits[u.outfit]?.activeShips?.values
-                ?.singleOrNull {it.id==u.id}?.tactical?.motion?.takeIf {it.grid==viewer.grid}?.pose(snapshot.session?.gameSeconds ?: 0,u.posture,galaxy,stocks)
+            val motion=people.singleOrNull {it.unitId==u.id}?.motion?.takeIf {it.grid==viewer.grid}
+                ?: stocks.outfits[u.outfit]?.activeShips?.values?.singleOrNull {it.id==u.id}
+                    ?.tactical?.motion?.takeIf {it.grid==viewer.grid}
+            val now=snapshot.session?.gameSeconds ?: 0
+            val defeatedAt=snapshot.session?.eliminated?.get(u.camp.country)?.gameSeconds
+            val pose=PirateActions.pose(stocks,u.id) ?: motion?.let {
+                if(defeatedAt!=null && it.rotation!=null)it.origin
+                else it.pose(defeatedAt?.coerceAtMost(now) ?: now,u.posture,galaxy,stocks)
+            }
             val berth=u.posture?.takeIf {it.mode.requiresBase}?.let {state->
                 galaxy.bases.singleOrNull {it.id==state.base && it.grid==viewer.grid}}
                 ?.let {TacticalBasePosition.at(it,snapshot.session?.gameSeconds ?: 0,stocks)}
@@ -141,9 +147,9 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         val stocks=checkNotNull(snapshot.planetStocks)
         val now=snapshot.session?.gameSeconds ?: 0
         val commanders=snapshot.navigators.values.filter {it.generation==viewer.generation}.associateBy {it.characterId}
-        val entries=people.filterNot {BattleDeath.deceased(stocks,it.characterId) || (it.hull?.woundedUntil ?: 0)>now}.mapNotNull {p->
+        val entries=people.filterNot {it.country in eliminated || BattleDeath.deceased(stocks,it.characterId) || (it.hull?.woundedUntil ?: 0)>now}.mapNotNull {p->
             p.motion?.takeIf {it.grid==viewer.grid && it.rotation!=null}?.let {Entry(p.unitId,p.characterId,it)}
-        } + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
+        } + stocks.outfits.values.filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
             o.activeShips?.values.orEmpty().filter {u->
                 u.boats>0 && u.motionCommander==TacticalAuthority.commander(o,u,stocks) &&
                     !BattleDeath.deceased(stocks,u.motionCommander) && commanders[u.motionCommander]?.let {

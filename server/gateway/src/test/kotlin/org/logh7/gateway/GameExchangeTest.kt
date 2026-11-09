@@ -499,7 +499,18 @@ class GameExchangeTest {
                 if(outcome=="retreat") player=player.copy(grid=2488,cpPaused=false,motion=null)
                 if(outcome=="same-grid-return") {
                     player=player.copy(baseId=1000,mode=4,cpPaused=false,motion=null,returnBase=0)
-                    assertNotNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
+                    val returnUnit=BootstrapMessages.unit(assertNotNull(characters.character("user")),player.grid,
+                        player.cruise,player.baseId,player.mode)
+                    val batch=assertNotNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false),returnUnit)))
+                    var offset=0
+                    val delivered=mutableListOf<ByteArray>()
+                    while(offset<batch.bytes.size) {
+                        val end=offset+2+(ByteBuffer.wrap(batch.bytes).getShort(offset).toInt() and 65535)
+                        delivered+=Envelope.decode(LegacyBlowfish(b).decrypt(batch.bytes.copyOfRange(offset+8,end)),-1).second
+                        offset=end
+                    }
+                    assertEquals(listOf(0x0f1f,0x0325),delivered.map {ByteBuffer.wrap(it).getShort(4).toInt()})
+                    assertContentEquals(returnUnit.copyOfRange(4,returnUnit.size),delivered.last().copyOfRange(4,delivered.last().size))
                     assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
                 }
                 if(outcome=="retreat" || outcome=="same-grid-return") {

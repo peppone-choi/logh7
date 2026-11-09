@@ -13,7 +13,7 @@ import kotlin.test.*
 
 class TacticalManeuverWireTest {
     @TempDir lateinit var directory:Path
-    @ParameterizedTest @ValueSource(strings=["deceased","wounded","oppositeCamp"])
+    @ParameterizedTest @ValueSource(strings=["deceased","wounded","oppositeCamp","eliminated"])
     fun reconnectOmitsInvalidRotationsAndRestoresTheOtherGroup(reason:String) {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
@@ -24,27 +24,35 @@ class TacticalManeuverWireTest {
         }
         val living=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,900,cpPaused=true,
             motion=motion(1010000,listOf(1010000)))
-        val unavailable=living.copy(characterId=10001,motion=motion(1010001,listOf(1,1010001)),
+        val third=CountryId(43)
+        val country=if(reason=="eliminated")third else Power.EMPIRE.country
+        val unavailable=living.copy(characterId=10001,country=country,motion=motion(1010001,listOf(1,1010001)),
             hull=if(reason=="wounded")FlagshipHull(0,100,woundedUntil=111) else null)
         val ship=ActiveShipUnit(1,UnitStack(32),motionCommander=unavailable.characterId,
             tactical=NpcTacticalState(motion(1,listOf(1,1010001)),100,100))
         val ships=ActiveShipUnits(listOf(ship))
-        val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,unavailable.characterId,UnitInventory(ships.quantities()),
-            activeShips=ships,position=OutfitPosition(2487))
+        val outfit=OutfitStock(1,country,OutfitKind.FLEET,1000,10,unavailable.characterId,UnitInventory(ships.quantities()),
+            activeShips=ships,position=OutfitPosition(2487),shipStyle=living.shipStyle)
         val coup=if(reason=="oppositeCamp")CoupState(mapOf(unavailable.characterId to
             Plot(unavailable.characterId,Power.EMPIRE.country,100,revolt=105))) else CoupState()
         val stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,0,0,0)),
-            outfits=mapOf(1 to outfit),warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)),
+            outfits=mapOf(1 to outfit),warehouses=mapOf(10 to OutfitWarehouse(10,country,OutfitKind.FLEET,1000,1,shipStyle=living.shipStyle)),
             strategic=StrategicState(people=if(reason=="deceased")mapOf(unavailable.characterId to StrategicPerson(deceasedAt=105)) else emptyMap()),
             social=SocialState(coup=coup),
             nextShipId=2)
-        val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,110,0,0,emptyMap(),1,1,null),
+        val eliminated=if(reason=="eliminated")mapOf(third to CountryDefeat(EndReason.CAPITAL_CAPTURED,105,Power.ALLIANCE.country)) else emptyMap()
+        val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,110,0,0,emptyMap(),1,1,null,eliminated=eliminated),
             navigators=mapOf("living" to living,"unavailable" to unavailable),planetStocks=stocks)
         val turns=TacticalBootstrap(snapshot,galaxy,living){null}.resume()
             .filter {ByteBuffer.wrap(it).getShort(4).toInt()==0x0401}
         assertTrue(turns.all {ByteBuffer.wrap(it).getInt(10)==110})
         val ids=turns.flatMap {turn->TacticalTurnMessages.command(turn.copyOfRange(4,turn.size)).units.map {it.id}}
         assertEquals(if(reason=="oppositeCamp")listOf(1010000,1010001) else listOf(1010000),ids)
+        if(reason=="eliminated") {
+            val later=snapshot.copy(session=checkNotNull(snapshot.session).copy(gameSeconds=130))
+            val beforeSettlement=TacticalBootstrap(later,galaxy,living){null}.units.single {it.id==1}
+            assertEquals(ship.tactical?.motion?.origin?.direction,beforeSettlement.direction)
+        }
     }
 
     @ParameterizedTest @ValueSource(strings=["turn","left","right","legacy-right"])
