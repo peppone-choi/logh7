@@ -27,8 +27,8 @@ jobs:
           tools="$RUNNER_TEMP/logh7-alert-tools"
           mkdir "$tools"
           cd "$tools"
-          curl --fail --silent --show-error --location --retry 2 --retry-max-time 180 --max-time 90 -o prometheus.tar.gz https://github.com/prometheus/prometheus/releases/download/v3.13.3/prometheus-3.13.3.linux-amd64.tar.gz
-          curl --fail --silent --show-error --location --retry 2 --retry-max-time 180 --max-time 90 -o alertmanager.tar.gz https://github.com/prometheus/alertmanager/releases/download/v0.34.1/alertmanager-0.34.1.linux-amd64.tar.gz
+          curl --fail --silent --show-error --location --retry 2 --retry-delay 10 --retry-max-time 180 --max-time 90 -o prometheus.tar.gz https://github.com/prometheus/prometheus/releases/download/v3.13.3/prometheus-3.13.3.linux-amd64.tar.gz
+          curl --fail --silent --show-error --location --retry 2 --retry-delay 10 --retry-max-time 180 --max-time 90 -o alertmanager.tar.gz https://github.com/prometheus/alertmanager/releases/download/v0.34.1/alertmanager-0.34.1.linux-amd64.tar.gz
           cat > checksums.txt <<'CHECKSUMS'
           b349c732d8a853e657d0e7ae1bbad4d11b586615fb65fdc59d896b9f869c001e  prometheus.tar.gz
           265b9d1e55ef0d5306a436018af6d2b686c2ce051f03d968f7464ecb1372a7e8  alertmanager.tar.gz

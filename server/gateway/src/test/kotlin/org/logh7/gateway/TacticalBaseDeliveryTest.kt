@@ -24,6 +24,31 @@ class TacticalBaseDeliveryTest {
                 mapOf(1000 to PlanetStock(1000,2,0,available,0,0)),mapOf(1 to outfit),
                 mapOf(10 to OutfitWarehouse(10,2,OutfitKind.PATROL,1000)),nextShipId=2,tacticalCommands=state))
     }
+    @Test fun reconnectOnlyReplaysSupportWithItsActiveCommander() {
+        val original=snapshot(TacticalCommandState())
+        val stocks=checkNotNull(original.planetStocks)
+        val outfit=stocks.outfits.getValue(1)
+        val transport=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith("輸送艦")}
+        val ship=outfit.activeShips!!.values.single().copy(
+            stack=UnitStack(transport.kind),
+            support=TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,1010000,2487,100,140))
+        val ships=ActiveShipUnits(listOf(ship))
+        val pending=original.copy(navigators=original.navigators+("pilot" to player.copy(supplies=1000)),
+            planetStocks=stocks.copy(
+            outfits=mapOf(1 to outfit.copy(activeShips=ships,units=UnitInventory(ships.quantities())))))
+        fun replies(world:WorldSnapshot)=TacticalBootstrap(world,galaxy,opposing,::character).resume().filter {opcode(it)==0x0414}
+
+        assertEquals(20,ByteBuffer.wrap(replies(pending).single()).getInt(10))
+        assertTrue(replies(pending.copy(navigators=pending.navigators+("pilot" to player.copy(cpPaused=false)))).isEmpty())
+        assertTrue(replies(pending.copy(navigators=pending.navigators+
+            ("pilot" to player.copy(hull=FlagshipHull(0,100,woundedUntil=130))))).isEmpty())
+        val changed=checkNotNull(pending.planetStocks)
+        assertTrue(replies(pending.copy(planetStocks=changed.copy(
+            strategic=StrategicState(people=mapOf(10000 to StrategicPerson(deceasedAt=110)))))).isEmpty())
+        assertTrue(replies(pending.copy(planetStocks=changed.copy(
+            outfits=mapOf(1 to changed.outfits.getValue(1).copy(commanderId=10001))))).isEmpty())
+    }
+
     @Test fun partialFortressImpactKeepsItsSourceKindAndCurrentMorale() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,received::add));received.clear()
@@ -120,6 +145,18 @@ class TacticalBaseDeliveryTest {
         received.clear();hub.tacticalCommand(event.copy(cancelled=true),snapshot(TacticalCommandState()),galaxy,::character)
         assertFalse(received.flatten().any {opcode(it) in setOf(0x440,0x43d,0x43e)})
     }
+    @Test fun reconnectShowsCannonReservationOnlyWhileItsCommanderIsPresent() {
+        val order=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(0x419,base=1000,direction=.5f))
+        val active=snapshot(TacticalCommandState(orders=listOf(order)))
+        val docked=player.copy(baseId=1000,mode=4,cpPaused=false)
+        fun cannon(commander:Navigator)=TacticalBootstrap(
+            active.copy(navigators=active.navigators+("pilot" to commander)),galaxy,opposing,::character)
+            .baseInformation.single().cannonStart
+
+        assertEquals(100L,cannon(docked))
+        assertEquals(0L,cannon(docked.copy(grid=2488)))
+    }
+
     @Test fun committedCannonStartsItsBeamAndNotifiesOnlyTheActualDestructionList() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,received::add));received.clear()
