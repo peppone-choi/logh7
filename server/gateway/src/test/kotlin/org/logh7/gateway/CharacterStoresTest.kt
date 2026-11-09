@@ -4,6 +4,11 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.CountryId
 import org.logh7.engine.Navigator
+import org.logh7.engine.OfficeHolding
+import org.logh7.engine.OutfitKind
+import org.logh7.engine.OutfitStock
+import org.logh7.engine.OutfitWarehouse
+import org.logh7.engine.PlanetStock
 import org.logh7.engine.PlanetStocks
 import org.logh7.engine.SessionSnapshot
 import org.logh7.engine.StrategicPerson
@@ -68,6 +73,24 @@ class CharacterStoresTest {
         val store = CharacterStores(file, worldSnapshot = { snapshot }).get(1)
         assertEquals(1002L, store.character("applicant")?.id)
         assertEquals(1002L, CharacterStores(file, worldSnapshot = { snapshot }).get(1).character("applicant")?.id)
+    }
+
+    @Test fun officeOnlyOriginalsAreUnavailableAtListingApplicationAndSettlement() {
+        val session = SessionSnapshot(1, 0, 0, 0, emptyMap(), 0, 0, null)
+        val stock = PlanetStocks(1, 0, mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
+            outfits = mapOf(2 to OutfitStock(2,2,OutfitKind.FLEET,1049,20,aideId=1001)),
+            warehouses = mapOf(20 to OutfitWarehouse(20,2,OutfitKind.FLEET,1049,2)))
+        val occupied = stock.copy(strategic = StrategicState(offices = listOf(OfficeHolding(150,1049,1002))))
+        val stores = CharacterStores(null, worldSnapshot = { WorldSnapshot(0,0,session,planetStocks=occupied) })
+        assertTrue(stores.get(1).candidates("applicant").isEmpty())
+        for(id in listOf(1001L,1002L))assertFailsWith<IllegalArgumentException> { stores.get(1).apply("applicant",listOf(id)) }
+        assertEquals(setOf(1001L,1002L),stores.get(2).candidates("applicant").map { it.character.id }.toSet())
+
+        val file=directory.resolve("pending-office-originals.properties")
+        val clock=Clock.fixed(Instant.EPOCH,ZoneOffset.UTC)
+        CharacterCreation(file,clock=clock,lotteryWindowMillis=10).apply("applicant",listOf(1001,1002))
+        val reopened=CharacterStores(file,worldSnapshot={WorldSnapshot(0,0,session,planetStocks=stock)}).get(1)
+        assertEquals(1002L,reopened.character("applicant")?.id)
     }
 
     @Test fun newGenerationStartsEmptyAndPreviousCharacterFileRemainsByteIdentical() {
