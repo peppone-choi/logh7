@@ -154,6 +154,61 @@ class FleetNavigationTest {
         assertNull(reopened.snapshot(1)?.strategic?.people?.get(1001)?.peerage)
         assertEquals(1,state.commits)
     }
+    @Test fun originalFleetAideEntryCommitsOnceWithoutReplacingAnExistingHolder() {
+        val odin=home.copy(id=1049,name=Capital.EMPIRE.baseName)
+        val world=Galaxy(listOf(GalaxySystem(3,2487,4,"ヴァルハラ",2)),listOf(odin),Power.entries.associateWith {2487})
+        val imperial=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,true,"c")}.exportState()
+        val request=NavigationRequest("pilot",1001,Power.EMPIRE.country,"c",1,shipKind=3,initializeOriginal=true)
+        val initial=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,100,100)),
+            outfits=mapOf(2 to OutfitStock(2,2,OutfitKind.FLEET,1049,1002,number=2)),
+            warehouses=mapOf(1002 to OutfitWarehouse(1002,2,OutfitKind.FLEET,1049,2)),deploymentInitialized=true)
+        val state=State(initial,Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000)).also {it.players=emptyMap()}
+        fun enter():NavigationResult {
+            val navigation=Navigation(world,state.nav,NavigationPolicy())
+            val production=PlanetProduction(world,state.inventory,SessionRules.load().startSeconds,PlanetProductionPolicy())
+            return FleetNavigation.apply(request,imperial,world,navigation,production,
+                production.settle(1,imperial.gameMillis/1000),state.commit) {false}
+        }
+        state.fail=true
+        assertFailsWith<java.io.IOException> {enter()}
+        assertTrue(state.players.isEmpty())
+        assertEquals(0,state.stocks.outfits.getValue(2).aideId)
+
+        state.fail=false
+        val docked=assertNotNull(enter().player)
+        assertEquals(1049,docked.baseId)
+        assertEquals(4,docked.mode)
+        assertEquals(0,docked.spotId)
+        assertEquals(1001,state.stocks.outfits.getValue(2).aideId)
+        assertEquals(1,state.commits)
+
+        val resigned=OfficeResignation.evaluate(world,OfficeResignationRequest("pilot","c",1001,Power.EMPIRE,1,43),
+            imperial,docked,state.stocks)
+        assertTrue(resigned.changed)
+        state.stocks=assertNotNull(resigned.stocks)
+        state.players=mapOf("pilot" to assertNotNull(resigned.player))
+        assertEquals(resigned.player,enter().player)
+        assertEquals(0,state.stocks.outfits.getValue(2).aideId)
+        assertEquals(1,state.commits)
+
+        state.players=emptyMap()
+        state.stocks=initial.copy(outfits=mapOf(2 to initial.outfits.getValue(2).copy(aideId=10002)))
+        assertEquals(0,assertNotNull(enter().player).baseId)
+        assertEquals(10002,state.stocks.outfits.getValue(2).aideId)
+        assertEquals(1,state.commits)
+
+        state.players=emptyMap()
+        val rebelFleet=initial.outfits.getValue(2).copy(commanderId=10003)
+        val rebellion=CoupState(plots=mapOf(10003 to Plot(10003,Power.EMPIRE.country,0,revolt=1)),
+            loyalty=mapOf(2 to CoupActions.LOYAL))
+        state.stocks=initial.copy(outfits=mapOf(2 to rebelFleet),social=initial.social.copy(coup=rebellion))
+        assertEquals(0,state.stocks.bases.getValue(1049).camp)
+        assertEquals(1,CoupActions.outfitCamp(state.stocks,rebelFleet))
+        assertEquals(0,assertNotNull(enter().player).baseId)
+        assertEquals(10003,state.stocks.outfits.getValue(2).commanderId)
+        assertEquals(0,state.stocks.outfits.getValue(2).aideId)
+        assertEquals(1,state.commits)
+    }
     @Test fun reservationOrMissingAtomicWriterCannotSplitDepartureState() {
         for (locked in listOf(false,true)) {
             val state=state();val before=state.players.toMap()

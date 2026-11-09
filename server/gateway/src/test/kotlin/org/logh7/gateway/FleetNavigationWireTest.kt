@@ -8,6 +8,9 @@ import org.logh7.gateway.load.*
 import org.logh7.protocol.*
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlin.test.*
 
 class FleetNavigationWireTest {
@@ -39,6 +42,28 @@ class FleetNavigationWireTest {
         repeat(300) {val bytes=client.receive();val body=ByteBuffer.wrap(bytes)
             if(body.getShort(4).toInt()==opcode && (character==null || body.getInt(10)==character))return bytes}
         error("Missing transaction end")
+    }
+    @Test fun awardedOriginalEntersAtOdinWithTheSecondFleetAideCard() {
+        val state=State()
+        state.players=emptyMap()
+        state.stocks=state.stocks.copy(outfits=mapOf(2 to state.stocks.outfits.getValue(1).copy(id=2,number=2,commanderId=0)),
+            warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,2)))
+        val file=directory.resolve("characters.properties")
+        CharacterCreation(file,Clock.fixed(Instant.EPOCH,ZoneOffset.UTC),10).apply("load-000",listOf(1001))
+        val won=assertNotNull(CharacterCreation(file,Clock.fixed(Instant.ofEpochMilli(10),ZoneOffset.UTC),10).character("load-000"))
+        LoadFixture(directory,1,LoadMetrics(),galaxy,ticking=false,stockStore=state.inventory,navigationStore=state.nav,
+            worldStateCommitter=state).use {fixture ->
+            val joined=fixture.join(fixture.account(0),false,false)
+            assertTrue(joined.accepted)
+            joined.client.send(SyntheticClient.opcode(0x0f00))
+            val card=through(joined.client,0x0323)
+            val finalCard=ByteBuffer.wrap(card).position(card.size-7)
+            assertEquals(43,finalCard.short.toInt())
+            assertEquals(2,finalCard.int)
+            assertContentEquals(BootstrapMessages.unit(won,2487,1000,1049,4,2),through(joined.client,0x0325))
+            through(joined.client,0x0f01)
+            assertEquals(1001,state.stocks.outfits.getValue(2).aideId)
+        }
     }
     @Test fun encryptedDepartureSpaceRosterWarpAndRestartRetainFleetAffiliation() {
         val state=State()

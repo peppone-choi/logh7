@@ -7,6 +7,16 @@ internal object FleetNavigation {
         initialProfile:StrategicPerson?=null,blocked: (Int) -> Boolean): NavigationResult {
         val players = navigation.snapshot(session.generation)
         val before = players[request.account]
+        // Manual pp.60/75: Kircheis is the aide of the Empire's Second Fleet at Odin.
+        val startingFleet=stocks.outfits[2]?.takeIf {fleet->
+            request.initializeOriginal && request.shipKind!=null && request.characterId==1001 && request.country==Power.EMPIRE.country &&
+                session.participants[request.account]?.original==true && before==null && committer!=null &&
+                players.values.none {it.characterId==request.characterId} && !BattleDeath.deceased(stocks,request.characterId) &&
+                fleet.country==request.country && fleet.kind==OutfitKind.FLEET && fleet.number==2 && fleet.baseId==1049 &&
+                fleet.positionIn(galaxy).baseId==1049 && fleet.aideId==0 && CoupActions.outfitCamp(stocks,fleet)==0 &&
+                stocks.bases[1049]?.let {it.country==request.country && it.camp==0}==true &&
+                stocks.outfits.values.none {request.characterId in it.members()}
+        }
         val startingPerson=initialProfile?.takeIf {committer!=null && before==null &&
             it.peerage!=null && request.characterId !in stocks.strategic.people}?.let {person->
             val supports=request.country?.let {CountryCatalogLoader.current().supportsNativePeerage(it)}==true
@@ -25,15 +35,18 @@ internal object FleetNavigation {
             val withPerson=if(startingPerson!=null && result.rejection==null)
                 updated.copy(strategic=updated.strategic.copy(people=updated.strategic.people+(after.characterId to startingPerson)))
             else updated
-            val prepared=production.prepareReplacement(stocks,withPerson)
+            val assigned=if(startingFleet!=null && result.rejection==null)withPerson.copy(outfits=withPerson.outfits+
+                (startingFleet.id to FleetOffice.EMPIRE_AIDE.assign(startingFleet,after.characterId))) else withPerson
+            val prepared=production.prepareReplacement(stocks,assigned)
             committer.saveWorld(next,prepared)
             navigation.publishCommitted(players,next,session.generation);production.publishCommitted(stocks,prepared)
             return result
         }
         fun personal(movingUnits:Int=1,soloShip:Boolean=true):NavigationResult {
-            if(startingPerson==null && request.offlineDirection==null && (before==null || stocks.civic.active.none {it.character==before.characterId}))
+            if(startingFleet==null && startingPerson==null && request.offlineDirection==null && (before==null || stocks.civic.active.none {it.character==before.characterId}))
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
-            return commitPersonal(navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip))
+            return commitPersonal(navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip,
+                initialDock=startingFleet?.positionIn(galaxy)))
         }
         // Personal flagship retreat must not transport the commander's unimplemented fleet/CRC selection.
         if (request.tacticalRetreat != null || before?.retreat != null)
