@@ -120,13 +120,15 @@ internal object NpcStrategy {
      * (`evidence:guess`, 2026-11-04 replacement policy).
      */
     private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,
-        players:Collection<Navigator>,preferred:Int?=null):OutfitPosition? {
+        players:Collection<Navigator>,eliminated:Set<CountryId>,preferred:Int?=null):OutfitPosition? {
         val position=outfit.positionIn(galaxy)
         val origin=position.grid
         val camp=Camp(outfit.country,false)
         val own=GridForces.mobileUnits(outfit)
         fun beatable(grid:Int)=hostile(forces,grid,camp)<=own*2
-        val enemies=forces.entries.filter {(_,rows)->rows.any {it.camp!=camp && (it.units>0 || it.base)}}.map {it.key}
+        val enemies=forces.entries.filter {(_,rows)->
+            rows.any {it.camp!=camp && it.camp.country !in eliminated && (it.units>0 || it.base)}
+        }.map {it.key}
         val candidates=enemies.filter(::beatable)
         // Keep a reserved route towards a still-valid enemy when an unrelated enemy appears.
         val continuing=if(origin in candidates)listOf(origin) else if(preferred==null)candidates else
@@ -229,7 +231,7 @@ internal object NpcStrategy {
             val pending=outfit.strategy
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
-                val normal=target(galaxy,forces(),outfit,stocks,players.values,destination)
+                val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys,destination)
                 val relief=if(normal?.grid==position.grid)null else reliefRoute(galaxy,forces(),outfit,stocks,destination)
                 val planned=relief?.let {OutfitPosition(it.next,if(it.jumps==1)it.base.id else 0)} ?: normal
                 if(planned?.grid==position.grid) {
@@ -275,6 +277,8 @@ internal object NpcStrategy {
                 stocks=stocks.copy(outfits=stocks.outfits+(id to moved))
                 forceCache=null // Later arrivals must see this move when checking the 300-unit cap.
                 for((account,player) in players.toMap())if(player.grid==destination && !player.cpPaused &&
+                    player.generation==session.generation && player.country !in session.eliminated &&
+                    session.participants[account]?.country !in session.eliminated && !BattleDeath.deceased(stocks,player.characterId) &&
                     (player.hull?.woundedUntil ?: 0)<=now && TacticalContact.active(galaxy,player,players.values,stocks)) {
                     players[account]=player.copy(cpPaused=true,cpRecoveryAt=now,
                         commandRange=TacticalCommandRange(now,command=50),motion=null,retreat=null,charge=null,
@@ -285,7 +289,7 @@ internal object NpcStrategy {
                 movements+=NpcStrategicMovement(session.generation,id,position.grid,destination,now,
                     moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
-                val destination=target(galaxy,forces(),outfit,stocks,players.values)
+                val destination=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys)
                 if(destination?.grid==position.grid) {
                     dockLocally(outfit,destination)
                 } else {
