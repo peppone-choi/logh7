@@ -102,6 +102,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private val movementObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalMovement) -> Unit>()
     private val occupationObservers=java.util.concurrent.CopyOnWriteArrayList<(BaseOccupation)->Unit>()
+    private val tacticalOfficeObservers = java.util.concurrent.CopyOnWriteArrayList<(Long, Set<Int>) -> Unit>()
+    fun observeTacticalOfficeRefresh(observer: (Long, Set<Int>) -> Unit): AutoCloseable {
+        tacticalOfficeObservers += observer
+        return AutoCloseable { tacticalOfficeObservers.remove(observer) }
+    }
+
     private val characterRefreshObservers=java.util.concurrent.CopyOnWriteArrayList<(List<Int>)->Unit>()
     /** Character IDs whose abilities/experience changed by CP-experience settlement. */
     fun observeCharacterRefresh(observer:(List<Int>)->Unit):AutoCloseable {
@@ -175,7 +181,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val oldStocks=published.get().planetStocks?.takeIf {it.generation==session.generation}
         val experienced=settleExperience(session)
         val before=navigation.snapshot(session.generation)
-        val previousSocial=production.snapshot(session.generation)?.social
+        val previousStocks = production.snapshot(session.generation)
+        val previousSocial = previousStocks?.social
         val movements=mutableListOf<TacticalMovement>()
         val strategicMovements=mutableListOf<NpcStrategicMovement>()
         val support=mutableListOf<TacticalSupportResult>()
@@ -239,6 +246,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             }
         val officeTargets=if(previousSocial==null || settledStocks==null) emptySet() else
             ProposalActions.approvedOfficeTargets(previousSocial.proposals,settledStocks.social.proposals)
+        if (previousStocks != null && settledStocks != null) publishProposalTacticalOfficeRefresh(previousStocks, settledStocks)
         val changedCharacters=(changedMerit+clearedReturnBases+officeTargets).distinct()
         if(changedCharacters.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changedCharacters)}
         catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
@@ -352,11 +360,20 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private fun changedTacticalOfficeOutfits(old: PlanetStocks, updated: PlanetStocks, formerMember: Int): Set<Int> =
         old.outfits.values.filter { outfit ->
             if (formerMember !in outfit.members()) return@filter false
-            val replacement = updated.outfits.getValue(outfit.id)
+            val replacement = updated.outfits[outfit.id] ?: return@filter false
             outfit.activeShips?.values.orEmpty().any {
                 TacticalAuthority.commander(outfit, it, old) != TacticalAuthority.commander(replacement, it, updated)
             }
         }.map { it.id }.toSet()
+
+    private fun publishProposalTacticalOfficeRefresh(old: PlanetStocks, updated: PlanetStocks) {
+        if (tacticalOfficeObservers.isEmpty()) return
+        val outfits = ProposalActions.approvedOfficeRemovals(old.social.proposals, updated.social.proposals)
+            .flatMapTo(linkedSetOf()) { changedTacticalOfficeOutfits(old, updated, it) }
+        if (outfits.isEmpty()) return
+        for (observer in tacticalOfficeObservers) try { observer(updated.generation, outfits) }
+        catch (failure: Exception) { System.err.println("Tactical office refresh delivery failed: ${failure.javaClass.simpleName}") }
+    }
 
     private fun settleOfficeRecovery(now: Long, old: PlanetStocks, updated: PlanetStocks,
         players: Map<String, Navigator>): Map<String, Navigator> {
@@ -1159,7 +1176,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         }
                     }
                     state=published.get().copy(navigators=navigation?.snapshot(session.generation).orEmpty(),planetStocks=production.snapshot(session.generation))
-                    publish(state);command.result.complete(result.copy(recovery=recovered))
+                    publish(state)
+                    if (result.changed && i.command in ProposalActions.commands)
+                        publishProposalTacticalOfficeRefresh(inventory, checkNotNull(result.stocks))
+                    command.result.complete(result.copy(recovery=recovered))
                 } catch(failure:Exception) {
                     if(failure is java.io.IOException){storageFailed=true;storageFailure=failure}
                     command.result.completeExceptionally(failure)

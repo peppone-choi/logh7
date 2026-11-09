@@ -3,6 +3,7 @@ package org.logh7.gateway
 import java.nio.ByteBuffer
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
@@ -40,6 +41,72 @@ class ProposalActionsWireTest {
         repeat(200){val p=client.receive();if(ByteBuffer.wrap(p).getShort(4).toInt()==opcode)return p};error("Missing $opcode")
     }
     private fun query(client:SyntheticClient,id:Int,card:Int)=client.send(body(Wire.begin(Wire.Query(Wire.Peer(id,extra=listOf(0,0,card)),true,true))))
+    @Test fun nativeResignationApprovalRefreshesTheOpenBattlefield() = resignationRefresh(0x0f14)
+    @Test fun compatibilityResignationApprovalRefreshesTheOpenBattlefield() = resignationRefresh(0x1200)
+    @Test fun absentResignationApprovalRefreshesTheOpenBattlefield() = resignationRefresh(null)
+
+    private fun resignationRefresh(replyOpcode: Int?) {
+        val state = State()
+        val world = Galaxy(galaxy.systems + GalaxySystem(4, 2015, 4, "Battle", 3),
+            galaxy.bases + GalaxyBase(1177, 2015, 80, 0, Capital.ALLIANCE.baseName, 0, 20f, 86400, 0, 0f, 2f),
+            mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015))
+        val viewerAccount = "load-000"
+        state.players = state.players + (viewerAccount to state.players.getValue(viewerAccount)
+            .copy(grid = 2015, baseId = 0, mode = 5, spotId = 0))
+        val friendly = OutfitStock(1, 2, OutfitKind.FLEET, 1049, 10, commanderId = 10000, aideId = 10001,
+            units = UnitInventory(mapOf(UnitStack(32) to 1)), position = OutfitPosition(2015))
+        val hostile = OutfitStock(2, 3, OutfitKind.FLEET, 1177, 11, commanderId = 500,
+            units = UnitInventory(mapOf(UnitStack(119) to 1)), position = OutfitPosition(2015))
+        val proposals = Proposals.open(ProposalState(), 1, 10000, 10001, 39, 43, ProposalActions.RESIGNATION,
+            order = true, now = now, pcp = 0, mcp = 40, country = CountryId(2)).first
+        state.stocks = ActiveShips.initialize(state.stocks.copy(
+            bases = state.stocks.bases + (1177 to PlanetStock(1177, 3, 0, 100, 200, 300)),
+            outfits = mapOf(1 to friendly, 2 to hostile),
+            warehouses = mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, 1049, 1),
+                11 to OutfitWarehouse(11, 3, OutfitKind.FLEET, 1177, 2)),
+            social = state.stocks.social.copy(nextId = 2, proposals = proposals)))
+        val ship = state.stocks.outfits.getValue(1).activeShips!!.values.single()
+        state.stocks = state.stocks.copy(tacticalCommands = TacticalCommandState(authority = mapOf(ship.id to 10001)))
+        seed(directory)
+        LoadFixture(directory, 2, LoadMetrics(), world, ticking = false, navigationStore = state.navigation,
+            stockStore = state.inventory, worldStateCommitter = state).use { fixture ->
+            val viewer = fixture.join(fixture.account(0), false, false).client
+            viewer.send(SyntheticClient.opcode(0x0f00)); next(viewer, 0x0f01)
+            assertTrue(state.players.getValue(viewerAccount).cpPaused)
+            viewer.send(SyntheticClient.opcode(0x0f02))
+            fun commander(packet: ByteArray): Int {
+                val states = ByteBuffer.wrap(packet)
+                val row = (0 until states.getShort(6).toInt()).single { states.getInt(8 + it * 47) == ship.id }
+                return states.getInt(14 + row * 47)
+            }
+            assertEquals(10001, commander(next(viewer, 0x033b)))
+            next(viewer, 0x0f03)
+
+            if (replyOpcode == null) {
+                val delay = ProposalActions.ABSENT_ORDER_SECONDS * 1000 / SessionRules.load().speed
+                runBlocking { fixture.engine.submit(WorldCommand.AdvanceTo(delay)) }
+            } else {
+                val aide = fixture.join(fixture.account(1), false, false).client
+                aide.send(SyntheticClient.opcode(0x0f00)); next(aide, 0x0f01)
+                if (replyOpcode == 0x0f14) {
+                    aide.send(body(Wire.reply(Wire.Reply(0, 1, 0, Wire.Peer(10001), Wire.Peer(10000),
+                        0, 0, 0, Proposals.APPROVE))))
+                    next(aide, 0x0356)
+                } else {
+                    aide.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10001).putShort(0x7f00)
+                        .putShort(99).putShort(0).putShort(Proposals.APPROVE.toShort()).putInt(1).put(0)
+                        .putInt(0).putShort(0).putInt(0).putShort(17).array())
+                    assertEquals(0, ByteBuffer.wrap(next(aide, 0x1200)).getShort(16).toInt())
+                }
+            }
+            assertEquals(10000, commander(next(viewer, 0x033b)))
+            assertEquals(Proposals.APPROVE, state.stocks.social.proposals.mails.single().reply)
+            assertEquals(0, state.stocks.outfits.getValue(1).aideId)
+            assertNull(state.stocks.tacticalCommands.authority[ship.id])
+            assertEquals(960, state.players.getValue("load-001").mcp)
+        }
+    }
+
     @Test fun nativeAppointmentApprovalRefreshesTheOnlineProposersCards() {
         val state = State()
         state.stocks = state.stocks.copy(strategic = state.stocks.strategic.copy(
