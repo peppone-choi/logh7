@@ -2387,7 +2387,8 @@ class GameExchange(
                                             val boats=outfit?.let(org.logh7.engine.TransportActions::boats) ?: 0
                                             val rows=inventory.strategic.transports.filter {it.country==country && it.id>query.target &&
                                                 (if(query.command==29)canCancel && it.carrier==0 else outfit!=null &&
-                                                    (it.carrier==outfit.id || it.carrier==0 && it.source==here && here!=0))}
+                                                    (it.carrier==outfit.id || it.carrier==0 && it.source==here && here!=0 &&
+                                                        org.logh7.engine.TransportActions.destinationAvailable(inventory,it)))}
                                                 .sortedBy {it.id}.take(200).map {p ->
                                                     val (supplies,units)=org.logh7.engine.TransportActions.delivered(p,boats)
                                                     org.logh7.protocol.StrategyActionMessages.Selection(p.id,("${p.destination}/$supplies"+

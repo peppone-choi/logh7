@@ -59,6 +59,32 @@ class TransportActionsWireTest {
         }
         next(client,0x1201);return selections
     }
+    @Test fun aLostDestinationRemovesUnloadedCargoFromLoadingButKeepsCancellationAndRerouting() {
+        val state=State()
+        val source=state.stocks.bases.getValue(1049)
+        val destination=state.stocks.bases.getValue(1050)
+        val unloaded=TransportPackage(2,CountryId(2),1049,1050,100)
+        val boats=TransportActions.boats(state.stocks.outfits.getValue(200))
+        val aboard=unloaded.copy(id=3,carrier=200,carrierBoats=boats,survivingBoats=boats)
+        state.stocks=state.stocks.copy(
+            bases=state.stocks.bases+(1050 to destination.copy(owner=Allegiance.fromLegacy(3))),
+            strategic=state.stocks.strategic.copy(transports=listOf(unloaded,aboard),lastTransportId=3))
+        LoadFixture(directory.resolve("lost-destination"),1,LoadMetrics(),galaxy,ticking=false,
+            navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {fixture->
+            val client=fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+            assertEquals(listOf(2),listed(client,29))
+            assertEquals(listOf(3),listedRows(client,65,expectedIntent=2).map {it.first})
+            action(client,65,2,StrategyActionRejection.LOCATION.ordinal+1,intent=1)
+            assertEquals(1000,state.players.getValue("load-000").mcp)
+            assertEquals(listOf(unloaded,aboard),state.stocks.strategic.transports)
+            action(client,29,2,warehouse=1049)
+            action(client,65,3,warehouse=1049,intent=2)
+            assertEquals(source.supplies+200,state.stocks.bases.getValue(1049).supplies)
+            assertTrue(state.stocks.strategic.transports.isEmpty())
+        }
+    }
+
     @Test fun encryptedPlanListsOnlyOwnCargoAndRestoresLoadedCargoForDeliveryAndCancellation() {
         val state=State()
         fun server(name:String)=LoadFixture(directory.resolve(name),1,LoadMetrics(),galaxy,ticking=false,

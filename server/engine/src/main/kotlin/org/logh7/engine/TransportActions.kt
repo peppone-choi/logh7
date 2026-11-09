@@ -98,6 +98,9 @@ object TransportActions {
         return state.copy(transports=packages,lastTransportId=lastId)
     }
 
+    fun destinationAvailable(stocks:PlanetStocks,pack:TransportPackage):Boolean =
+        stocks.bases[pack.destination]?.let {it.belongsTo(pack.country) && it.camp==0}==true
+
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -165,7 +168,7 @@ object TransportActions {
                     it.attack!=null || it.shot!=null})return reject(StrategyActionRejection.BUSY)
                 val currentIntent=if(pack.carrier==0)1 else 2
                 if(r.value!=0 && r.value!=currentIntent)return reject(StrategyActionRejection.QUOTE_CHANGED)
-                val destinationAvailable=stocks.bases[pack.destination]?.let {it.belongsTo(country) && it.camp==0}==true
+                val destinationAvailable=destinationAvailable(stocks,pack)
                 next=if(pack.carrier==0) {
                     if(pack.source!=base.baseId || !destinationAvailable)return reject(StrategyActionRejection.LOCATION)
                     val alive=boats(o)
