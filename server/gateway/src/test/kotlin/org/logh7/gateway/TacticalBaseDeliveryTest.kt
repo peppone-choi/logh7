@@ -24,6 +24,24 @@ class TacticalBaseDeliveryTest {
                 mapOf(1000 to PlanetStock(1000,2,0,available,0,0)),mapOf(1 to outfit),
                 mapOf(10 to OutfitWarehouse(10,2,OutfitKind.PATROL,1000)),nextShipId=2,tacticalCommands=state))
     }
+    @Test fun reconnectOnlyReplaysSupportWithItsActiveCommander() {
+        val original=snapshot(TacticalCommandState())
+        val stocks=checkNotNull(original.planetStocks)
+        val outfit=stocks.outfits.getValue(1)
+        val ship=outfit.activeShips!!.values.single().copy(
+            support=TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,1010001,2487,100,140))
+        val pending=original.copy(planetStocks=stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(ship))))))
+        fun replies(world:WorldSnapshot)=TacticalBootstrap(world,galaxy,opposing,::character).resume().filter {opcode(it)==0x0414}
+
+        assertEquals(20,ByteBuffer.wrap(replies(pending).single()).getInt(10))
+        assertTrue(replies(pending.copy(navigators=pending.navigators+("pilot" to player.copy(cpPaused=false)))).isEmpty())
+        assertTrue(replies(pending.copy(navigators=pending.navigators+
+            ("pilot" to player.copy(hull=FlagshipHull(0,100,woundedUntil=130))))).isEmpty())
+        val changed=checkNotNull(pending.planetStocks)
+        assertTrue(replies(pending.copy(planetStocks=changed.copy(
+            outfits=mapOf(1 to changed.outfits.getValue(1).copy(commanderId=10001))))).isEmpty())
+    }
+
     @Test fun partialFortressImpactKeepsItsSourceKindAndCurrentMorale() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         hub.update(GamePresence.Member("one",person,player,received::add));received.clear()

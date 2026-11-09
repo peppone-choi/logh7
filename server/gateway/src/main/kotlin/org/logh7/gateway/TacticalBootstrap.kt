@@ -182,9 +182,17 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
             o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {p->p.grid==viewer.grid}?.mode?.requiresBase!=true}.mapNotNull {u -> u.tactical?.motion?.takeIf {it.grid==viewer.grid && it.rotation==null}
                 ?.let {TacticalMotionMessages.npc(u.id,it,snapshot.session?.gameSeconds ?: 0)}}} +
-        snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().mapNotNull {u ->u.support?.takeIf {it.grid==viewer.grid}?.let {order ->
-                val now=snapshot.session?.gameSeconds ?: 0
+        snapshot.planetStocks!!.outfits.values.filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o ->
+            val stocks=checkNotNull(snapshot.planetStocks)
+            val now=snapshot.session?.gameSeconds ?: 0
+            o.activeShips?.values.orEmpty().filter {it.boats>it.damaged}.mapNotNull {u ->u.support?.takeIf {order ->
+                order.grid==viewer.grid && order.character==TacticalAuthority.commander(o,u,stocks) &&
+                    !BattleDeath.deceased(stocks,order.character) && people.any {p->
+                        p.characterId==order.character && p.cpPaused && p.mode==5 && p.country !in eliminated &&
+                            (p.hull?.woundedUntil ?: 0)<=now &&
+                            TacticalAuthority.camp(p,stocks)==TacticalAuthority.camp(o,stocks)
+                    }
+            }?.let {order ->
                 TacticalSupportMessages.reply(TacticalSupportMessages.Command(
                     if(order.action==TacticalSupportAction.REPAIR)TacticalSupportMessages.Action.REPAIR else TacticalSupportMessages.Action.SUPPLY,
                     order.character,u.id,order.target),now,(order.readyAt-now).coerceAtLeast(0))
