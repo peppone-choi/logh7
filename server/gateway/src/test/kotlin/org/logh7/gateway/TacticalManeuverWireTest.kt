@@ -48,6 +48,11 @@ class TacticalManeuverWireTest {
         assertTrue(turns.all {ByteBuffer.wrap(it).getInt(10)==110})
         val ids=turns.flatMap {turn->TacticalTurnMessages.command(turn.copyOfRange(4,turn.size)).units.map {it.id}}
         assertEquals(if(reason=="oppositeCamp")listOf(1010000,1010001) else listOf(1010000),ids)
+        if(reason=="eliminated") {
+            val later=snapshot.copy(session=checkNotNull(snapshot.session).copy(gameSeconds=130))
+            val beforeSettlement=TacticalBootstrap(later,galaxy,living){null}.units.single {it.id==1}
+            assertEquals(ship.tactical?.motion?.origin?.direction,beforeSettlement.direction)
+        }
     }
 
     @ParameterizedTest @ValueSource(strings=["turn","left","right","legacy-right"])
