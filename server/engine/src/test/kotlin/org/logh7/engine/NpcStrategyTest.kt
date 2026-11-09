@@ -494,6 +494,79 @@ class NpcStrategyTest {
         assertEquals(ship,occupied.outfits.getValue(1).activeShips!!.values.single())
     }
 
+    @Test fun returningNpcRepairsSurvivorsAndPaysForRepairAndRefuelOnlyOnce() {
+        val alternate = galaxy.bases.single().copy(id = 1001, grid = 2488, name = "Alternate")
+        val world = Galaxy(galaxy.systems, galaxy.bases + alternate, galaxy.starts)
+        val initial = stocks()
+        val depot = initial.bases.getValue(1000)
+        val damaged = TacticalLosses.apply(initial.outfits.getValue(1), 1, 40)
+        val ship = damaged.activeShips!!.values.single()
+        val cost = TacticalSupportOperations.repairCost(ship.stack.kind).coerceAtLeast(1)
+        for (remote in listOf(false, true)) {
+            val fleet = damaged.copy(position = OutfitPosition(2487))
+            val baseId = if (remote) 1001 else 1000
+            val bases = if (remote) mapOf(1000 to depot.copy(supplies = 0), 1001 to depot.copy(baseId = 1001)) else initial.bases
+            val before = initial.copy(bases = bases, outfits = mapOf(1 to fleet))
+            val events = mutableListOf<NpcStrategicMovement>()
+            fun advanceWorld(at: Long, stocks: PlanetStocks) =
+                NpcStrategy.advance(simulation.copy(gameMillis = at * 1000), world, mutableMapOf(), stocks, events)
+
+            val decided = advanceWorld(0, before)
+            if (remote) assertEquals(bases, decided.bases)
+            val docked = if (remote) advanceWorld(3600, decided) else decided
+            val arrived = docked.outfits.getValue(1)
+            val repaired = arrived.activeShips!!.values.single()
+            val cargo = minOf(OutfitSupplies.unitCapacity(ship), ship.boats * 10)
+            val jump = if (remote) ship.boats else 0
+            assertEquals(OutfitPosition(if (remote) 2488 else 2487, baseId), arrived.position)
+            assertEquals(ship.id, repaired.id)
+            assertEquals(ship.boats, repaired.boats)
+            assertEquals(0, repaired.damaged)
+            assertEquals(cargo, arrived.supplies)
+            assertEquals(depot.supplies - cargo - ship.damaged * cost - jump, docked.bases.getValue(baseId).supplies)
+            assertEquals(docked, advanceWorld(7200, docked))
+        }
+    }
+
+    @Test fun dockedNpcRepairsOnlyAffordableDamageWithoutSpendingRoundTripFuel() {
+        val initial = stocks()
+        val depot = initial.bases.getValue(1000)
+        val damaged = TacticalLosses.apply(initial.outfits.getValue(1), 1, 40)
+        val ship = damaged.activeShips!!.values.single()
+        val cost = TacticalSupportOperations.repairCost(ship.stack.kind).coerceAtLeast(1)
+        val roundTrip = ship.boats * 2
+        for ((stock, expectedRepairs) in listOf(0 to 0, roundTrip to 0, (roundTrip + cost * 2 + cost - 1) to 2)) {
+            val before = initial.copy(bases = mapOf(1000 to depot.copy(supplies = stock)), outfits = mapOf(1 to damaged))
+            val events = mutableListOf<NpcStrategicMovement>()
+            val repaired = advance(0, before, mutableMapOf(), events)
+            assertEquals(ship.damaged - expectedRepairs, repaired.outfits.getValue(1).activeShips!!.values.single().damaged)
+            assertEquals(stock - expectedRepairs * cost, repaired.bases.getValue(1000).supplies)
+            val nextDecision = advance(21600, repaired, mutableMapOf(), events)
+            assertEquals(repaired.bases, nextDecision.bases)
+            assertEquals(repaired.outfits.getValue(1).activeShips, nextDecision.outfits.getValue(1).activeShips)
+            assertTrue(events.isEmpty())
+        }
+    }
+
+    @Test fun depotRepairSkipsGuardShipsAndHumanCommandedOutfits() {
+        val initial = stocks()
+        val damaged = TacticalLosses.apply(initial.outfits.getValue(1), 1, 40)
+        val human = damaged.copy(commanderId = 10001)
+        val option = GuardShips.options.first { it.power == Power.EMPIRE.country.value }
+        val ship = damaged.activeShips!!.values.single().copy(stack = UnitStack(option.baseKind))
+        val ships = ActiveShipUnits(listOf(ship))
+        val guard = damaged.copy(kind = OutfitKind.PATROL, activeShips = ships, guard = mapOf(ship.id to option.index),
+            units = UnitInventory(ships.quantities(), damaged.units.troops))
+        for (outfit in listOf(human, guard)) {
+            val warehouse = initial.warehouses.getValue(10)
+            val before = initial.copy(outfits = mapOf(1 to outfit), warehouses = mapOf(10 to if (outfit == guard)
+                warehouse.copy(kind = OutfitKind.PATROL, outfitId = 0) else warehouse))
+            val after = advance(0, before, mutableMapOf(), mutableListOf())
+            assertEquals(outfit.activeShips, after.outfits.getValue(1).activeShips)
+            assertEquals(before.bases, after.bases)
+        }
+    }
+
     @Test fun cancelledJumpCanDockAtTheCurrentGridWithoutSpendingJumpFuel() {
         val alternate=galaxy.bases.single().copy(id=1001,grid=2488,name="Alternate")
         val world=Galaxy(galaxy.systems,galaxy.bases+alternate,galaxy.starts)
