@@ -27,7 +27,9 @@ data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val s
     val operations:List<StrategicOperation> = emptyList(),
     /** U-15 transport packages, in the source warehouse or aboard a transport outfit. */
     val transports:List<TransportPackage> = emptyList(),
-    val capitals:Map<CountryId,Int> = emptyMap()) {
+    val capitals:Map<CountryId,Int> = emptyMap(),val lastTransportId:Int = 0) {
+    /** Legacy saves carry the floor implicitly in their remaining packages. */
+    internal val transportIdFloor:Int get()=maxOf(lastTransportId,transports.maxOfOrNull {it.id} ?: 0)
     val countryOffices:Boolean get()=capitals.isNotEmpty() || offices.any {it.country.value!=OrganizationOffices.all.getValue(it.card).power}
     init {
         require(people.size<=4096 && people.keys.all {it>0} && suppressions.size<=128)
@@ -39,6 +41,7 @@ data class StrategicState(val people:Map<Int,StrategicPerson> = emptyMap(),val s
         require(fiefs.size<=350 && fiefs.all {(base,owner)->base in 1..65535 && owner>0})
         require(operations.size<=256 && operations.distinctBy {it.id}.size==operations.size && operations.count {it.live}<=128)
         require(transports.size<=4096 && transports.distinctBy {it.id}.size==transports.size)
+        require(lastTransportId>=0 && (lastTransportId==0 || transports.all {it.id<=lastTransportId}))
     }
     /** Freeze nested collections as well as the top-level checkpoint before publication. */
     fun detached():StrategicState {

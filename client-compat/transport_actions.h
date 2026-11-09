@@ -1,6 +1,8 @@
 // Transport editor: 輸送計画 28 / 輸送中止 29 / 搬出入 65 (U-15). The CD has no window for them.
 // 28 sends base=source, target=destination, amount=supplies, value=unit kind (0xffff none), argument=unit count;
-// 29 target=package; 65 argument=transport outfit, target=package. Package rows read "destination/supplies[+][*]".
+// 29 target=package; 65 argument=transport outfit, target=package, value=commit intent copied from the selected row rank:
+// 1=load from warehouse, 2=unload from fleet, 0=preview or an older server whose rows carry neither.
+// Package rows read "destination/supplies[+][*]" and can be truncated, so the star (aboard a fleet) is only the fallback when rank is not 1 or 2.
 // Author: Peppone Choi.
 #pragma once
 static void strategyNextBase(int direction);
@@ -18,8 +20,14 @@ static bool transportCommand(unsigned command) {return command==28 || command==2
 static bool transportCard(unsigned command,unsigned card) {
     return command==65 ? card==44 || card==180 : card==24 || card==25 || card==150;
 }
+static const StrategyDirectory::Person* transportPackage() {
+    for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==taxWindow.strategyTarget)return &strategyDirectory.people[i];
+    return nullptr;
+}
 static void sendTransportAction(bool preview,unsigned cursor=0) {
     auto& state=taxWindow;auto& transport=transportWindow;unsigned command=state.strategyCommand;
+    auto cargo=command==65 && !preview ? transportPackage() : nullptr;
+    if(command==65 && !preview && !cargo)return;
     BYTE record[36]={};at<unsigned>(record,0)=state.character;
     at<unsigned short>(record,4)=0x7f00;at<unsigned short>(record,6)=static_cast<unsigned short>(command);
     at<unsigned short>(record,8)=static_cast<unsigned short>(state.card);
@@ -31,6 +39,7 @@ static void sendTransportAction(bool preview,unsigned cursor=0) {
     } else {
         at<unsigned>(record,12)=preview ? cursor : state.strategyTarget;
         if(command==65)at<unsigned>(record,20)=state.strategyOutfit;
+        if(cargo)at<unsigned short>(record,10)=cargo->rank==1 || cargo->rank==2 ? static_cast<unsigned short>(cargo->rank) : 0;
     }
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
@@ -58,10 +67,11 @@ static bool readTransportAction(void* record) {
         reply==6 ? (command==65 ? L"기함과 수송함대를 함께 정박시키세요. 반입은 수송처 또는 목적지 상실 시 다른 아군 거점." : L"수송원 거점이 아군 거점이 아닙니다.") :
         reply==7 ? (command==29 ? L"이미 수송함대에 실은 패키지는 중지할 수 없습니다." : L"진행 중인 작업이 끝난 뒤 실행하십시오.") :
         reply==8 ? L"수송함대의 물자 탑재량 또는 유닛 칸이 부족합니다." :
-        reply==9 ? L"이 거점의 열린 패키지가 20개에 도달했습니다." :
+        reply==9 ? (command==28 ? L"이 거점의 열린 패키지가 20개에 도달했습니다." : L"창고의 물자 또는 유닛 한도를 넘겨 처리하지 못했습니다. 여유를 만든 뒤 다시 시도하세요.") :
         reply==11 ? L"CP가 부족합니다." :
         reply==13 ? L"수송원 창고의 물자나 유닛이 부족합니다." :
         reply==15 ? (command==28 ? L"수송원·수송처는 서로 다른 아군 거점이어야 합니다." : L"패키지가 없거나 이미 처리됐습니다. 목록을 갱신하세요.") :
+        reply==17 ? L"화물 상태가 바뀌었습니다. 목록을 갱신한 뒤 다시 시도하세요." :
         reply ? L"명령 거부 · 직무·장소·대상·CP를 확인하세요." :
         command==28 ? L"수송 패키지를 만들어 수송원 수송 창고에 두었습니다." :
         command==29 ? L"수송을 중지하고 패키지를 수송원 창고로 되돌렸습니다." : L"반출입을 마쳤습니다.";
@@ -70,10 +80,6 @@ static bool readTransportAction(void* record) {
     else swprintf_s(transportWindow.receipt,L"패키지 %u · %ls",state.strategyTarget,state.message);
     if(!reply && command!=28)transportWindow.refresh=true;
     memset(static_cast<BYTE*>(record)+4,0,32);return true;
-}
-static const StrategyDirectory::Person* transportPackage() {
-    for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==taxWindow.strategyTarget)return &strategyDirectory.people[i];
-    return nullptr;
 }
 static bool transportExecutable() {
     auto& state=taxWindow;
@@ -137,7 +143,7 @@ static void drawTransportAction() {
         if(pack) {
             pickerName(destination,name);
             swprintf_s(label,L"패키지 %u → %ls",pack->id,name[0] ? name : L"-");taxText(3,label);
-            bool units=wcschr(pack->name,L'+')!=nullptr,aboard=wcschr(pack->name,L'*')!=nullptr;
+            bool units=wcschr(pack->name,L'+')!=nullptr,aboard=pack->rank==2 || pack->rank!=1 && wcschr(pack->name,L'*')!=nullptr;
             swprintf_s(label,L"%ls %u%ls · %ls",aboard ? L"출항 물자" : L"군수물자",supplies,units ? L" + 유닛" : L"",aboard ? L"적재 중(반입 대상)" : L"수송 창고(반출 대상)");
             taxText(4,label);
         } else {taxText(3,L"선택할 패키지가 없습니다.");taxText(4,L"");}

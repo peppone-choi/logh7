@@ -49,7 +49,11 @@ class TransportActionsTest {
         assertEquals(StrategyActionRejection.LOCATION,act(load(pack.id),aboard).rejection,"while the destination holds, only it accepts the cargo")
         // The alliance takes the destination while the package is aboard: the carrier unloads back at Odin instead.
         val captured=aboard.copy(bases=aboard.bases+(1050 to aboard.bases.getValue(1050).copy(owner=Allegiance.fromLegacy(3))))
-        val rerouted=act(load(pack.id),captured);assertNull(rerouted.rejection)
+        val staleLoad=act(load(pack.id).copy(value=1),captured)
+        assertEquals(StrategyActionRejection.QUOTE_CHANGED,staleLoad.rejection)
+        assertEquals(captured,staleLoad.stocks)
+        assertEquals(captain,staleLoad.player)
+        val rerouted=act(load(pack.id).copy(value=2),captured);assertNull(rerouted.rejection)
         val after=assertNotNull(rerouted.stocks);assertTrue(after.strategic.transports.isEmpty())
         assertEquals(5000,after.bases.getValue(1049).supplies);assertEquals(4,after.bases.getValue(1049).units.ships[cargo])
         assertEquals(100,after.bases.getValue(1050).supplies,"the enemy receives nothing")
@@ -66,6 +70,52 @@ class TransportActionsTest {
         val after=assertNotNull(act(load(id),half).stocks)
         assertEquals(100+1000*(boats/2)/boats,after.bases.getValue(1050).supplies);assertEquals(1,after.bases.getValue(1050).units.ships[cargo])
     }
+    @Test fun fullWarehousesRejectCancellationAndUnloadingWithoutConsumingThePackageOrCp() {
+        val planned=assertNotNull(act(plan(),stocks()).stocks)
+        val pack=planned.strategic.transports.single()
+        val source=planned.bases.getValue(1049).copy(supplies=Int.MAX_VALUE)
+        val fullSource=planned.copy(bases=planned.bases+(1049 to source))
+        val cancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=pack.id)
+        val cancelled=act(cancel,fullSource)
+        assertEquals(StrategyActionRejection.MAXIMUM,cancelled.rejection)
+        assertEquals(fullSource,cancelled.stocks)
+        assertEquals(officer,cancelled.player)
+
+        val aboard=assertNotNull(act(load(pack.id),planned).stocks)
+        val destination=aboard.bases.getValue(1050).copy(units=UnitInventory(ships=mapOf(cargo to 65535)))
+        val moved=aboard.copy(bases=aboard.bases+(1050 to destination),outfits=aboard.outfits+
+            (200 to aboard.outfits.getValue(200).copy(position=OutfitPosition(2488,1050))))
+        val unloaded=act(load(pack.id),moved)
+        assertEquals(StrategyActionRejection.MAXIMUM,unloaded.rejection)
+        assertEquals(moved,unloaded.stocks)
+        assertEquals(captain.copy(grid=2488,baseId=1050),unloaded.player)
+        val free=destination.copy(units=UnitInventory(ships=mapOf(cargo to 65533)))
+        val retried=assertNotNull(act(load(pack.id),moved.copy(bases=moved.bases+(1050 to free))).stocks)
+        assertEquals(65535,retried.bases.getValue(1050).units.ships[cargo])
+        assertTrue(retried.strategic.transports.isEmpty())
+    }
+
+    @Test fun cancelledPackageIdCannotTargetAReplacement() {
+        val initial=stocks()
+        val legacy=initial.copy(strategic=initial.strategic.copy(
+            transports=listOf(TransportPackage(41,CountryId(2),1049,1050,1))))
+        val legacyCancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=41)
+        val clearedLegacy=assertNotNull(act(legacyCancel,legacy).stocks)
+        assertTrue(clearedLegacy.strategic.transports.isEmpty())
+        val planned=assertNotNull(act(plan(),clearedLegacy).stocks)
+        val first=planned.strategic.transports.last()
+        assertEquals(42,first.id)
+        val cancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=first.id)
+        val cancelled=assertNotNull(act(cancel,planned).stocks)
+        val replacement=assertNotNull(act(plan(),cancelled).stocks)
+        assertEquals(listOf(43),replacement.strategic.transports.map {it.id})
+        assertEquals(StrategyActionRejection.TARGET,act(cancel,replacement).rejection)
+        assertEquals(StrategyActionRejection.TARGET,act(load(first.id),replacement).rejection)
+
+        val exhausted=initial.copy(strategic=initial.strategic.copy(lastTransportId=Int.MAX_VALUE))
+        assertEquals(StrategyActionRejection.MAXIMUM,act(plan(),exhausted).rejection)
+    }
+
     @Test fun cardsStockCapacityAndThePerBaseLimitAreChecked() {
         assertEquals(StrategyActionRejection.CARD,act(plan().copy(card=24),stocks()).rejection)
         assertEquals(StrategyActionRejection.RESOURCE,act(plan(supplies=6000),stocks()).rejection)
@@ -87,7 +137,7 @@ class TransportActionsTest {
         val otherPack=loaded.strategic.transports.single().copy(id=2,carrier=201)
         val aboard=loaded.copy(outfits=loaded.outfits+(201 to other),
             warehouses=loaded.warehouses+(301 to OutfitWarehouse(301,2,OutfitKind.TRANSPORT,1049,201)),
-            nextShipId=3,strategic=loaded.strategic.copy(transports=loaded.strategic.transports+otherPack))
+            nextShipId=3,strategic=loaded.strategic.copy(transports=loaded.strategic.transports+otherPack,lastTransportId=otherPack.id))
         val store=object:PlanetStockStore {
             var saved=aboard
             override fun load()=saved

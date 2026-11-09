@@ -119,8 +119,9 @@ object StrategyActionMessages {
         else if(coup)require(argument==0 && amount==0 && value==0 && base==0 && (if(command==72)card in 1..260 && !preview && target==0
             else card==0 && (if(command==89)preview || target>0 else !preview && target==0)))
         // U-15 transport: 28 base=source, target=destination, amount=supplies, value=unit kind (0xffff none),
-        // argument=unit count; 29 target=package; 65 argument=transport outfit, target=package. Previews list packages.
-        else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && value==0 && base==0 && amount==0 &&
+        // argument=unit count; 29 target=package; 65 argument=transport outfit, target=package.
+        // Command 65 commits: value 1 loads, 2 unloads, and 0 keeps legacy behavior. Previews use 0.
+        else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && (if(preview)value==0 else value in 0..2) && base==0 && amount==0 &&
                 (preview || target>0)
             else card in setOf(24,25,150) && (if(command==28)!preview && base in 1..65535 && target in 1..65535 &&
                 (value==0xffff) == (argument==0) && argument in 0..65535 && (value==0xffff || value in 0..199 || value in 1000..1015)

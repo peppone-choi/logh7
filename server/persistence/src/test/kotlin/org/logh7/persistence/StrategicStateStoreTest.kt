@@ -134,4 +134,16 @@ class StrategicStateStoreTest {
         assertTrue(encoded.substringBefore('|').endsWith(":0,127:0:0:6"))
         assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(encoded.replace(":0,127:0:0:6",":0,127:0:0:0"))}
     }
+    @Test fun transportSequenceSurvivesAnEmptyPackageList() {
+        val state=StrategicState(lastTransportId=42)
+        val encoded=StrategicStateCodec.encode(state)
+        assertEquals(state,StrategicStateCodec.decode(encoded))
+        val checkpoint=stocks.copy(strategic=state)
+        val path=directory.resolve("transport-sequence.tsv")
+        FilePlanetStockStore(path).use {it.save(checkpoint)}
+        FilePlanetStockStore(path).use {assertEquals(checkpoint,it.load())}
+        assertEquals(0,StrategicStateCodec.decode("-|-|-|-|-").lastTransportId)
+        assertFailsWith<IllegalArgumentException> {StrategicStateCodec.decode(encoded.replace("@42","@0"))}
+    }
+
 }
