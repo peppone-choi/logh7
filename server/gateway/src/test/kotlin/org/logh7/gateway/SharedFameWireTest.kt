@@ -70,6 +70,8 @@ class SharedFameWireTest {
                     val carried=CharacterStores(root.resolve("characters.properties")).get(2).profiles().getValue("load-000")
                     assertEquals(Power.ALLIANCE.country,carried.country)
                     assertEquals(ShipStyleId("alliance"),carried.shipStyle)
+                    assertEquals(3,carried.character.power)
+                    assertTrue(carried.canEnterNativeCountry())
                     assertEquals(0,f.engine.snapshot().session!!.online)
                 }
             }
