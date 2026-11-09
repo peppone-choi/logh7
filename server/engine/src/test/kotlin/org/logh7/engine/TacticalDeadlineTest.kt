@@ -10,6 +10,31 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredFleetShotFiresBetweenPeriodicTicks() = runTest {
+        val rig=Rig(this,testScheduler,fleetFireDeadline=true)
+        val impacts=mutableListOf<TacticalImpact>()
+        fun ship()=rig.engine.snapshot().planetStocks!!.outfits.getValue(1).activeShips!!.values.single()
+        rig.engine.observeCombat(impacts::add).use {
+            try {
+                rig.engine.submit(WorldCommand.Probe);runCurrent()
+                advanceTimeBy(624);runCurrent()
+                assertTrue(impacts.isEmpty())
+                val before=ship()
+                assertNotNull(before.shot)
+                advanceTimeBy(1);runCurrent()
+                assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+                val hit=impacts.single()
+                assertEquals(1,hit.source)
+                assertEquals(1010001,hit.hit.target)
+                val after=ship()
+                assertNull(after.shot)
+                assertNotNull(after.reload)
+                assertTrue(after.supplies!!<before.supplies!!)
+                advanceTimeBy(375);runCurrent()
+                assertEquals(1,impacts.size)
+            } finally {rig.engine.drainAndClose()}
+        }
+    }
     @Test fun restoredFlagshipShotFiresBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,fireDeadline=true)
         val impacts=mutableListOf<TacticalImpact>()
@@ -126,7 +151,7 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
-        supportDeadline:Boolean=false,fireDeadline:Boolean=false) {
+        supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -137,16 +162,26 @@ class TacticalDeadlineTest {
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         init {
-            if(fireDeadline) {
+            if(fireDeadline || fleetFireDeadline) {
                 fun at(y:Float):TacticalMotion {
                     val point=TacticalPoint(180f,y)
                     return TacticalMotion(2488,start,TacticalPose(point,0f),0f,0f,listOf(point))
                 }
                 val pilot=players.getValue("pilot").copy(motion=at(-97f),charge=TacticalCharge(start,24000),
-                    fire=TacticalFire(1,TacticalPendingFire(1,2488,0,1010001,start,start+15)))
+                    fire=if(fireDeadline)TacticalFire(1,TacticalPendingFire(1,2488,0,1010001,start,start+15)) else null)
                 val enemy=Navigator(1,10001,Power.ALLIANCE,2488,1000,1000,1000,
                     cpPaused=true,hull=FlagshipHull(89,start),motion=at(-95f))
                 players=mapOf("pilot" to pilot,"enemy" to enemy)
+                if(fleetFireDeadline) {
+                    val stack=UnitStack(32)
+                    val ship=ActiveShipUnit(1,stack,tactical=NpcTacticalState(at(-96.5f),start,start),supplies=5000,
+                        shot=TacticalUnitShot(10000,TacticalWeapon.GUN,enemy.unitId,start,start+15))
+                    val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
+                        units=UnitInventory(mapOf(stack to 1)),supplies=5000,activeShips=ActiveShipUnits(listOf(ship)),
+                        position=OutfitPosition(2488))
+                    stocks=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
+                        warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
+                }
             }
             if(supportDeadline) {
                 val pilot=players.getValue("pilot")
