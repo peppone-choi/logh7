@@ -113,6 +113,28 @@ class OfflineNavigationSettlementTest {
     }
     private val profile = StrategicPerson(abilities = List(8) { 50 })
 
+    @Test fun worldClockDoesNotCompleteADeceasedCaptainsSavedRefill() = runBlocking {
+        val pilot = Navigator(1, 10000, Power.ALLIANCE, 2487, 1000, 1000, 999, cpRecoveryAt = start)
+        val world = World(world().stocks, pilot)
+        val nav = Navigation(fleetGalaxy, world.nav, NavigationPolicy())
+        val reserved = assertNotNull(nav.apply(fleetRequest.copy(supplyFuel = true), fleetSession).player).copy(mcpUsed = 0)
+        world.players = mapOf("pilot" to reserved)
+        val readyAt = assertNotNull(reserved.fuelReadyAt)
+        world.stocks = BattleDeath.apply(world.stocks, listOf(pilot.characterId), start) { _, _ -> true }
+        val engine = WorldEngine(this, ticking = false, galaxy = fleetGalaxy, navigationStore = world.nav,
+            stockStore = world.inventory, worldStateCommitter = world.commit, npcPolicy = NpcTacticalPolicy(enabled = false))
+        try {
+            val joined = CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot", Power.ALLIANCE, false, joined, "c", 1, profile))
+            assertEquals(Admission.ACCEPTED, joined.await())
+            engine.submit(WorldCommand.Disconnect("pilot", "c"))
+            engine.submit(WorldCommand.AdvanceTo((readyAt - start) * 1000 / rules.speed + 1))
+            val saved = CompletableDeferred<Navigator>()
+            engine.submit(WorldCommand.Quiesce({ world.players.getValue("pilot") }, saved))
+            assertEquals(reserved, saved.await())
+        } finally { engine.drainAndClose() }
+    }
+
     @Test fun aReservedFleetWarpWaitsForOfflineCommanderRecoveryAndThenNotifiesViewers() = runBlocking {
         val world = world()
         val reserved = reservedWarp(world)

@@ -5,6 +5,7 @@ internal object FleetNavigation {
     fun apply(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
         production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?,
         initialProfile:StrategicPerson?=null,blocked: (Int) -> Boolean): NavigationResult {
+        if (BattleDeath.deceased(stocks, request.characterId)) return navigation.apply(request, session, stocks)
         val players = navigation.snapshot(session.generation)
         val before = players[request.account]
         // Manual pp.60/75: Kircheis is the aide of the Empire's Second Fleet at Odin.

@@ -208,12 +208,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (session.ended != null || member.country in session.eliminated || session.generation != request.generation ||
             (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
             return reject(NavigationRejection.SESSION)
-        if (request.tacticalRetreat != null && BattleDeath.deceased(stocks,request.characterId))
-            return reject(NavigationRejection.IDENTITY)
         if (member.country != request.country) return reject(NavigationRejection.IDENTITY)
-        if (request.tacticalMove != null && BattleDeath.deceased(stocks,request.characterId))
-            return reject(NavigationRejection.IDENTITY)
-        if (persist) settleRetreats(session, stocks)
+        val deceased = BattleDeath.deceased(stocks,request.characterId)
+        if (persist && !deceased) settleRetreats(session, stocks)
         // U-11: a dead character's navigator gives way to the account's next character.
         val existing = players[request.account]?.takeIf { it.generation == request.generation &&
             !(it.characterId != request.characterId && BattleDeath.deceased(stocks,it.characterId)) }
@@ -221,6 +218,17 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             return reject(NavigationRejection.IDENTITY)
         if(existing!=null && request.shipStyle!=null && existing.shipStyle!=request.shipStyle)
             return reject(NavigationRejection.IDENTITY)
+        if (deceased) {
+            current = existing
+            if (existing == null || request.offlineSettle || request.destination != null || request.place != null ||
+                request.supplyFuel || request.returnBase != null || request.offlineDirection != null ||
+                request.tactical != null || request.energy != null || request.tacticalMove != null ||
+                request.tacticalStop != null || request.tacticalRetreat != null || request.tacticalShoot != null ||
+                request.tacticalAttack != null || request.tacticalSupport != null || request.tacticalPosture != null ||
+                request.tacticalGround != null || request.tacticalCommand != null)
+                return reject(NavigationRejection.IDENTITY)
+            return NavigationResult(existing, existing)
+        }
         // Offline settlement only finishes existing work; it never creates a flagship for an absent captain.
         if (request.offlineSettle && existing == null) return reject(NavigationRejection.SESSION)
         val countries=configuredCountries ?: CountryCatalogLoader.current()
