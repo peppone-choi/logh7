@@ -39,6 +39,19 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun detainedCommanderCannotDelegateOrChooseAutomaticTargets() {
+        val players=players()
+        val pilot=players.getValue("pilot")
+        val plain=stocks()
+        val detention=Detention(pilot.characterId,Power.EMPIRE.country,now,now+Justice.DAY)
+        val detained=plain.copy(social=plain.social.copy(justice=JusticeState(detentions=mapOf(pilot.characterId to detention))))
+        val events=mutableListOf<TacticalCommandResult>()
+        assertEquals(detained,TacticalOfflineAi.advance(offline,galaxy,players,detained,1,events))
+        assertEquals(pilot,players.getValue("pilot"))
+        assertTrue(events.isEmpty())
+        assertTrue(TacticalOfflineAi.automaticTargets(offline,"pilot",pilot,detained,listOf(99)).isEmpty())
+    }
+
     @Test fun pendingManualRotationsSurviveOfflineAiAndShipsResumeAfterCompletion() {
         val pilots=players()
         val pilot=pilots.getValue("pilot")

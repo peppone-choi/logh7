@@ -86,6 +86,7 @@ internal object TacticalCombat {
         fun reject(reason: NavigationRejection) = NavigationResult(null, player, reason)
         if (committer == null) return reject(NavigationRejection.DISABLED)
         if (BattleDeath.deceased(stocks, player.characterId)) return reject(NavigationRejection.IDENTITY)
+        if(stocks.social.justice.detained(player.characterId))return reject(NavigationRejection.BUSY)
         if (!player.cpPaused || player.baseId != 0 || player.mode != 5) return reject(NavigationRejection.TACTICAL)
         val shoot = checkNotNull(request.tacticalShoot)
         if (shoot.units != listOf(player.unitId)) return reject(NavigationRejection.UNIT)
@@ -120,6 +121,7 @@ internal object TacticalCombat {
         fun reject(reason:NavigationRejection)=NavigationResult(null,player,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(BattleDeath.deceased(stocks,player.characterId))return reject(NavigationRejection.IDENTITY)
+        if(stocks.social.justice.detained(player.characterId))return reject(NavigationRejection.BUSY)
         if(!player.cpPaused || player.baseId!=0 || player.mode!=5)return reject(NavigationRejection.TACTICAL)
         val command=checkNotNull(request.tacticalAttack)
         if(command.units!=listOf(player.unitId) || player.hull?.kind!=request.shipKind)return reject(NavigationRejection.UNIT)
@@ -262,7 +264,8 @@ internal object TacticalCombat {
         for((account,player) in original) {
             if((player.attack!=null || player.fire?.pending!=null) &&
                 (player.country in session.eliminated || session.participants[account]?.country in session.eliminated ||
-                    BattleDeath.deceased(stocks,player.characterId) || (player.hull?.woundedUntil ?: 0)>now))
+                    BattleDeath.deceased(stocks,player.characterId) || stocks.social.justice.detained(player.characterId) ||
+                    (player.hull?.woundedUntil ?: 0)>now))
                 players[account]=players.getValue(account).copy(attack=null,fire=player.fire?.copy(pending=null))
         }
         clearFinishedOrders(players,galaxy,stocks,now,session.eliminated.keys)
