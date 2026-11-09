@@ -45,7 +45,7 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         stocks.tacticalCommands.orders.filter {order ->
             val actor=actors[order.character]?.singleOrNull()
             order.grid==viewer.grid && snapshot.session?.ended==null && actor!=null && actor.country !in eliminated &&
-                !BattleDeath.deceased(stocks,actor.characterId) &&
+                !BattleDeath.deceased(stocks,actor.characterId) && !stocks.social.justice.detained(actor.characterId) &&
                 (actor.hull?.woundedUntil ?: 0)<=(snapshot.session?.gameSeconds ?: 0) &&
                 (order.command.base!=0 || actor.cpPaused && actor.baseId==0 && actor.mode==5)
         }
