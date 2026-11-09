@@ -164,6 +164,23 @@ internal object TacticalSupportOperations {
         production.publishCommitted(stocks,prepared)
         return NavigationResult(player,preview.previous,supportReadyAt=order.readyAt)
     }
+    fun offlineFlagshipOrder(outfit:OutfitStock,unit:ActiveShipUnit,player:Navigator,now:Long,scale:Long,
+        players:Map<String,Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalSupportOrder? {
+        val type=UnitSpecifications.ships.single {it.kind==unit.stack.kind}.type
+        val action=when(type) {
+            11 -> TacticalSupportAction.REPAIR
+            12 -> TacticalSupportAction.SUPPLY
+            else -> return null
+        }
+        val order=TacticalSupportOrder(action,player.characterId,player.unitId,player.grid,now,now+5*scale)
+        if(!eligible(Ship(outfit,unit),player,order,now,players,stocks,galaxy) || !needed(order,players,stocks))return null
+        val available=OutfitSupplies.distribution(outfit).getValue(unit.id)
+        if(action==TacticalSupportAction.SUPPLY)return order.takeIf {available>0}
+        val cost=UnitSpecifications.ships.single {it.kind==checkNotNull(player.hull).kind}
+            .number("修理消費物資(１隻):修理消費物資(１隻)")
+        return order.takeIf {cost in 1..available}
+    }
+
     private fun needed(order: TacticalSupportOrder, players: Map<String,Navigator>, stocks: PlanetStocks): Boolean {
         val personal=players.values.singleOrNull {it.unitId==order.target}
         if(personal!=null)return if(order.action==TacticalSupportAction.SUPPLY)personal.supplies<10000 else personal.hull!!.hp<100
