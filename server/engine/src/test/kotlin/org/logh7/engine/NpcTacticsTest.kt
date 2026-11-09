@@ -25,6 +25,41 @@ class NpcTacticsTest {
         }
     }
 
+    @Test fun autonomousFireSkipsCloserFlagshipsAndOutfitsOfEliminatedCountries() {
+        val eliminated = CountryId(42)
+        val combat = session.copy(eliminated = mapOf(eliminated to CountryDefeat(EndReason.SYSTEMS_REDUCED, now)))
+        val state = state()
+        val original = state.stocks.outfits.getValue(1)
+        val unit = original.activeShips!!.values.single()
+        val pilot = state.players.getValue("pilot")
+        fun pose(x: Float, y: Float, heading: Float = 0f): TacticalMotion {
+            val point = TacticalPoint(x, y)
+            return TacticalMotion(2488, now, TacticalPose(point, heading), 0f, heading, listOf(point))
+        }
+        val shooter = unit.copy(tactical = NpcTacticalState(pose(-178f, -95f, (-Math.PI / 2).toFloat()), now + 1, now))
+        val firing = original.copy(activeShips = ActiveShipUnits(listOf(shooter)))
+        val near = pose(-180f, -94.6f)
+        for (flagship in listOf(true, false)) {
+            val players = mutableMapOf("pilot" to pilot.copy(motion = pose(-182.5f, -95f)))
+            val outfits = mutableMapOf(1 to firing)
+            if (flagship) {
+                players["eliminated"] = pilot.copy(characterId = 10001, country = eliminated, motion = near)
+            } else {
+                val ship = unit.copy(id = 2, tactical = NpcTacticalState(near, now + 1, now))
+                outfits[2] = original.copy(id = 2, country = eliminated, warehouseId = 11,
+                    activeShips = ActiveShipUnits(listOf(ship)))
+            }
+            val warehouses = state.stocks.warehouses.let {
+                if (flagship) it else it + (11 to it.getValue(10).copy(id = 11, country = eliminated, outfitId = 2))
+            }
+            val stocks = state.stocks.copy(outfits = outfits, warehouses = warehouses, nextShipId = 3)
+            val impacts = mutableListOf<TacticalImpact>()
+            NpcTactics.advance(combat, galaxy, players, stocks,
+                NpcTacticalPolicy(behavior = { _, _ -> NpcCombatBehavior.PRECISION }), 24, impacts, mutableListOf())
+            assertEquals(setOf(pilot.unitId), impacts.map { it.hit.target }.toSet())
+        }
+    }
+
     @Test fun aStarHidesTargetsFromOutsideObserversButAllowsFireInsideTheSensorCircle() {
         val world=Galaxy(galaxy.systems.map { if(it.grid==2488)it.copy(star=0) else it },galaxy.bases,galaxy.starts)
         val heading=(-Math.PI/2).toFloat()
