@@ -108,16 +108,17 @@ internal object BaseOccupationOperations {
             val expelled=linkedMapOf<String,Navigator>()
             var offset=0
             for((account,p) in players.toMap()) {
+                if(p.generation!=session.generation)continue
+                var next=if(p.returnBase==base.id && !TacticalAuthority.ownsBase(p,occupied.owner,occupied.camp,
+                    CoupActions.camp(stocks,p.characterId,p.country)))
+                    p.copy(returnBase=0) else p
                 val displaced=when(val owner=previous.owner) {
                     is Allegiance.Independent -> p.country==null && p.characterId==owner.characterId
                     is Allegiance.Country -> TacticalAuthority.camp(p,stocks)==losingSide
                     else -> false
                 }
-                if(p.generation!=session.generation || !displaced)continue
-                var next=p
-                if(p.returnBase==base.id)next=next.copy(returnBase=0)
-                if(p.dockTarget==base.id)next=next.copy(dockTarget=null,strategy=null)
-                if(p.baseId==base.id && p.grid==base.grid) {
+                if(displaced && p.dockTarget==base.id)next=next.copy(dockTarget=null,strategy=null)
+                if(displaced && p.baseId==base.id && p.grid==base.grid) {
                     val centre=TacticalBasePosition.at(base,now,stocks)
                     val point=TacticalPoint(centre.x+base.diameter+2f+offset++*2f,centre.y)
                     val pose=TacticalPose(point,0f)
