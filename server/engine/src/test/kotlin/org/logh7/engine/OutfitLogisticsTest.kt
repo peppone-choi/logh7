@@ -96,6 +96,41 @@ class OutfitLogisticsTest {
         assertEquals(LogisticsRejection.STOCK,result.rejection)
         assertEquals(before,f.store.saved);assertEquals(writes,f.store.writes)
     }
+    @Test fun loadedTransportCanReorganizeWithoutReturningLiveBoats() {
+        val f=Fixture()
+        val hull=UnitStack(76)
+        val spec=UnitSpecifications.ships.single {it.kind==hull.kind}
+        val per=spec.number("必要乗組員ユニット数:必要乗組員ユニット数")
+        fun crewMove(count:Int)=if(per==0)emptyMap() else mapOf(crew to count*per)
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,hull),ActiveShipUnit(2,hull),ActiveShipUnit(3,hull,boats=0)))
+        val original=f.store.saved
+        val outfit=original.outfits.getValue(1).copy(kind=OutfitKind.TRANSPORT,activeShips=ships,
+            units=UnitInventory(ships.quantities(),crewMove(2)))
+        val packageAboard=TransportPackage(1,outfit.country,1000,1001,100,carrier=1,carrierBoats=2*spec.number)
+        f.store.saved=original.copy(outfits=original.outfits+(1 to outfit),
+            warehouses=original.warehouses+(101 to original.warehouses.getValue(101).copy(kind=OutfitKind.TRANSPORT,
+                units=UnitInventory(mapOf(hull to 1),crewMove(1)))),
+            strategic=original.strategic.copy(transports=listOf(packageAboard),lastTransportId=1),nextShipId=4)
+        f.production=PlanetProduction(f.galaxy,f.store,f.rules.startSeconds,PlanetProductionPolicy())
+        val request=f.prepare(f.request())
+        val before=f.store.saved
+        val writes=f.store.writes
+        val reduction=UnitTransfer(mapOf(hull to -2),crewMove(-1))
+        assertFailsWith<IllegalArgumentException> {Reorganization.capacity(before,1,reduction)}
+        assertEquals(LogisticsRejection.STOCK,f.act(request.copy(transfer=reduction)).rejection)
+        assertSame(before,f.store.saved)
+        assertEquals(writes,f.store.writes)
+
+        val unchanged=assertNotNull(f.act(request.copy(transfer=UnitTransfer(mapOf(hull to -1)))).stocks)
+        assertEquals(2,unchanged.outfits.getValue(1).activeShips!!.values.size)
+        assertEquals(2*spec.number,TransportActions.boats(unchanged.outfits.getValue(1)))
+        assertEquals(listOf(packageAboard),unchanged.strategic.transports)
+
+        val growth=f.prepare(f.request()).copy(transfer=UnitTransfer(mapOf(hull to 1),crewMove(1)))
+        val expanded=assertNotNull(f.act(growth).stocks)
+        assertEquals(3*spec.number,TransportActions.boats(expanded.outfits.getValue(1)))
+        assertEquals(listOf(packageAboard),expanded.strategic.transports)
+    }
     private val ship = UnitStack(32)
     private val crew = UnitStack(3)
     private class Store(var saved: PlanetStocks) : PlanetStockStore {
