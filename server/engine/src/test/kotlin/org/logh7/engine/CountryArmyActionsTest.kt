@@ -1,5 +1,7 @@
 package org.logh7.engine
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.*
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -86,6 +88,39 @@ class CountryArmyActionsTest {
         assertEquals(pending.bases,settle(pending,due,defected).bases)
         assertEquals(pending.bases,settle(pending,due,eliminated=setOf(a)).bases)
         assertEquals(pending.bases,StrategyActions.settle(pending,due,galaxy,players.values).bases,"removed definitions cannot finish the job")
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun restoredSuppressionSettlesAtItsDeadlineBetweenPeriodicTicks() = runTest {
+        val legacy=CountryId(2)
+        val source=stocks()
+        var saved=source.copy(
+            bases=source.bases.mapValues {(_,base)->base.copy(owner=Allegiance.Country(legacy))},
+            outfits=source.outfits.mapValues {(_,outfit)->outfit.copy(country=legacy)},
+            warehouses=source.warehouses.mapValues {(_,warehouse)->warehouse.copy(country=legacy)},
+            strategic=StrategicState(suppressions=listOf(SuppressionOrder(10000,201,1000,legacy,15))))
+        val engine=WorldEngine(this,SessionRules.load(),galaxy=galaxy,monotonicMillis={testScheduler.currentTime},
+            navigationStore=object:NavigationStore {
+                override fun load()=mapOf("actor" to player.copy(country=legacy))
+                override fun save(players:Map<String,Navigator>) {}
+            },
+            stockStore=object:PlanetStockStore {
+                override fun load()=saved
+                override fun save(stocks:PlanetStocks){saved=stocks}
+            })
+        try {
+            engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(624);runCurrent()
+            assertEquals(80,saved.bases.getValue(1000).economy?.peace)
+            assertEquals(1,saved.strategic.suppressions.size)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(15L,engine.snapshot().session!!.gameSeconds)
+            assertEquals(85,saved.bases.getValue(1000).economy?.peace)
+            assertEquals(68,saved.bases.getValue(1000).economy?.approval)
+            assertTrue(saved.strategic.suppressions.isEmpty())
+            advanceTimeBy(375);runCurrent()
+            assertEquals(85,saved.bases.getValue(1000).economy?.peace)
+        } finally {engine.drainAndClose()}
     }
 
     @Test fun productionSettlementReceivesTheSessionDefeatEvenWhenTheArmyStillOwnsTheBase() {
