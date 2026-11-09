@@ -10,6 +10,21 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredPersonalRetreatCompletesBetweenPeriodicTicks() = runTest {
+        val rig=Rig(this,testScheduler,retreatDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(624);runCurrent()
+            assertEquals(2488,rig.players.getValue("pilot").grid)
+            advanceTimeBy(1);runCurrent()
+            val player=rig.players.getValue("pilot")
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(2487,player.grid)
+            assertNull(player.retreat)
+            assertEquals(1,player.moves)
+            assertEquals(player,rig.engine.snapshot().navigators.getValue("pilot"))
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun restoredPostureAloneSchedulesCompletionBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,postureDeadline=true)
         val events=mutableListOf<TacticalPostureResult>();rig.engine.observePostures(events::add)
@@ -91,7 +106,8 @@ class TacticalDeadlineTest {
             assertFailsWith<IllegalStateException>{rig.engine.synchronizeTime()}
         } finally {rig.engine.drainAndClose()}
     }
-    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false) {
+    private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
+        retreatDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -101,6 +117,17 @@ class TacticalDeadlineTest {
                 listOf(TacticalPoint(0f,10f)),turnRate=1f).let {if(postureDeadline)it.copy(velocity=0f) else it},
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
+        init {
+            if(retreatDeadline) {
+                val point=TacticalPoint(-300f,0f)
+                val motion=TacticalMotion(2488,start,TacticalPose(point,0f),0f,0f,listOf(point))
+                val pilot=players.getValue("pilot").copy(motion=motion,energy=TacticalEnergy(listOf(0,50)+List(9){0}),
+                    retreat=TacticalRetreat(2487,start,1,14))
+                val enemy=Navigator(1,10001,Power.ALLIANCE,2488,1000,1000,1000,
+                    cpPaused=true,hull=FlagshipHull(89,start))
+                players=mapOf("pilot" to pilot,"enemy" to enemy)
+            }
+        }
         private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
             listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2488})
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
