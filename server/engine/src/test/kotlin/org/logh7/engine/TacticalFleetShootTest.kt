@@ -70,7 +70,7 @@ class TacticalFleetShootTest {
         for((level,powerPerBoat) in listOf(10,12,14,16).withIndex()) {
             val trained=unit.copy(stack=unit.stack.copy(level=level))
             val expected=healthy*powerPerBoat
-            assertEquals(mount.copy(power=expected),TacticalFleetShoot.trainedMount(trained,mount,spec.number))
+            assertEquals(mount.copy(power=expected),TacticalArmaments.trainedMount(trained,mount,spec.number))
             assertEquals(TacticalFleetShoot.cost(unit,mount,TacticalWeapon.GUN),
                 TacticalFleetShoot.cost(trained,mount,TacticalWeapon.GUN))
         }

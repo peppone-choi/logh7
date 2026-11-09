@@ -115,7 +115,7 @@ internal object TacticalFleetAttack {
                                 now,players.values,stocks,galaxy)} ?: continue
                 val effect=TacticalArmaments.effectiveness(mount,origin,pose(victim.second,now,players,stocks,galaxy).position)
                 val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,now,
-                    victim.first,weapon,TacticalFleetShoot.trainedMount(unit,mount,spec.number),
+                    victim.first,weapon,TacticalArmaments.trainedMount(unit,mount,spec.number),
                     effect,origin,victim.second)
                 stocks=resolved.first;impacts+=resolved.second
                 outfit=stocks.outfits.getValue(outfitId)
