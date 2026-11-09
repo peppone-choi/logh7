@@ -615,6 +615,16 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     }
     private fun movePlace(request: NavigationRequest, before: Navigator, now: Long, stocks: PlanetStocks?,countries:CountryCatalog): NavigationResult {
         fun reject(reason: NavigationRejection) = NavigationResult(null, previous = before, rejection = reason)
+        fun departureRejection(): NavigationRejection? {
+            if (before.baseId == 0 || before.mode != 4) return NavigationRejection.BASE
+            val base = galaxy.conditions[before.baseId] ?: return NavigationRejection.BASE
+            val stock = stocks?.bases?.get(base.baseId)
+            if (stocks != null && stock == null) return NavigationRejection.BASE
+            return NavigationRejection.ACCESS.takeIf {
+                base.grid != before.grid || !ownBase(before, stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),
+                    stock?.camp ?: base.camp, stocks)
+            }
+        }
         val after: Navigator
         val cost: Long
         val pool: CpPool
@@ -622,14 +632,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             is PlaceMove.SwitchMode -> {
                 if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
                 if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
-                if (move.mode != 5 || before.baseId == 0 || before.mode != 4) return reject(NavigationRejection.BASE)
-                val base = galaxy.conditions[before.baseId] ?: return reject(NavigationRejection.BASE)
-                val stock=stocks?.bases?.get(base.baseId)
-                if (base.grid != before.grid || !ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),
-                    stock?.camp ?: base.camp,stocks)) return reject(NavigationRejection.ACCESS)
+                if (move.mode != 5) return reject(NavigationRejection.BASE)
+                departureRejection()?.let { return reject(it) }
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
-                if (before.spotId != 0 && (before.spotOwner != 0 || stocks != null && stock == null ||
+                if (before.spotId != 0 && (before.spotOwner != 0 ||
                     galaxy.facilitiesAt(before.baseId, stocks,countries).none { facility -> facility.kind == 4 &&
                         facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
                     return reject(NavigationRejection.EMBARKED)
@@ -641,7 +648,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
                 if (before.spotId != 0) return reject(NavigationRejection.EMBARKED)
                 if (move.baseId == 0) {
-                    if (move.mode != 5 || before.baseId == 0) return reject(NavigationRejection.BASE)
+                    if (move.mode != 5) return reject(NavigationRejection.BASE)
+                    departureRejection()?.let { return reject(it) }
                 } else {
                     val base = galaxy.conditions[move.baseId] ?: return reject(NavigationRejection.BASE)
                     if (base.grid != before.grid || move.mode != 4) return reject(NavigationRejection.BASE)
