@@ -91,7 +91,8 @@ object PirateActions {
                             TacticalDeployment.initial(p.unitId,p.grid,players.values,s,g).position} ?:
                             t.regular?.second?.tactical?.motion?.pose(now,t.regular.second.posture,g,s)?.position ?:
                             TacticalDeployment.initial(id,fleet.grid,players.values,s,g).position
-                        Triple(id,t,at)}}
+                        if(TacticalLineOfFire.blocked(unit.id,fleet.grid,Camp.PIRATES,origin.position,at,now,players.values,s,g))null
+                        else Triple(id,t,at)}}
                     .minByOrNull {(_,_,at)->kotlin.math.hypot((at.x-origin.position.x).toDouble(),(at.y-origin.position.y).toDouble())} ?: continue
                 val (id,target,at)=victim
                 // The turret faces its target (pirate ships are not manoeuvred).
