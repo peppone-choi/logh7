@@ -28,9 +28,14 @@ class TacticalBaseDeliveryTest {
         val original=snapshot(TacticalCommandState())
         val stocks=checkNotNull(original.planetStocks)
         val outfit=stocks.outfits.getValue(1)
+        val transport=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith("輸送艦")}
         val ship=outfit.activeShips!!.values.single().copy(
-            support=TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,1010001,2487,100,140))
-        val pending=original.copy(planetStocks=stocks.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(ship))))))
+            stack=UnitStack(transport.kind),
+            support=TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,1010000,2487,100,140))
+        val ships=ActiveShipUnits(listOf(ship))
+        val pending=original.copy(navigators=original.navigators+("pilot" to player.copy(supplies=1000)),
+            planetStocks=stocks.copy(
+            outfits=mapOf(1 to outfit.copy(activeShips=ships,units=UnitInventory(ships.quantities())))))
         fun replies(world:WorldSnapshot)=TacticalBootstrap(world,galaxy,opposing,::character).resume().filter {opcode(it)==0x0414}
 
         assertEquals(20,ByteBuffer.wrap(replies(pending).single()).getInt(10))
@@ -38,6 +43,8 @@ class TacticalBaseDeliveryTest {
         assertTrue(replies(pending.copy(navigators=pending.navigators+
             ("pilot" to player.copy(hull=FlagshipHull(0,100,woundedUntil=130))))).isEmpty())
         val changed=checkNotNull(pending.planetStocks)
+        assertTrue(replies(pending.copy(planetStocks=changed.copy(
+            strategic=StrategicState(people=mapOf(10000 to StrategicPerson(deceasedAt=110)))))).isEmpty())
         assertTrue(replies(pending.copy(planetStocks=changed.copy(
             outfits=mapOf(1 to changed.outfits.getValue(1).copy(commanderId=10001))))).isEmpty())
     }
