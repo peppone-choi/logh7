@@ -66,4 +66,18 @@ class UnderstrengthReorganizationTest {
         }
         assertFailsWith<IllegalArgumentException> {transfer(state,2)}
     }
+
+    @Test fun returningBoatsCannotWorsenLegacyOverflowButWithdrawalsCanReduceIt() {
+        val initial=initial()
+        val warehouse=initial.warehouses.getValue(101)
+        val legacy=initial.copy(warehouses=mapOf(101 to warehouse.copy(
+            units=UnitInventory(mapOf(ship to 110,ship.copy(level=2) to 110)))))
+        val returned=transfer(legacy,-1)
+        assertFailsWith<IllegalArgumentException> {Reorganization.capacity(legacy,1,returned)}
+        assertFailsWith<IllegalArgumentException> {ReplacementBoats.reorganize(legacy,1,returned)}
+        val withdrawn=ReplacementBoats.reorganize(legacy,1,transfer(legacy,1))
+        assertEquals(219,withdrawn.warehouses.getValue(101).units.ships.values.sum())
+        assertEquals(boats(legacy),boats(withdrawn))
+        assertEquals(220,legacy.warehouses.getValue(101).units.ships.values.sum())
+    }
 }

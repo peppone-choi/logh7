@@ -24,6 +24,44 @@ class OutfitWarehouseWireTest {
     @Test fun realEncryptedQueryReturnsOwnedOutfitWarehouseIdentityAndNeverPlanetBalances() = warehouseQuery(false)
     @Test fun rebelCommanderCanReadTheWarehouseOfAnOutfitInTheirCamp() = warehouseQuery(true)
 
+    @Test fun legacyOverflowQueriesReportTheDisplayLimitAndPreserveTheExactStock() = runBlocking<Unit> {
+        val initial=snapshot()
+        val units=UnitInventory(ships=mapOf(UnitStack(32,1) to 219))
+        val spare=SpareShipBoats(mapOf(UnitStack(32,2) to 100))
+        val legacy=initial.copy(bases=mapOf(1049 to initial.bases.getValue(1049).copy(units=units,spareShips=spare)),
+            warehouses=initial.warehouses+(101 to initial.warehouses.getValue(101).copy(units=units,spareShips=spare)))
+        val store=object:PlanetStockStore {
+            var current=legacy
+            override fun load()=current
+            override fun save(stocks:PlanetStocks){current=stocks}
+        }
+        LoadFixture(directory,1,LoadMetrics(),galaxy,ticking=false,stockStore=store).use {fixture ->
+            val client=fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            for(ignored in 0..300)if(ByteBuffer.wrap(client.receive()).getShort(4).toInt()==0x0f01)break
+            for(outfit in listOf(0,1)) {
+                val response=client.request(ByteBuffer.allocate(10).putShort(0x0326).putInt(1049).putInt(outfit).array(),
+                    0x0327,"legacyWarehouse")
+                val input=ByteBuffer.wrap(response).position(6)
+                assertEquals(1049,input.int)
+                assertEquals(outfit,input.int)
+                assertEquals(0,input.int)
+                assertEquals(1,input.get().toInt())
+                assertEquals(32,input.short.toInt())
+                assertEquals(218,input.get().toInt() and 255)
+                assertEquals(65400,input.short.toInt() and 65535)
+                val notice=client.expect(0x0f1d)
+                val warning=org.logh7.protocol.ChatMessages.spot(notice.copyOfRange(4,notice.size))
+                assertTrue(warning.text.contains("일부 함선 재고만"))
+            }
+        }
+        assertEquals(units,store.current.bases.getValue(1049).units)
+        assertEquals(spare,store.current.bases.getValue(1049).spareShips)
+        assertEquals(units,store.current.warehouses.getValue(101).units)
+        assertEquals(spare,store.current.warehouses.getValue(101).spareShips)
+        assertFailsWith<IllegalArgumentException> {WorldBootstrap(galaxy).assignmentInventory(units,spare)}
+    }
+
     private fun warehouseQuery(rebel:Boolean) = runBlocking<Unit> {
         val store = object : PlanetStockStore {
             var stocks = snapshot().let { before ->
@@ -177,9 +215,6 @@ class OutfitWarehouseWireTest {
             assertEquals(7,input.get().toInt()); assertEquals(2100,input.short.toInt())
         }
         assertEquals(mapOf(UnitStack(32,0) to 3,UnitStack(32,3) to 4),stocks.bases.getValue(1049).units.ships)
-        val excessive = stocks.copy(bases=stocks.bases + (1049 to stocks.bases.getValue(1049).copy(
-            units=UnitInventory(mapOf(UnitStack(32) to 219)))))
-        assertFails { world.warehouse(1049,excessive) } // 65700 boats cannot fit the original u16 field.
     }
 
 }

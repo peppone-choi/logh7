@@ -145,10 +145,12 @@ internal object TacticalCommandOperations {
             }
             0x407 -> {
                 if(c.units!=listOf(p.unitId) || p.hull?.kind?.let {k->UnitSpecifications.ships.single {it.kind==k}.type}!=4)return NavigationRejection.UNIT
-                val target=players.values.singleOrNull {it.unitId==c.target && it.grid==p.grid && TacticalAuthority.camp(it,s)!=TacticalAuthority.camp(p,s) && it.cpPaused && it.baseId==0}
+                val camp=TacticalAuthority.camp(p,s)
+                val target=players.values.singleOrNull {it.unitId==c.target && it.grid==p.grid && TacticalAuthority.camp(it,s)!=camp && it.cpPaused && it.baseId==0}
                     ?: return NavigationRejection.TARGET
                 val at=pose(target.unitId,p.grid,now,players,s,g)?.position ?: return NavigationRejection.TARGET
-                if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>=1.0)return NavigationRejection.RANGE
+                if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>=1.0 ||
+                    TacticalTerrain.sharedSensorBlocked(g,p.grid,camp,centre,at,now,players.values,s))return NavigationRejection.RANGE
             }
             0x409 -> {
                 if(c.units!=listOf(p.unitId))return NavigationRejection.UNIT

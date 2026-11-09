@@ -27,7 +27,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     starterKinds: Map<Int, List<Int>>? = null,
     shipStyles:Map<Int,ShipStyleId>? = null,
     private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates(),
-    private val worldDeaths: () -> Set<Long> = { emptySet() }) {
+    private val worldOccupiedOriginals: () -> Set<Long> = { emptySet() }) {
     companion object {
         fun originalDefinitions()=OriginalCharacterMessages.localCandidates.map { candidate ->
             val data=KoreanDisplayNames.original(candidate.character)
@@ -191,7 +191,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         val selected=selection ?: applicationSelections[account]
         val edits=publishedOriginals.current()
         val accepted=applications[account].orEmpty().takeIf {selected==applicationSelections[account]}.orEmpty()
-        val unavailable = retiredOriginals + worldDeaths() + registered.values.map { it.character.id }
+        val unavailable = unavailableOriginals()
         return originalPool(edits).filter {candidate->
             val id=candidate.character.id
             val country=edits[id]?.country
@@ -223,17 +223,19 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         println("original application preferences=${ids.joinToString()} deadline=$deadline")
         return OriginalCharacterMessages.applicationReply(ids)
     }
+    private fun unavailableOriginals() =
+        retiredOriginals + worldOccupiedOriginals() + registered.values.map { it.character.id }
+
     private fun resolveLottery() {
         if (applications.isEmpty() || clock.millis() < deadline) return
         val winners = registered.toMutableMap()
-        val dead = retiredOriginals + worldDeaths()
+        val unavailable = unavailableOriginals().toMutableSet()
         val roster=originalPool(publishedOriginals.current()).associateBy {it.character.id}
         val countries=CountryCatalogLoader.current()
         val accounts = applications.keys.toMutableList().also { java.util.Collections.shuffle(it, random) }
         for (account in accounts) {
             if (account in winners) continue
-            val id = applications.getValue(account).firstOrNull { candidate ->
-                candidate !in dead && winners.values.none { it.character.id == candidate } } ?: continue
+            val id = applications.getValue(account).firstOrNull { it !in unavailable } ?: continue
             val character=roster.getValue(id).character
             val selection=applicationSelections[account]
             val style=selection?.shipStyle ?: styles.getValue(character.power)
@@ -243,6 +245,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             val title=character.title.takeIf {publishedOriginals.canGrantPeerage && countries.supportsNativePeerage(country)} ?: 0
             val won=character.copy(generated = false,shipKind=kind,power=selection?.nativePower ?: character.power,title=title)
             winners[account] = if(selection==null)profile(won) else CharacterProfile(won,selection.country,selection.shipStyle)
+            unavailable.add(id)
         }
         save(winners, emptyMap(), 0, emptyMap())
         registered.clear(); registered.putAll(winners); applications.clear(); applicationSelections.clear(); deadline = 0
