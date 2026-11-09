@@ -107,6 +107,39 @@ class GroundBattleOperationsTest {
         assertFails {ActiveGroundUnit(99,UnitStack(0),strength=0)}
         assertFails {original.copy(groundBattles=mapOf(1001 to now))}
     }
+    @Test fun staleGroundTargetIsClearedAndSavedWithoutAnActiveBattle() {
+        var saved=stocks(alliance=0).copy(tacticalCommands=TacticalCommandState(groundTargets=mapOf(1 to 2)))
+        val store=object:PlanetStockStore {
+            override fun load()=saved
+            override fun save(stocks:PlanetStocks){saved=stocks}
+        }
+        val nav=Navigation(galaxy,object:NavigationStore {
+            override fun load()=emptyMap<String,Navigator>()
+            override fun save(players:Map<String,Navigator>) {}
+        },NavigationPolicy())
+        val production=PlanetProduction(galaxy,store,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+        val before=production.snapshot(1)!!
+        assertFalse(GroundBattleOperations.contested(before,base))
+        assertTrue(before.groundBattles.isEmpty())
+        var fail=true
+        var writes=0
+        val commit=WorldStateCommitter {_,inventory->
+            if(fail)throw java.io.IOException("disk")
+            saved=checkNotNull(inventory)
+            writes++
+        }
+        assertFailsWith<java.io.IOException> {TacticalCombat.settle(session,galaxy,nav,production,commit,scale=1)}
+        assertEquals(before,saved)
+        assertEquals(before,production.snapshot(1))
+        fail=false
+        val events=mutableListOf<GroundBattleResult>()
+        repeat(2) {TacticalCombat.settle(session,galaxy,nav,production,commit,scale=1,onGroundBattle=events::add)}
+        assertEquals(1,writes)
+        assertTrue(events.isEmpty())
+        assertTrue(saved.tacticalCommands.groundTargets.isEmpty())
+        assertEquals(before.outfits,saved.outfits)
+    }
+
     @Test fun worldCommitFailureCannotPublishCasualtiesClockOrNotificationsAndRetryIsOnce() {
         var saved=stocks();var fail=false
         val store=object:PlanetStockStore {override fun load()=saved;override fun save(stocks:PlanetStocks){saved=stocks}}
