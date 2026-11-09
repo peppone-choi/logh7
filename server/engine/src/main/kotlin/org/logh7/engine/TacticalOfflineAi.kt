@@ -85,11 +85,13 @@ internal object TacticalOfflineAi {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
             val attack=if(kind in setOf(4,5) || enemies.isEmpty() || kind==3 && enemy==null)null
                 else p.attack ?: TacticalAttackOrder(2,now,now,now+5*scale)
-            val next=p.copy(energy=energy,motion=motion,retreat=retreat,attack=attack,
+            val flagshipRotating=p.motion?.takeIf {it.grid==p.grid}?.rotation!=null
+            val next=if(flagshipRotating)p else p.copy(energy=energy,motion=motion,retreat=retreat,attack=attack,
                 hull=hull.settle(now,p.energy ?: TacticalEnergy.ZERO),
                 charge=p.charge?.settle(now,p.energy ?: TacticalEnergy.ZERO) ?: TacticalCharge(now,clockScale=scale))
             players[account]=next
-            val motions=linkedMapOf(p.unitId to motion)
+            val motions=linkedMapOf<Int,TacticalMotion>()
+            if(!flagshipRotating)motions[p.unitId]=motion
             var commanded=false
             val alliedFlagships=if(kind in 0..1) players.values.asSequence()
                 .filter {it.unitId!=p.unitId && it.grid==p.grid && TacticalAuthority.camp(it,stocks)==camp}
@@ -107,6 +109,7 @@ internal object TacticalOfflineAi {
                     TacticalAuthority.commander(original,unit,stocks)==p.characterId && unit.boats>unit.damaged &&
                         !stocks.tacticalCommands.confused(unit.id) && unit.support==null && unit.shot==null &&
                         unit.tactical?.retreat==null && unit.posture?.order==null &&
+                        unit.tactical?.motion?.takeIf {it.grid==p.grid}?.rotation==null &&
                         stocks.tacticalCommands.orders.none {unit.id in it.command.units} &&
                         original.activeGround?.values.orEmpty().none {it.order?.carrier==unit.id}
                 }.filter {unit->
@@ -148,6 +151,7 @@ internal object TacticalOfflineAi {
                 stocks=stocks.copy(outfits=stocks.outfits+(outfitId to original.copy(activeShips=ActiveShipUnits(updated))))
             }
             if(commanded)players[account]=next.copy(commandRange=next.commandRange?.reset(now))
+            if(motions.isEmpty() && !commanded)continue
             val audience=session.participants.mapNotNull {(a,m)->players[a]?.takeIf {
                 m.online && m.connection!=null && it.grid==p.grid && (it.cpPaused || it.baseId>0)}?.let {it.characterId to checkNotNull(m.connection)}}.toMap()
             events+=TacticalCommandResult(session.generation,TacticalQueuedCommand(p.characterId,p.grid,now,now,

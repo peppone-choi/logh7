@@ -39,6 +39,41 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun pendingManualRotationsSurviveOfflineAiAndShipsResumeAfterCompletion() {
+        val pilots=players()
+        val pilot=pilots.getValue("pilot")
+        val flagshipTurn=motion().copy(direction=1f,rotation=TacticalRotation(TacticalManeuver.TURN,pilot.unitId,10))
+        pilots["pilot"]=pilot.copy(motion=flagshipTurn)
+        val plain=stocks()
+        val outfit=plain.outfits.getValue(1)
+        val ship=outfit.activeShips!!.values.single()
+        val reverse=motion(0f,.5f).copy(direction=Math.PI.toFloat(),
+            rotation=TacticalRotation(TacticalManeuver.REVERSE,ship.id,10))
+        val rotating=ship.copy(motionCommander=pilot.characterId,tactical=ship.tactical!!.copy(motion=reverse))
+        val other=ship.copy(id=2,tactical=ship.tactical.copy(motion=motion(0f,1f)))
+        val units=ActiveShipUnits(listOf(rotating,other))
+        val before=plain.copy(outfits=plain.outfits+(outfit.id to outfit.copy(activeShips=units,units=UnitInventory(units.quantities()))))
+        val decisions=mutableListOf<TacticalCommandResult>()
+        val movement=mutableListOf<TacticalMovement>()
+        val pending=TacticalMotionProgress.advance(offline,galaxy,pilots,before,movement)
+        val during=TacticalOfflineAi.advance(offline,galaxy,pilots,pending,1,decisions)
+        assertEquals(flagshipTurn,pilots.getValue("pilot").motion)
+        assertEquals(rotating,during.outfits.getValue(1).activeShips!!.values.single {it.id==ship.id})
+        assertEquals(setOf(other.id),decisions.single().motions.keys)
+        assertTrue(movement.isEmpty())
+
+        val due=offline.copy(gameMillis=(now+10)*1000)
+        val complete=TacticalMotionProgress.advance(due,galaxy,pilots,during,movement)
+        assertEquals(1f,pilots.getValue("pilot").motion!!.direction)
+        assertEquals(Math.PI.toFloat(),complete.outfits.getValue(1).activeShips!!.values.single {it.id==ship.id}.tactical!!.motion.direction)
+        assertTrue(movement.any {it.unit==pilot.unitId})
+        assertTrue(movement.any {it.unit==ship.id && it.reverseTarget!=null})
+
+        TacticalOfflineAi.advance(due,galaxy,pilots,complete,1,decisions)
+        assertTrue(pilot.unitId in decisions.last().motions)
+        assertTrue(ship.id in decisions.last().motions)
+    }
+
     @Test fun mismatchedParticipantCountryCannotDriveSavedFlagshipOrFleet() {
         val pilots=players()
         val before=pilots.toMap()
