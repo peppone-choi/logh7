@@ -9,11 +9,11 @@ internal object TacticalMotionProgress {
             it.online && it.country==p.country && p.grid==grid && p.baseId==0 && p.cpPaused
         }?.connection?.let {p.characterId to it}}.toMap()
         fun progress(unit:Int,character:Int,motion:TacticalMotion,driftLimit:Float=BlackHoleTides.DRIFT_VELOCITY,
-            invalidCommander:Boolean=false,lostAuthority:Boolean=false):TacticalMotion {
-            val stopMovement=lostAuthority || original.social.justice.detained(character)
+            invalidCommander:Boolean=false,lostAuthority:Boolean=false,defeatedAt:Long?=null):TacticalMotion {
+            val stopMovement=defeatedAt!=null || lostAuthority || original.social.justice.detained(character)
             if(stopMovement && motion.rotation==null && motion.velocity==0f)return motion
             if(stopMovement || motion.rotation!=null && (invalidCommander || BattleDeath.deceased(original,character))) {
-                val at=if(motion.rotation!=null)motion.origin else motion.pose(now)
+                val at=if(motion.rotation!=null)motion.origin else motion.pose(defeatedAt?.coerceAtMost(now) ?: now)
                 val stopped=motion.copy(origin=at,velocity=0f,direction=at.direction,waypoints=listOf(at.position),
                     reportedWaypoints=0,rotation=null)
                 events+=TacticalMovement(session.generation,unit,motion.grid,now,stopped,audience(motion.grid),
@@ -40,14 +40,15 @@ internal object TacticalMotionProgress {
         }
         for((account,player) in players.toMap()) {
             if(!player.cpPaused || player.baseId!=0 || player.hull==null)continue
-            val motion=player.motion?.takeIf {it.grid==player.grid} ?: if(BlackHoleTides.edge(galaxy,player.grid)==null)continue else {
+            val defeatedAt=session.eliminated[player.country]?.gameSeconds
+            val motion=player.motion?.takeIf {it.grid==player.grid} ?: if(defeatedAt!=null || BlackHoleTides.edge(galaxy,player.grid)==null)continue else {
                 // A flagship that has not moved yet still drifts from its deployment pose.
                 val pose=TacticalDeployment.initial(player.unitId,player.grid,players.values,original,galaxy)
                 TacticalMotion(player.grid,now,pose,0f,pose.direction,listOf(pose.position))
             }
             // Navigator allows a parallel motion only within half its engine output.
             val next=progress(player.unitId,player.characterId,motion,(player.energy ?: TacticalEnergy.ZERO).values[0]/100f*0.5f,
-                invalidCommander=player.hull.woundedUntil>now)
+                invalidCommander=player.hull.woundedUntil>now,defeatedAt=defeatedAt)
             if(next!=motion)players[account]=player.copy(motion=next)
         }
         val commanders=players.values.associateBy {it.characterId}
@@ -65,7 +66,7 @@ internal object TacticalMotionProgress {
                     (it.hull?.woundedUntil ?: 0)>now || TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks)
                 }==true
                 val motion=progress(unit.id,unit.motionCommander,state.motion,invalidCommander=commanderUnavailable,
-                    lostAuthority=commanderChanged)
+                    lostAuthority=commanderChanged,defeatedAt=session.eliminated[outfit.country]?.gameSeconds)
                 if(motion==state.motion && !commanderChanged)unit else unit.copy(tactical=state.copy(motion=motion,
                     nextDecisionAt=maxOf(state.nextDecisionAt,motion.acceptedAt)),
                     motionCommander=if(commanderChanged && state.retreat==null)0 else unit.motionCommander)

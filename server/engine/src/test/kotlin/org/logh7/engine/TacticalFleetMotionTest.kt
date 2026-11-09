@@ -36,6 +36,56 @@ class TacticalFleetMotionTest {
         TacticalCombat.settle(tick,galaxy,nav,p,s.commit,onMovement=events::add)
         assertEquals(2,events.size)
     }
+    @Test fun lateSettlementFreezesDefeatedMovementAtTheDefeatTime() {
+        val s=state()
+        val accepted=move(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),request(listOf(1,1010000)))
+        val defeatAt=now+3
+        val tick=session.copy(gameMillis=(now+120)*1000,eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,defeatAt,Power.ALLIANCE.country)))
+        val players=s.players.toMutableMap()
+        val events=mutableListOf<TacticalMovement>()
+        val after=TacticalMotionProgress.advance(tick,galaxy,players,s.stocks,events)
+
+        assertEquals(setOf(1,1010000),events.map {it.unit}.toSet())
+        for(event in events) {
+            val motion=accepted.tacticalMotions.getValue(event.unit)
+            assertNotEquals(motion.pose(now+120),motion.pose(defeatAt))
+            assertEquals(motion.pose(defeatAt),assertNotNull(event.motion).origin)
+            assertEquals(now+120,event.seconds)
+        }
+        assertEquals(0f,players.getValue("pilot").motion?.velocity)
+        assertEquals(0f,after.outfits.getValue(1).activeShips!!.values.single {it.id==1}.tactical?.motion?.velocity)
+    }
+
+    @Test fun countryDefeatStopsFlagshipAndFleetRotationBeforeItsScheduledHeading() {
+        val s=state()
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+        val production=production(s)
+        val units=listOf(1010000,1,2)
+        val turn=request(units).copy(tacticalMove=TacticalMove(units,0f,1f,
+            listOf(TacticalPoint(0f,0f)),maneuver=TacticalManeuver.TURN))
+        val accepted=TacticalFleetMotion.move(turn,
+            session,galaxy,nav,production,production.snapshot(1)!!,s.commit,24).tacticalMotions
+        assertEquals(setOf(1010000,1,2),accepted.keys)
+        val tick=session.copy(gameMillis=(now+120)*1000,eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now+60,Power.ALLIANCE.country)))
+        val players=s.players.toMutableMap()
+        val events=mutableListOf<TacticalMovement>()
+        val after=TacticalMotionProgress.advance(tick,galaxy,players,s.stocks,events)
+        assertEquals(accepted.keys,events.map {it.unit}.toSet())
+        for(event in events) {
+            val stopped=assertNotNull(event.motion)
+            assertEquals(accepted.getValue(event.unit).origin,stopped.origin)
+            assertNull(stopped.rotation)
+            assertNull(event.reverseTarget)
+            assertEquals(-1,event.waypoint)
+        }
+        assertNull(players.getValue("pilot").motion?.rotation)
+        assertTrue(after.outfits.getValue(1).activeShips!!.values.all {it.tactical?.motion?.rotation==null})
+        TacticalMotionProgress.advance(tick,galaxy,players,after,events)
+        assertEquals(3,events.size)
+    }
+
     @Test fun removalOfDelegatedAuthorityStopsOnlyTheFormerOfficersMovement() {
         val s = state()
         val outfit = s.stocks.outfits.getValue(1)
