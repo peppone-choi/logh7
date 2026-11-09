@@ -564,13 +564,15 @@ internal object TacticalCommandOperations {
                                 TacticalAuthority.commander(it.outfit,it.unit,stocks)==id}==true)
                             reward=TacticalMissionRules.interceptionMerit(10,true)
                     }
-                    4 -> if(sinkingHit!=null)completed=true else if(active) {
+                    4 -> if(sinkingHit!=null)completed=true else if(active && checks>0) {
+                        val camp=TacticalAuthority.camp(p,stocks)
                         val from=pose(p.unitId,p.grid,now,players,stocks,g)
-                        val to=TacticalCombat.target(m.target,p.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)
+                        val to=TacticalCombat.target(m.target,p.grid,camp,stocks,g,players)
                             ?.let {TacticalFleetAttack.pose(it,now,players,stocks,g)}
                         if(from!=null && to!=null) {
                             val distance=hypot((from.position.x-to.position.x).toDouble(),(from.position.y-to.position.y).toDouble())
-                            if(TacticalMissionRules.reconnaissanceInRange(distance*TacticalMissionRules.KM_PER_TACTICAL_UNIT))
+                            if(TacticalMissionRules.reconnaissanceInRange(distance*TacticalMissionRules.KM_PER_TACTICAL_UNIT) &&
+                                !TacticalTerrain.sharedSensorBlocked(g,p.grid,camp,from.position,to.position,now,players.values,stocks))
                                 reward=checks
                         }
                     }

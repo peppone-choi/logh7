@@ -784,6 +784,32 @@ class TacticalCommandOperationsTest {
         assertTrue(settled.tacticalCommands.merits.isEmpty())
         assertEquals(mapOf(10000 to (4 to 0L)),events.single().finishedMissions)
     }
+    @Test fun reconnaissanceMeritRequiresCurrentSharedContactAndDoesNotBackfillHiddenChecks() {
+        val s=state()
+        val players=s.players.toMutableMap()
+        players["pilot"]=players.getValue("pilot").copy(motion=motion(.5f))
+        val enemy=s.stocks.outfits.getValue(2)
+        val target=enemy.activeShips!!.values.single()
+        val targetMotion=motion(.5f).copy(velocity=.1f,waypoints=listOf(TacticalPoint(.2f,0f)))
+        val ships=ActiveShipUnits(listOf(target.copy(tactical=target.tactical!!.copy(motion=targetMotion))))
+        val base=s.stocks.bases.getValue(1000).copy(owner=Allegiance.Country(Power.ALLIANCE.country),garrisonCommanderId=0)
+        val stock=s.stocks.copy(bases=mapOf(base.baseId to base),outfits=s.stocks.outfits+(enemy.id to enemy.copy(activeShips=ships)),
+            tacticalCommands=TacticalCommandState(missions=mapOf(10000 to TacticalMissionState(10000,4,1,target.id,now,grid=2488))))
+        val interval=TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS
+        fun settle(at:Long,current:PlanetStocks)=TacticalCommandOperations.finishMissions(
+            session.copy(gameMillis=at*1000),galaxy,players,current,1,mutableListOf(),mutableListOf(),emptySet())
+        val hidden=settle(now+interval,stock)
+        assertTrue(hidden.tacticalCommands.merits.isEmpty())
+        assertEquals(now+interval,hidden.tacticalCommands.missions.getValue(10000).checkedAt)
+
+        players["ally"]=players.getValue("ally").copy(motion=motion(.2f))
+        val acquired=settle(now+interval,hidden)
+        assertTrue(acquired.tacticalCommands.merits.isEmpty())
+        val visible=settle(now+2*interval,acquired)
+        assertEquals(1L,visible.tacticalCommands.merits[10000])
+        assertEquals(now+2*interval,visible.tacticalCommands.missions.getValue(10000).checkedAt)
+    }
+
     @Test fun boardingReturnDoesNotCountAsDestroyingTheInterceptionTarget() {
         val s=state()
         val target=s.players.getValue("ally")
