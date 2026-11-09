@@ -1,11 +1,13 @@
 package org.logh7.gateway
 
 import java.nio.ByteBuffer
+import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.CharacterMessages
 import kotlin.test.*
 
 /** 암호화 회견: 같은 스폿 인물 목록과 우호도 저장·쌍별 제한. 작성: Peppone Choi. */
@@ -42,11 +44,16 @@ class MeetingActionsWireTest {
     @Test fun theDirectoryListsOnlyLivingPeopleAtTheSameSpotAndAMeetingStoresFriendship() {
         val state=State()
         state.stocks=BattleDeath.apply(state.stocks,listOf(10003),now) {_,_->true}
-        LoadFixture(directory.resolve("meeting"),3,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
+        val fixtureDirectory=Files.createDirectory(directory.resolve("meeting"))
+        val characters=CharacterCreation(fixtureDirectory.resolve("characters.properties"))
+        for((account,player) in state.players) {
+            assertTrue(characters.carry(account,CharacterMessages.Generate(4,player.characterId.toLong(),2,0,0,
+                account,"Test",30,1,1,0,List(8) {0},0,0,0,0,3,0,"Ship",1)))
+        }
+        LoadFixture(fixtureDirectory,3,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
             stockStore=state.inventory,worldStateCommitter=state).use {server ->
-            val me=server.join(server.account(0),true,false).client;me.send(SyntheticClient.opcode(0x0f00));next(me,0x0f01)
-            for(i in 1..2)server.join(server.account(i),true,false).client.let {it.send(SyntheticClient.opcode(0x0f00));next(it,0x0f01)}
-            server.game(server.account(3),true).close() // Profile exists, but the dead pilot never enters the game.
+            val me=server.join(server.account(0),false,false).client;me.send(SyntheticClient.opcode(0x0f00));next(me,0x0f01)
+            for(i in 1..2)server.join(server.account(i),false,false).client.let {it.send(SyntheticClient.opcode(0x0f00));next(it,0x0f01)}
             me.send(directory());val header=ByteBuffer.wrap(next(me,0x1200));assertEquals(1,header.get(22).toInt())
             val people=ByteBuffer.wrap(next(me,0x1202));assertEquals(1,people.get(6).toInt());assertEquals(10001,people.getInt(7));next(me,0x1201)
             val ticket=action(me,meeting(10001)).first.let {assertEquals(50,it.getShort(27).toInt());it.getInt(18)}
