@@ -100,7 +100,11 @@ class TacticalPostureWireTest {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         val c=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,List(8){50},0,0,0,20,0,0,"Ship",1)
         val p=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,900,cpPaused=true)
-        hub.update(GamePresence.Member("current",c,p,received::add));received.clear()
+        val tacticalGrids=mutableListOf<Int>()
+        hub.update(GamePresence.Member("current",c,p,received::add) {grid,packets->
+            tacticalGrids+=grid
+            received+=packets
+        });received.clear()
         val event=TacticalPostureResult(1,2487,100,10000,TacticalShipMode.BATTLE,0,
             mapOf(1010000 to TacticalPose(TacticalPoint(1f,2f),0.3f)),mapOf(10000 to "current"))
         fun deliver(result:TacticalPostureResult,current:Navigator=p)=hub.posture(result,
@@ -112,9 +116,11 @@ class TacticalPostureWireTest {
         assertTrue(received.isEmpty())
         deliver(stationed,returned.copy(posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1000)))
         assertEquals(listOf(0x0400,0x042f),received.single().map {ByteBuffer.wrap(it).getShort(4).toInt()})
+        assertTrue(tacticalGrids.isEmpty())
         received.clear()
         for(stale in listOf(event.copy(generation=2),event.copy(grid=2488),event.copy(recipients=mapOf(10000 to "old"))))deliver(stale)
         assertTrue(received.isEmpty());deliver(event)
+        assertEquals(listOf(2487),tacticalGrids)
         assertEquals(listOf(0x0400,0x042f),received.single().map {ByteBuffer.wrap(it).getShort(4).toInt()})
         received.clear();deliver(event.copy(cancelled=true))
         val rejected=ByteBuffer.wrap(received.single().single());assertEquals(0x0411,rejected.getShort(4).toInt());assertEquals(1,rejected.int)

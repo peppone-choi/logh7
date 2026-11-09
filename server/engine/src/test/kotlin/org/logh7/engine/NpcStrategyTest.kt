@@ -1,5 +1,7 @@
 package org.logh7.engine
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.*
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -15,6 +17,34 @@ class NpcStrategyTest {
     private fun players()=mutableMapOf("pilot" to Navigator(1,10000,Power.ALLIANCE,2488,1000,1000,1000,hull=FlagshipHull(89,0)))
     private fun advance(at:Long,stocks:PlanetStocks,players:MutableMap<String,Navigator>,events:MutableList<NpcStrategicMovement>)=
         NpcStrategy.advance(simulation.copy(gameMillis=at*1000),galaxy,players,stocks,events)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun restoredNpcJumpArrivesBetweenPeriodicTicks() = runTest {
+        val rules=SessionRules.load()
+        val before=stocks()
+        var saved=before.copy(outfits=before.outfits.mapValues {(_,fleet)->
+            fleet.copy(strategy=NpcStrategicState(21600,2488,15))
+        })
+        val engine=WorldEngine(this,rules,monotonicMillis={testScheduler.currentTime},galaxy=galaxy,
+            navigationStore=object:NavigationStore {
+                override fun load()=players()
+                override fun save(next:Map<String,Navigator>) {}
+            },
+            stockStore=object:PlanetStockStore {
+                override fun load()=saved
+                override fun save(next:PlanetStocks){saved=next}
+            },worldStateCommitter=WorldStateCommitter {_,inventory->saved=checkNotNull(inventory)},
+            npcPolicy=NpcTacticalPolicy(strategic=true))
+        try {
+            engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(624);runCurrent()
+            assertEquals(OutfitPosition(2487,1000),saved.outfits.getValue(1).position)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(15L,engine.snapshot().session!!.gameSeconds)
+            assertEquals(OutfitPosition(2488),saved.outfits.getValue(1).position)
+            assertEquals(97000,saved.bases.getValue(1000).supplies)
+        } finally {engine.drainAndClose()}
+    }
 
     @Test fun reservedAdjacentJumpRestoresThenConsumesRealDepotSuppliesOnceAndStartsContact() {
         val before=stocks();val players=players();val events=mutableListOf<NpcStrategicMovement>()
