@@ -13,6 +13,7 @@ internal object TacticalFleetRetreat {
         fun reject(reason:NavigationRejection)=NavigationResult(null,p,reason)
         if(committer==null)return reject(NavigationRejection.DISABLED)
         if(BattleDeath.deceased(s,p.characterId))return reject(NavigationRejection.IDENTITY)
+        if(s.social.justice.detained(p.characterId))return reject(NavigationRejection.BUSY)
         val now=session.gameMillis/1000
         if(p.hull?.woundedUntil?.let {it>now}==true)return reject(NavigationRejection.WOUNDED)
         if(!p.cpPaused || p.baseId!=0 || p.mode!=5)return reject(NavigationRejection.TACTICAL)
@@ -71,7 +72,7 @@ internal object TacticalFleetRetreat {
                     !TacticalOfflineAi.eligible(session,commanderEntry.key,commanderEntry.value,stocks))
                 if(outfit.country in session.eliminated || memberCountry in session.eliminated ||
                     position.baseId!=0 || state.motion.grid!=grid ||
-                    BattleDeath.deceased(stocks,u.motionCommander) || delegationEnded ||
+                    BattleDeath.deceased(stocks,u.motionCommander) || stocks.social.justice.detained(u.motionCommander) || delegationEnded ||
                     TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander ||
                     commander?.let {(it.hull?.woundedUntil ?: 0)>now || TacticalAuthority.camp(it,stocks)!=outfitCamp}==true)
                     return@map u.copy(tactical=state.copy(retreat=null))

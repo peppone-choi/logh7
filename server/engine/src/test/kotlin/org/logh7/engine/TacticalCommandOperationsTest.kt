@@ -930,6 +930,14 @@ class TacticalCommandOperationsTest {
         assertEquals(70,s.stocks.tacticalCommands.morale[3])
     }
     @Test fun deceasedCommanderCannotRetreatAndAdmittedReservationsAreClearedOnReload() {
+        assertRetreatCancelledForUnavailableCommander(detained=false)
+    }
+
+    @Test fun detainedCommanderCannotRetreatAndAdmittedReservationsAreClearedOnReload() {
+        assertRetreatCancelledForUnavailableCommander(detained=true)
+    }
+
+    private fun assertRetreatCancelledForUnavailableCommander(detained:Boolean) {
         val s=state()
         val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=true)
         val pilot=s.players.getValue("pilot").copy(retreat=retreat,motion=motion(260f),
@@ -938,14 +946,18 @@ class TacticalCommandOperationsTest {
         val fleet=s.stocks.outfits.getValue(1)
         val ships=fleet.activeShips!!.values.map {u->if(u.id!=1)u else
             u.copy(motionCommander=10000,tactical=NpcTacticalState(motion(260f,.4f),now,now,retreat=retreat))}
-        s.stocks=BattleDeath.apply(s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ActiveShipUnits(ships)))),
-            listOf(10000),now) {_,_->true}
+        val saved=s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ActiveShipUnits(ships))))
+        s.stocks=if(detained) {
+            val detention=Detention(pilot.characterId,checkNotNull(pilot.country),now,now+Justice.DAY)
+            saved.copy(social=saved.social.copy(justice=JusticeState(detentions=mapOf(pilot.characterId to detention))))
+        } else BattleDeath.apply(saved,listOf(10000),now) {_,_->true}
         val r=run(s)
         val request=request(TacticalCommand(0x40d,listOf(1))).copy(tacticalCommand=null,tacticalRetreat=listOf(1))
         val due=session.copy(gameMillis=(now+155)*1000)
-        assertEquals(NavigationRejection.IDENTITY,TacticalFleetRetreat.accept(request,due,galaxy,r.navigation,
+        val rejection=if(detained)NavigationRejection.BUSY else NavigationRejection.IDENTITY
+        assertEquals(rejection,TacticalFleetRetreat.accept(request,due,galaxy,r.navigation,
             r.production,r.production.snapshot(1)!!,s.commit,1).rejection)
-        assertEquals(NavigationRejection.IDENTITY,r.navigation.apply(request.copy(tacticalRetreat=listOf(pilot.unitId)),
+        assertEquals(rejection,r.navigation.apply(request.copy(tacticalRetreat=listOf(pilot.unitId)),
             due,r.production.snapshot(1)!!).rejection)
         r.navigation.settleRetreats(due,r.production.snapshot(1))
         settle(r,now+155)
