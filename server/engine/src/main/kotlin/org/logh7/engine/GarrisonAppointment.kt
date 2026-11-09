@@ -45,7 +45,8 @@ internal object GarrisonAppointment {
         // profile ranks are only the fallback when no stored rank exists.
         val actorRank=ProposalActions.rank(stocks,r.characterId,country,r.actorRank,countries)
         if(!policy.authorized(stocks,role,seat,r.characterId,actorRank))return reject(AppointmentRejection.AUTHORITY)
-        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country || BattleDeath.deceased(stocks,r.target))
+        if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country ||
+            BattleDeath.deceased(stocks,r.target) || stocks.social.justice.detained(r.target))
             return reject(AppointmentRejection.TARGET)
         if(!role.eligible(actorRank,ProposalActions.rank(stocks,r.target,country,r.targetRank,countries)))
             return reject(AppointmentRejection.RANK)

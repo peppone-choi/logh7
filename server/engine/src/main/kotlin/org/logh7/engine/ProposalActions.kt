@@ -30,7 +30,8 @@ object ProposalActions {
         val holdings=policy.held(s,candidate).filter {it.country==country}
         val count=holdings.size+(if(s.strategic.people[candidate]?.peerage!=null)1 else 0)+
             FundActions.governed(g,s,candidate,country,countries,card=66).size
-        if(candidate==actor || count>=14 || BattleDeath.deceased(s,actor) || BattleDeath.deceased(s,candidate))return emptyList()
+        if(candidate==actor || count>=14 || BattleDeath.deceased(s,actor) || BattleDeath.deceased(s,candidate) ||
+            s.social.justice.detained(candidate))return emptyList()
         val held=holdings.map {it.card}.toSet()
         return policy.available(s,actor,power,rank).flatMap {(card,seats)->
             val role=checkNotNull(policy.role(card,country))
