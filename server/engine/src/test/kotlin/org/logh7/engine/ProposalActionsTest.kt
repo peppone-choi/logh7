@@ -111,6 +111,40 @@ class ProposalActionsTest {
         assertNull(approved.rejection,"the triggering order (card 18) succeeds");assertEquals(960,approved.navigators["b"]?.mcp,"the absent recipient paid its half")
         assertTrue(policy.held(assertNotNull(approved.stocks),10001).none {it.card==19},"and resigned")
     }
+    @Test fun aQuietWorldTickProcessesAnAbsentOrderAndRefundsAnExpiredProposal() {
+        for(isOrder in listOf(true,false)) {
+            val opened=if(isOrder)act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,stocks())
+                else act("b",ProposalActions.OPEN,19,10000,ProposalActions.RESIGNATION,17,stocks())
+            var saved=assertNotNull(opened.stocks)
+            val mail=saved.social.proposals.mails.single()
+            var players=if(isOrder)mapOf("a" to assertNotNull(opened.player),"b" to b)
+                else mapOf("a" to a,"b" to assertNotNull(opened.player))
+            val navigation=Navigation(galaxy,object:NavigationStore {
+                override fun load()=players
+                override fun save(navigators:Map<String,Navigator>) {players=navigators}
+            },NavigationPolicy())
+            val production=PlanetProduction(galaxy,object:PlanetStockStore {
+                override fun load()=saved
+                override fun save(stocks:PlanetStocks) {saved=stocks}
+            },rules.startSeconds,PlanetProductionPolicy())
+            production.settle(session.generation,session.gameMillis/1000)
+            val deadline=if(isOrder)mail.createdAt+ProposalActions.ABSENT_ORDER_SECONDS else mail.expiresAt
+            val offline=session.copy(participants=session.participants.mapValues {(_,p)->p.copy(online=false,connection=null)})
+            fun tick(at:Long)=TacticalCombat.settle(offline.copy(gameMillis=at*1000),galaxy,navigation,production,
+                WorldStateCommitter {p,s->players=p;saved=checkNotNull(s)},npcPolicy=NpcTacticalPolicy(enabled=false))
+            tick(deadline-1)
+            assertTrue(saved.social.proposals.mails.single().pending)
+            tick(deadline)
+            if(isOrder) {
+                assertEquals(Proposals.APPROVE,saved.social.proposals.mails.single().reply)
+                assertEquals(960,players.getValue("b").mcp)
+            } else {
+                assertTrue(saved.social.proposals.mails.isEmpty())
+                assertEquals(1000,players.getValue("b").mcp)
+            }
+        }
+    }
+
     @Test fun aDismissalNamesAThirdPersonTheRecipientMayDismissAndRunsOnApproval() {
         // 10001 proposes that the minister 10000 dismiss a seat 10000 may dismiss.
         val s=stocks();val seats=OfficeDismissalPolicy(galaxy).available(s,10000,2,2)
