@@ -106,7 +106,9 @@ data class NavigationRequest(val account: String, val characterId: Int, val coun
     val offlineAbilities:Boolean=false,
     /** Server-resolved model family; never taken from a native client field. */
     val shipStyle:ShipStyleId?=null,
-    val acknowledgedOfflineWarpCancellation: NavigationRejection? = null) {
+    val acknowledgedOfflineWarpCancellation: NavigationRejection? = null,
+    /** Authenticated original-character bootstrap, never a client-selected placement. */
+    val initializeOriginal:Boolean=false) {
     /** Compatibility for old internal callers; membership checks use [country]. */
     constructor(account: String, characterId: Int, power: Power,
     connection: String, generation: Long, destination: Int? = null, unitId: Int? = null,
@@ -193,7 +195,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     private var players = restored.toMap()
     fun snapshot(generation: Long) = players.filterValues { it.generation == generation }.toMap()
     fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null,
-        persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true): NavigationResult {
+        persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true, initialDock:OutfitPosition?=null): NavigationResult {
         require(stocks == null || stocks.generation == session.generation)
         var current: Navigator? = null
         var completedFuel = false
@@ -223,7 +225,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (request.offlineSettle && existing == null) return reject(NavigationRejection.SESSION)
         val countries=configuredCountries ?: CountryCatalogLoader.current()
         if(request.country!=null && request.country.value !in countries.countries)return reject(NavigationRejection.IDENTITY)
-        val start=existing?.grid ?: galaxy.startFor(request.country) ?: request.country?.let {country->
+        val start=existing?.grid ?: initialDock?.grid ?: galaxy.startFor(request.country) ?: request.country?.let {country->
             CountryFounding.activeCapitals(stocks,countries)[country]?.let {capital->
                 galaxy.conditions[capital]?.grid
             }
@@ -247,7 +249,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 candidates.firstOrNull { Capital.of(it)?.power == owner.value } ?: candidates.minByOrNull { it.id }
             }
             Navigator(request.generation, request.characterId, country, start, policy.initialCp,
-                policy.initialCp, policy.initialCruise, shipStyle = style, originBase = home?.id ?: 0)
+                policy.initialCp, policy.initialCruise, baseId=initialDock?.baseId ?: 0, mode=if(initialDock==null)5 else 4,
+                shipStyle = style, originBase = home?.id ?: 0)
         }
         if (stocks != null) initial = clearInvalidReturnBase(initial, stocks)
         if (initial.offlineWarpCancellation != null && initial.offlineWarpCancellation == request.acknowledgedOfflineWarpCancellation)
