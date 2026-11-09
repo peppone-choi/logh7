@@ -65,6 +65,25 @@ class GamePresenceBattlefieldTest {
         assertEquals(1, packets.last().last().toInt())
     }
 
+    @Test fun queuedMovementRechecksTheBattlefieldBeforeDelivery() {
+        val hub = GamePresence()
+        val unguarded = mutableListOf<List<ByteArray>>()
+        val guarded = mutableListOf<Pair<Int, List<ByteArray>>>()
+        hub.update(GamePresence.Member("viewer", character, player, unguarded::add,
+            sendTactical = { grid, packets -> guarded += grid to packets }))
+        val motion = TacticalMotion(2487, 100, TacticalPose(TacticalPoint(0f, 0f), 0f),
+            1f, 0f, listOf(TacticalPoint(0f, 10f)))
+        val event = TacticalMovement(1, 1, 2487, 100, motion, recipients)
+
+        hub.movement(event)
+        hub.movement(event.copy(waypoint = 0))
+        hub.movement(event.copy(motion = null, destination = 2488))
+
+        assertEquals(listOf(2487, 2487), guarded.map { it.first })
+        assertEquals(listOf(0x0400, 0x0423), guarded.flatMap { it.second }.map(::opcode))
+        assertEquals(listOf(0x0425), unguarded.flatten().map(::opcode))
+    }
+
     @Test fun delayedImpactDoesNotReachAViewerInAnotherGrid() {
         val impact = TacticalImpact(1, 1010001, TacticalWeapon.BEAM,
             TacticalHit(1, 2487, 100, 1, 2), recipients)
