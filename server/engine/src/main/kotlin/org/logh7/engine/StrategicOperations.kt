@@ -142,11 +142,13 @@ internal object StrategicOperations {
                 shooter.characterId in plan.characters && issued!=null && seconds in issued until OperationPlanRules.endGameSeconds(issued) &&
                 WarpCourse.cruiseCost(grid,plan.grid)<=400
         })return stocks
+        if(stocks.outfits.values.any {shooter.characterId in it.members()})return stocks
         val people=stocks.strategic.people
         if(shooter.characterId !in people && people.size>=4096)return stocks
         val person=people[shooter.characterId] ?: StrategicPerson()
         // One merit per boat is the replacement value. The manual specifies per-boat credit without a value.
         val merit=minOf(0xffffffffL,person.merit+destroyed)
+        if(merit==person.merit)return stocks
         return stocks.copy(strategic=stocks.strategic.copy(people=people+(shooter.characterId to person.copy(merit=merit))))
     }
 

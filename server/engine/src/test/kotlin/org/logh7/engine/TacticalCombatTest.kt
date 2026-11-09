@@ -227,6 +227,10 @@ class TacticalCombatTest {
         assertSame(state.stocks,StrategicOperations.awardSweep(state.stocks,shooter,2493,now,1))
         assertSame(state.stocks,StrategicOperations.awardSweep(state.stocks,shooter,2488,OperationPlanRules.endGameSeconds(now),1))
         assertEquals(1L,StrategicOperations.awardSweep(state.stocks,shooter,2492,now,1).strategic.people.getValue(10000).merit)
+        val attached=state.stocks.copy(outfits=state.stocks.outfits.mapValues {(_,outfit)->
+            outfit.copy(country=Power.ALLIANCE.country,commanderId=shooter.characterId)},
+            warehouses=state.stocks.warehouses.mapValues {(_,warehouse)->warehouse.copy(country=Power.ALLIANCE.country)})
+        assertSame(attached,StrategicOperations.awardSweep(attached,shooter,2488,now,1))
         var nav = Navigation(galaxy,state.nav,NavigationPolicy())
         var production = production(state)
         val accepted = TacticalCombat.accept(request,session,galaxy,nav,production.snapshot(1)!!,state.commit,24).player!!
