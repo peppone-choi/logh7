@@ -39,6 +39,22 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun mismatchedParticipantCountryCannotDriveSavedFlagshipOrFleet() {
+        val pilots=players()
+        val before=pilots.toMap()
+        val stock=stocks(3)
+        val mismatch=offline.copy(participants=offline.participants.mapValues {(_,member)->member.copy(country=Power.ALLIANCE.country)})
+        val events=mutableListOf<TacticalCommandResult>()
+        assertSame(stock,TacticalOfflineAi.advance(mismatch,galaxy,pilots,stock,1,events))
+        assertEquals(before,pilots)
+        assertTrue(events.isEmpty())
+        val pilot=pilots.getValue("pilot")
+        assertEquals(listOf(12,99),TacticalOfflineAi.automaticTargets(mismatch,"pilot",pilot,stock,listOf(99,12)))
+        val defeated=mismatch.copy(eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.ALLIANCE.country)))
+        assertTrue(TacticalOfflineAi.automaticTargets(defeated,"pilot",pilot,stock,listOf(99,12)).isEmpty())
+    }
+
     @Test fun eliminatedCountryDoesNotIssueOfflineOrdersOrSelectAutomaticTargets() {
         val players=players()
         val pilot=players.getValue("pilot")
