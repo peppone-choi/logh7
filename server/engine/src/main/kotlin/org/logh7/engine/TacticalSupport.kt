@@ -157,7 +157,7 @@ internal object TacticalSupportOperations {
         val players=navigation.snapshot(session.generation)
         if(!eligible(source,player,order,now,players,stocks,galaxy,player.commandRange?.radius(now)))return reject(NavigationRejection.TARGET)
         if(OutfitSupplies.distribution(source.outfit).getValue(command.unit)==0)return reject(NavigationRejection.SUPPLY)
-        if(!needed(order,players,stocks))return reject(NavigationRejection.TARGET)
+        if(!needed(source,order,players,stocks))return reject(NavigationRejection.TARGET)
         if(order.action==TacticalSupportAction.REPAIR) {
             val kind=players.values.singleOrNull {it.unitId==order.target}?.hull?.kind ?: ship(order.target,stocks)!!.unit.stack.kind
             val cost=repairCost(kind)
@@ -195,7 +195,7 @@ internal object TacticalSupportOperations {
             if(target==unit.id || (action to target) in reserved)continue
             val order=TacticalSupportOrder(action,player.characterId,target,player.grid,now,now+5*scale)
             val point=eligibleTarget(source,player,order,now,players,stocks,galaxy) ?: continue
-            if(!needed(order,players,stocks))continue
+            if(!needed(source,order,players,stocks))continue
             if(action==TacticalSupportAction.REPAIR) {
                 val kind=players.values.singleOrNull {it.unitId==target}?.hull?.kind ?: checkNotNull(ship(target,stocks)).unit.stack.kind
                 if(repairCost(kind) !in 1..available)continue
@@ -208,12 +208,20 @@ internal object TacticalSupportOperations {
         return approach
     }
 
-    private fun needed(order: TacticalSupportOrder, players: Map<String,Navigator>, stocks: PlanetStocks): Boolean {
+    private fun supplyRoom(source:Ship,target:Ship,targetSupplies:Int,stocks:PlanetStocks):Int {
+        val unitRoom=OutfitSupplies.unitCapacity(target.unit)-targetSupplies
+        if(source.outfit.id==target.outfit.id || target.outfit.kind!=OutfitKind.TRANSPORT)return unitRoom
+        val cargo=TransportActions.carriedCargo(target.outfit,stocks.strategic.transports).sumOf {it.first.toLong()}
+        val outfitRoom=OutfitSupplies.capacity(target.outfit)-target.outfit.supplies-cargo
+        return minOf(unitRoom.toLong(),outfitRoom).coerceAtLeast(0).toInt()
+    }
+
+    private fun needed(source:Ship,order: TacticalSupportOrder, players: Map<String,Navigator>, stocks: PlanetStocks): Boolean {
         val personal=players.values.singleOrNull {it.unitId==order.target}
         if(personal!=null)return if(order.action==TacticalSupportAction.SUPPLY)personal.supplies<10000 else personal.hull!!.hp<100
         val target=ship(order.target,stocks) ?: return false
         return if(order.action==TacticalSupportAction.SUPPLY)
-            OutfitSupplies.distribution(target.outfit).getValue(order.target)<OutfitSupplies.unitCapacity(target.unit)
+            supplyRoom(source,target,OutfitSupplies.distribution(target.outfit).getValue(order.target),stocks)>0
             else target.unit.damaged>0
     }
     fun advance(session: SessionState, galaxy: Galaxy, players: MutableMap<String,Navigator>, initial: PlanetStocks,
@@ -255,7 +263,7 @@ internal object TacticalSupportOperations {
                 targetSupplies=balances.getValue(order.target); damaged=target.unit.damaged
                 val cost=UnitSpecifications.ships.single {it.kind==target.unit.stack.kind}.number("修理消費物資(１隻):修理消費物資(１隻)")
                 val amount=if(order.action==TacticalSupportAction.SUPPLY)
-                    minOf(available,OutfitSupplies.unitCapacity(target.unit)-targetSupplies)
+                    minOf(available,supplyRoom(source,target,targetSupplies,stocks))
                     else if(cost>0)minOf(damaged,available/cost)*cost else 0
                 if(amount>0) {
                     if(source.outfit.id==target.outfit.id) {

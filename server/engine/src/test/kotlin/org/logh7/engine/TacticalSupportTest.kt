@@ -244,12 +244,20 @@ class TacticalSupportTest {
         }
     }
 
-    @Test fun supplyBetweenUnitsOfTheSameFleetDoesNotChangeItsTotal() {
-        val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
+    @Test fun supplyBetweenUnitsOfTheSameFullTransportDoesNotChangeItsTotal() {
+        val s=state()
+        val transport=s.stocks.outfits.getValue(1).copy(kind=OutfitKind.TRANSPORT)
+        val cargo=TransportPackage(1,transport.country,1000,1001,OutfitSupplies.capacity(transport)-transport.supplies,
+            carrier=1,carrierBoats=TransportActions.boats(transport))
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to transport),
+            warehouses=s.stocks.warehouses+(10 to s.stocks.warehouses.getValue(10).copy(kind=OutfitKind.TRANSPORT)),
+            strategic=s.stocks.strategic.copy(transports=listOf(cargo),lastTransportId=1))
+        val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         assertNotNull(accept(s,nav,p,request(TacticalSupportAction.SUPPLY,2)).player)
         val out=mutableListOf<TacticalSupportResult>();settle(s,nav,p,now+120,out)
         assertEquals(10000,s.stocks.outfits.getValue(1).supplies)
         assertEquals(mapOf(1 to 0,2 to 10000),OutfitSupplies.distribution(s.stocks.outfits.getValue(1)))
+        assertEquals(listOf(cargo),s.stocks.strategic.transports)
         assertEquals(250,s.stocks.outfits.getValue(1).activeShips!!.values.last().boats)
         assertEquals(30,s.stocks.outfits.getValue(1).activeShips!!.values.last().damaged)
     }
@@ -344,6 +352,50 @@ class TacticalSupportTest {
         assertEquals(10000-receiver.boats,returned.outfits.getValue(3).supplies)
         assertEquals(peaceful.bases,returned.bases)
         assertEquals(3,movements.single().outfit)
+    }
+
+    @Test fun tacticalSupplyRespectsCargoSpaceAtAdmissionAndAfterReload() {
+        val s=state()
+        val source=s.stocks.outfits.getValue(1)
+        val ships=assertNotNull(source.activeShips)
+        val giver=ActiveShipUnits(listOf(ships.values.first()))
+        val receiver=ships.values.last().copy(stack=ships.values.first().stack)
+        val receiverShips=ActiveShipUnits(listOf(receiver))
+        val transport=OutfitStock(3,2,OutfitKind.TRANSPORT,1000,30,
+            units=UnitInventory(receiverShips.quantities()),activeShips=receiverShips,position=OutfitPosition(2488))
+        val capacity=OutfitSupplies.capacity(transport)
+        val cargo=TransportPackage(1,transport.country,1000,1001,capacity-100,carrier=3,carrierBoats=receiver.boats)
+        val initial=s.stocks.copy(outfits=s.stocks.outfits+(1 to source.copy(activeShips=giver,
+            units=UnitInventory(giver.quantities())))+(3 to transport),
+            warehouses=s.stocks.warehouses+(30 to OutfitWarehouse(30,2,OutfitKind.TRANSPORT,1000,3)),
+            strategic=s.stocks.strategic.copy(transports=listOf(cargo),lastTransportId=1))
+        fun full(stocks:PlanetStocks)=stocks.copy(strategic=stocks.strategic.copy(transports=listOf(cargo.copy(supplies=capacity))))
+        val command=request(TacticalSupportAction.SUPPLY,receiver.id)
+
+        s.stocks=full(initial)
+        val fullProduction=production(s)
+        val fullBefore=s.stocks
+        assertEquals(NavigationRejection.TARGET,accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),fullProduction,command).rejection)
+        assertEquals(fullBefore,s.stocks)
+
+        s.stocks=initial
+        assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).player)
+        val pending=s.stocks
+        val filled=State(s.players,full(pending))
+        val cancelled=mutableListOf<TacticalSupportResult>()
+        settle(filled,Navigation(galaxy,filled.nav,NavigationPolicy()),production(filled),now+120,cancelled)
+        assertTrue(cancelled.single().cancelled)
+        assertEquals(10000,filled.stocks.outfits.getValue(1).supplies)
+        assertEquals(transport,filled.stocks.outfits.getValue(3))
+        assertEquals(full(pending).strategic.transports,filled.stocks.strategic.transports)
+
+        val completed=mutableListOf<TacticalSupportResult>()
+        settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+120,completed)
+        assertFalse(completed.single().cancelled)
+        assertEquals(100,completed.single().targetSupplies)
+        assertEquals(9900,s.stocks.outfits.getValue(1).supplies)
+        assertEquals(100,s.stocks.outfits.getValue(3).supplies)
+        assertEquals(listOf(cargo),s.stocks.strategic.transports)
     }
 
     @Test fun aSavedRepairCannotSpendSuppliesOnAGuardShip() {
