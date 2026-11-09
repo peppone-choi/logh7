@@ -238,6 +238,68 @@ class FleetNavigationTest {
         state.players = state.players + ("aide" to state.players.getValue("pilot").copy(characterId = 10001,
             pcp = 800, mcp = 600, cruise = cruise))
     }
+    @Test fun sameAideRoleMovesToAnotherFleetAfterDismissalOrResignation() {
+        for (resigns in listOf(false, true)) {
+            val state = state()
+            addAide(state)
+            val newCommander = state.players.getValue("pilot").copy(characterId = 10002)
+            state.players = state.players + ("successor" to newCommander)
+            val second = OutfitStock(2, 3, OutfitKind.FLEET, 1000, 20, commanderId = 10002,
+                units = UnitInventory(mapOf(UnitStack(89) to 1)))
+            val seeded = ActiveShips.initialize(state.stocks.copy(outfits = state.stocks.outfits + (2 to second),
+                warehouses = state.stocks.warehouses + (20 to OutfitWarehouse(20, 3, OutfitKind.FLEET, 1000, 2))))
+            val oldShip = seeded.outfits.getValue(1).activeShips!!.values.first()
+            state.stocks = seeded.copy(tacticalCommands = seeded.tacticalCommands.copy(authority = mapOf(oldShip.id to 10001)))
+            val activeSession = SessionSimulation(SessionRules.load()).apply {
+                join("pilot", Power.ALLIANCE, false, "c")
+                join("aide", Power.ALLIANCE, false, "a")
+                join("successor", Power.ALLIANCE, false, "s")
+            }.exportState()
+            val role = FleetOffice.ALLIANCE_AIDE.card
+            val appointment = GarrisonAppointmentRequest("successor", "s", 10002, Power.ALLIANCE, 1, 1000, 10001, role, 6, 12,
+                CountryId(3), outfit = 2)
+            fun appoint() = GarrisonAppointment.evaluate(galaxy, appointment, activeSession, state.players.getValue("successor"), state.stocks)
+            assertEquals(AppointmentRejection.TARGET, appoint().rejection)
+            assertEquals(10001, TacticalAuthority.commander(state.stocks.outfits.getValue(1), oldShip, state.stocks))
+            if (resigns) {
+                val result = OfficeResignation.evaluate(galaxy, OfficeResignationRequest("aide", "a", 10001, Power.ALLIANCE, 1, role),
+                    activeSession, state.players.getValue("aide"), state.stocks)
+                assertNull(result.rejection)
+                state.stocks = assertNotNull(result.stocks)
+                state.players = state.players + ("aide" to assertNotNull(result.player))
+            } else {
+                val result = OfficeDismissal.evaluate(galaxy, OfficeDismissalRequest("pilot", "c", 10000, Power.ALLIANCE, 1, 10001, role, 6, 3),
+                    activeSession, state.players.getValue("pilot"), state.stocks)
+                assertNull(result.rejection)
+                state.stocks = assertNotNull(result.stocks)
+                state.players = state.players + ("pilot" to assertNotNull(result.player))
+            }
+            assertEquals(10000, TacticalAuthority.commander(state.stocks.outfits.getValue(1), oldShip, state.stocks))
+            val moved = appoint()
+            assertNull(moved.rejection)
+            state.stocks = assertNotNull(moved.stocks)
+            state.players = state.players + ("successor" to assertNotNull(moved.player))
+            assertEquals(0, state.stocks.outfits.getValue(1).aideId)
+            assertEquals(10001, state.stocks.outfits.getValue(2).aideId)
+            val newFleet = state.stocks.outfits.getValue(2)
+            val newShip = newFleet.activeShips!!.values.single()
+            assertEquals(10002, TacticalAuthority.commander(newFleet, newShip, state.stocks))
+            val navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+            val production = PlanetProduction(galaxy, state.inventory, SessionRules.load().startSeconds, PlanetProductionPolicy())
+            fun depart(command: NavigationRequest) = FleetNavigation.apply(command.copy(place = PlaceMove.SwitchMode(5)),
+                activeSession, galaxy, navigation, production, production.settle(1, activeSession.gameMillis/1000), state.commit) { false }
+            val aide = state.players.getValue("aide")
+            assertNull(depart(request).rejection)
+            assertEquals(aide, state.players.getValue("aide"))
+            val secondDeparture = NavigationRequest("successor", 10002, Power.ALLIANCE, "s", 1, unitId = newCommander.unitId, captainCard = 195)
+            assertNull(depart(secondDeparture).rejection)
+            val follower = state.players.getValue("aide")
+            assertEquals(0, follower.baseId)
+            assertEquals(aide.moves + 1, follower.moves)
+            assertEquals(aide.mcp, follower.mcp)
+        }
+    }
+
     @Test fun offlineAideFollowsDepartureWarpAndReloadWithoutPayingTheCommandersCp() {
         val state = state(); addAide(state)
         val cp = state.players.getValue("aide")
