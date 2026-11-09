@@ -27,6 +27,22 @@ class FundActionsTest {
         }
     }
 
+    @Test fun supportRejectsDeadCandidatesAndRechecksCampBeforeCharging() {
+        val dead = stocks.copy(strategic = stocks.strategic.copy(
+            people = stocks.strategic.people + (10001 to StrategicPerson(deceasedAt = 1))))
+        val plot = Plot(10001, Power.EMPIRE.country, since = 1, revolt = 2)
+        val revolt = stocks.copy(social = stocks.social.copy(coup = CoupState(plots = mapOf(plot.leader to plot))))
+        for (current in listOf(dead, revolt)) {
+            val result = act(FundActions.SUPPORT, 10001, 1000, current)
+            assertEquals(SocialRejection.TARGET, result.rejection)
+            assertEquals(a, result.player)
+            assertEquals(current, result.stocks)
+        }
+        val sameCamp = revolt.copy(social = revolt.social.copy(coup =
+            CoupState(plots = mapOf(plot.leader to plot.copy(members = listOf(a.characterId))))))
+        assertNull(act(FundActions.SUPPORT, 10001, 1000, sameCamp).rejection)
+    }
+
     @Test fun moneyGoesToAGovernedTreasuryOrTheBoxes() {
         assertEquals(SocialRejection.TARGET,act(0,1050,1000).rejection,"not governed")
         assertEquals(SocialRejection.MAXIMUM,act(0,1049,8000).rejection)

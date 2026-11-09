@@ -36,6 +36,11 @@ object FundActions {
             (it.baseId in seats || (card==null || card==66) && s.strategic.fiefs[it.baseId]==character)}.map {it.baseId}.sorted()
     }
 
+    fun canSupport(stocks: PlanetStocks, sender: Int, country: CountryId?, candidate: StrategicIdentity): Boolean =
+        country != null && candidate.id != sender && candidate.country == country &&
+            !BattleDeath.deceased(stocks, candidate.id) &&
+            CoupActions.camp(stocks, sender, country) == CoupActions.camp(stocks, candidate.id, country)
+
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
         val i=r.identity
@@ -53,8 +58,11 @@ object FundActions {
         when(i.value) {
             LOCAL -> if(i.target !in governed(g,s,i.characterId,i.country,countries))return reject(SocialRejection.TARGET)
             CONFIDENCE -> if(i.target !in 1..2)return reject(SocialRejection.TARGET)
-            SUPPORT -> if(i.target==i.characterId || i.identities.singleOrNull {it.id==i.target}?.country!=p.country)
-                return reject(SocialRejection.TARGET)
+            SUPPORT -> {
+                val candidate = i.identities.singleOrNull { it.id == i.target }
+                if (candidate == null || !canSupport(s, i.characterId, i.country, candidate))
+                    return reject(SocialRejection.TARGET)
+            }
         }
         val person=s.strategic.people[i.characterId] ?: StrategicPerson()
         if(person.money<i.amount)return reject(SocialRejection.MAXIMUM)

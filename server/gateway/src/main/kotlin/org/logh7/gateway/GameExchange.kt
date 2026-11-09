@@ -2379,7 +2379,7 @@ class GameExchange(
                                             val stocks=inventory
                                             val country=currentProfile(identity.account,query.character).country
                                             val peers=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
-                                                .filter {country!=null && it.country==country}.map {it.id}.toSet()
+                                                .filter {org.logh7.engine.FundActions.canSupport(stocks, character.id.toInt(), country, it)}.map {it.id}.toSet()
                                             val rows=when(query.value) {
                                                 0 -> org.logh7.engine.FundActions.governed(world.galaxy,stocks,character.id.toInt(),country).filter {it>query.target}
                                                     .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")}
