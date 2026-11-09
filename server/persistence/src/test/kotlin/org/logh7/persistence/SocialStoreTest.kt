@@ -23,6 +23,25 @@ class SocialStoreTest {
         assertEquals(listOf(null,null,9,9,10),restored.proposals.mails.map {it.rankChangeMailRank})
     }
 
+    @Test fun assignmentMailPreservesSignedRowsAndReplayIdentityAlongsideOldRows() {
+        val ships = mutableListOf(ReorganizationShip(32, 2, 0), ReorganizationShip(40, -1, 0))
+        val troops = mutableListOf(ReorganizationTroop(1003, 0, -9), ReorganizationTroop(1003, 1, 5))
+        val assignment = StockAssignmentProposal(50, 1049, 2, 0, ships, troops, -1000)
+        ships.clear()
+        troops.clear()
+        assertEquals(listOf(2, -1), assignment.ships.map { it.units })
+        assertEquals(listOf(-9, 5), assignment.troops.map { it.units })
+        val old = ProposalMail(1, 10000, 10001, 17, 19, ProposalActions.RESIGNATION, true, 100, 86500, mcp = 40)
+        val mail = ProposalMail(2, 10000, 10002, 1, 24, ProposalActions.ASSIGNMENT, true, 100, 86500,
+            mcp = 80, country = CountryId(2), assignment = assignment, assignmentOriginalRecipient = 10001)
+        val expired = mail.copy(id = 3, sender = 10003, assignmentExpired = true)
+        val expected = SocialState(nextId = 4, proposals = ProposalState(listOf(old, mail, expired)))
+        val restored = SocialStateCodec.decode(SocialStateCodec.encode(expected))
+        assertEquals(expected, restored)
+        assertTrue(restored.proposals.mails[1].pending)
+        assertFalse(restored.proposals.mails[2].pending)
+    }
+
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds
     private val receipt=SpeechReceipt(1,10000,CountryId(2),1049,10490404,now,60,10,11,70,72,now+86400)

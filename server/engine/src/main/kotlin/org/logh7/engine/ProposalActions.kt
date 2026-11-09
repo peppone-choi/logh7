@@ -22,8 +22,32 @@ object ProposalActions {
     const val APPOINTMENT=0x0707
     const val SPECIAL_PROMOTION=0x0705
     const val DEMOTION=0x0706
-    val costs=mapOf(RESIGNATION to 80L,DISMISSAL to 160L,APPOINTMENT to 160L,DEMOTION to 320L,SPECIAL_PROMOTION to 640L)
+    const val ASSIGNMENT = 0x0c0b
+    val costs=mapOf(RESIGNATION to 80L,DISMISSAL to 160L,APPOINTMENT to 160L,DEMOTION to 320L,
+        SPECIAL_PROMOTION to 640L,ASSIGNMENT to StockAssignment.COST.toLong())
     fun rankChange(command:Int)=command==DEMOTION || command==SPECIAL_PROMOTION
+
+    fun assignmentEligible(g: Galaxy, stocks: PlanetStocks, executor: Navigator, requiredCard: Int,
+        payload: StockAssignmentProposal, countries: CountryCatalog = CountryCatalogLoader.current()): Boolean =
+        assignmentPreview(g, stocks, executor, requiredCard, payload, countries) { _, _ -> false }.changed
+
+    private fun assignmentPreview(g: Galaxy, stocks: PlanetStocks, executor: Navigator, requiredCard: Int,
+        payload: StockAssignmentProposal, countries: CountryCatalog,
+        blocked: (PlanetStocks, StockAssignmentProposal) -> Boolean): StockAssignmentResult =
+        StockAssignment.preview(payload.request("", "", executor.characterId, executor.country, executor.generation),
+            executor, stocks, g, requiredCard, countries) { blocked(stocks, payload) }
+
+    private fun assignmentRejection(result: StockAssignmentResult): SocialRejection? = when (result.rejection) {
+        LogisticsRejection.BUSY -> SocialRejection.BUSY
+        LogisticsRejection.ACCESS -> SocialRejection.CARD
+        null -> if (result.changed) null else SocialRejection.TARGET
+        else -> SocialRejection.TARGET
+    }
+
+    private fun priorAssignment(s: PlanetStocks, r: SocialRequest): ProposalMail? =
+        r.assignment?.takeIf { r.identity.command == OPEN && r.identity.value == ASSIGNMENT }?.let { payload ->
+            s.social.proposals.mails.singleOrNull { it.sender == r.identity.characterId && it.assignment?.token == payload.token }
+        }
 
     /** The normal personnel rule, with CP handled by the mail transaction. */
     fun rankChangeDirectory(g:Galaxy,s:PlanetStocks,executor:Navigator,command:Int,identities:List<StrategicIdentity>,
@@ -65,10 +89,12 @@ object ProposalActions {
         val person=s.strategic.people[character] ?: StrategicPerson()
         return if(family.ranks=="empire")person.ladderRank(fallback) else person.rank ?: fallback
     }
-    private data class Execution(val stocks:PlanetStocks,val navigators:Map<String,Navigator>)
+    private data class Execution(val stocks:PlanetStocks,val navigators:Map<String,Navigator>,
+        val rejection: SocialRejection? = null)
     /** Runs an approved command only while its country, current people and post still permit it. */
     private fun execute(g:Galaxy,mail:ProposalMail,s:PlanetStocks,rank:Int,players:Map<String,Navigator>,
-        countries:CountryCatalog,now:Long,identities:()->List<StrategicIdentity>):Execution? {
+        countries:CountryCatalog,now:Long,assignmentBlocked:(PlanetStocks,StockAssignmentProposal)->Boolean,
+        identities:()->List<StrategicIdentity>):Execution? {
         val country=mail.originCountry?.takeIf {it.value in countries.countries} ?: return null
         fun belongs(id:Int)=!BattleDeath.deceased(s,id) && players.values.singleOrNull {it.generation==s.generation && it.characterId==id}?.country==country
         if(!belongs(mail.sender) || !belongs(mail.recipient) || mail.target>0 && !belongs(mail.target))return null
@@ -76,6 +102,15 @@ object ProposalActions {
         if(policy.holders(s,mail.card,country).none {it.character==mail.recipient})return null
         var navigators=emptyMap<String,Navigator>()
         val stocks=when(mail.command) {
+            ASSIGNMENT -> {
+                if (policy.holders(s, mail.senderCard, country).none { it.character == mail.sender }) return null
+                val executor=players.values.single {it.characterId==mail.recipient && it.generation==s.generation}
+                val payload=checkNotNull(mail.assignment)
+                val result=assignmentPreview(g,s,executor,mail.card,payload,countries,assignmentBlocked)
+                val rejection=assignmentRejection(result)
+                if(rejection!=null)return Execution(s,emptyMap(),rejection)
+                result.stocks
+            }
             RESIGNATION -> policy.holders(s,mail.card,country).filter {it.character==mail.recipient}.singleOrNull()
                 ?.let {OfficeResignation.clear(policy,s,it)}
             DISMISSAL -> {
@@ -140,7 +175,9 @@ object ProposalActions {
     /** Expired rows refund the sender's half and absent recipients' due orders are approved (the recipient pays the
      * other half and the command runs). Runs in the periodic world tick and before each proposal action. */
     fun settle(g:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks,
-        countries:CountryCatalog=CountryCatalogLoader.current(),identities:()->List<StrategicIdentity> = {emptyList()}):PlanetStocks {
+        countries:CountryCatalog=CountryCatalogLoader.current(),
+        assignmentBlocked:(PlanetStocks,StockAssignmentProposal)->Boolean = {_,_->false},
+        identities:()->List<StrategicIdentity> = {emptyList()}):PlanetStocks {
         val now=session.gameMillis/1000
         fun keyOf(id:Int)=players.entries.singleOrNull {it.value.generation==session.generation && it.value.characterId==id}?.key
         var settled=s
@@ -177,10 +214,11 @@ object ProposalActions {
             if(paid !is PaymentResult.Paid)continue
             val (answered,refused)=Proposals.reply(settled.social.proposals,mail.id,mail.recipient,Proposals.APPROVE,now)
             if(refused!=null)continue
-            if(rankChange(mail.command) && country in session.eliminated)continue
+            if((rankChange(mail.command) || mail.command==ASSIGNMENT) && country in session.eliminated)continue
             val rank=rank(settled,mail.recipient,country,20,countries)
             val executed=execute(g,mail,settled.copy(social=settled.social.copy(proposals=answered)),
-                rank,players,countries,now,identities) ?: continue
+                rank,players,countries,now,assignmentBlocked,identities) ?: continue
+            if(executed.rejection!=null)continue
             settled=executed.stocks
             players.putAll(executed.navigators)
             players[key]=recipient.paidWith(paid.balance)
@@ -188,13 +226,14 @@ object ProposalActions {
         return settled
     }
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>,
-        countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
-        if(p==null)return act(g,r,session,p,s,accounts,countries)
+        countries:CountryCatalog=CountryCatalogLoader.current(),
+        assignmentBlocked:(PlanetStocks,StockAssignmentProposal)->Boolean = {_,_->false}):SocialResult {
+        if(p==null || priorAssignment(s,r)!=null)return act(g,r,session,p,s,accounts,countries,assignmentBlocked)
         val players=LinkedHashMap(accounts).also {it[r.identity.account]=p}
-        val settled=settle(g,session,players,s,countries) {r.identity.identities}
+        val settled=settle(g,session,players,s,countries,assignmentBlocked) {r.identity.identities}
         val self=players.getValue(r.identity.account)
         val unchanged=settled==s && self==p
-        val result=act(g,r,session,self,settled,if(unchanged)accounts else players,countries)
+        val result=act(g,r,session,self,settled,if(unchanged)accounts else players,countries,assignmentBlocked)
         if(result.rejection!=null)return if(unchanged)result else SocialResult(p,s,result.rejection)
         val targets=approvedOfficeTargets(s.social.proposals,checkNotNull(result.stocks).social.proposals)
         val changed=players.filter { (account, player) -> account!=r.identity.account &&
@@ -202,7 +241,7 @@ object ProposalActions {
         return result.copy(navigators=changed+result.navigators)
     }
     private fun act(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,accounts:Map<String,Navigator>,
-        countries:CountryCatalog):SocialResult {
+        countries:CountryCatalog,assignmentBlocked:(PlanetStocks,StockAssignmentProposal)->Boolean):SocialResult {
         val i=r.identity;val now=session.gameMillis/1000
         fun reject(reason:SocialRejection)=SocialResult(p,s,reason)
         val member=session.participants[i.account]
@@ -212,6 +251,13 @@ object ProposalActions {
             return reject(SocialRejection.IDENTITY)
         if(BattleDeath.deceased(s,i.characterId))return reject(SocialRejection.IDENTITY)
         if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
+        priorAssignment(s,r)?.let { previous ->
+            if(previous.originCountry!=i.country || previous.senderCard!=i.card || previous.card!=i.argument ||
+                previous.assignmentOriginalRecipient!=i.target || previous.assignment!=r.assignment)
+                return reject(SocialRejection.QUOTE_CHANGED)
+            return SocialResult(p,s,proposalId=previous.id)
+        }
+        if((r.assignment!=null)!=(i.command==OPEN && i.value==ASSIGNMENT))return reject(SocialRejection.COMMAND)
         if(p.cpPaused || p.navigationPending)return reject(SocialRejection.BUSY)
         val policy=OrganizationalOfficePolicy(g,countries)
         val proposals=s.social.proposals
@@ -226,10 +272,11 @@ object ProposalActions {
             val cost=costs[mail.command]?.div(2) ?: return reject(SocialRejection.COMMAND)
             val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
             if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
-            if(rankChange(mail.command) && i.country in session.eliminated)return reject(SocialRejection.SESSION)
-            val executed=execute(g,mail,next,rank(s,i.characterId,i.country,i.rank,countries),accounts,countries,now) {i.identities}
+            if((rankChange(mail.command) || mail.command==ASSIGNMENT) && i.country in session.eliminated)return reject(SocialRejection.SESSION)
+            val executed=execute(g,mail,next,rank(s,i.characterId,i.country,i.rank,countries),accounts,countries,now,assignmentBlocked) {i.identities}
                 ?: return reject(SocialRejection.CARD)
-            return SocialResult(p.paidWith(paid.balance),executed.stocks,changed=true,navigators=executed.navigators)
+            executed.rejection?.let { return reject(it) }
+            return SocialResult(p.paidWith(paid.balance),executed.stocks,changed=true,navigators=executed.navigators,proposalId=mail.id)
         }
         if(i.command!=OPEN)return reject(SocialRejection.COMMAND)
         val cost=costs[i.value] ?: return reject(SocialRejection.COMMAND)
@@ -267,15 +314,20 @@ object ProposalActions {
             return reject(SocialRejection.TARGET)
         if(rankChange(i.value) && (i.amount!=0L || i.country in session.eliminated ||
             personnel(g,s,recipient,i.argument,target,i.value,i.identities,countries)==null))return reject(SocialRejection.TARGET)
+        r.assignment?.let {
+            if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
+            assignmentRejection(assignmentPreview(g,s,recipient,i.argument,it,countries,assignmentBlocked))
+                ?.let { reason -> return reject(reason) }
+        }
         val half=cost/2
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),half,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
         if(s.social.nextId==Int.MAX_VALUE)return reject(SocialRejection.MAXIMUM)
         val (opened,refused)=Proposals.open(proposals,s.social.nextId,i.characterId,i.target,i.card,i.argument,i.value,order,now,
-            (p.pcp-paid.balance.pcp).toInt(),(p.mcp-paid.balance.mcp).toInt(),target,targetCard,seat,i.country)
+            (p.pcp-paid.balance.pcp).toInt(),(p.mcp-paid.balance.mcp).toInt(),target,targetCard,seat,i.country,r.assignment)
         if(refused!=null)return reject(if(refused==ProposalRejection.BLOCKED)SocialRejection.COOLDOWN else SocialRejection.MAXIMUM)
         val next=s.copy(social=s.social.copy(nextId=s.social.nextId+1,proposals=opened),
             strategic=s.strategic.copy(people=people+(i.characterId to sender.copy(influence=sender.influence-1))))
-        return SocialResult(p.paidWith(paid.balance),next,changed=true)
+        return SocialResult(p.paidWith(paid.balance),next,changed=true,proposalId=s.social.nextId)
     }
 }

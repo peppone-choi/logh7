@@ -212,6 +212,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val impacts = TacticalCombat.settle(session,galaxy,navigation,production,worldStateCommitter,
             npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add,fortressSunk::add,
             settleOfficeRecovery = { old, updated, players -> settleOfficeRecovery(session.gameMillis / 1000, old, updated, players) },
+            assignmentBlocked = { stocks, payload -> assignmentBlocked(session, stocks, payload) },
             onCoupDockCancellations = { cancelledDocking.addAll(it) })
         // A later recapture must not restore a warehouse reservation from before occupation.
         occupations.forEach {logistics.occupationCommitted(it.base)}
@@ -422,6 +423,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private var elapsed = initialElapsed
     private val logistics = OutfitLogistics(monotonicMillis,galaxy)
     private val formations=OutfitFormationService(clock=monotonicMillis)
+
+    private fun assignmentBlocked(session: SessionState, stocks: PlanetStocks, payload: StockAssignmentProposal): Boolean =
+        formations.blocksBase(session, payload.base) || logistics.blocksSupply(session, stocks, stocks.outfits.keys)
     private fun recoverNavigation(request:NavigationRequest,session:SessionState):NavigationResult? {
         val navigation=navigation ?: return null
         val stocks=production?.snapshot(session.generation)
@@ -1178,7 +1182,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val inventory=checkNotNull(production).settle(session)
                     val accounts=navigation?.snapshot(session.generation).orEmpty().let {s->recovered?.player?.let {s+(i.account to it)} ?: s}
                     var result=SocialActions.evaluate(checkNotNull(galaxy),r,session,recovered?.player,inventory,
-                        navigation?.snapshot(session.generation)?.values.orEmpty(),accounts)
+                        navigation?.snapshot(session.generation)?.values.orEmpty(),accounts,
+                        assignmentBlocked = { stocks, payload -> assignmentBlocked(session, stocks, payload) })
                     // Keep the startup membership fence on live defection too, until the remaining world APIs migrate.
                     if(result.defected?.value?.let {it !in 2..3}==true)
                         result=SocialResult(recovered?.player,inventory,SocialRejection.CARD)

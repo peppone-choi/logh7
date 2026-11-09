@@ -93,6 +93,8 @@ class GameExchange(
     private var lobbyLoggedIn = false
     private var gameLoggedIn = false
     private var gameStarted = false
+    private data class AssignmentDraft(val recipient: Int,val token: Int,val card: Int,val expiresAt: Long)
+    private var assignmentDraft: AssignmentDraft? = null
     private var lastPortraitReply:Long?=null
     private var lastSpotPortraitReply:Long?=null
     internal fun joinedAccount(): String? = ticket?.account?.takeIf { gameStarted && state == State.AUTHENTICATED }
@@ -206,10 +208,55 @@ class GameExchange(
             mine.firstNotNullOfOrNull {card->theirs.firstOrNull {recipientCard(it) && (card==1 || institution(it)==institution(card))}?.let {Triple(other.characterId,card,it)}}
         }
     }
+    private fun activeAssignmentDraft(): AssignmentDraft? {
+        val draft=assignmentDraft ?: return null
+        if(System.nanoTime()-draft.expiresAt<0)return draft
+        assignmentDraft=null
+        return null
+    }
+    private fun assignmentDraftCard(recipientId:Int,requiredCard:Int?=null): Pair<org.logh7.engine.Navigator,Int>? {
+        val snapshot=navigation?.snapshot() ?: return null
+        val session=snapshot.session ?: return null
+        val inventory=snapshot.planetStocks ?: return null
+        val account=ticket?.account ?: return null
+        val sender=snapshot.navigators[account] ?: return null
+        val country=sender.country ?: return null
+        if(!worldInitialized || sender.generation!=generation || session.generation!=generation || inventory.generation!=generation ||
+            session.ended!=null || country in session.eliminated || sender.cpPaused || sender.navigationPending ||
+            org.logh7.engine.BattleDeath.deceased(inventory,sender.characterId) || inventory.social.justice.detained(sender.characterId))return null
+        val recipient=snapshot.navigators.values.singleOrNull {it.characterId==recipientId && it.generation==generation} ?: return null
+        if(recipient.country!=country || recipient.cpPaused || recipient.navigationPending ||
+            org.logh7.engine.BattleDeath.deceased(inventory,recipientId) || inventory.social.justice.detained(recipientId) ||
+            recipient.grid!=sender.grid || (sender.spotId!=0 || recipient.spotId!=0) &&
+            (recipient.baseId!=sender.baseId || recipient.spotId!=sender.spotId || recipient.spotOwner!=sender.spotOwner))return null
+        val offices=org.logh7.engine.LogisticsOfficePolicy(checkNotNull(world).galaxy)
+        val cards=offices.cards(inventory,recipientId,country.value).map {it.first}
+        val pair=proposalPairs(inventory,sender,recipientId) {it in cards && (requiredCard==null || it==requiredCard)}
+            .singleOrNull() ?: return null
+        return recipient to pair.third
+    }
+    private fun assignmentDraftAllows(draft:AssignmentDraft,inventory:org.logh7.engine.PlanetStocks,
+        recipient:org.logh7.engine.Navigator?,outfit:org.logh7.engine.OutfitStock): Boolean {
+        val country=recipient?.country ?: return false
+        return inventory.bases[outfit.baseId]?.camp==0 &&
+            org.logh7.engine.TacticalAuthority.canAccessOutfitWarehouse(inventory,outfit,recipient.characterId,country) &&
+            org.logh7.engine.LogisticsOfficePolicy(checkNotNull(world).galaxy)
+                .permits(inventory,recipient.characterId,country,outfit.kind,draft.card)
+    }
     /** Other people whose CP changed in the same commit (a proposal refund) see it at once. */
     private fun refreshPaid(navigators:Map<String,org.logh7.engine.Navigator>) {
         navigators.values.forEach {other->currentCharacterById(other.characterId)?.let {c->
             presence?.refreshCharacter(c,other,offices(c,other),gameSeconds(),administration?.stationedOutfit(other) ?: 0)}}
+    }
+    private fun assignmentApprovalWarehouses(result:org.logh7.engine.SocialResult,player:org.logh7.engine.Navigator):List<ByteArray> {
+        if(result.rejection!=null || !result.changed || result.proposalId<=0)return emptyList()
+        val inventory=result.stocks ?: return emptyList()
+        val assignment=inventory.social.proposals.mails.singleOrNull {
+            it.id==result.proposalId && it.reply==org.logh7.engine.Proposals.APPROVE
+        }?.assignment ?: return emptyList()
+        val map=world ?: return emptyList()
+        return listOf(map.warehouse(assignment.base,inventory),map.outfitWarehouse(assignment.base,assignment.outfit,
+            player.characterId,player.country?.value,inventory))
     }
     private fun refreshTacticalOffice(generation:Long,outfit:Int) {
         if(outfit<=0)return
@@ -1318,6 +1365,52 @@ class GameExchange(
                         val query = org.logh7.protocol.LogisticsMessages.assignment(body)
                         val character = checkNotNull(currentCharacter(identity.account))
                         require(query.header.characterId == character.id.toInt())
+                        val offer = org.logh7.protocol.LogisticsMessages.assignmentProposal(query)
+                        if (offer != null) {
+                            val payload = org.logh7.engine.StockAssignmentProposal(offer.token,offer.base,offer.outfit,offer.kind,
+                                offer.moves.ships.map {org.logh7.engine.ReorganizationShip(it.kind,it.units,it.boats)},
+                                offer.moves.troops.map {org.logh7.engine.ReorganizationTroop(it.kind,it.grade,it.units)},
+                                offer.moveSupplies)
+                            val snapshot = checkNotNull(navigation?.snapshot())
+                            val sender = checkNotNull(snapshot.navigators[identity.account])
+                            val inventory = checkNotNull(snapshot.planetStocks)
+                            val previous = inventory.social.proposals.mails.singleOrNull {
+                                it.sender==offer.actor && it.assignment?.token==offer.token
+                            }
+                            val executor = snapshot.navigators.values.singleOrNull {it.generation==sender.generation && it.characterId==offer.recipient}
+                            val pair = previous?.let {Triple(offer.recipient,it.senderCard,it.card)} ?: executor?.let {
+                                proposalPairs(inventory,sender,offer.recipient) {card ->
+                                    org.logh7.engine.ProposalActions.assignmentEligible(world.galaxy,inventory,it,card,payload)
+                                }.singleOrNull()
+                            }
+                            val expected = checkNotNull(generation)
+                            val command = org.logh7.engine.ProposalActions.OPEN
+                            val value = org.logh7.engine.ProposalActions.ASSIGNMENT
+                            val request = org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(
+                                identity.account,connection,offer.actor,sender.country,expected,command,pair?.second ?: 0,
+                                character.rank,target=offer.recipient,value=value,argument=pair?.third ?: 0),assignment=payload)
+                            // The native assignment result applies a direct warehouse edit. A mail uses the proposal
+                            // response instead, with its full retry token in the argument word.
+                            val raw = java.nio.ByteBuffer.allocate(29).putInt(offer.actor).putShort(0x7f00)
+                                .putShort(command.toShort()).putShort(0).putShort(value.toShort()).putInt(offer.recipient)
+                                .put(0).putInt(offer.token).array()
+                            val reply = org.logh7.protocol.StrategyActionMessages.Query(offer.actor,command,0,0,raw,
+                                target=offer.recipient,value=value,argument=offer.token)
+                            pendingWorld = administration.social(request).thenApply { result ->
+                                val player = result.player
+                                val updated = currentCharacter(identity.account)
+                                val status = result.rejection?.let {it.ordinal+1} ?: 0
+                                if(status==0 && assignmentDraft?.let {it.recipient==offer.recipient && it.token==offer.token}==true)
+                                    assignmentDraft=null
+                                if (player != null && updated != null) publication = Publication(updated,player,false)
+                                refreshPaid(result.navigators)
+                                if (status==0 && result.changed) presence?.toCharacter(offer.recipient,expected,
+                                    listOf(ChatMessages.spot(ChatMessages.Spot(offer.recipient,ProposalNotice.arrived(character.surname)),gameSeconds())))
+                                org.logh7.protocol.StrategyActionMessages.response(reply,status,result.changed) +
+                                    (if (player != null && updated != null) listOf(characterMessage(updated,player,true)) else emptyList())
+                            }
+                            return null
+                        }
                         pendingWorld = administration.assignStock(org.logh7.engine.StockAssignmentRequest(
                             identity.account,connection,character.id.toInt(),
                             currentProfile(identity.account,character.id.toInt()).country,
@@ -1599,6 +1692,20 @@ class GameExchange(
                             pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it),character.power))}
                             return null
                         }
+                        val draft=activeAssignmentDraft()
+                        if(party?.mode==1 && draft!=null) {
+                            pendingWorld=stocks().thenApply {stored ->
+                                val inventory=checkNotNull(stored)
+                                val recipient=assignmentDraftCard(draft.recipient,draft.card)?.first
+                                val outfit=inventory.outfits[party.outfit]
+                                listOf(if(outfit!=null && (party.base==0 || party.base==outfit.baseId) &&
+                                    assignmentDraftAllows(draft,inventory,recipient,outfit))
+                                    world.outfitParty(party,checkNotNull(recipient?.country).value,inventory,recipient.characterId,::currentCharacterById)
+                                else LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(party,
+                                    character.power,0,0,emptyList(),emptyList(),0,0)))
+                            }
+                            return null
+                        }
                         pendingWorld = stocks().thenApply { stored ->
                             // Ground, battle and unit views act for the profile's actual country, as outfitParty does.
                             val country=viewerCountry
@@ -1758,10 +1865,20 @@ class GameExchange(
                             world.warehouse(base)
                         } else {
                             val character = checkNotNull(currentCharacter(identity.account))
+                            val draft=activeAssignmentDraft()
                             pendingWorld = stocks().thenApply { stored ->
                                 var limited=false
                                 val onLimited={limited=true}
-                                val packet=if(outfit==0)world.warehouse(base,stored,onLimited) else
+                                val packet=if(outfit==0)world.warehouse(base,stored,onLimited) else if(draft!=null) {
+                                    val inventory=checkNotNull(stored)
+                                    val recipient=assignmentDraftCard(draft.recipient,draft.card)?.first
+                                    val target=inventory.outfits[outfit]
+                                    if(target!=null && target.baseId==base && assignmentDraftAllows(draft,inventory,recipient,target))
+                                        world.outfitWarehouse(base,outfit,checkNotNull(recipient).characterId,recipient.country?.value,
+                                            inventory,reportUnavailable=true,onLimited=onLimited)
+                                    else LoginMessages.sessionMessage(0x0327,org.logh7.protocol.WorldMessages.warehouse(
+                                        base,0,0,0,outfit=outfit,unavailable=true))
+                                } else
                                     world.outfitWarehouse(base,outfit,character.id.toInt(),
                                         currentProfile(identity.account,character.id.toInt()).country?.value,checkNotNull(stored),
                                         reportUnavailable=true,onLimited=onLimited)
@@ -1921,7 +2038,7 @@ class GameExchange(
                             val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                             publication=Publication(updated,player,false)
                             refreshPaid(result.navigators)
-                            listOf(characterMessage(updated,player,true))
+                            listOf(characterMessage(updated,player,true))+assignmentApprovalWarehouses(result,player)
                         }
                         return null
                     }
@@ -2133,6 +2250,19 @@ class GameExchange(
                                 val query=org.logh7.protocol.StrategyActionMessages.query(body)
                                 val character=checkNotNull(currentCharacter(identity.account))
                                 require(query.character==character.id.toInt())
+                                if(query.isAssignmentDraft) {
+                                    if(query.preview) {
+                                        if(assignmentDraft?.let {it.recipient==query.target && it.token==query.argument}==true)
+                                            assignmentDraft=null
+                                        return null
+                                    }
+                                    val card=assignmentDraftCard(query.target)?.second
+                                    assignmentDraft=card?.let {AssignmentDraft(query.target,query.argument,it,
+                                        System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(120))}
+                                    return handshake.stageAll(org.logh7.protocol.StrategyActionMessages.response(query,
+                                        if(card==null)org.logh7.engine.SocialRejection.CARD.ordinal+1 else 0,
+                                        changed=card!=null,report=card ?: 0),clearHeader=0)
+                                }
                                 if(query.isTradeQuote) {
                                     val country=currentProfile(identity.account,query.character).country
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
@@ -2582,7 +2712,8 @@ class GameExchange(
                                             listOf(org.logh7.protocol.ChatMessages.spot(org.logh7.protocol.ChatMessages.Spot(query.target,
                                                 ProposalNotice.arrived(character.surname)),gameSeconds())))
                                         org.logh7.protocol.StrategyActionMessages.response(query,result.rejection?.let {it.ordinal+1} ?: 0,result.changed)+
-                                            listOf(characterMessage(updated,player,true))
+                                            listOf(characterMessage(updated,player,true))+
+                                            if(opening)emptyList() else assignmentApprovalWarehouses(result,player)
                                     }
                                     return null
                                 }
@@ -2696,11 +2827,15 @@ class GameExchange(
                                 val query=org.logh7.protocol.LogisticsDirectoryMessages.query(body)
                                 val character=checkNotNull(currentCharacter(identity.account))
                                 require(query.character==character.id.toInt())
+                                val draft=activeAssignmentDraft()
                                 pendingWorld=stocks().thenApply { stored ->
                                     val inventory=checkNotNull(stored)
                                     val country=currentProfile(identity.account,character.id.toInt()).country
                                     val offices=org.logh7.engine.LogisticsOfficePolicy(world.galaxy)
+                                    val recipient=draft?.let {assignmentDraftCard(it.recipient,it.card)?.first}
                                     val allowed=inventory.outfits.values.filter {outfit ->
+                                        if(draft!=null)return@filter (query.search==32 || query.card==draft.card) &&
+                                            assignmentDraftAllows(draft,inventory,recipient,outfit)
                                         country!=null && org.logh7.engine.TacticalAuthority.canAccessOutfitWarehouse(
                                             inventory,outfit,character.id.toInt(),country) &&
                                             offices.permits(inventory,character.id.toInt(),country,outfit.kind,

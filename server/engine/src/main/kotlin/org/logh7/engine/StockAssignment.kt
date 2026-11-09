@@ -18,6 +18,26 @@ class StockAssignmentRequest(val account: String, val connection: String, val ch
             troops.all { it.kind in 0..65535 && it.grade in 0..255 && it.units in -32768..32767 })
     }
 }
+class StockAssignmentProposal(val token: Int, val base: Int, val outfit: Int, val kind: Int,
+    ships: List<ReorganizationShip>, troops: List<ReorganizationTroop>, val supplies: Int) {
+    val ships: List<ReorganizationShip> = java.util.Collections.unmodifiableList(ArrayList(ships))
+    val troops: List<ReorganizationTroop> = java.util.Collections.unmodifiableList(ArrayList(troops))
+
+    init {
+        require(token > 0)
+        request("", "", 1, null, 1)
+    }
+
+    internal fun request(account: String, connection: String, character: Int, country: CountryId?, generation: Long) =
+        StockAssignmentRequest(account, connection, character, country, generation, base, outfit, kind, ships, troops, supplies)
+
+    override fun equals(other: Any?): Boolean = other is StockAssignmentProposal &&
+        token == other.token && base == other.base && outfit == other.outfit && kind == other.kind &&
+        ships == other.ships && troops == other.troops && supplies == other.supplies
+
+    override fun hashCode(): Int = listOf(token, base, outfit, kind, ships, troops, supplies).hashCode()
+}
+
 data class StockAssignmentResult(val player: Navigator?, val stocks: PlanetStocks?,
     val rejection: LogisticsRejection? = null, val changed: Boolean = false, val recovery: NavigationResult? = null)
 

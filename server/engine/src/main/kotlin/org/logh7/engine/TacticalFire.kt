@@ -254,6 +254,7 @@ internal object TacticalCombat {
         onFortressSunk:(Navigator)->Unit = {},
         settleOfficeRecovery:(PlanetStocks, PlanetStocks, Map<String, Navigator>)->Map<String, Navigator> =
             { _, _, players -> players },
+        assignmentBlocked: (PlanetStocks, StockAssignmentProposal) -> Boolean = { _, _ -> false },
         onCoupDockCancellations: (List<Navigator>) -> Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
@@ -365,7 +366,7 @@ internal object TacticalCombat {
         inventory=FortressArmor.advance(session,galaxy,players,inventory,fortressSunk)
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations,commands)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players.values)
-        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory) {production.identities?.invoke().orEmpty()};if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {inventory=EspionageActions.settle(galaxy,session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
+        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory,assignmentBlocked=assignmentBlocked) {production.identities?.invoke().orEmpty()};if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {inventory=EspionageActions.settle(galaxy,session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
         val departedIds=impacts.mapNotNull {it.departed?.characterId}+fortressSunk.map {it.characterId}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts,departedIds.toSet())
         val sunkFlagships=impacts.mapNotNull {if(it.hit.destroyed>0)it.departed else null}+fortressSunk

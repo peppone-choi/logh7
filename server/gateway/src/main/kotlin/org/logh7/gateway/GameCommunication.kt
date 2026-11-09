@@ -87,7 +87,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
         return state.mails.count {it.card in held && it.expiresAt>seconds && pendingRecipient(it,player.characterId,country)}
     }
     /** The row's command field picks the command-name table (constmsg group 18), so it is the manual command number. */
-    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;ProposalActions.DEMOTION -> 2;ProposalActions.SPECIAL_PROMOTION -> 1;else -> 0}
+    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;ProposalActions.DEMOTION -> 2;ProposalActions.SPECIAL_PROMOTION -> 1;ProposalActions.ASSIGNMENT -> 67;else -> 0}
     /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
     private fun currentMilitaryRank(mail:ProposalMail,expected:Long)=
         militaryRank(mail.target) ?: directory(expected,mail.target)?.rank ?: 20
@@ -106,7 +106,20 @@ class GameCommunication(private val presence:GamePresence,private val generation
         ProposalActions.SPECIAL_PROMOTION -> org.logh7.protocol.SpecialRankUpMessages.mailPair(mail.recipient,mail.target,
             (mail.rankChangeMailRank ?: (currentMilitaryRank(mail,expected)-1)).coerceIn(0,20),
             (ProposalActions.costs.getValue(mail.command)/2).toInt())
+        ProposalActions.ASSIGNMENT -> assignmentPair(mail)
         else -> error("Unsupported proposal command")
+    }
+    private fun assignmentPair(mail:ProposalMail):ByteArray {
+        val payload=checkNotNull(mail.assignment)
+        val moves=org.logh7.protocol.LogisticsMessages.Moves(
+            payload.ships.map {org.logh7.protocol.LogisticsMessages.ShipMove(it.kind,it.units,it.boats)},
+            payload.troops.map {org.logh7.protocol.LogisticsMessages.TroopMove(it.kind,it.grade,it.units)})
+        val empty=org.logh7.protocol.LogisticsMessages.Inventory(emptyList(),emptyList())
+        val query=org.logh7.protocol.LogisticsMessages.Assignment(
+            org.logh7.protocol.LogisticsMessages.Header(0,mail.recipient,0,0),
+            payload.base,payload.outfit,payload.kind,moves,payload.supplies,empty,0,empty,0)
+        return org.logh7.protocol.LogisticsMessages.assignmentResponse(query,0,0,
+            (ProposalActions.costs.getValue(mail.command)/2).toInt(),true)
     }
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
     private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean):List<ByteArray> {
@@ -119,7 +132,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
         val self=peer(ranked(owner),post)
         val rows=mutableListOf<ByteArray>()
         for(mail in state.mails.sortedBy {it.id}) {
-            if(mail.originCountry!=membership)continue
+            if(mail.originCountry!=membership || mail.assignmentExpired)continue
             val type=if(mail.order)1 else 0
             if(received && mail.card==post && pendingRecipient(mail,owner.character,membership))
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),self,mail.createdAt,
