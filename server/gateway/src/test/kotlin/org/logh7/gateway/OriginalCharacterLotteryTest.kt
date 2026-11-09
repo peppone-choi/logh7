@@ -49,6 +49,32 @@ class OriginalCharacterLotteryTest {
         service.apply("a", listOf(1002))
         assertEquals(listOf(1002L), service.entries("a"))
     }
+    @Test fun awardedFlagshipNameDoesNotCollideWithRegisteredOrPendingShips() {
+        val clock = TestClock()
+        val file = directory.resolve("ship-names.properties")
+        val service = CharacterCreation(file, clock, 100)
+        fun nameShip(account: String, name: String): CharacterMessages.Generate {
+            fun step(request: CharacterMessages.Generate) =
+                CharacterMessages.generate(service.accept(account, request).let { it.copyOfRange(4, it.size) })
+            val reserved = step(CharacterMessages.Generate(0, 0, 2, 0, 0, account, "Pilot", 0, 0, 0, 0,
+                List(8) { 0 }, 0, 0, 0, 0, 0, 0, "", 0))
+            val prepared = step(reserved.copy(category = 1, age = 18, birthMonth = 1, birthDay = 1, face = 1_000_001))
+            val allocated = step(prepared.copy(category = 2))
+            return step(allocated.copy(category = 3, shipName = name))
+        }
+        val registered = nameShip("Alpha", "LOCAL 1001")
+        service.accept("Alpha", registered.copy(category = 4))
+        val pending = nameShip("Beta", "Local 1001-1")
+        service.apply("winner", listOf(1001))
+        clock.time += 100
+
+        assertEquals("Local 1001-2", service.character("winner")?.shipName)
+        service.accept("Beta", pending.copy(category = 4))
+        val restored = CharacterCreation(file, clock)
+        assertEquals("LOCAL 1001", restored.character("Alpha")?.shipName)
+        assertEquals("Local 1001-1", restored.character("Beta")?.shipName)
+        assertEquals("Local 1001-2", restored.character("winner")?.shipName)
+    }
     @Test fun fameRequirementIsCheckedOnServerRatherThanTrustingClientFiltering() {
         val candidate = OriginalCharacterMessages.localCandidates.first().copy(minimumFame = 10)
         val clock = TestClock()
