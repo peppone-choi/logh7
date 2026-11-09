@@ -71,6 +71,10 @@ internal object StrategicOperations {
         if(r.target !in 0..4999)return reject(StrategyActionRejection.LOCATION)
         val live=stocks.strategic.operations.filter {it.live}
         val ownLive=live.filter {it.country==country}
+        val now=s.gameMillis/1000
+        val actionable=ownLive.filter { plan ->
+            plan.issuedAt?.let { now < OperationPlanRules.endGameSeconds(it) } != false
+        }
         var plans=stocks.strategic.operations
         val cost:Long
         when(r.command) {
@@ -83,7 +87,6 @@ internal object StrategicOperations {
                 val effective=stocks.outfits.values.filter {it.country==country}.sumOf(::shipUnits)+sole(r,stocks).size
                 if(OperationPlanLimits.canPlan(ownLive.filter {it.card==r.card}.map {it.grid.toString()}.toSet(),
                     r.target.toString(),r.amount.toInt(),committed,effective)!=OperationPlanVerdict.ALLOWED)return reject(StrategyActionRejection.MAXIMUM)
-                val now=s.gameMillis/1000
                 val activation=now+r.argument*86400L
                 if(activation>0xffffffffL-OperationPlanRules.DURATION_GAME_SECONDS)return reject(StrategyActionRejection.MAXIMUM)
                 val id=(plans.maxOfOrNull {it.id} ?: 0).toLong()+1
@@ -94,15 +97,14 @@ internal object StrategicOperations {
                 cost=(1280L/(r.argument+1)).coerceIn(10,1280)
             }
             23 -> {
-                val plan=ownLive.singleOrNull {it.card==r.card && it.planner==r.characterId && it.grid==r.target}
+                val plan=actionable.singleOrNull {it.card==r.card && it.planner==r.characterId && it.grid==r.target}
                     ?: return reject(StrategyActionRejection.AUTHORITY)
                 plans=plans.map {if(it.id==plan.id)it.copy(state=StrategicPlanState.WITHDRAWN) else it}
                 cost=(plan.units*5L).coerceIn(5,320)
             }
             24 -> {
-                val plan=ownLive.singleOrNull {it.force==force && it.grid==r.target}
+                val plan=actionable.singleOrNull {it.force==force && it.grid==r.target}
                     ?: return reject(StrategyActionRejection.COMMAND)
-                val now=s.gameMillis/1000
                 if(now<plan.activatesAt)return reject(StrategyActionRejection.BUSY)
                 if(!target(galaxy,stocks,plan.grid,country,plan.purpose) && plan.state==StrategicPlanState.PLANNED)
                     return reject(StrategyActionRejection.LOCATION)
