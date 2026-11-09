@@ -224,6 +224,38 @@ class TacticalFleetShootTest {
         assertEquals(1,advance(s,nav,p,now+120).size)
         assertTrue(advance(s,nav,p,now+120).isEmpty())
     }
+    @Test fun confusionRejectsMixedSelectionBeforeReservationAndCancelsAValidShotIfItOccursLater() {
+        val s = state()
+        s.players = s.players.mapValues { (_, player) ->
+            val position = TacticalPoint(.5f, .5f)
+            player.copy(charge = TacticalCharge(now, 24000),
+                motion = player.motion!!.copy(origin = TacticalPose(position, 0f), waypoints = listOf(position)),
+                attack = TacticalAttackOrder(2, now, now + 240, now + 240))
+        }
+        s.stocks = s.stocks.copy(tacticalCommands = s.stocks.tacticalCommands.copy(morale = mapOf(2 to 20)))
+        val nav = Navigation(galaxy, s.nav, NavigationPolicy())
+        val stock = production(s)
+        val players = s.players
+        val before = s.stocks
+        assertEquals(NavigationRejection.BUSY, shoot(s, nav, stock, ids = listOf(1010000, 2)).rejection)
+        assertEquals(players, s.players)
+        assertEquals(before, s.stocks)
+
+        fun morale(value: Int) {
+            val current = stock.snapshot(1)!!
+            stock.replace(current, current.copy(tacticalCommands = current.tacticalCommands.copy(morale = mapOf(2 to value))))
+        }
+        morale(21)
+        assertNotNull(shoot(s, nav, stock).player)
+        val reserved = s.stocks.outfits.getValue(1).activeShips!!.values.last()
+        val target = s.stocks.outfits.getValue(2)
+        assertNotNull(reserved.shot)
+        morale(20)
+        assertTrue(advance(s, nav, stock, now + 120).isEmpty())
+        assertEquals(reserved.copy(shot = null), s.stocks.outfits.getValue(1).activeShips!!.values.last())
+        assertEquals(target, s.stocks.outfits.getValue(2))
+    }
+
     @Test fun revokedCommanderOrTargetLeavingRangeCancelsWithoutSpendingOrDamage() {
         for(revoke in listOf(true,false)) {
             val s=state();val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
