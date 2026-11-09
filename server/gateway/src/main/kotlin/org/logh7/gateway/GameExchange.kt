@@ -2586,7 +2586,7 @@ class GameExchange(
                                                 outfit.kind.wire,outfit.number,outfit.supplies,org.logh7.engine.OutfitSupplies.visibleCapacity(outfit),
                                                 world.baseWire(world.galaxy.bases.single { it.id==(outfit.position?.baseId ?: outfit.baseId) })) }
                                     val quotes=if(player!=null && source!=null)targets.map { target ->
-                                        val quote=CompletenessSupply.quote(player,source,target)
+                                        val quote=CompletenessSupply.quote(player,source,target,inventory)
                                         val payment=when(quote.payment?.chargedPool) {CpPool.MCP->1;CpPool.PCP->2;null->0}
                                         val status=when(quote.rejection) {null->0;LogisticsRejection.CP->1;LogisticsRejection.BUSY->2;else->3}
                                         org.logh7.protocol.SupplyDirectoryMessages.quote(query,

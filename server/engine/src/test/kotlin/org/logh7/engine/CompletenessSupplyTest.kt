@@ -66,6 +66,38 @@ class CompletenessSupplyTest {
         assertEquals(capacity * 2, result.stocks!!.outfits.getValue(2).supplies)
     }
 
+    @Test fun transportQuoteAndExecutionShareCapacityWithSurvivingPackages() {
+        val before = stocks(destination = capacity)
+        val source = before.outfits.getValue(1)
+        val target = before.outfits.getValue(2).copy(kind = OutfitKind.TRANSPORT)
+        val cargo = TransportPackage(1, Power.EMPIRE.country, 1049, 1050, (capacity - 7) * 2,
+            carrier = target.id, carrierBoats = 600, survivingBoats = 300)
+        val stock = before.copy(outfits = before.outfits + (target.id to target),
+            warehouses = before.warehouses + (102 to before.warehouses.getValue(102).copy(kind = OutfitKind.TRANSPORT)),
+            strategic = before.strategic.copy(transports = listOf(cargo, cargo.copy(id = 2, carrier = 0, carrierBoats = 0, survivingBoats = 0))))
+
+        val quote = CompletenessSupply.quote(player, source, target, stock)
+        assertEquals(SupplyCost(7, CpPool.MCP), quote.cost)
+        val confirm = request.copy(expected = quote.cost)
+        val stale = CompletenessSupply.evaluate(confirm, session, player, stock.copy(strategic = before.strategic))
+        assertEquals(LogisticsRejection.QUOTE_CHANGED, stale.rejection)
+        assertEquals(player, stale.player)
+
+        val supplied = CompletenessSupply.evaluate(confirm, session, player, stock)
+        assertEquals(7, supplied.transferred)
+        assertEquals(840, supplied.player!!.mcp)
+        val after = supplied.stocks!!
+        assertEquals(capacity - 7, after.outfits.getValue(1).supplies)
+        assertEquals(capacity + 7, after.outfits.getValue(2).supplies)
+        assertEquals(stock.strategic.transports, after.strategic.transports)
+
+        val full = CompletenessSupply.evaluate(request, session, supplied.player, after)
+        assertNull(full.rejection)
+        assertFalse(full.changed)
+        assertSame(supplied.player, full.player)
+        assertSame(after, full.stocks)
+    }
+
     @Test fun forgedSessionIdentityAuthorityAndLocationCannotMoveOrCharge() {
         val stock = stocks()
         for ((q, reason) in listOf(request.copy(connection = "other") to LogisticsRejection.SESSION,
@@ -129,7 +161,7 @@ class CompletenessSupplyTest {
     @Test fun boundTransferRejectsChangedCargoOrPaymentWithoutMutating() {
         val stock = stocks(source = 1000)
         val alternate = player.copy(mcp = 0)
-        val quote = CompletenessSupply.quote(alternate, stock.outfits.getValue(1), stock.outfits.getValue(2))
+        val quote = CompletenessSupply.quote(alternate, stock.outfits.getValue(1), stock.outfits.getValue(2), stock)
         assertEquals(SupplyCost(1000, CpPool.PCP), quote.cost)
         val confirm = request.copy(expected = quote.cost)
         val consumed = stocks(source = 700)
