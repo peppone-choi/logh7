@@ -357,19 +357,24 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         return true
     }
 
+    private fun tacticalOfficeAuthorityChanged(old: PlanetStocks, updated: PlanetStocks, outfit: OutfitStock): Boolean {
+        val replacement = updated.outfits[outfit.id] ?: return false
+        return outfit.activeShips?.values.orEmpty().any {
+            TacticalAuthority.commander(outfit, it, old) != TacticalAuthority.commander(replacement, it, updated)
+        }
+    }
+
     private fun changedTacticalOfficeOutfits(old: PlanetStocks, updated: PlanetStocks, formerMember: Int): Set<Int> =
-        old.outfits.values.filter { outfit ->
-            if (formerMember !in outfit.members()) return@filter false
-            val replacement = updated.outfits[outfit.id] ?: return@filter false
-            outfit.activeShips?.values.orEmpty().any {
-                TacticalAuthority.commander(outfit, it, old) != TacticalAuthority.commander(replacement, it, updated)
-            }
-        }.map { it.id }.toSet()
+        old.outfits.values.filter { formerMember in it.members() && tacticalOfficeAuthorityChanged(old, updated, it) }
+            .map { it.id }.toSet()
 
     private fun publishProposalTacticalOfficeRefresh(old: PlanetStocks, updated: PlanetStocks) {
         if (tacticalOfficeObservers.isEmpty()) return
         val outfits = ProposalActions.approvedOfficeRemovals(old.social.proposals, updated.social.proposals)
             .flatMapTo(linkedSetOf()) { changedTacticalOfficeOutfits(old, updated, it) }
+        ProposalActions.approvedOutfitAppointments(old.social.proposals, updated.social.proposals).filterTo(outfits) { id ->
+            old.outfits[id]?.let { tacticalOfficeAuthorityChanged(old, updated, it) } == true
+        }
         if (outfits.isEmpty()) return
         for (observer in tacticalOfficeObservers) try { observer(updated.generation, outfits) }
         catch (failure: Exception) { System.err.println("Tactical office refresh delivery failed: ${failure.javaClass.simpleName}") }

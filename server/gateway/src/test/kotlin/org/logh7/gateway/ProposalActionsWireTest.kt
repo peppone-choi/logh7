@@ -41,11 +41,12 @@ class ProposalActionsWireTest {
         repeat(200){val p=client.receive();if(ByteBuffer.wrap(p).getShort(4).toInt()==opcode)return p};error("Missing $opcode")
     }
     private fun query(client:SyntheticClient,id:Int,card:Int)=client.send(body(Wire.begin(Wire.Query(Wire.Peer(id,extra=listOf(0,0,card)),true,true))))
-    @Test fun nativeResignationApprovalRefreshesTheOpenBattlefield() = resignationRefresh(0x0f14)
-    @Test fun compatibilityResignationApprovalRefreshesTheOpenBattlefield() = resignationRefresh(0x1200)
-    @Test fun absentResignationApprovalRefreshesTheOpenBattlefield() = resignationRefresh(null)
+    @Test fun nativeResignationApprovalRefreshesTheOpenBattlefield() = officeRefresh(0x0f14)
+    @Test fun compatibilityResignationApprovalRefreshesTheOpenBattlefield() = officeRefresh(0x1200)
+    @Test fun absentResignationApprovalRefreshesTheOpenBattlefield() = officeRefresh(null)
+    @Test fun transportAppointmentApprovalRefreshesTheOpenBattlefield() = officeRefresh(0x0f14, appointment = true)
 
-    private fun resignationRefresh(replyOpcode: Int?) {
+    private fun officeRefresh(replyOpcode: Int?, appointment: Boolean = false) {
         val state = State()
         val world = Galaxy(galaxy.systems + GalaxySystem(4, 2015, 4, "Battle", 3),
             galaxy.bases + GalaxyBase(1177, 2015, 80, 0, Capital.ALLIANCE.baseName, 0, 20f, 86400, 0, 0f, 2f),
@@ -53,16 +54,26 @@ class ProposalActionsWireTest {
         val viewerAccount = "load-000"
         state.players = state.players + (viewerAccount to state.players.getValue(viewerAccount)
             .copy(grid = 2015, baseId = 0, mode = 5, spotId = 0))
-        val friendly = OutfitStock(1, 2, OutfitKind.FLEET, 1049, 10, commanderId = 10000, aideId = 10001,
+        val kind = if (appointment) OutfitKind.TRANSPORT else OutfitKind.FLEET
+        val friendly = OutfitStock(1, 2, kind, 1049, 10, commanderId = if (appointment) 0 else 10000,
+            aideId = if (appointment) 0 else 10001,
             units = UnitInventory(mapOf(UnitStack(32) to 1)), position = OutfitPosition(2015))
         val hostile = OutfitStock(2, 3, OutfitKind.FLEET, 1177, 11, commanderId = 500,
             units = UnitInventory(mapOf(UnitStack(119) to 1)), position = OutfitPosition(2015))
-        val proposals = Proposals.open(ProposalState(), 1, 10000, 10001, 39, 43, ProposalActions.RESIGNATION,
+        val proposals = if (appointment) {
+            val role = checkNotNull(OrganizationOffices.of(44))
+            state.stocks = state.stocks.copy(strategic = state.stocks.strategic.copy(
+                offices = listOf(OfficeHolding(checkNotNull(role.authority), 1049, 10001)),
+                people = mapOf(10000 to StrategicPerson(rank = 5), 10001 to StrategicPerson(rank = 2))))
+            Proposals.open(ProposalState(), 1, 10000, 10001, 17, checkNotNull(role.authority),
+                ProposalActions.APPOINTMENT, order = false, now = now, pcp = 0, mcp = 80, country = CountryId(2),
+                target = 10000, targetCard = 44, seat = 1).first
+        } else Proposals.open(ProposalState(), 1, 10000, 10001, 39, 43, ProposalActions.RESIGNATION,
             order = true, now = now, pcp = 0, mcp = 40, country = CountryId(2)).first
         state.stocks = ActiveShips.initialize(state.stocks.copy(
             bases = state.stocks.bases + (1177 to PlanetStock(1177, 3, 0, 100, 200, 300)),
             outfits = mapOf(1 to friendly, 2 to hostile),
-            warehouses = mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, 1049, 1),
+            warehouses = mapOf(10 to OutfitWarehouse(10, 2, kind, 1049, 1),
                 11 to OutfitWarehouse(11, 3, OutfitKind.FLEET, 1177, 2)),
             social = state.stocks.social.copy(nextId = 2, proposals = proposals)))
         val ship = state.stocks.outfits.getValue(1).activeShips!!.values.single()
@@ -102,8 +113,9 @@ class ProposalActionsWireTest {
             assertEquals(10000, commander(next(viewer, 0x033b)))
             assertEquals(Proposals.APPROVE, state.stocks.social.proposals.mails.single().reply)
             assertEquals(0, state.stocks.outfits.getValue(1).aideId)
+            assertEquals(10000, state.stocks.outfits.getValue(1).commanderId)
             assertNull(state.stocks.tacticalCommands.authority[ship.id])
-            assertEquals(960, state.players.getValue("load-001").mcp)
+            assertEquals(if (appointment) 920 else 960, state.players.getValue("load-001").mcp)
         }
     }
 

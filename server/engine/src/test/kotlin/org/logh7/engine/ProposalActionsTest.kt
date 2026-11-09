@@ -1,5 +1,9 @@
 package org.logh7.engine
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -254,6 +258,63 @@ class ProposalActionsTest {
         val duplicate=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,appointed)
         assertEquals(SocialRejection.STALE,duplicate.rejection)
         assertTrue(duplicate.navigators.isEmpty())
+    }
+    @Test fun approvedTransportAppointmentsRefreshOnlyChangedTacticalAuthority() = runBlocking {
+        for((automatic,former) in listOf(false to 10002,true to 10002,false to b.characterId)) {
+            val initial=policy.set(stocks(),OfficeHolding(18,1049,a.characterId))
+            val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(76))))
+            val outfit=OutfitStock(200,2,OutfitKind.TRANSPORT,1049,300,
+                units=UnitInventory(ships.quantities()),activeShips=ships,position=OutfitPosition(2488))
+            val available=initial.copy(outfits=mapOf(200 to outfit),
+                warehouses=mapOf(300 to OutfitWarehouse(300,2,OutfitKind.TRANSPORT,1049,200)),
+                strategic=initial.strategic.copy(people=initial.strategic.people+(b.characterId to StrategicPerson(rank=4,influence=10))),
+                tacticalCommands=TacticalCommandState(authority=mapOf(1 to former)),deploymentInitialized=true,nextShipId=2)
+            val open=SocialRequest(StrategyActionRequest("b","b",b.characterId,Power.EMPIRE,1,ProposalActions.OPEN,19,4,
+                target=a.characterId,value=ProposalActions.APPOINTMENT,argument=18,base=200,amount=44))
+            val opened=SocialActions.evaluate(galaxy,open,session,b,available,listOf(a,b),mapOf("a" to a,"b" to b))
+            assertNull(opened.rejection)
+            var saved=assertNotNull(opened.stocks)
+            val mail=saved.social.proposals.mails.single()
+            if(automatic) {
+                val proposals=saved.social.proposals.copy(mails=listOf(mail.copy(order=true)))
+                saved=saved.copy(social=saved.social.copy(proposals=proposals))
+            }
+            var players=mapOf("a" to a,"b" to assertNotNull(opened.player))
+            val engine=WorldEngine(this,rules,ticking=false,galaxy=galaxy,navigationStore=object:NavigationStore {
+                override fun load()=players
+                override fun save(navigators:Map<String,Navigator>) {players=navigators}
+            },stockStore=object:PlanetStockStore {
+                override fun load()=saved
+                override fun save(stocks:PlanetStocks) {saved=stocks}
+            },worldStateCommitter=WorldStateCommitter {p,s->players=p;saved=checkNotNull(s)},npcPolicy=NpcTacticalPolicy(enabled=false))
+            val refreshed=mutableListOf<Set<Int>>()
+            try {
+                engine.observeTacticalOfficeRefresh {_,ids->refreshed+=ids}.use {
+                    for(account in listOf("a","b")) {
+                        val joined=CompletableDeferred<Admission>()
+                        engine.submit(WorldCommand.Join(account,Power.EMPIRE,false,joined,account,1))
+                        assertEquals(Admission.ACCEPTED,withTimeout(5000) {joined.await()})
+                    }
+                    if(automatic) {
+                        engine.submit(WorldCommand.Disconnect("a","a"))
+                        val elapsed=(ProposalActions.ABSENT_ORDER_SECONDS*1000+rules.speed-1)/rules.speed
+                        engine.submit(WorldCommand.AdvanceTo(elapsed))
+                        val flushed=CompletableDeferred<Unit>()
+                        engine.submit(WorldCommand.Quiesce({},flushed))
+                        withTimeout(5000) {flushed.await()}
+                    } else {
+                        val reply=SocialRequest(StrategyActionRequest("a","a",a.characterId,Power.EMPIRE,1,
+                            ProposalActions.REPLY,0,2,target=mail.id,value=Proposals.APPROVE))
+                        val result=CompletableDeferred<SocialResult>()
+                        engine.submit(WorldCommand.Social(reply,result))
+                        assertNull(withTimeout(5000) {result.await()}.rejection)
+                    }
+                    val appointed=saved.outfits.getValue(200)
+                    assertEquals(b.characterId,TacticalAuthority.commander(appointed,ships.values.single(),saved))
+                    assertEquals(if(former==b.characterId)emptyList() else listOf(setOf(200)),refreshed)
+                }
+            } finally {engine.drainAndClose()}
+        }
     }
     @Test fun aDormantFiefCountsAgainstOpeningAndApprovingAnAppointment() {
         val initial = stocks()
