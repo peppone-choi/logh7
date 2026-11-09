@@ -85,6 +85,46 @@ class GarrisonAppointmentTest {
             assertEquals(state,result.stocks)
         }
     }
+    @Test fun directAppointmentUsesTheCurrentGenerationTargetCountry() = runBlocking {
+        val rules = SessionRules.load()
+        val foreign = Navigator(1, 10001, Power.ALLIANCE, 2487, 1000, 1000, 1000)
+        val targets = listOf(foreign to false, foreign.copy(country = null) to false,
+            foreign.copy(generation = 2) to true, null to true)
+        for ((target, accepted) in targets) {
+            val initialPlayers = mapOf("pilot" to player) + target?.let { mapOf("target" to it) }.orEmpty()
+            var savedStocks = stocks.copy(deploymentInitialized = true)
+            var worldCommits = 0
+            val engine = WorldEngine(this, rules, galaxy = galaxy, ticking = false,
+                navigationStore = object : NavigationStore {
+                    override fun load() = initialPlayers
+                    override fun save(players: Map<String, Navigator>) = Unit
+                }, stockStore = object : PlanetStockStore {
+                    override fun load() = savedStocks
+                    override fun save(stocks: PlanetStocks) { savedStocks = stocks }
+                }, worldStateCommitter = WorldStateCommitter { _, inventory ->
+                    worldCommits++
+                    savedStocks = checkNotNull(inventory)
+                }, npcPolicy = NpcTacticalPolicy(enabled = false))
+            try {
+                val join = CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join("pilot", Power.EMPIRE, false, join, "c"))
+                assertEquals(Admission.ACCEPTED, join.await())
+
+                val beforeAppointment = worldCommits
+                val reply = CompletableDeferred<GarrisonAppointmentResult>()
+                engine.submit(WorldCommand.AppointGarrison(request, reply))
+                val result = reply.await()
+                assertEquals(if (accepted) null else AppointmentRejection.TARGET, result.rejection, "target=$target")
+                assertEquals(accepted, result.changed)
+                assertEquals(if (accepted) 840 else 1000, result.player?.mcp)
+                assertEquals(if (accepted) 10001 else 0, savedStocks.bases.getValue(1049).garrisonCommanderId)
+                assertEquals(if (accepted) 1 else 0, worldCommits - beforeAppointment)
+            } finally {
+                engine.drainAndClose()
+            }
+        }
+    }
+
     @Test fun actualForeignAndUnattachedMembershipCannotBeUsedForAppointment() {
         for(country in listOf(CountryId(1),CountryId(4),CountryId(42),null)) {
             val denied=act(request.copy(targetCountry=country))

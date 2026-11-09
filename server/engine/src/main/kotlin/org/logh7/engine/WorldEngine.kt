@@ -992,13 +992,16 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val recovered = recoverNavigation(NavigationRequest(request.account, request.characterId, request.country,
                         request.connection, request.generation, politics = request.politics, administration = request.administration), session)
                     val inventory = checkNotNull(production) { "World production is disabled" }.settle(session)
-                    var result = GarrisonAppointment.evaluate(checkNotNull(galaxy), request, session, recovered?.player, inventory)
+                    val previous = navigation?.snapshot(session.generation).orEmpty()
+                    val target = previous.values.singleOrNull { it.characterId == request.target }
+                    val resolved = if (target == null) request else request.copy(targetCountry = target.country)
+                    var result = GarrisonAppointment.evaluate(checkNotNull(galaxy), resolved, session, recovered?.player, inventory)
                     if (result.changed) {
                         if (worldStateCommitter == null) result = GarrisonAppointmentResult(recovered?.player, inventory, AppointmentRejection.STORAGE)
                         else {
                             val after = checkNotNull(result.player)
                             val prepared = production.prepareReplacement(inventory, checkNotNull(result.stocks))
-                            val previous = checkNotNull(navigation).snapshot(session.generation)
+                            checkNotNull(navigation)
                             val next = settleOfficeRecovery(session.gameMillis / 1000, inventory, prepared, previous + (request.account to after))
                             worldStateCommitter.saveWorld(next, prepared)
                             navigation.publishCommitted(previous, next, session.generation)
