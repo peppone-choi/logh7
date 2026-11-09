@@ -17,8 +17,10 @@ class GroundBattleRosterTest {
         2 to OutfitStock(2,3,OutfitKind.GROUND,1049,2,units=UnitInventory(troops=alliance.quantities()),activeGround=alliance)),
         mapOf(1 to OutfitWarehouse(1,2,OutfitKind.GROUND,1049),2 to OutfitWarehouse(2,3,OutfitKind.GROUND,1049)),
         tacticalCommands=TacticalCommandState(groundTargets=mapOf(11 to 21)),nextShipId=30)
-    private fun rows(grid:Int?):List<Triple<Int,Int,Int>> {
-        val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,grid)
+    private fun rows(grid:Int?):List<Triple<Int,Int,Int>> =
+        rows(WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,grid))
+
+    private fun rows(packets:List<ByteArray>):List<Triple<Int,Int,Int>> {
         val b=ByteBuffer.wrap(packets[1]);b.position(6)
         return List(b.get().toInt()) {
             val id=b.int;val kind=b.short.toInt();b.get();b.int;b.int;b.int;b.get();b.int;b.get();b.get()
@@ -33,6 +35,14 @@ class GroundBattleRosterTest {
         val packets=WorldBootstrap(special).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,2487)
         assertEquals(1,ByteBuffer.wrap(packets[1]).get(6).toInt(),"the empire's armored infantry cannot fight on a special planet")
     }
+    @Test fun eliminatedCountriesAreExcludedFromRowsTargetsAndBattleFlag() {
+        val packets=WorldBootstrap(galaxy).outfitBattle(OutfitPartyMessages.Query(0,1049,3),2,stocks,2487,
+            eliminated=setOf(Power.ALLIANCE.country))
+        assertEquals(listOf(Triple(11,1002,700_000_000)),rows(packets))
+        assertEquals(1,ByteBuffer.wrap(packets[0]).getInt(21))
+        assertEquals(mapOf(11 to 21),stocks.tacticalCommands.groundTargets)
+    }
+
     @Test fun troopsBeyondThirtyPerSideAreMarkedAsReserve() {
         val many=ActiveGroundUnits((1..75).map {ActiveGroundUnit(100+it,UnitStack(1),base=1049)})
         val foes=ActiveGroundUnits(listOf(ActiveGroundUnit(200,UnitStack(5),base=1049)))

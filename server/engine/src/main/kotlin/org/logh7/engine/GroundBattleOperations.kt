@@ -9,8 +9,8 @@ data class GroundBattleConclusion(val survivingCountry:CountryId?,val withdrawal
 
 /** Public read of who actually fights on a base (manual p.51: 30 units per side; the rest wait in reserve). */
 object GroundBattleView {
-    fun fighting(stocks:PlanetStocks,base:GalaxyBase):Set<Int> =
-        GroundBattleOperations.sides(stocks,base).flatMap {it.second}.map {it.id}.toSet()
+    fun fighting(stocks:PlanetStocks,base:GalaxyBase,eliminated:Set<CountryId> = emptySet()):Set<Int> =
+        GroundBattleOperations.sides(stocks,base,eliminated).flatMap {it.second}.map {it.id}.toSet()
 }
 internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
