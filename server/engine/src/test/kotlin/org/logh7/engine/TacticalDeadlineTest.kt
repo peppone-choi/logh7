@@ -46,6 +46,25 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
 
+    @Test fun restoredShipOrderEntersStockAtItsDeadlineWithoutCombat() = runTest {
+        val rig=Rig(this,testScheduler,shipOrder=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun stock()=rig.engine.snapshot().planetStocks!!
+            val stack=UnitStack(119)
+            advanceTimeBy(624);runCurrent()
+            assertEquals(ShipOrder(stack.kind,rig.start+15),stock().social.production.orders[1000])
+            assertNull(stock().bases.getValue(1000).units.ships[stack])
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertTrue(stock().social.production.orders.isEmpty())
+            assertEquals(1,stock().bases.getValue(1000).units.ships[stack])
+            assertEquals(0L,rig.engine.snapshot().session!!.strategyTicks)
+            advanceTimeBy(375);runCurrent()
+            assertEquals(1,stock().bases.getValue(1000).units.ships[stack])
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredFleetRetreatChecksMembershipAndCompletesBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,retreatDeadline=true,fleetRetreat=true)
         try {
@@ -289,7 +308,7 @@ class TacticalDeadlineTest {
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
         uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,justiceDeadline:Boolean=false,
-        espionageDeadline:Boolean=false) {
+        espionageDeadline:Boolean=false,shipOrder:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -314,6 +333,11 @@ class TacticalDeadlineTest {
                 val detention=Detention(10000,CountryId(2),start,start+15,base=1000)
                 stocks=stocks.copy(strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=8,merit=100))),
                     social=stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
+            }
+            if(shipOrder) {
+                players=emptyMap()
+                stocks=stocks.copy(social=stocks.social.copy(
+                    production=stocks.social.production.copy(orders=mapOf(1000 to ShipOrder(119,start+15)))))
             }
             if(retreatDeadline) {
                 val point=TacticalPoint(-300f,0f)
