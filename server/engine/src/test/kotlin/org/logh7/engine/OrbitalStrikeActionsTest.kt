@@ -106,12 +106,16 @@ class OrbitalStrikeActionsTest {
     }
 
     @Test fun aFlagshipInRangeBombardsTheEnemyGarrisonAndOrder() {
-        val r=act(player(10f),stocks(strength=100))
+        val initial=stocks(strength=100).copy(tacticalCommands=TacticalCommandState(
+            morale=mapOf(1 to 70,2 to 80),groundTargets=mapOf(1 to 2,2 to 1,3 to 2)))
+        val r=act(player(10f),initial)
         assertNull(r.rejection,"${r.rejection}");assertEquals(1,r.outcome);assertEquals(1000,r.found);assertEquals(1,r.report)
         val s=assertNotNull(r.stocks)
         val left=s.outfits.getValue(1).activeGround!!.values.single()
         assertEquals(2,left.id);assertEquals(1000-OrbitalStrikeActions.DAMAGE,left.strength)
         assertEquals(1,s.outfits.getValue(1).units.troops[UnitStack(4)])
+        assertEquals(mapOf(2 to 80),s.tacticalCommands.morale)
+        assertEquals(mapOf(3 to 2),s.tacticalCommands.groundTargets)
         assertEquals(38,s.bases.getValue(1000).economy?.peace)
         assertEquals(10_000-OrbitalStrikeActions.SUPPLIES,r.player?.supplies)
     }
