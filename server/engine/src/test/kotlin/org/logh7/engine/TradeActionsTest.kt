@@ -33,6 +33,17 @@ class TradeActionsTest {
         val ended=TradeActions.settle(galaxy,day2,now+30*86400)
         assertEquals(700,ended.bases.getValue(1050).treasury,"seven days in all");assertTrue(ended.social.trade.routes.isEmpty())
     }
+    @Test fun aLegacyRouteWithPartialFinalDayExpiresWithoutExtraPayment() {
+        val start=stocks()
+        val route=TradeRoute(10000,1049,1050,now+Justice.DAY+15,now)
+        val saved=start.copy(social=start.social.copy(trade=TradeState(routes=mapOf(route.character to route))))
+        val before=TradeActions.settle(galaxy,saved,route.until-1)
+        assertEquals(100L,before.bases.getValue(1050).treasury)
+        assertTrue(before.social.trade.routes.containsKey(route.character))
+        val after=TradeActions.settle(galaxy,before,route.until)
+        assertEquals(100L,after.bases.getValue(1050).treasury)
+        assertTrue(after.social.trade.routes.isEmpty())
+    }
     @Test fun aConvoySellsSuppliesAndTheOtherSidesTariffTakesItsCut() {
         val s=policy.set(stocks(),OfficeHolding(44,7,10000))
         val tariff=assertNotNull(act(TradeActions.TARIFF,8,policy.set(s,OfficeHolding(8,1049,10000)),value=20).stocks)
