@@ -52,11 +52,14 @@ static bool bodyAppointment(BYTE* ctx) {return at<unsigned short>(bodyScratch(ct
 // Demotion (command 2): the 0x0706 pair record (world+0x43c820, RankDown reader 0043d080) has the target's rank
 // at +0x10 (u8, filled by the server with the rank at send time) and the target character at +0x14.
 static bool bodyDemotion(BYTE* ctx) {return at<unsigned short>(bodyScratch(ctx),0x2ac)==2;}
+// Special promotion (command 1, template messages 2/0): the 0x0705 pair record (world+0x4388f8) has the target
+// character at +0x10 and the rank after promotion at +0x14 (u8); a valid promotion is one step up, so before = after+1.
+static bool bodyPromotion(BYTE* ctx) {return at<unsigned short>(bodyScratch(ctx),0x2ac)==1;}
 static int __cdecl bodyTargetName(BYTE* ctx) {
     if(bodyAppointment(ctx))return bodyName(ctx,0x66);
-    if(!bodyDismissal(ctx) && !bodyDemotion(ctx))return bodyName(ctx,0x18a);
+    if(!bodyDismissal(ctx) && !bodyDemotion(ctx) && !bodyPromotion(ctx))return bodyName(ctx,0x18a);
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);
-    unsigned id=!world ? 0 : at<unsigned>(world,bodyDemotion(ctx) ? 0x43c820+0x14 : 0x43c8f0+0x10);
+    unsigned id=!world ? 0 : at<unsigned>(world,bodyDemotion(ctx) ? 0x43c820+0x14 : bodyPromotion(ctx) ? 0x4388f8+0x10 : 0x43c8f0+0x10);
     // The mail's own peers (sender SIC at S+0x60, recipient at S+0x184; id +0, name +6) come first.
     for(unsigned peer:{0x60u,0x184u})if(id && at<unsigned>(bodyScratch(ctx),peer)==id)return bodyName(ctx,peer+6);
     wchar_t name[13]={};if(knownName(id,name))return bodyText(ctx,name);
@@ -68,14 +71,17 @@ static int __cdecl bodyTargetRank(BYTE* ctx) {
     if(bodyAppointment(ctx))return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x82)); // sender SIC rank
     return catalogCopy(ctx,5,at<unsigned short>(bodyScratch(ctx),0x1a6));
 }
-// $xrankold$/$xranknew$ (messages 3/0): only demotion is filled here, from the 0x0706 rank (one step down is +1);
-// other commands keep the CD's own handler so their meaning is unchanged.
-static int demotionRank(BYTE* ctx,unsigned step) {
-    if(!bodyDemotion(ctx))return reinterpret_cast<int(__cdecl*)(BYTE*)>(0x521670)(ctx);
-    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);return world ? catalogCopy(ctx,5,world[0x43c820+0x10]+step) : 0;
+// $xrankold$/$xranknew$ (messages 3/0 demotion, 2/0 promotion): demotion from the 0x0706 rank (one step down is +1),
+// promotion from the 0x0705 rank after promotion (before is +1); other commands keep the CD's own handler.
+static int changedRank(BYTE* ctx,bool after) {
+    bool demotion=bodyDemotion(ctx);
+    if(!demotion && !bodyPromotion(ctx))return reinterpret_cast<int(__cdecl*)(BYTE*)>(0x521670)(ctx);
+    auto world=*reinterpret_cast<BYTE**>(0x7ccffc);if(!world)return 0;
+    unsigned rank=demotion ? world[0x43c820+0x10]+(after ? 1u : 0u) : world[0x4388f8+0x14]+(after ? 0u : 1u);
+    return catalogCopy(ctx,5,rank);
 }
-static int __cdecl bodyRankOld(BYTE* ctx) {return demotionRank(ctx,0);}
-static int __cdecl bodyRankNew(BYTE* ctx) {return demotionRank(ctx,1);}
+static int __cdecl bodyRankOld(BYTE* ctx) {return changedRank(ctx,false);}
+static int __cdecl bodyRankNew(BYTE* ctx) {return changedRank(ctx,true);}
 static int __cdecl bodyTargetCard(BYTE* ctx) {
     if(bodyDemotion(ctx)) {ctx[0x24]=0;return 1;} // demotion carries no card
     auto world=*reinterpret_cast<BYTE**>(0x7ccffc);

@@ -5,23 +5,25 @@
 #pragma once
 static bool proposalTabRequested=false;
 // strategyArgument: 0 resignation of the recipient's card, 1 dismissal of a third person's seat, 2 appointment of the
-// sender to a vacancy the recipient may fill, 3 demotion (0x0706) of a third person. In modes 1-3 strategyBase keeps the
-// recipient and the directory lists: dismissal id = person*512+card, appointment id = seat*512+card (name = the seat's
-// base), demotion id = the plain character id (name and rank as in the general directory).
-// Demotion: preview base = recipient, target = page cursor; commit target = recipient, base = person, amount = 0.
-static unsigned proposalCursor=0; // the last preview's page cursor (demotion pages by plain character id)
+// sender to a vacancy the recipient may fill, 3 demotion (0x0706) and 4 special promotion (0x0705) of a third person.
+// In modes 1-4 strategyBase keeps the recipient and the directory lists: dismissal id = person*512+card, appointment
+// id = seat*512+card (name = the seat's base), demotion and promotion id = the plain character id (name and rank as in
+// the general directory).
+// Demotion/promotion: preview base = recipient, target = page cursor; commit target = recipient, base = person, amount = 0.
+static bool proposalPlainPerson() {return taxWindow.strategyArgument>=3;} // demotion or promotion: plain character ids
+static unsigned proposalCursor=0; // the last preview's page cursor (plain-person modes page by character id)
 static unsigned proposalCursors[512]={},proposalPage=0; // earlier pages' cursors, so 이전 returns one page (cursor 0 = first)
 static void sendProposal(bool preview,unsigned cursor=0) {
-    auto& state=taxWindow;bool dismissal=state.strategyArgument!=0,demotion=state.strategyArgument==3;
-    unsigned short command=demotion ? 0x0706 : state.strategyArgument==2 ? 0x0707 : 0x0708;
+    auto& state=taxWindow;bool dismissal=state.strategyArgument!=0,plain=proposalPlainPerson();
+    unsigned short command=state.strategyArgument==4 ? 0x0705 : state.strategyArgument==3 ? 0x0706 : state.strategyArgument==2 ? 0x0707 : 0x0708;
     BYTE record[36]={};at<unsigned>(record,0)=state.character;
     at<unsigned short>(record,4)=0x7f00;at<unsigned short>(record,6)=98;
     at<unsigned short>(record,10)=static_cast<unsigned short>(preview ? (dismissal ? command : 0) : dismissal ? command : 0x0709);
     at<unsigned>(record,12)=preview ? cursor : dismissal ? state.strategyBase : state.strategyTarget;
     at<BYTE>(record,16)=preview ? 1 : 0;
     if(dismissal) {
-        at<unsigned>(record,28)=preview ? state.strategyBase : demotion ? state.strategyTarget : state.strategyTarget/512;
-        if(!preview && !demotion)at<unsigned short>(record,24)=static_cast<unsigned short>(state.strategyTarget%512);
+        at<unsigned>(record,28)=preview ? state.strategyBase : plain ? state.strategyTarget : state.strategyTarget/512;
+        if(!preview && !plain)at<unsigned short>(record,24)=static_cast<unsigned short>(state.strategyTarget%512);
     }
     strategyRequestToken=strategyRequestToken%65535+1;state.strategyToken=strategyRequestToken;
     at<unsigned short>(record,32)=static_cast<unsigned short>(state.strategyToken);
@@ -31,11 +33,11 @@ static void sendProposal(bool preview,unsigned cursor=0) {
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
 }
 static bool proposalCommand(unsigned command) {return command==98;}
-// strategyNextPerson pages through sendStrategyAction, which does not build 98 records; demotion lists every eligible
-// person, so its page edges (200 rows forward, the first row of a later page back) request the next preview here.
+// strategyNextPerson pages through sendStrategyAction, which does not build 98 records; demotion and promotion list every
+// eligible person, so its page edges (200 rows forward, the first row of a later page back) request the next preview here.
 static void proposalNextPerson(int direction) {
     auto& state=taxWindow;auto& directory=strategyDirectory;
-    if(state.strategyArgument==3 && directory.count) {
+    if(proposalPlainPerson() && directory.count) {
         unsigned selected=0;
         for(unsigned i=0;i<directory.count;++i)if(directory.people[i].id==state.strategyTarget)selected=i;
         if(direction>0 && selected+1==directory.count && directory.count==200) {
@@ -75,16 +77,19 @@ static bool readProposalAction(void* record) {
         reply==5 ? L"영향력이 부족합니다(1 필요)." :
         reply==6 ? L"상대가 범위 밖이거나 전술 중입니다." :
         reply==7 ? L"진행 중인 작업이 끝난 뒤 보내십시오." :
-        reply==8 ? (state.strategyArgument==3 ? L"MCP가 부족합니다(160 필요)." : L"MCP가 부족합니다(40 필요).") :
+        reply==8 ? (state.strategyArgument==4 ? L"MCP가 부족합니다(320 필요)." : state.strategyArgument==3 ? L"MCP가 부족합니다(160 필요)." :
+            L"MCP가 부족합니다(40 필요).") :
         reply==9 ? L"상대가 하루 안에 같은 요청을 거절했습니다." :
         reply==13 ? (state.strategyArgument==2 ? L"상대가 그 자리에 임명할 수 없습니다." :
-            state.strategyArgument==3 ? L"상대가 강등할 수 없는 사람입니다." : L"상대가 파면할 수 없는 직무입니다.") :
+            state.strategyArgument==3 ? L"상대가 강등할 수 없는 사람입니다." :
+            state.strategyArgument==4 ? L"상대가 발탁할 수 없는 사람입니다." : L"상대가 파면할 수 없는 직무입니다.") :
         reply ? L"보낼 수 없습니다. 대상·카드·위치를 확인하세요." :
         L"보냈습니다. 상대의 직무 편지함에 도착합니다(MCP 절반·영향력 1 사용).";
     memset(static_cast<BYTE*>(record)+4,0,32);return true;
 }
 static bool updateProposalAction() {
-    auto& state=taxWindow;bool dismissal=state.strategyArgument==1,appointment=state.strategyArgument==2,demotion=state.strategyArgument==3;
+    auto& state=taxWindow;bool dismissal=state.strategyArgument==1,appointment=state.strategyArgument==2,demotion=state.strategyArgument==3,
+        promotion=state.strategyArgument==4;
     taxText(0,L"명령 / 제안");
     const StrategyDirectory::Person* row=nullptr;
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==state.strategyTarget)row=&strategyDirectory.people[i];
@@ -97,6 +102,10 @@ static bool updateProposalAction() {
         swprintf_s(label,L"받는 사람(강등 실행자): ID %u",state.strategyBase);taxText(1,label);
         if(row)swprintf_s(label,L"강등 대상: %ls (계급 %u)",row->name,row->rank);else swprintf_s(label,L"이 사람이 강등할 수 있는 대상이 없습니다.");
         taxText(2,label);
+    } else if(promotion) {
+        swprintf_s(label,L"받는 사람(발탁 실행자): ID %u",state.strategyBase);taxText(1,label);
+        if(row)swprintf_s(label,L"발탁 대상: %ls (계급 %u)",row->name,row->rank);else swprintf_s(label,L"이 사람이 발탁할 수 있는 대상이 없습니다.");
+        taxText(2,label);
     } else if(dismissal) {
         swprintf_s(label,L"받는 사람(파면 실행자): ID %u",state.strategyBase);taxText(1,label);
         if(row)swprintf_s(label,L"파면 대상: %ls · 직무 카드 %u",row->name,row->id%512);else swprintf_s(label,L"이 사람이 파면할 수 있는 직무가 없습니다.");
@@ -107,10 +116,11 @@ static bool updateProposalAction() {
     }
     taxText(3,L"계급 같거나 높으면 명령");
     taxText(4,L"낮으면 제안 · 承認 시 실행");
-    taxText(5,demotion ? L"MCP 320을 반씩 분담 · 보낼 때 영향력 1" : dismissal || appointment ? L"MCP 160을 반씩 분담 · 보낼 때 영향력 1" : L"MCP 80을 반씩 분담 · 보낼 때 영향력 1");
+    taxText(5,promotion ? L"MCP 640을 반씩 분담 · 보낼 때 영향력 1" : demotion ? L"MCP 320을 반씩 분담 · 보낼 때 영향력 1" : dismissal || appointment ? L"MCP 160을 반씩 분담 · 보낼 때 영향력 1" : L"MCP 80을 반씩 분담 · 보낼 때 영향력 1");
     taxText(6,state.message);
-    taxText(10,demotion ? L"사임으로" : appointment ? L"강등으로" : dismissal ? L"임명으로" : L"파면으로");taxText(11,L"이전");taxText(12,L"다음");taxText(13,L"목록 갱신");taxText(14,L"보내기");taxText(15,L"닫기");
-    taxEnabled(10,!state.pending && (dismissal || appointment || demotion || row!=nullptr));taxEnabled(11,!state.pending && (strategyDirectory.count>1 || (demotion && proposalCursor)));
+    taxText(10,promotion ? L"사임으로" : demotion ? L"발탁으로" : appointment ? L"강등으로" : dismissal ? L"임명으로" : L"파면으로");taxText(11,L"이전");taxText(12,L"다음");taxText(13,L"목록 갱신");taxText(14,L"보내기");taxText(15,L"닫기");
+    taxEnabled(10,!state.pending && (dismissal || appointment || demotion || promotion || row!=nullptr));
+    taxEnabled(11,!state.pending && (strategyDirectory.count>1 || (proposalPlainPerson() && proposalCursor)));
     taxEnabled(12,!state.pending && strategyDirectory.count>1);taxEnabled(13,!state.pending);taxEnabled(14,!state.pending && row!=nullptr);
     if(state.pending && GetTickCount64()-state.sentAt>10000)state.message=L"응답 대기 중 · 재접속 후 편지함을 확인하세요.";
     if(GetTickCount64()<state.acceptAfter)return true;
@@ -120,10 +130,10 @@ static bool updateProposalAction() {
         if(id==15)closeTaxWindow();
         else if(!state.pending) {
             if(id==10) {
-                // Cycle resignation -> dismissal -> appointment -> demotion: modes 1-3 keep the chosen recipient and list
-                // its seats or demotable people.
+                // Cycle resignation -> dismissal -> appointment -> demotion -> promotion: modes 1-4 keep the chosen
+                // recipient and list its seats or demotable/promotable people.
                 if(state.strategyArgument==0) {state.strategyBase=state.strategyTarget;state.strategyArgument=1;}
-                else if(state.strategyArgument==1 || state.strategyArgument==2)++state.strategyArgument;
+                else if(state.strategyArgument>=1 && state.strategyArgument<=3)++state.strategyArgument;
                 else {state.strategyArgument=0;state.strategyTarget=state.strategyBase;}
                 strategyDirectory={};sendProposal(true);
             }

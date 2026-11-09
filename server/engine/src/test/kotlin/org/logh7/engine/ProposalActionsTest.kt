@@ -37,21 +37,28 @@ class ProposalActionsTest {
         assertNull(approved.rejection);assertEquals(960,approved.player?.mcp,"the recipient pays the other half")
         assertTrue(policy.held(assertNotNull(approved.stocks),10001).none {it.card==19},"card 19 was resigned")
     }
-    @Test fun absentDemotionOrdersRecheckTheTargetAndChargeOnlyOnce() {
-        val target=b.copy(characterId=10002)
+    @Test fun absentDemotionOrdersRecheckTheTargetAndChargeOnlyOnce() = absentRankChange(ProposalActions.DEMOTION)
+    @Test fun absentSpecialPromotionUpdatesTheTargetFlagshipAndChargesOnlyOnce() = absentRankChange(ProposalActions.SPECIAL_PROMOTION)
+
+    private fun absentRankChange(command:Int) {
+        val promoting=command==ProposalActions.SPECIAL_PROMOTION
+        val oldRank=if(promoting)11 else 9
+        val half=if(promoting)320 else 160
+        val destroyer=Flagships.forType(2,3).kind
+        val target=b.copy(characterId=10002,hull=FlagshipHull(destroyer,0))
         val identities=listOf(
             StrategicIdentity(a.characterId,2,2,0,List(8){50}),
-            StrategicIdentity(b.characterId,2,9,0,List(8){50}),
-            StrategicIdentity(target.characterId,2,9,0,List(8){50}))
+            StrategicIdentity(b.characterId,2,oldRank,0,List(8){50}),
+            StrategicIdentity(target.characterId,2,oldRank,0,List(8){50}))
         val original=stocks()
         val withRanks=original.copy(strategic=original.strategic.copy(people=original.strategic.people+
-            (b.characterId to StrategicPerson(rank=9,merit=100))+(target.characterId to StrategicPerson(rank=9))))
-        val mail=ProposalMail(1,a.characterId,b.characterId,17,19,ProposalActions.DEMOTION,true,0,Proposals.LIFETIME,
-            mcp=160,target=target.characterId,country=Power.EMPIRE.country)
+            (b.characterId to StrategicPerson(rank=oldRank,merit=100))+(target.characterId to StrategicPerson(rank=oldRank))))
+        val mail=ProposalMail(1,a.characterId,b.characterId,17,19,command,true,0,Proposals.LIFETIME,
+            mcp=half,target=target.characterId,country=Power.EMPIRE.country)
         val pending=withRanks.copy(social=withRanks.social.copy(proposals=ProposalState(listOf(mail))))
         val due=session.copy(gameMillis=ProposalActions.ABSENT_ORDER_SECONDS*1000,
             participants=session.participants+("b" to session.participants.getValue("b").copy(online=false)))
-        val players=mutableMapOf("a" to a.copy(mcp=840),"b" to b,"target" to target)
+        val players=mutableMapOf("a" to a.copy(mcp=1000-half),"b" to b,"target" to target)
         val dead=BattleDeath.apply(pending,listOf(target.characterId),1) {_,_->true}
         assertEquals(dead,ProposalActions.settle(galaxy,due,players,dead) {identities})
         assertEquals(b,players.getValue("b"))
@@ -59,10 +66,11 @@ class ProposalActionsTest {
         val approved=ProposalActions.settle(galaxy,due,players,pending) {identities}
         assertEquals(Proposals.APPROVE,approved.social.proposals.mails.single().reply)
         assertEquals(10,approved.strategic.people.getValue(target.characterId).rank)
-        assertEquals(9,approved.social.proposals.mails.single().demotionFromRank)
-        assertEquals(840,players.getValue("b").mcp)
+        assertEquals(if(promoting)10 else oldRank,approved.social.proposals.mails.single().rankChangeMailRank)
+        assertEquals(if(promoting)Flagships.rankDefault(2,10).kind else destroyer,players.getValue("target").hull?.kind)
+        assertEquals(1000-half,players.getValue("b").mcp)
         assertEquals(approved,ProposalActions.settle(galaxy,due,players,approved) {identities})
-        assertEquals(840,players.getValue("b").mcp)
+        assertEquals(1000-half,players.getValue("b").mcp)
     }
 
     @Test fun ordersFromADeceasedSenderCannotExecuteOnlineOrInAbsentSettlement() {
