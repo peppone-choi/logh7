@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.persistence.FileWorldStateStore
 import kotlin.test.*
 
 class TransportActionsWireTest {
@@ -96,8 +97,23 @@ class TransportActionsWireTest {
             action(client,65,2,warehouse=1050);assertEquals(600,state.players.getValue("load-000").mcp)
             assertEquals(600,state.stocks.bases.getValue(1050).supplies)
             assertEquals(listOf(1),state.stocks.strategic.transports.map {it.id})
+        }
+        val savedWorld=directory.resolve("saved-world")
+        FileWorldStateStore(savedWorld).use {it.saveWorld(state.players,state.stocks)}
+        FileWorldStateStore(savedWorld).use {
+            state.players=it.loadNavigation()
+            state.stocks=checkNotNull(it.loadStocks())
+        }
+        server("after-delivery-restart").use {fixture->
+            val client=fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
             action(client,28,warehouse=1049);assertEquals(520,state.players.getValue("load-000").mcp)
-            action(client,29,2,warehouse=1049);assertEquals(440,state.players.getValue("load-000").mcp)
+            assertEquals(listOf(3),listed(client,29))
+            action(client,29,2,StrategyActionRejection.TARGET.ordinal+1)
+            action(client,65,2,StrategyActionRejection.TARGET.ordinal+1)
+            assertEquals(520,state.players.getValue("load-000").mcp)
+            assertEquals(listOf(1,3),state.stocks.strategic.transports.map {it.id})
+            action(client,29,3,warehouse=1049);assertEquals(440,state.players.getValue("load-000").mcp)
             assertEquals(4000,state.stocks.bases.getValue(1049).supplies)
             assertEquals(700,state.stocks.strategic.transports.single().supplies)
         }
