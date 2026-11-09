@@ -45,8 +45,8 @@ class TransportActionsWireTest {
         if(warehouse>0)assertEquals(warehouse,ByteBuffer.wrap(next(client,0x0327)).getInt(6))
     }
     private fun listed(client:SyntheticClient,command:Int):List<Int> = listedRows(client,command).map {it.first}
-    private fun listedRows(client:SyntheticClient,command:Int):List<Pair<Int,String>> {
-        client.send(request(command,preview=true));next(client,0x1200)
+    private fun listedRows(client:SyntheticClient,command:Int,cursor:Int=0):List<Pair<Int,String>> {
+        client.send(request(command,preview=true,target=cursor));next(client,0x1200)
         val rows=ByteBuffer.wrap(next(client,0x1202));val count=rows.get(6).toInt() and 255
         rows.position(7)
         val selections=List(count){
@@ -102,4 +102,22 @@ class TransportActionsWireTest {
             assertEquals(700,state.stocks.strategic.transports.single().supplies)
         }
     }
+    @Test fun carrierDirectoryPagesByPackageIdWithoutLosingTheOutfitScope() {
+        val state=State()
+        val carried=(1..201).map {id->
+            TransportPackage(id,CountryId(2),1049,1050,1,carrier=200,carrierBoats=300)
+        }
+        val foreign=TransportPackage(202,CountryId(43),1049,1050,1,carrier=200,carrierBoats=300)
+        state.stocks=state.stocks.copy(strategic=StrategicState(transports=carried+foreign))
+        LoadFixture(directory.resolve("pages"),1,LoadMetrics(),galaxy,ticking=false,
+            navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {fixture->
+            val client=fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+            assertEquals((1..200).toList(),listed(client,65))
+            assertEquals(listOf(201),listedRows(client,65,200).map {it.first})
+            assertTrue(listedRows(client,65,201).isEmpty())
+            assertEquals((1..200).toList(),listed(client,65))
+        }
+    }
+
 }

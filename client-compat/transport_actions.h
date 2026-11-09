@@ -5,10 +5,14 @@
 #pragma once
 static void strategyNextBase(int direction);
 static void strategyNextPerson(int direction);
+// Package pages: id>cursor ascending, 200 rows, at most 4096 packages. The fixed request record carries one
+// cursor, so earlier ones stay here. 21 slots also hold the empty page after an exactly full 20th page.
+static constexpr unsigned transportPageLimit=4096/200+1;
 static struct TransportWindow {
     unsigned kind,count;
     bool refresh;
     wchar_t receipt[160];
+    unsigned page,requestedPage,cursors[transportPageLimit];
 } transportWindow={};
 static bool transportCommand(unsigned command) {return command==28 || command==29 || command==65;}
 static bool transportCard(unsigned command,unsigned card) {
@@ -35,6 +39,12 @@ static void sendTransportAction(bool preview,unsigned cursor=0) {
     strategyDirectory.receiving=false;
     reinterpret_cast<unsigned(__thiscall*)(void*,char,unsigned,const void*)>(0x4b78a0)(state.world,0,0x46,record);
 }
+/** The page number applies when the rows arrive; a rejection keeps the page on screen. */
+static void requestTransportPage(unsigned page,unsigned cursor) {
+    auto& transport=transportWindow;
+    transport.requestedPage=page;transport.cursors[page]=cursor;
+    sendTransportAction(true,cursor);
+}
 /** Commit reply. StrategyActionRejection ordinal+1. */
 static bool readTransportAction(void* record) {
     auto& state=taxWindow;
@@ -42,6 +52,7 @@ static bool readTransportAction(void* record) {
         !state.pending || at<BYTE>(record,16)==1 || at<unsigned>(record,0)!=state.character ||
         at<unsigned short>(record,6)!=state.strategyCommand || at<unsigned short>(record,32)!=state.strategyToken)return false;
     state.pending=false;unsigned reply=at<unsigned short>(record,10);unsigned command=state.strategyCommand;
+    transportWindow.requestedPage=transportWindow.page;
     state.message=reply==4 ? L"이 명령을 실행할 직무 카드가 아닙니다." :
         reply==5 ? L"본인이 지휘하는 수송함대가 아니거나 다른 부대가 실은 패키지입니다." :
         reply==6 ? (command==65 ? L"기함과 수송함대를 함께 정박시키세요. 반입은 수송처 또는 목적지 상실 시 다른 아군 거점." : L"수송원 거점이 아군 거점이 아닙니다.") :
@@ -63,6 +74,22 @@ static bool readTransportAction(void* record) {
 static const StrategyDirectory::Person* transportPackage() {
     for(unsigned i=0;i<strategyDirectory.count;++i)if(strategyDirectory.people[i].id==taxWindow.strategyTarget)return &strategyDirectory.people[i];
     return nullptr;
+}
+static bool transportExecutable() {
+    auto& state=taxWindow;
+    return state.strategyCommand==28 ? state.strategyBase && state.strategyTarget && (state.strategyAmount || transportWindow.kind!=0xffff) :
+        transportPackage()!=nullptr && (state.strategyCommand!=65 || state.strategyOutfit);
+}
+static void transportNextPackage(int direction) {
+    auto& state=taxWindow;auto& transport=transportWindow;auto& directory=strategyDirectory;
+    unsigned selected=0;
+    for(unsigned i=0;i<directory.count;++i)if(directory.people[i].id==state.strategyTarget)selected=i;
+    if(direction<0 && !selected && transport.page) {requestTransportPage(transport.page-1,transport.cursors[transport.page-1]);return;}
+    if(!directory.count)return;
+    if(direction>0 && selected+1==directory.count && directory.count==200 && transport.page+1<transportPageLimit) {
+        requestTransportPage(transport.page+1,directory.people[selected].id);return;
+    }
+    state.strategyTarget=directory.people[(selected+directory.count+direction)%directory.count].id;
 }
 static void transportSystemLabel(unsigned destination,wchar_t (&label)[96]) {
     wcscpy_s(label,L"미수신");
@@ -119,10 +146,9 @@ static void drawTransportAction() {
     taxText(6,transport.receipt[0] && !state.pending ? transport.receipt : state.message);
     taxText(10,L"선택 항목");taxText(11,L"이전 / −");taxText(12,L"다음 / +");taxText(13,L"목록 갱신");taxText(14,L"실행");taxText(15,L"닫기");
     bool plan=command==28;
-    taxEnabled(10,!state.pending && plan);taxEnabled(11,!state.pending && (plan || strategyDirectory.count>1));
+    taxEnabled(10,!state.pending && plan);taxEnabled(11,!state.pending && (plan || strategyDirectory.count>1 || transport.page));
     taxEnabled(12,!state.pending && (plan || strategyDirectory.count>1));taxEnabled(13,!state.pending && !plan);
-    taxEnabled(14,!state.pending && (plan ? state.strategyBase && state.strategyTarget && (state.strategyAmount || transport.kind!=0xffff) :
-        transportPackage()!=nullptr && (command!=65 || state.strategyOutfit)));
+    taxEnabled(14,!state.pending && transportExecutable());
 }
 static void transportStep(int step) {
     auto& state=taxWindow;auto& transport=transportWindow;
@@ -145,9 +171,11 @@ static void transportStep(int step) {
     }
 }
 static bool updateTransportAction() {
-    drawTransportAction();auto& state=taxWindow;auto& transport=transportWindow;unsigned command=state.strategyCommand;
+    auto& state=taxWindow;auto& transport=transportWindow;unsigned command=state.strategyCommand;
+    if(!state.pending)transport.page=transport.requestedPage;
+    drawTransportAction();
     if(state.pending && GetTickCount64()-state.sentAt>10000)state.message=L"응답 대기 중 · 재접속 후 실제 상태를 확인해 주세요.";
-    if(transport.refresh && !state.pending) {transport.refresh=false;sendTransportAction(true);}
+    if(transport.refresh && !state.pending) {transport.refresh=false;requestTransportPage(0,0);}
     if(GetTickCount64()<state.acceptAfter)return true;
     BYTE event[52]={};
     for(int id=10;id<=15;++id)if(reinterpret_cast<BYTE(__thiscall*)(void*,int,void*,void*,int)>(0x5015f0)(state.root,2,taxWidget(1,id),event,0)) {
@@ -156,10 +184,10 @@ static bool updateTransportAction() {
         else if(!state.pending) {
             transport.receipt[0]=0;
             if(id==10 && command==28)state.strategyField=(state.strategyField+1)%5;
-            else if(id==13 && command!=28)sendTransportAction(true);
+            else if(id==13 && command!=28)requestTransportPage(0,0);
             else if(id==11 || id==12) {
-                if(command==28)transportStep(id==11 ? -1 : 1);else strategyNextPerson(id==11 ? -1 : 1);
-            } else if(id==14)sendTransportAction(false);
+                if(command==28)transportStep(id==11 ? -1 : 1);else transportNextPackage(id==11 ? -1 : 1);
+            } else if(id==14 && transportExecutable())sendTransportAction(false);
         }
         break;
     }
