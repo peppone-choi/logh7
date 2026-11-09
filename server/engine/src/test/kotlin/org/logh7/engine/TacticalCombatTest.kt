@@ -465,26 +465,29 @@ class TacticalCombatTest {
             morale=mapOf(victim.unitId to 15, 1010000 to 70),
             missions=mapOf(victim.characterId to TacticalMissionState(victim.characterId,5,0,0,now,grid=2488))))
         nav=Navigation(galaxy,state.nav,NavigationPolicy());stock=production(state)
-        val nextSession=duel.copy(gameMillis=(now+120)*1000)
+        val fatalAt=(now+240..now+300).first { !BattleDeath.dies(victim.characterId,it) }
+        val nextSession=duel.copy(gameMillis=(fatalAt-120)*1000)
         assertNotNull(TacticalCombat.accept(shot,nextSession,galaxy,nav,stock.snapshot(1)!!,state.commit,24).player)
         val before=nav.snapshot(1);val stored=state.stocks
         state.fail=true
-        assertFailsWith<java.io.IOException>{TacticalCombat.settle(duel.copy(gameMillis=(now+240)*1000),galaxy,nav,stock,state.commit)}
+        assertFailsWith<java.io.IOException>{TacticalCombat.settle(duel.copy(gameMillis=fatalAt*1000),galaxy,nav,stock,state.commit)}
         assertEquals(before,nav.snapshot(1));assertEquals(stored,state.stocks);state.fail=false
-        val fatal=TacticalCombat.settle(duel.copy(gameMillis=(now+240)*1000),galaxy,nav,stock,state.commit).single()
+        val fatal=TacticalCombat.settle(duel.copy(gameMillis=fatalAt*1000),galaxy,nav,stock,state.commit).single()
         assertEquals(1,fatal.hit.destroyed);assertEquals(1,fatal.hit.damaged)
         val returned=nav.snapshot(1).getValue("victim")
+        assertFalse(BattleDeath.deceased(state.stocks,victim.characterId))
         assertEquals(returned,fatal.departed);assertEquals(2487,returned.grid);assertEquals(1000,returned.baseId)
         assertEquals(4,returned.mode);assertFalse(returned.cpPaused);assertNull(returned.fire);assertNull(returned.motion)
-        assertEquals(3,returned.hull!!.kind);assertEquals(now+240+86400,returned.hull!!.woundedUntil)
+        assertEquals(3,returned.hull!!.kind);assertEquals(fatalAt+86400,returned.hull!!.woundedUntil)
         assertEquals(mapOf(1010000 to 70),state.stocks.tacticalCommands.morale)
         assertTrue(state.stocks.tacticalCommands.missions.getValue(victim.characterId).completed)
         assertTrue(state.stocks.tacticalCommands.merits.isEmpty())
         assertEquals(0,returned.supplies);assertEquals(setOf(10000,10001),fatal.recipients.keys)
         assertTrue(TacticalCombat.settle(duel.copy(gameMillis=(now+1200)*1000),galaxy,nav,stock,state.commit).isEmpty())
         val exit=NavigationRequest("victim",10001,Power.EMPIRE,"v",1,place=PlaceMove.SwitchMode(5),shipKind=3,unitId=1010001,captainCard=59)
-        assertEquals(NavigationRejection.WOUNDED,nav.apply(exit,duel.copy(gameMillis=(now+300)*1000),stock.snapshot(1)).rejection)
-        assertNotNull(nav.apply(exit,duel.copy(gameMillis=(now+240+86400)*1000),stock.snapshot(1)).player)
+        assertEquals(NavigationRejection.WOUNDED,nav.apply(exit,duel.copy(gameMillis=(fatalAt+60)*1000),stock.snapshot(1)).rejection)
+        val recovered=nav.apply(exit,duel.copy(gameMillis=(fatalAt+86400)*1000),stock.snapshot(1))
+        assertNull(recovered.rejection);assertEquals(5,recovered.player?.mode)
     }
 
     @Test fun sameGridDefeatPublishesOnlyTheVictimsCombatExit() = runBlocking {
