@@ -533,6 +533,16 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
+        val pirateDeadlines=if(galaxy==null || session.ended!=null)emptyList() else snapshot.planetStocks?.let {stocks->
+            val pirates=stocks.social.pirates
+            val fleetDeadlines=pirates.fleets.values.filter {it.alive}.map {fleet->
+                if(PirateActions.engaged(galaxy,stocks,snapshot.navigators.values,fleet.grid))
+                    fleet.firedAt+PirateActions.FIRE_SECONDS
+                else fleet.since+PirateActions.SPAWN_DAYS*Justice.DAY
+            }
+            val harmAt=pirates.harmedThrough.takeIf {it>0 && fleetDeadlines.isNotEmpty()}?.plus(Justice.DAY)
+            (fleetDeadlines+listOfNotNull(pirates.nextSpawnAt,harmAt)).filter {it>nowSeconds}
+        }.orEmpty()
         val trade=snapshot.planetStocks?.social?.trade
         val tradeDeadlines=(trade?.routes.orEmpty().values.map {minOf(it.until,it.paidThrough+Justice.DAY)}+
             trade?.convoys.orEmpty().values+trade?.pacts.orEmpty().values+trade?.passages.orEmpty().values)
@@ -547,7 +557,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             .filter {it>nowSeconds}.minOrNull()
         val exchangeDeadline=snapshot.planetStocks?.flagshipMarket?.offers.orEmpty().asSequence()
             .map {it.expiresAt}.filter {it>nowSeconds}.minOrNull()
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+mailDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline,operationDeadline,exchangeDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+pirateDeadlines+mailDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline,operationDeadline,exchangeDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed

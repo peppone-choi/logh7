@@ -10,6 +10,61 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredPirateOccupationReducesPublicOrderOnceAtItsDailyDeadline() = runTest {
+        val day=Justice.DAY
+        val rig=Rig(this,testScheduler,resumedAt=day*1000/SessionRules.load().speed,pirateHarmDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun peace()=rig.engine.snapshot().planetStocks!!.bases.getValue(1000).economy!!.peace
+            advanceTimeBy(624);runCurrent()
+            val initialPeace=peace()
+            assertEquals(15L,rig.engine.snapshot().planetStocks!!.social.pirates.harmedThrough)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(day+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(initialPeace-PirateActions.HARM,peace())
+            advanceTimeBy(375);runCurrent()
+            assertEquals(initialPeace-PirateActions.HARM,peace())
+        } finally {rig.engine.drainAndClose()}
+    }
+
+    @Test fun restoredPiratesSpawnAndMoveAtTheirStrategicDeadline() = runTest {
+        val week=PirateActions.SPAWN_DAYS*Justice.DAY
+        val rig=Rig(this,testScheduler,resumedAt=week*1000/SessionRules.load().speed,pirateStrategyDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun fleets()=rig.engine.snapshot().planetStocks!!.social.pirates.fleets
+            advanceTimeBy(624);runCurrent()
+            assertEquals(setOf(1),fleets().keys)
+            assertEquals(2489,fleets().getValue(1).grid)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(week+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(setOf(1,2),fleets().keys)
+            assertNotEquals(2489,fleets().getValue(1).grid)
+            assertEquals(2490,fleets().getValue(2).grid)
+        } finally {rig.engine.drainAndClose()}
+    }
+
+    @Test fun restoredPirateCounterattackFiresBetweenRegularTicks() = assertPirateCounterattack(regular=false)
+
+    @Test fun restoredPirateCounterattackAgainstRegularShipsFiresBetweenRegularTicks() = assertPirateCounterattack(regular=true)
+
+    private fun assertPirateCounterattack(regular:Boolean) = runTest {
+        val rig=Rig(this,testScheduler,pirateDeadline=true,pirateRegularTarget=regular)
+        val impacts=mutableListOf<TacticalImpact>()
+        rig.engine.observeCombat(impacts::add)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun lastVolley()=rig.engine.snapshot().planetStocks!!.social.pirates.fleets.getValue(1).firedAt
+            advanceTimeBy(833);runCurrent()
+            assertEquals(rig.start,lastVolley())
+            assertTrue(impacts.isEmpty())
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+20,lastVolley())
+            assertEquals(900_001,impacts.single().source)
+            assertEquals(0L,rig.engine.snapshot().session!!.strategyTicks)
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun absentOrderExecutesBetweenPeriodicTicksAfterRestart() = runTest {
         val rig=Rig(this,testScheduler,resumedAt=149375,orderDeadline=true)
         try {
@@ -113,6 +168,7 @@ class TacticalDeadlineTest {
             assertEquals(1,stock().bases.getValue(1000).units.ships[stack])
         } finally {rig.engine.drainAndClose()}
     }
+
     @Test fun restoredFleetRetreatChecksMembershipAndCompletesBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,retreatDeadline=true,fleetRetreat=true)
         try {
@@ -355,8 +411,9 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
-        mailDeadline:Boolean=false,orderDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
+        uncharged:Boolean=false,pirateDeadline:Boolean=false,pirateRegularTarget:Boolean=false,pirateStrategyDeadline:Boolean=false,
+        pirateHarmDeadline:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
+        mailDeadline:Boolean=false,orderDeadline:Boolean=false,tradeDeadline:Boolean=false,fortressDeadline:Boolean=false,shipOrder:Boolean=false,
         operationDeadline:Boolean=false,exchangeOffer:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
@@ -368,7 +425,8 @@ class TacticalDeadlineTest {
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         private val homeGrid=if(orderDeadline)2487 else 2488
-        val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(orderDeadline)2 else 3)),
+        val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(orderDeadline)2 else 3))+
+            listOfNotNull(GalaxySystem(4,2490,4,"Frontier").takeIf {pirateStrategyDeadline}),
             listOf(GalaxyBase(if(orderDeadline)1049 else 1000,homeGrid,80,if(fortressDeadline)1 else 0,
                 if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),
             Power.entries.associateWith {homeGrid})
@@ -456,6 +514,36 @@ class TacticalDeadlineTest {
                     val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,commanderId=10000,
                         units=UnitInventory(mapOf(stack to 1)),supplies=5000,activeShips=ActiveShipUnits(listOf(ship)),
                         position=OutfitPosition(2488))
+                    stocks=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
+                        warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
+                }
+            }
+            if(pirateHarmDeadline) {
+                players=emptyMap()
+                val fleet=PirateFleet(1,2488,15,listOf(PirateUnit(900_001,300)))
+                stocks=stocks.copy(bases=mapOf(1000 to PlanetStock(1000,3,0,0,0,0,PlanetEconomy(1000,500,50,40))),
+                    social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2,
+                        nextSpawnAt=PirateActions.SPAWN_DAYS*Justice.DAY,harmedThrough=15)))
+            }
+            if(pirateStrategyDeadline) {
+                players=emptyMap()
+                val fleet=PirateFleet(1,2489,15,listOf(PirateUnit(900_001,300)))
+                val spawnAt=PirateActions.SPAWN_DAYS*Justice.DAY+15
+                stocks=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2,spawnAt)))
+            }
+            if(pirateDeadline) {
+                val pilot=players.getValue("pilot")
+                val point=TacticalPoint(0f,-9f)
+                val motion=TacticalMotion(2488,start,TacticalPose(point,0f),0f,0f,listOf(point))
+                players=mapOf("pilot" to pilot.copy(motion=motion))
+                val fleet=PirateFleet(1,2488,start,listOf(PirateUnit(900_001,300)),firedAt=start)
+                stocks=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2)))
+                if(pirateRegularTarget) {
+                    players=emptyMap()
+                    val stack=UnitStack(32)
+                    val ship=ActiveShipUnit(1,stack,tactical=NpcTacticalState(motion,start,start))
+                    val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,units=UnitInventory(mapOf(stack to 1)),
+                        activeShips=ActiveShipUnits(listOf(ship)),position=OutfitPosition(2488))
                     stocks=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
                         warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
                 }
