@@ -36,6 +36,7 @@ object MeetingActions {
             return reject(SocialRejection.IDENTITY)
         if(i.command!=MEETING || r.phase !in 0..1 || (if(r.phase==0)r.ticket!=0 else r.ticket<=0) || i.target<=0 ||
             i.target==i.characterId || i.outfit!=0 || i.base!=0 || i.value!=0 || i.amount!=0L || i.argument!=0)return reject(SocialRejection.COMMAND)
+        if(BattleDeath.deceased(s,i.target))return reject(SocialRejection.TARGET)
         val now=session.gameMillis/1000
         val key=pair(i.characterId,i.target)
         val wait=((m.nextAt[key] ?: 0)-now).coerceAtLeast(0)
