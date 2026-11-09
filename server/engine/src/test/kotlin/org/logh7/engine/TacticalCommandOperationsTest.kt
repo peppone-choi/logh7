@@ -1026,6 +1026,31 @@ class TacticalCommandOperationsTest {
         assertEquals(10000,TacticalAuthority.commander(moved,moved.activeShips!!.values.single(),s.stocks))
         assertEquals(100,s.stocks.outfits.values.sumOf {it.supplies})
     }
+    @Test fun fleetRetreatCountsEmbarkedTroopsAgainstDestinationCapacity() {
+        val s=state()
+        val fleet=s.stocks.outfits.getValue(1)
+        val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=true)
+        val ships=ActiveShipUnits(fleet.activeShips!!.values.map {
+            if(it.id==1)it.copy(motionCommander=10000,tactical=NpcTacticalState(motion(260f),now,now,retreat=retreat)) else it
+        })
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(1),carrier=1)))
+        val before=s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ships,activeGround=troops,
+            units=UnitInventory(ships.quantities(),troops.quantities()))))
+        val due=session.copy(gameMillis=(now+155)*1000)
+        val pilot=s.players.getValue("pilot")
+        fun occupants(count:Int)=s.players+(1..count).associate {"occupant$it" to
+            pilot.copy(characterId=20000+it,grid=2489,motion=null)}
+        val events=mutableListOf<TacticalMovement>()
+        assertEquals(before,TacticalFleetRetreat.advance(due,galaxy,occupants(299).toMutableMap(),before,events))
+        assertTrue(events.isEmpty())
+
+        val moved=TacticalFleetRetreat.advance(due,galaxy,occupants(298).toMutableMap(),before,events)
+        val detachment=moved.outfits.values.single {it.activeShips?.values?.any {unit->unit.id==1}==true}
+        assertEquals(2489,detachment.positionIn(galaxy).grid)
+        assertEquals(troops,detachment.activeGround)
+        assertEquals(1,events.size)
+    }
+
     @Test fun rebelDetachmentRetainsItsCampAfterPartialRetreat() {
         val s=state()
         val fleet=s.stocks.outfits.getValue(1)

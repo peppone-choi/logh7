@@ -89,12 +89,13 @@ internal object TacticalFleetRetreat {
                 val current=stocks.outfits.getValue(outfitId);val target=group.first().tactical!!.retreat!!.destination
                 val forces=GridForces.collect(g,session.generation,players.values,stocks)
                 val camp=TacticalAuthority.camp(current,stocks)
-                if(GridEntryRules.evaluate(GridForces.state(g,target,forces),GridEntry(camp,group.size,false))!=GridEntryVerdict.ALLOWED)continue
                 val ids=group.map {it.id}.toSet();val original=current.activeShips!!.values
+                val aboard=current.activeGround?.values.orEmpty().filter {it.carrier in ids}
+                val arriving=GridEntry(camp,group.size+aboard.size,false)
+                if(GridEntryRules.evaluate(GridForces.state(g,target,forces),arriving)!=GridEntryVerdict.ALLOWED)continue
                 val balances=OutfitSupplies.distribution(current)
                 val moving=ActiveShipUnits(original.filter {it.id in ids}.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null,support=null,posture=null)})
                 val remaining=ActiveShipUnits(original.filter {it.id !in ids})
-                val aboard=current.activeGround?.values.orEmpty().filter {it.carrier in ids}
                 val ashore=current.activeGround?.values.orEmpty().filter {it.carrier !in ids}
                 val movedGround=ActiveGroundUnits(aboard)
                 val leftGround=ActiveGroundUnits(ashore)
