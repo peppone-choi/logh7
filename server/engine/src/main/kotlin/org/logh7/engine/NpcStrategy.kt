@@ -88,7 +88,7 @@ internal object NpcStrategy {
             depots[current.grid]?.let {
                 val route=DepotRoute(it,current.first,current.jumps)
                 if(relief) {
-                    if(stocks.bases.getValue(it.id).supplies>=jumpShortfall(live,balances,current.jumps))return route
+                    if(current.jumps>0 && stocks.bases.getValue(it.id).supplies>=jumpShortfall(live,balances,current.jumps))return route
                 } else {
                     if(stocked(it) && current.jumps<=affordable)return route
                     if(fallback==null)fallback=route
@@ -232,7 +232,7 @@ internal object NpcStrategy {
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
                 val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys,destination)
-                val relief=if(normal?.grid==position.grid)null else reliefRoute(galaxy,forces(),outfit,stocks,destination)
+                val relief=reliefRoute(galaxy,forces(),outfit,stocks,destination)
                 val planned=relief?.let {OutfitPosition(it.next,if(it.jumps==1)it.base.id else 0)} ?: normal
                 if(planned?.grid==position.grid) {
                     dockLocally(outfit,planned)
@@ -291,10 +291,11 @@ internal object NpcStrategy {
                     moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
                 val destination=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys)
-                if(destination?.grid==position.grid) {
+                val relief=reliefRoute(galaxy,forces(),outfit,stocks)
+                if(relief==null && destination?.grid==position.grid) {
                     dockLocally(outfit,destination)
                 } else {
-                    val grid=if(canDepart(stocks,outfit,galaxy))destination?.grid else reliefRoute(galaxy,forces(),outfit,stocks)?.next
+                    val grid=relief?.next ?: destination?.grid?.takeIf {canDepart(stocks,outfit,galaxy)}
                     val next=if(grid==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,grid,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
                 }
