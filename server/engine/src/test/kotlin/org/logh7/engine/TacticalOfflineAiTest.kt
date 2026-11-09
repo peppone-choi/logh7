@@ -39,6 +39,19 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun eliminatedCountryDoesNotIssueOfflineOrdersOrSelectAutomaticTargets() {
+        val players=players()
+        val pilot=players.getValue("pilot")
+        val stock=stocks()
+        val events=mutableListOf<TacticalCommandResult>()
+        val defeated=offline.copy(eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.ALLIANCE.country)))
+        assertEquals(stock,TacticalOfflineAi.advance(defeated,galaxy,players,stock,1,events))
+        assertEquals(pilot,players.getValue("pilot"))
+        assertTrue(events.isEmpty())
+        assertTrue(TacticalOfflineAi.automaticTargets(defeated,"pilot",pilot,stock,listOf(99)).isEmpty())
+        assertEquals(listOf(99),TacticalOfflineAi.automaticTargets(offline,"pilot",pilot,stock,listOf(99)))
+    }
     @Test fun nearbyOfflineSupportUsesTheNormalDelayAndConsumesRealCargo() {
         for(action in TacticalSupportAction.entries)for(targetAccount in listOf("pilot","ally")) {
             val players=players()

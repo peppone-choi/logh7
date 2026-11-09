@@ -77,7 +77,7 @@ internal object TacticalFleetAttack {
             val commanderEntry=players.entries.singleOrNull {it.value.characterId==command.commander &&
                 it.value.country==outfit.country}
             val commander=commanderEntry?.value
-            if(BattleDeath.deceased(stocks,command.commander) ||
+            if(outfit.country in session.eliminated || BattleDeath.deceased(stocks,command.commander) ||
                 TacticalAuthority.commander(outfit,unit,stocks)!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null ||
                 commander==null || commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid) {

@@ -92,7 +92,7 @@ internal object TacticalFleetShoot {
             val state=checkNotNull(unit.tactical)
             val position=outfit.positionIn(galaxy)
             val commander=players.values.singleOrNull {it.characterId==shot.commander && it.country==outfit.country}
-            if(BattleDeath.deceased(stocks,shot.commander) ||
+            if(outfit.country in session.eliminated || BattleDeath.deceased(stocks,shot.commander) ||
                 TacticalAuthority.commander(outfit,unit,stocks)!=shot.commander || position.baseId!=0 || state.motion.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null || commander==null ||
                 commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid) {
