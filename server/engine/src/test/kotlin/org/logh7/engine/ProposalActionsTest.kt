@@ -240,6 +240,44 @@ class ProposalActionsTest {
         assertEquals(SocialRejection.STALE,duplicate.rejection)
         assertTrue(duplicate.navigators.isEmpty())
     }
+    @Test fun aDormantFiefCountsAgainstOpeningAndApprovingAnAppointment() {
+        val initial = stocks()
+        val estates = (1050..1061).associateWith { id ->
+            PlanetStock(id, 2, if (id == 1061) 1 else 0, 100, 200, 300)
+        }
+        val world = Galaxy(galaxy.systems, galaxy.bases + estates.keys.map { id ->
+            galaxy.bases.first().copy(id = id, name = "Estate $id")
+        }, galaxy.starts)
+        val offices = OrganizationalOfficePolicy(world)
+        val available = initial.copy(bases = initial.bases + estates, strategic = initial.strategic.copy(
+            people = initial.strategic.people + (b.characterId to StrategicPerson(rank = 4, influence = 10, peerage = Peerage.BARON)),
+            fiefs = (1050..1060).associateWith { b.characterId }))
+        val (card, seat) = ProposalActions.vacancies(world, available, a.characterId, 2, 2, b.characterId, 4).first()
+        val open = SocialRequest(StrategyActionRequest("b", "b", b.characterId, Power.EMPIRE, 1,
+            ProposalActions.OPEN, 19, 4, target = a.characterId, value = ProposalActions.APPOINTMENT,
+            argument = 17, base = seat, amount = card.toLong()))
+        val opened = SocialActions.evaluate(world, open, session, b, available, listOf(a, b), mapOf("a" to a, "b" to b))
+        assertNull(opened.rejection)
+        val pending = assertNotNull(opened.stocks)
+        val full = pending.copy(strategic = pending.strategic.copy(fiefs = pending.strategic.fiefs + (1061 to b.characterId)))
+        assertEquals(14, offices.cardCount(full, b.characterId))
+        assertEquals(11, FundActions.governed(world, full, b.characterId, CountryId(2), card = 66).size)
+
+        val sender = assertNotNull(opened.player)
+        val refused = SocialActions.evaluate(world, open, session, sender, full, listOf(a, sender),
+            mapOf("a" to a, "b" to sender))
+        assertEquals(SocialRejection.TARGET, refused.rejection)
+        assertEquals(sender, refused.player)
+        assertEquals(full, refused.stocks)
+
+        val reply = SocialRequest(StrategyActionRequest("a", "a", a.characterId, Power.EMPIRE, 1,
+            ProposalActions.REPLY, 0, 2, target = pending.social.proposals.mails.single().id, value = Proposals.APPROVE))
+        val denied = SocialActions.evaluate(world, reply, session, a, full, listOf(a, sender), mapOf("a" to a, "b" to sender))
+        assertEquals(SocialRejection.CARD, denied.rejection)
+        assertEquals(a, denied.player)
+        assertEquals(full, denied.stocks)
+    }
+
     @Test fun anAppointmentToASeatTheRecipientCannotFillIsRejected() {
         val r=SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,ProposalActions.OPEN,17,9,target=10001,
             value=ProposalActions.APPOINTMENT,argument=19,base=1049,amount=17))

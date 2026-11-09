@@ -27,11 +27,9 @@ object ProposalActions {
         countries:CountryCatalog=CountryCatalogLoader.current()):List<Pair<Int,Int>> {
         if(power !in countries.countries)return emptyList()
         val country=CountryId(power);val policy=OrganizationalOfficePolicy(g,countries)
-        val holdings=policy.held(s,candidate).filter {it.country==country}
-        val count=holdings.size+(if(s.strategic.people[candidate]?.peerage!=null)1 else 0)+
-            FundActions.governed(g,s,candidate,country,countries,card=66).size
-        if(candidate==actor || count>=14 || BattleDeath.deceased(s,actor) || BattleDeath.deceased(s,candidate))return emptyList()
-        val held=holdings.map {it.card}.toSet()
+        if(candidate==actor || BattleDeath.deceased(s,actor) || BattleDeath.deceased(s,candidate) ||
+            policy.cardCount(s,candidate)>=14)return emptyList()
+        val held=policy.held(s,candidate).filter {it.country==country}.map {it.card}.toSet()
         return policy.available(s,actor,power,rank).flatMap {(card,seats)->
             val role=checkNotNull(policy.role(card,country))
             if(FleetOffice.of(card)!=null || card in held || !role.eligible(rank,candidateRank))emptyList()
