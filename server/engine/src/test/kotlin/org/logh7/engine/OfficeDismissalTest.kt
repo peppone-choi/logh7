@@ -85,6 +85,29 @@ class OfficeDismissalTest {
         val captured=s.copy(bases=s.bases+(1049 to s.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))
         assertTrue(policy.available(captured,10000,2,5).isEmpty())
     }
+    @Test fun removingCapitalOfficeFromGeneralSeatsPreservesDifferentLegacyHolder() {
+        val initial=stock()
+        val capital=1049
+        val card=57
+        val legacy=initial.bases.getValue(capital).copy(guardInspectorId=10002)
+        val stocks=initial.copy(bases=initial.bases+(capital to legacy),
+            nationalOffices=mapOf(NationalOffice.MILITARY_MINISTER to 10000),
+            strategic=initial.strategic.copy(offices=listOf(OfficeHolding(card,capital,10001))))
+        val power=Power.EMPIRE
+        val dismissal=OfficeDismissal.evaluate(galaxy,
+            OfficeDismissalRequest("actor","c",10000,power,1,10001,card,2,2),session(power),player(power),stocks)
+        assertNull(dismissal.rejection)
+        assertEquals(840,dismissal.player!!.mcp)
+
+        val resignation=OfficeResignation.evaluate(galaxy,
+            OfficeResignationRequest("actor","c",10001,power,1,card),session(power),player(power).copy(characterId=10001),stocks)
+        assertNull(resignation.rejection)
+        assertEquals(920,resignation.player!!.mcp)
+
+        val expected=stocks.copy(strategic=initial.strategic)
+        assertEquals(expected,dismissal.stocks)
+        assertEquals(expected,resignation.stocks)
+    }
     @Test fun invalidIdentityAmbiguityBusyAndInsufficientCpNeverClearOrCharge() {
         val b=stock();val stocks=b.copy(bases=b.bases+(1048 to b.bases.getValue(1048).copy(governorId=10000,garrisonCommanderId=10001)))
         val q=OfficeDismissalRequest("actor","c",10000,Power.EMPIRE,1,10001,55,1,2);val p=player(Power.EMPIRE)
