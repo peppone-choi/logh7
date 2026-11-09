@@ -9,7 +9,7 @@ class FlagshipReturnContestedTest {
         listOf(GalaxyBase(1048,2487,80,0,"Soest",0,20f,86400,0,0f,2f),
             GalaxyBase(1060,2490,80,0,"Other",0,20f,86400,0,0f,2f)),
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
-    private val stocks=PlanetStocks(1,0,emptyMap())
+    private val stocks=PlanetStocks(1,0,listOf(1048,1060).associateWith {PlanetStock(it,2,0,0,0,0)})
     private val victim=Navigator(1,10000,Power.EMPIRE,2700,1000,1000,1000).copy(returnBase=1048,mode=5)
     private val enemy=Navigator(1,10001,Power.ALLIANCE,2487,1000,1000,1000).copy(mode=5)
 
@@ -25,6 +25,14 @@ class FlagshipReturnContestedTest {
         assertEquals(0,moved.baseId)
         assertEquals(0,moved.returnBase)
         assertEquals(1060,moved.originBase)
+    }
+    @Test fun aMissingWorldBaseCannotOverrideTheSavedOrigin() {
+        val recovered=FlagshipRecovery.defeated(victim.copy(originBase=1060),100,galaxy,
+            stocks.copy(bases=stocks.bases-1048))
+        assertEquals(1060,recovered.baseId)
+        assertEquals(2490,recovered.grid)
+        assertEquals(0,recovered.returnBase)
+        assertEquals(1060,recovered.originBase)
     }
     @Test fun noSafeSystemFallsBackToTheDesignatedFriendlyDock() {
         val hostilePresence=listOf(enemy,enemy.copy(characterId=10002,grid=2490),enemy.copy(characterId=10003,grid=2015))
