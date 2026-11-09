@@ -198,6 +198,7 @@ static void resetCountryEndings();
 #include "facility_labels.h"
 #include "tactical_command_range.h"
 #include "tactical_support.h"
+#include "tactical_energy.h"
 #include "tactical_motion.h"
 #include "tactical_weapon.h"
 #include "tactical_radar.h"
