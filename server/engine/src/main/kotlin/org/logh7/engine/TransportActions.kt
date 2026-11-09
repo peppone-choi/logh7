@@ -53,6 +53,45 @@ object TransportActions {
     }
     private fun minus(a:UnitInventory,b:UnitInventory)=UnitInventory(add(a.ships,b.ships,-1),add(a.troops,b.troops,-1),a.work)
 
+    /** A tactical detachment divides surviving cargo without treating the separation as a casualty. */
+    internal fun splitRetreatCargo(state:StrategicState,original:OutfitStock,left:OutfitStock,moved:OutfitStock):StrategicState? {
+        if(original.kind!=OutfitKind.TRANSPORT || state.transports.none {it.carrier==original.id})return state
+        val originalBoats=boats(original)
+        val movedBoats=boats(moved)
+        val leftBoats=boats(left)
+        var lastId=state.transportIdFloor
+        val packages=mutableListOf<TransportPackage>()
+        for(pack in state.transports) {
+            if(pack.carrier!=original.id) {
+                packages+=pack
+                continue
+            }
+            val (supplies,units)=delivered(pack,originalBoats)
+            fun movedShare(amount:Int)=(amount.toLong()*movedBoats/originalBoats).toInt()
+            val movedSupplies=movedShare(supplies)
+            val movedUnits=UnitInventory(units.ships.mapValues {movedShare(it.value)}.filterValues {it>0},
+                units.troops.mapValues {movedShare(it.value)}.filterValues {it>0})
+            val leftUnits=minus(units,movedUnits)
+            val leftSupplies=supplies-movedSupplies
+            val hasLeft=leftSupplies>0 || unitCount(leftUnits)>0
+            val hasMoved=movedSupplies>0 || unitCount(movedUnits)>0
+            if(hasLeft)packages+=pack.copy(supplies=leftSupplies,units=leftUnits,carrierBoats=leftBoats,survivingBoats=leftBoats)
+            if(hasMoved) {
+                if(hasLeft && lastId==Int.MAX_VALUE)return null
+                packages+=pack.copy(id=if(hasLeft)++lastId else pack.id,supplies=movedSupplies,units=movedUnits,
+                    carrier=moved.id,carrierBoats=movedBoats,survivingBoats=movedBoats)
+            }
+        }
+        fun fits(outfit:OutfitStock):Boolean {
+            val cargo=packages.filter {it.carrier==outfit.id}
+            if(cargo.isEmpty())return true
+            return cargo.sumOf {it.supplies.toLong()}<=OutfitSupplies.capacity(outfit)-outfit.supplies.toLong() &&
+                cargo.sumOf {unitCount(it.units).toLong()}<=unitSlots(outfit)-outfit.activeGround?.values.orEmpty().count {it.carrier>0}
+        }
+        if(packages.size>4096 || !fits(left) || !fits(moved))return null
+        return state.copy(transports=packages,lastTransportId=lastId)
+    }
+
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
