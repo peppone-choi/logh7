@@ -237,6 +237,36 @@ class GameCommunicationTest {
                 body(Wire.change(Wire.Change(peer(a),true,oldest),0x0f11)),6).single()))
         }
     }
+    @Test fun offlineMailSurvivesRestartAndOlderRowsAppearAfterDeletion(@org.junit.jupiter.api.io.TempDir folder:java.nio.file.Path) {
+        val hub=GamePresence()
+        val notifications=mutableListOf<List<ByteArray>>()
+        hub.update(member(a,"first",notifications))
+        val identities=mapOf(a.character to a,b.character to b)
+        val path=folder.resolve("mail")
+        fun service()=GameCommunication(hub,{7},{_,id->identities[id]},{false},
+            {org.logh7.persistence.FileCommunicationStore(path)})
+        service().use {sender->
+            for (index in 0..120) {
+                val draft=Wire.Item(Int.MIN_VALUE,index,false,peer(a),peer(b),0,"제목 $index","한글 본문")
+                val reply=sender.handle("first",a,7,body(Wire.item(draft,0x0f10)),1)
+                assertEquals(if(index==120)0x0500 else 0x0f10,opcode(reply.first()))
+            }
+        }
+
+        hub.update(member(b,"second",notifications))
+        service().use {recipient->
+            fun rows(packets:List<ByteArray>)=packets.filter {opcode(it)==0x0f0a}.map {Wire.item(body(it),0x0f0a)}
+            val inbox=rows(recipient.unreadInbox(b,7).get())
+            assertEquals((119 downTo 20).map {"제목 $it"},inbox.map {it.subject})
+            assertTrue(inbox.all {!it.read && it.text=="한글 본문"})
+            val delete=Wire.Change(peer(b),true,inbox.first().id)
+            recipient.handle("second",b,7,body(Wire.change(delete,0x0f12)),2)
+            val query=Wire.Query(peer(b),false,true)
+            val refreshed=rows(recipient.handle("second",b,7,body(Wire.begin(query)),3))
+            assertEquals((118 downTo 19).map {"제목 $it"},refreshed.map {it.subject})
+        }
+    }
+
     @Test fun taggedRequestReplaysAcrossReconnectAndServiceReloadWithoutDuplicateDelivery() {
         val hub=GamePresence();val notifications=mutableListOf<List<ByteArray>>()
         val first=member(a,"first",notifications);hub.update(first);hub.update(member(b,"second",notifications))
