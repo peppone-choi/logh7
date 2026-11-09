@@ -9,7 +9,8 @@ internal object TacticalOfflineAi {
         session.participants[account]?.let {!it.online && it.country==p.country && it.country !in session.eliminated}==true &&
         p.generation==session.generation && p.cpPaused &&
         p.baseId==0 && p.mode==5 && p.hull!=null && p.hull.woundedUntil<=session.gameMillis/1000 &&
-        !BattleDeath.deceased(stocks,p.characterId) && stocks.tacticalCommands.tacticalAi(p.characterId)
+        !BattleDeath.deceased(stocks,p.characterId) && !stocks.social.justice.detained(p.characterId) &&
+        stocks.tacticalCommands.tacticalAi(p.characterId)
 
     private fun currentMission(p:Navigator,stocks:PlanetStocks)=stocks.tacticalCommands.missions[p.characterId]
         ?.takeIf {!it.completed && (it.grid==null || it.grid==p.grid)}
@@ -24,7 +25,8 @@ internal object TacticalOfflineAi {
     }
 
     fun automaticTargets(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks,ids:List<Int>):List<Int> {
-        if(p.country in session.eliminated || session.participants[account]?.country in session.eliminated)return emptyList()
+        if(p.country in session.eliminated || session.participants[account]?.country in session.eliminated ||
+            stocks.social.justice.detained(p.characterId))return emptyList()
         if(eligible(session,account,p,stocks)) {
             if(stocks.tacticalCommands.confused(p.unitId))return emptyList()
             val mission=currentMission(p,stocks)

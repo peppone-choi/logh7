@@ -70,7 +70,11 @@ class TacticalFleetShootTest {
         assertSavedFleetOrdersCancelled(deceased=false)
     }
 
-    private fun assertSavedFleetOrdersCancelled(deceased:Boolean) {
+    @Test fun detainedCommanderCannotFireManualOrAutomaticFleetOrdersFromAnOlderSave() {
+        assertSavedFleetOrdersCancelled(deceased=false,detained=true)
+    }
+
+    private fun assertSavedFleetOrdersCancelled(deceased:Boolean,detained:Boolean=false) {
         for(automatic in listOf(false,true)) {
             val s=state()
             var nav=Navigation(galaxy,s.nav,NavigationPolicy())
@@ -83,13 +87,18 @@ class TacticalFleetShootTest {
             if(automatic)assertNotNull(saved.attack) else assertNotNull(saved.shot)
             val target=s.stocks.outfits.getValue(2)
             if(deceased)s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
+            if(detained) {
+                val detention=Detention(10000,Power.EMPIRE.country,now,now+Justice.DAY)
+                s.stocks=s.stocks.copy(social=s.stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
+            }
             nav=Navigation(galaxy,s.nav,NavigationPolicy())
             stock=production(s)
-            if(deceased) {
-                assertEquals(NavigationRejection.IDENTITY,shoot(s,nav,stock).rejection)
-                assertEquals(NavigationRejection.IDENTITY,attack().rejection)
+            if(deceased || detained) {
+                val rejection=if(deceased)NavigationRejection.IDENTITY else NavigationRejection.BUSY
+                assertEquals(rejection,shoot(s,nav,stock).rejection)
+                assertEquals(rejection,attack().rejection)
             }
-            val tick=session.copy(gameMillis=(now+120)*1000,eliminated=if(deceased)emptyMap() else
+            val tick=session.copy(gameMillis=(now+120)*1000,eliminated=if(deceased || detained)emptyMap() else
                 mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.ALLIANCE.country)))
             assertTrue(TacticalCombat.settle(tick,galaxy,nav,stock,s.commit).isEmpty())
             assertEquals(saved.copy(attack=null,shot=null),unit())
