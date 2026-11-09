@@ -349,6 +349,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         return true
     }
 
+    private fun changedTacticalOfficeOutfits(old: PlanetStocks, updated: PlanetStocks, formerMember: Int): Set<Int> =
+        old.outfits.values.filter { outfit ->
+            if (formerMember !in outfit.members()) return@filter false
+            val replacement = updated.outfits.getValue(outfit.id)
+            outfit.activeShips?.values.orEmpty().any {
+                TacticalAuthority.commander(outfit, it, old) != TacticalAuthority.commander(replacement, it, updated)
+            }
+        }.map { it.id }.toSet()
+
     private fun settleOfficeRecovery(now: Long, old: PlanetStocks, updated: PlanetStocks,
         players: Map<String, Navigator>): Map<String, Navigator> {
         if (old.strategic.offices == updated.strategic.offices && old.bases == updated.bases &&
@@ -756,13 +765,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                                 else -> 0
                             }
                             val tacticalOfficeOutfits = if (formerMember == 0) emptySet() else
-                                inventory.outfits.values.filter { outfit ->
-                                    if (formerMember !in outfit.members()) return@filter false
-                                    val updated = prepared.outfits.getValue(outfit.id)
-                                    outfit.activeShips?.values.orEmpty().any {
-                                        TacticalAuthority.commander(outfit, it, inventory) != TacticalAuthority.commander(updated, it, prepared)
-                                    }
-                                }.map { it.id }.toSet()
+                                changedTacticalOfficeOutfits(inventory, prepared, formerMember)
                             result=result.copy(player=next.getValue(request.account),stocks=prepared,
                                 navigators=result.navigators.mapValues { (account, _) -> next.getValue(account) },
                                 tacticalOfficeOutfits = tacticalOfficeOutfits)
@@ -1150,6 +1153,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                                     check(!next.rejected) {"Defection was rejected by the session"}
                                     durability.commit(action,next);durableState=next.state
                                 } else simulation.defect(action.account,action.country)
+                                result = result.copy(tacticalOfficeOutfits =
+                                    changedTacticalOfficeOutfits(inventory, prepared, i.characterId))
                             }
                         }
                     }
