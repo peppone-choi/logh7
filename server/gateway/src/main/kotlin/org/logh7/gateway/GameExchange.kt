@@ -2354,7 +2354,8 @@ class GameExchange(
                                                     val (supplies,units)=org.logh7.engine.TransportActions.delivered(p,boats)
                                                     org.logh7.protocol.StrategyActionMessages.Selection(p.id,("${p.destination}/$supplies"+
                                                         (if(units.ships.isEmpty() && units.troops.isEmpty())"" else "+")+
-                                                        (if(p.carrier!=0)"*" else "")).take(12))}
+                                                        (if(p.carrier!=0)"*" else "")).take(12),
+                                                        rank=if(query.command!=65)0 else if(p.carrier==0)1 else 2)}
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
                                         }
                                         if(query.command==24) {
