@@ -191,17 +191,19 @@ class GameExchange(
     }
     /** 命令/提案 pairs (CD p.28): same side; same spot inside a facility, else the same grid; not in tactics.
      * Each target is paired with my card and theirs of the same institution; the emperor card pairs with any office. */
-    private fun proposalPairs(inventory:org.logh7.engine.PlanetStocks,me:org.logh7.engine.Navigator):List<Triple<Int,Int,Int>> {
+    private fun proposalPairs(inventory:org.logh7.engine.PlanetStocks,me:org.logh7.engine.Navigator,
+        recipientId:Int?=null,recipientCard:(Int)->Boolean={true}):List<Triple<Int,Int,Int>> {
         val country=me.country ?: return emptyList()
         val policy=org.logh7.engine.OrganizationalOfficePolicy(checkNotNull(world).galaxy)
         fun institution(card:Int)=policy.role(card,country)?.institution
         val mine=policy.held(inventory,me.characterId).filter {it.country==country}.map {it.card}.filter {institution(it)!=null}.distinct()
         val players=navigation?.snapshot()?.navigators.orEmpty().values.filter {it.generation==me.generation &&
-            it.characterId!=me.characterId && it.country==country && !it.cpPaused && it.grid==me.grid &&
+            it.characterId!=me.characterId && (recipientId==null || it.characterId==recipientId) &&
+            it.country==country && !it.cpPaused && it.grid==me.grid &&
             (me.spotId==0 || it.baseId==me.baseId && it.spotId==me.spotId && it.spotOwner==me.spotOwner)}
         return players.sortedBy {it.characterId}.mapNotNull {other ->
             val theirs=policy.held(inventory,other.characterId).filter {it.country==country}.map {it.card}.filter {institution(it)!=null}.distinct()
-            mine.firstNotNullOfOrNull {card->theirs.firstOrNull {card==1 || institution(it)==institution(card)}?.let {Triple(other.characterId,card,it)}}
+            mine.firstNotNullOfOrNull {card->theirs.firstOrNull {recipientCard(it) && (card==1 || institution(it)==institution(card))}?.let {Triple(other.characterId,card,it)}}
         }
     }
     /** Other people whose CP changed in the same commit (a proposal refund) see it at once. */
@@ -2341,6 +2343,32 @@ class GameExchange(
                                             val recipientCountry=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())
                                                 .singleOrNull {it.id==query.base}?.country
                                             val sameCountry=me.country!=null && recipientCountry==me.country
+                                            if(query.value==org.logh7.engine.ProposalActions.DEMOTION) {
+                                                val snapshot=checkNotNull(navigation?.snapshot())
+                                                val recipient=snapshot.navigators.values.singleOrNull {it.characterId==query.base}
+                                                val identities=WorldCharacters.identities(characters.profiles(),snapshot)
+                                                val rows=if(recipient==null || !sameCountry || me.country in snapshot.session?.eliminated.orEmpty())
+                                                    emptyList() else {
+                                                    val eligible=org.logh7.engine.ProposalActions.demotionDirectory(
+                                                        world.galaxy,inventory,recipient,identities)
+                                                    val country=checkNotNull(me.country)
+                                                    val cards=policy.held(inventory,recipient.characterId).filter {it.country==country}
+                                                        .map {it.card}.distinct().filter {card->
+                                                            proposalPairs(inventory,me,recipient.characterId) {it==card}.isNotEmpty()
+                                                        }
+                                                    val targetIds=snapshot.navigators.values.filter {
+                                                        it.generation==me.generation && it.country==country
+                                                    }.mapTo(hashSetOf()) {it.characterId}
+                                                    if(cards.isEmpty())emptyList() else identities.asSequence()
+                                                        .filter {it.id>query.target && it.country==country && it.id in targetIds}
+                                                        .sortedBy {it.id}
+                                                        .filter {target->cards.any {eligible(it,target.id)}}
+                                                        .take(200).mapNotNull {target->currentCharacterById(target.id)?.let {
+                                                            org.logh7.protocol.StrategyActionMessages.Selection(target.id,it.surname,minOf(20,it.rank))
+                                                        }}.toList()
+                                                }
+                                                return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,rows)
+                                            }
                                             if(query.value==org.logh7.engine.ProposalActions.DISMISSAL) {
                                                 // Seats the chosen recipient may dismiss; row id = person*512+card, name = surname.
                                                 val recipient=currentCharacterById(query.base)
@@ -2528,8 +2556,18 @@ class GameExchange(
                                     val opening=query.command==org.logh7.engine.ProposalActions.OPEN
                                     // The compatibility window may leave both cards 0: use the target's pair.
                                     val pair=if(!opening || query.card!=0 && query.argument!=0)Triple(query.target,query.card,query.argument) else
-                                        navigation?.snapshot()?.let {s->proposalPairs(checkNotNull(s.planetStocks),checkNotNull(s.navigators[identity.account]))}
-                                            ?.firstOrNull {it.first==query.target} ?: Triple(query.target,0,0)
+                                        navigation?.snapshot()?.let {s->
+                                            val inventory=checkNotNull(s.planetStocks)
+                                            val sender=checkNotNull(s.navigators[identity.account])
+                                            if(query.value!=org.logh7.engine.ProposalActions.DEMOTION) proposalPairs(inventory,sender,query.target).singleOrNull()
+                                            else {
+                                                val recipient=s.navigators.values.singleOrNull {it.characterId==query.target} ?: return@let null
+                                                val identities=WorldCharacters.identities(characters.profiles(),s)
+                                                val eligible=org.logh7.engine.ProposalActions.demotionDirectory(
+                                                    world.galaxy,inventory,recipient,identities)
+                                                proposalPairs(inventory,sender,query.target) {eligible(it,query.base)}.singleOrNull()
+                                            }
+                                        } ?: Triple(query.target,0,0)
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,currentProfile(identity.account,query.character).country,
                                         checkNotNull(generation),query.command,pair.second,character.rank,target=query.target,value=query.value,

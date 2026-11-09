@@ -10,6 +10,18 @@ import kotlin.test.*
 
 /** 저장35·34 호환과 CP/영향력/지지/재실행 제한의 원자 저장. 작성: Peppone Choi. */
 class SocialStoreTest {
+    @Test fun demotionReplyPreservesItsOriginalRankAlongsideOlderProposalRows() {
+        val pending=ProposalMail(1,10000,10001,17,19,ProposalActions.DEMOTION,true,0,86400,
+            mcp=160,target=10002,country=CountryId(2))
+        val legacyApproved=pending.copy(id=2,reply=Proposals.APPROVE)
+        val approved=legacyApproved.copy(id=3,demotionFromRank=9)
+        val countryInferred=approved.copy(id=4,country=null)
+        val state=SocialState(nextId=5,proposals=ProposalState(listOf(pending,legacyApproved,approved,countryInferred)))
+        val restored=SocialStateCodec.decode(SocialStateCodec.encode(state))
+        assertEquals(state,restored)
+        assertEquals(listOf(null,null,9,9),restored.proposals.mails.map {it.demotionFromRank})
+    }
+
     @TempDir lateinit var directory:Path
     private val now=SessionRules.load().startSeconds
     private val receipt=SpeechReceipt(1,10000,CountryId(2),1049,10490404,now,60,10,11,70,72,now+86400)

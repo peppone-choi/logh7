@@ -14,10 +14,13 @@ data class ProposalMail(val id:Int,val sender:Int,val recipient:Int,val senderCa
     /** Appointment: the seat (base or outfit id) the target is appointed to; 0 otherwise. */
     val seat:Int=0,
     /** Null only in old records whose original 2/3 country is identified by the office card. */
-    val country:CountryId?=null) {
+    val country:CountryId?=null,
+    /** Actual military ladder rank before an approved demotion. Absent in earlier records. */
+    val demotionFromRank:Int?=null) {
     init {require(id>0 && sender>0 && recipient>0 && sender!=recipient && senderCard in 0..260 && card in 1..260 &&
         command in 0..0xffff && createdAt in 0..expiresAt && expiresAt<=0xffffffffL && reply in -1..3 && pcp>=0 && mcp>=0 &&
-        target>=0 && targetCard in 0..260 && (target==0)==(targetCard==0) && seat>=0 && (seat==0 || target>0))}
+        target>=0 && targetCard in 0..260 && (if(command==ProposalActions.DEMOTION) target>0 && targetCard==0 else (target==0)==(targetCard==0)) && seat>=0 && (seat==0 || target>0) &&
+        (demotionFromRank==null || command==ProposalActions.DEMOTION && reply==Proposals.APPROVE && demotionFromRank in 2..19))}
     val pending get()=reply<0
     val originCountry get()=country ?: OrganizationOffices.of(card)?.let {CountryId(it.power)}
 }

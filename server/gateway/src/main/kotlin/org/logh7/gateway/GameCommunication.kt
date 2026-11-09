@@ -87,9 +87,9 @@ class GameCommunication(private val presence:GamePresence,private val generation
         return state.mails.count {it.card in held && it.expiresAt>seconds && pendingRecipient(it,player.characterId,country)}
     }
     /** The row's command field picks the command-name table (constmsg group 18), so it is the manual command number. */
-    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;else -> 0}
+    private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;ProposalActions.DEMOTION -> 2;else -> 0}
     /** The native pair that commits a 0x0f13/0x0f14 row; its time must be 0 so it runs before 0x0f09 (004b8950). */
-    private fun paired(mail:ProposalMail)=when(mail.command) {
+    private fun paired(mail:ProposalMail,expected:Long)=when(mail.command) {
         ProposalActions.RESIGNATION -> org.logh7.protocol.ResignationMessages.response(
             org.logh7.protocol.ResignationMessages.Query(mail.recipient,mail.card),0,0,(ProposalActions.costs.getValue(mail.command)/2).toInt(),true)
         ProposalActions.DISMISSAL -> org.logh7.protocol.DismissalMessages.response(
@@ -97,6 +97,9 @@ class GameCommunication(private val presence:GamePresence,private val generation
         // Appointment: changed=false keeps target 0 so 004c5580 appends no card; +0x14 still names the card.
         ProposalActions.APPOINTMENT -> org.logh7.protocol.AppointmentMessages.response(
             org.logh7.protocol.AppointmentMessages.Query(mail.recipient,mail.target,mail.targetCard,0,0),0,0,(ProposalActions.costs.getValue(mail.command)/2).toInt(),true,false)
+        ProposalActions.DEMOTION -> org.logh7.protocol.RankDownMessages.mailPair(mail.recipient,mail.target,
+            (mail.demotionFromRank ?: rank(mail.target) ?: directory(expected,mail.target)?.rank ?: 20).coerceIn(0,20),
+            (ProposalActions.costs.getValue(mail.command)/2).toInt(),0)
         else -> error("Unsupported proposal command")
     }
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
@@ -114,16 +117,16 @@ class GameCommunication(private val presence:GamePresence,private val generation
             val type=if(mail.order)1 else 0
             if(received && mail.card==post && pendingRecipient(mail,owner.character,membership))
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),self,mail.createdAt,
-                    commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
+                    commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail,expected))
             // Reply rows need the compatibility DLL's 0053c933 null fix (proposal_approval.h). +0x25b 0 shows 22/77 承諾,
             // 1..3 show 22/78..80 (拒否·拒絶·オウム返し).
             if(REPLY_ROWS && received && !mail.pending && mail.sender==owner.character && mail.senderCard==post)
                 // status 1 = already read (no 22/76 pending-read text); approval 5 keeps 22/77 with the reply buttons off.
                 rows+=listOf(Wire.reply(Wire.Reply(mail.id,mail.id,1,who(mail.recipient,mail.card),self,mail.createdAt,
-                    commandNumber(mail),0,if(mail.reply==Proposals.APPROVE)5 else mail.reply+1)),paired(mail))
+                    commandNumber(mail),0,if(mail.reply==Proposals.APPROVE)5 else mail.reply+1)),paired(mail,expected))
             if(!received && mail.pending && mail.sender==owner.character && mail.senderCard==post)
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,self,who(mail.recipient,mail.card),mail.createdAt,
-                    commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail))
+                    commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail,expected))
         }
         return rows
     }

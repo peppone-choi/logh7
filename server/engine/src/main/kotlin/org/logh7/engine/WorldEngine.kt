@@ -1158,7 +1158,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if(command is WorldCommand.Social) {
                 try {
                     check(!storageFailed) {"World storage is unavailable"}
-                    val r=command.request;val i=r.identity;val session=durableState?.session ?: simulation.exportState()
+                    val request=command.request
+                    val r=if(request.identity.command in ProposalActions.commands)
+                        request.copy(identity=request.identity.copy(identities=production?.identities?.invoke().orEmpty()
+                            .ifEmpty {request.identity.identities})) else request
+                    val i=r.identity;val session=durableState?.session ?: simulation.exportState()
                     val tradeQuote=TradeActions.quotes(i.command,i.value) && r.phase==TradeActions.QUOTE_PHASE
                     val productionQuote=i.command in ProductionActions.commands && r.phase==ProductionActions.QUOTE_PHASE
                     val strikeQuote=i.command==OrbitalStrikeActions.STRIKE && r.phase==OrbitalStrikeActions.QUOTE_PHASE
