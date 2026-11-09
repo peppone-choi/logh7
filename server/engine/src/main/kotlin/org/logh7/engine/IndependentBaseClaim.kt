@@ -21,7 +21,7 @@ object IndependentBaseClaim {
         if(galaxy.unaffiliatedStart==null || p.country!=null || r.card!=0 || r.outfit!=0 || r.repairPreview)
             return reject(StrategyActionRejection.AUTHORITY)
         if(p.cpPaused || p.navigationPending || p.mode!=5 || p.baseId!=0 ||
-            TacticalContact.active(galaxy,p,r.navigators.values,stocks))
+            TacticalContact.active(galaxy,p,r.navigators.values,stocks,s.eliminated.keys))
             return reject(StrategyActionRejection.LOCATION)
         if(p.hull?.woundedUntil?.let {it>s.gameMillis/1000}==true)
             return reject(StrategyActionRejection.BUSY)

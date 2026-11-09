@@ -68,6 +68,28 @@ class CountryFoundingTest {
         assertNull(CountryFounding.candidate(galaxy,pilot,capital))
     }
 
+    @Test fun aRetainedDefeatedFlagshipDoesNotBlockNeutralSettlement() {
+        val pilot=Navigator(1,10000,null,30,1000,1000,1000,baseId=0,mode=5,shipStyle=style)
+        val third=CountryId(43)
+        val enemy=Navigator(1,10001,Power.ALLIANCE,30,1000,1000,1000,baseId=0,mode=5).copy(country=third)
+        val before=PlanetStocks(1,0,mapOf(2000 to PlanetStock(2000,Allegiance.Neutral,0,100,100,100)),
+            deploymentInitialized=true)
+        val session=SessionSimulation(rules).also {it.join("founder",null,false,"c")}.exportState()
+        val request=StrategyActionRequest("founder","c",pilot.characterId,null,1,
+            IndependentBaseClaim.COMMAND,0,13,navigators=mapOf("founder" to pilot,"enemy" to enemy))
+        val blocked=IndependentBaseClaim.evaluate(galaxy,request,session,pilot,before)
+        assertEquals(StrategyActionRejection.LOCATION,blocked.rejection)
+        assertEquals(before,blocked.stocks)
+        assertEquals(pilot,blocked.player)
+
+        val defeated=session.copy(eliminated=mapOf(third to CountryDefeat(
+            EndReason.CAPITAL_CAPTURED,1,Power.ALLIANCE.country)))
+        val claimed=IndependentBaseClaim.evaluate(galaxy,request,defeated,pilot,before)
+        assertTrue(claimed.changed)
+        assertEquals(2000,claimed.player?.baseId)
+        assertEquals(Allegiance.Independent(pilot.characterId),claimed.stocks?.bases?.get(2000)?.owner)
+    }
+
     private fun exercise(journal:Boolean)=runBlocking {
         val store=Checkpoint(rules,style)
         val definitions=Definitions()
