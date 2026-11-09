@@ -573,7 +573,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 } else {
                     val location=if(snapshot==null)viewer.player else current ?: return@forEach
                     if(viewer.player.grid!=impact.hit.grid || location.grid!=impact.hit.grid ||
-                        (!impact.boarding && location.baseId!=0))return@forEach
+                        (!impact.boarding && (location.baseId!=0 ||
+                            !location.cpPaused && (location.hull?.woundedUntil ?: 0)>impact.hit.seconds)))return@forEach
                     val leave=impact.departed?.let {
                         listOf(org.logh7.protocol.TacticalRetreatMessages.warped(impact.hit.seconds,it.grid,listOf(it.unitId)))
                     }.orEmpty()
@@ -588,7 +589,9 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     val status=if(morale==null)emptyList() else listOf(
                         org.logh7.protocol.TacticalStatusMessages.morale(impact.hit.seconds,impact.hit.target,morale),
                         org.logh7.protocol.TacticalStatusMessages.confusion(impact.hit.seconds,impact.hit.target,morale<=20))
-                    send(viewer,listOf(packet)+status+leave+cargo)
+                    // Boarding can hit a docked flagship, and the last impact can accompany battle exit.
+                    send(viewer,listOf(packet)+status+leave+cargo,
+                        impact.hit.grid.takeIf {!impact.boarding && location.cpPaused})
                     if(npcOutfit!=null && viewer.player.unitId==impact.hit.target && viewer.player.cpPaused &&
                         viewer.player.baseId==0)combatHail(viewer,npcOutfit,impact.weapon,impact.hit.seconds)
                 }

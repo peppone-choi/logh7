@@ -508,6 +508,8 @@ class GameExchangeTest {
                         TacticsMessages.definitions(2487,emptyList()))
                     assertNull(game.notifyWorld(queuedSupport,tacticalGrid=2487))
                     assertNull(game.notifyWorld(queuedMovement,tacticalGrid=2487))
+                    val queuedImpact=listOf(TacticalAttackMessages.hit(1,1002,0,player.unitId,1))
+                    assertNull(game.notifyWorld(queuedImpact,tacticalGrid=2487))
                 }
                 sampled.complete(Unit)
                 val messages=operation.join();val position=ByteBuffer.wrap(messages.first())
