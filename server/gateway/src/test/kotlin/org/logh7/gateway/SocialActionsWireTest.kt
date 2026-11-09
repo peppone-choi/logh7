@@ -204,6 +204,56 @@ class SocialActionsWireTest {
             assertEquals(1049, state.players.getValue("load-000").returnBase)
         }
     }
+    @Test fun successfulArrestRefreshesTheFormerFleetsDelegatedShipOnAnOpenBattlefield() {
+        val state = State()
+        val country = CountryId(2)
+        val viewerAccount = "load-002"
+        state.players = state.players + (viewerAccount to Navigator(1, 10002, Power.EMPIRE, 2015,
+            1000, 1000, 1000, mode = 5, cpRecoveryAt = now))
+        val former = OutfitStock(1, 2, OutfitKind.FLEET, 1049, 10, commanderId = 10002, aideId = 10001,
+            units = UnitInventory(mapOf(UnitStack(32) to 1)), position = OutfitPosition(2015))
+        val hostile = OutfitStock(2, 3, OutfitKind.FLEET, 1177, 11, commanderId = 500,
+            units = UnitInventory(mapOf(UnitStack(119) to 1)), position = OutfitPosition(2015))
+        val justice = JusticeState(
+            permits = mapOf(10001 to ArrestPermit(10001, 10002, country, 1, now + 60)),
+            rights = mapOf(10000 to ArrestRight(10000, 10001, 10002, now + 60, country)))
+        state.stocks = ActiveShips.initialize(state.stocks.copy(outfits = mapOf(1 to former, 2 to hostile),
+            warehouses = mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, 1049, 1),
+                11 to OutfitWarehouse(11, 3, OutfitKind.FLEET, 1177, 2)),
+            social = state.stocks.social.copy(justice = justice)))
+        val ship = state.stocks.outfits.getValue(1).activeShips!!.values.single()
+        state.stocks = state.stocks.copy(tacticalCommands = TacticalCommandState(authority = mapOf(ship.id to 10001)))
+
+        LoadFixture(directory, 3, LoadMetrics(), galaxy, ticking = false, navigationStore = state.navigation,
+            stockStore = state.inventory, worldStateCommitter = state).use { fixture ->
+            val actor = fixture.join(fixture.account(0), true, false).client
+            actor.send(SyntheticClient.opcode(0x0f00)); next(actor, 0x0f01)
+            val target = fixture.join(fixture.account(1), true, false).client
+            target.send(SyntheticClient.opcode(0x0f00)); next(target, 0x0f01)
+            val viewer = fixture.join(fixture.account(2), true, false).client
+            viewer.send(SyntheticClient.opcode(0x0f00)); next(viewer, 0x0f01)
+            assertTrue(state.players.getValue(viewerAccount).cpPaused)
+            viewer.send(SyntheticClient.opcode(0x0f02))
+            fun commander(packet: ByteArray): Int {
+                val states = ByteBuffer.wrap(packet)
+                val row = (0 until states.getShort(6).toInt()).single { states.getInt(8 + it * 47) == ship.id }
+                return states.getInt(14 + row * 47)
+            }
+            assertEquals(10001, commander(next(viewer, 0x033b)))
+            next(viewer, 0x0f03)
+
+            // The frozen start clock and equal intelligence give this pair a successful roll.
+            actor.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
+                .putShort(Justice.ARREST.toShort()).putShort(0).putShort(0).putInt(10001)
+                .put(0).putInt(0).putShort(0).putInt(0).putShort(0).array())
+            assertEquals(0, ByteBuffer.wrap(next(actor, 0x1200)).getShort(16).toInt())
+            assertTrue(state.stocks.social.justice.detained(10001))
+            assertEquals(0, state.stocks.outfits.getValue(1).aideId)
+            assertNull(state.stocks.tacticalCommands.authority[ship.id])
+            assertEquals(10002, commander(next(viewer, 0x033b)))
+        }
+    }
+
     @Test fun defectionRefreshesTheFormerFleetsDelegatedShipOnAnOpenBattlefield() {
         val state = State()
         val viewerAccount = "load-001"
