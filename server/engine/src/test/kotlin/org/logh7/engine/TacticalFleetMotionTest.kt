@@ -36,6 +36,69 @@ class TacticalFleetMotionTest {
         TacticalCombat.settle(tick,galaxy,nav,p,s.commit,onMovement=events::add)
         assertEquals(2,events.size)
     }
+    @Test fun removalOfDelegatedAuthorityStopsOnlyTheFormerOfficersMovement() {
+        val s = state()
+        val outfit = s.stocks.outfits.getValue(1)
+        s.stocks = s.stocks.copy(
+            outfits = s.stocks.outfits + (1 to outfit.copy(commanderId = 10001, aideId = 10000)),
+            tacticalCommands = s.stocks.tacticalCommands.copy(authority = mapOf(1 to 10000, 2 to 10000)),
+        )
+        val accepted = move(s, Navigation(galaxy, s.nav, NavigationPolicy()), production(s))
+        assertEquals(setOf(1, 2), accepted.tacticalMotions.keys)
+        val before = accepted.tacticalMotions.getValue(1)
+        val office = OfficeHolding(FleetOffice.EMPIRE_AIDE.card, 1, 10000, Power.EMPIRE.country)
+        s.stocks = OrganizationalOfficePolicy(galaxy).set(s.stocks, office, remove = true)
+        val changed = s.stocks.outfits.getValue(1)
+        val units = changed.activeShips!!.values
+        val successor = units.single { it.id == 2 }.copy(motionCommander = 10001)
+        s.stocks = s.stocks.copy(outfits = s.stocks.outfits +
+            (1 to changed.copy(activeShips = ActiveShipUnits(units.map { if (it.id == 2) successor else it }))))
+        val nav = Navigation(galaxy, s.nav, NavigationPolicy())
+        val production = production(s)
+        val events = mutableListOf<TacticalMovement>()
+        val time = now + 7
+        val tick = session.copy(gameMillis = time * 1000)
+
+        TacticalCombat.settle(tick, galaxy, nav, production, s.commit, onMovement = events::add)
+        val stop = events.single()
+        assertEquals(1, stop.unit)
+        assertEquals(10000, stop.character)
+        assertEquals(-1, stop.waypoint)
+        val stopped = s.stocks.outfits.getValue(1).activeShips!!.values.single { it.id == 1 }
+        assertEquals(0, stopped.motionCommander)
+        assertEquals(before.pose(time), stopped.tactical!!.motion.pose(time + 100))
+        assertEquals(successor, s.stocks.outfits.getValue(1).activeShips!!.values.single { it.id == 2 })
+
+        TacticalCombat.settle(tick, galaxy, nav, production, s.commit, onMovement = events::add)
+        assertEquals(1, events.size)
+    }
+
+    @Test fun waypointProgressLeavesUnauthorizedRetreatForItsOwnSettlementAndAdvancesAutonomousMovement() {
+        val s = state()
+        val accepted = move(s, Navigation(galaxy, s.nav, NavigationPolicy()), production(s))
+        val outfit = s.stocks.outfits.getValue(1)
+        val units = outfit.activeShips!!.values
+        val retreating = units.single { it.id == 1 }.let {
+            it.copy(tactical = it.tactical!!.copy(retreat = TacticalRetreat(2487, now, 5, 150)))
+        }
+        val autonomous = units.single { it.id == 2 }.copy(motionCommander = 0)
+        val before = s.stocks.copy(outfits = s.stocks.outfits + (1 to outfit.copy(
+            commanderId = 10001, activeShips = ActiveShipUnits(listOf(retreating, autonomous)),
+        )))
+        val tick = session.copy(gameMillis = (now + 60) * 1000)
+        val events = mutableListOf<TacticalMovement>()
+        val players = s.players.toMutableMap()
+
+        val progressed = TacticalMotionProgress.advance(tick, galaxy, players, before, events)
+        assertEquals(retreating, progressed.outfits.getValue(1).activeShips!!.values.single { it.id == 1 })
+        val completed = events.single()
+        assertEquals(2, completed.unit)
+        assertEquals(0, completed.character)
+        assertEquals(accepted.tacticalMotions.getValue(2).pose(now + 60), assertNotNull(completed.motion).origin)
+        val settled = TacticalFleetRetreat.advance(tick, galaxy, players, progressed, mutableListOf())
+        assertNull(settled.outfits.getValue(1).activeShips!!.values.single { it.id == 1 }.tactical!!.retreat)
+    }
+
     @Test fun aCommandersDifferentStyleFlagshipMovesWithItsOwnCountrysFleet() {
         val s=state()
         s.players=s.players.mapValues {(_,p)->p.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(89,now,hp=40))}

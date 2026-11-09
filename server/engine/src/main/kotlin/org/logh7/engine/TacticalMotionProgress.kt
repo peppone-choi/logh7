@@ -9,10 +9,10 @@ internal object TacticalMotionProgress {
             it.online && it.country==p.country && p.grid==grid && p.baseId==0 && p.cpPaused
         }?.connection?.let {p.characterId to it}}.toMap()
         fun progress(unit:Int,character:Int,motion:TacticalMotion,driftLimit:Float=BlackHoleTides.DRIFT_VELOCITY,
-            invalidCommander:Boolean=false):TacticalMotion {
-            val detained=original.social.justice.detained(character)
-            if(detained && motion.rotation==null && motion.velocity==0f)return motion
-            if(detained || motion.rotation!=null && (invalidCommander || BattleDeath.deceased(original,character))) {
+            invalidCommander:Boolean=false,lostAuthority:Boolean=false):TacticalMotion {
+            val stopMovement=lostAuthority || original.social.justice.detained(character)
+            if(stopMovement && motion.rotation==null && motion.velocity==0f)return motion
+            if(stopMovement || motion.rotation!=null && (invalidCommander || BattleDeath.deceased(original,character))) {
                 val at=if(motion.rotation!=null)motion.origin else motion.pose(now)
                 val stopped=motion.copy(origin=at,velocity=0f,direction=at.direction,waypoints=listOf(at.position),
                     reportedWaypoints=0,rotation=null)
@@ -59,13 +59,16 @@ internal object TacticalMotionProgress {
             val next=units.values.map {unit ->
                 val state=unit.tactical?.takeIf {unit.boats>0 && it.motion.grid==position.grid} ?: return@map unit
                 val commanderChanged=unit.motionCommander!=0 && unit.motionCommander!=TacticalAuthority.commander(outfit,unit,stocks)
-                if(commanderChanged && state.motion.rotation==null)return@map unit
+                // Fleet retreat owns the cancellation of its own reservation.
+                if(commanderChanged && state.retreat!=null && state.motion.rotation==null)return@map unit
                 val commanderUnavailable=state.motion.rotation!=null && commanders[unit.motionCommander]?.let {
                     (it.hull?.woundedUntil ?: 0)>now || TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks)
                 }==true
-                val motion=progress(unit.id,unit.motionCommander,state.motion,invalidCommander=commanderChanged || commanderUnavailable)
-                if(motion==state.motion)unit else unit.copy(tactical=state.copy(motion=motion,
-                    nextDecisionAt=maxOf(state.nextDecisionAt,motion.acceptedAt)))
+                val motion=progress(unit.id,unit.motionCommander,state.motion,invalidCommander=commanderUnavailable,
+                    lostAuthority=commanderChanged)
+                if(motion==state.motion && !commanderChanged)unit else unit.copy(tactical=state.copy(motion=motion,
+                    nextDecisionAt=maxOf(state.nextDecisionAt,motion.acceptedAt)),
+                    motionCommander=if(commanderChanged && state.retreat==null)0 else unit.motionCommander)
             }
             if(next!=units.values)stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(activeShips=ActiveShipUnits(next))))
         }
