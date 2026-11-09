@@ -524,7 +524,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val npcWarpDeadline=if(npcPolicy.enabled && npcPolicy.strategic && worldStateCommitter!=null && session.ended==null)
             snapshot.planetStocks?.outfits?.values.orEmpty().mapNotNull {it.strategy?.arrivesAt?.takeIf {at->at>nowSeconds}}.minOrNull()
             else null
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+listOfNotNull(npcWarpDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val shipProductionDeadlines=snapshot.planetStocks?.social?.production?.orders.orEmpty().values
+            .map {it.readyAt}.filter {it>nowSeconds}
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+listOfNotNull(npcWarpDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
