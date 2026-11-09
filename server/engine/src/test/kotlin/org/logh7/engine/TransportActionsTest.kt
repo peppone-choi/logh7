@@ -91,6 +91,27 @@ class TransportActionsTest {
         assertTrue(retried.strategic.transports.isEmpty())
     }
 
+    @Test fun cancelledPackageIdCannotTargetAReplacement() {
+        val initial=stocks()
+        val legacy=initial.copy(strategic=initial.strategic.copy(
+            transports=listOf(TransportPackage(41,CountryId(2),1049,1050,1))))
+        val legacyCancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=41)
+        val clearedLegacy=assertNotNull(act(legacyCancel,legacy).stocks)
+        assertTrue(clearedLegacy.strategic.transports.isEmpty())
+        val planned=assertNotNull(act(plan(),clearedLegacy).stocks)
+        val first=planned.strategic.transports.last()
+        assertEquals(42,first.id)
+        val cancel=StrategyActionRequest("officer","o",10000,Power.EMPIRE,1,TransportActions.CANCEL,25,5,target=first.id)
+        val cancelled=assertNotNull(act(cancel,planned).stocks)
+        val replacement=assertNotNull(act(plan(),cancelled).stocks)
+        assertEquals(listOf(43),replacement.strategic.transports.map {it.id})
+        assertEquals(StrategyActionRejection.TARGET,act(cancel,replacement).rejection)
+        assertEquals(StrategyActionRejection.TARGET,act(load(first.id),replacement).rejection)
+
+        val exhausted=initial.copy(strategic=initial.strategic.copy(lastTransportId=Int.MAX_VALUE))
+        assertEquals(StrategyActionRejection.MAXIMUM,act(plan(),exhausted).rejection)
+    }
+
     @Test fun cardsStockCapacityAndThePerBaseLimitAreChecked() {
         assertEquals(StrategyActionRejection.CARD,act(plan().copy(card=24),stocks()).rejection)
         assertEquals(StrategyActionRejection.RESOURCE,act(plan(supplies=6000),stocks()).rejection)
@@ -112,7 +133,7 @@ class TransportActionsTest {
         val otherPack=loaded.strategic.transports.single().copy(id=2,carrier=201)
         val aboard=loaded.copy(outfits=loaded.outfits+(201 to other),
             warehouses=loaded.warehouses+(301 to OutfitWarehouse(301,2,OutfitKind.TRANSPORT,1049,201)),
-            nextShipId=3,strategic=loaded.strategic.copy(transports=loaded.strategic.transports+otherPack))
+            nextShipId=3,strategic=loaded.strategic.copy(transports=loaded.strategic.transports+otherPack,lastTransportId=otherPack.id))
         val store=object:PlanetStockStore {
             var saved=aboard
             override fun load()=saved
