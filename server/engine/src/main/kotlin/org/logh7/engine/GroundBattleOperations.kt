@@ -21,8 +21,8 @@ internal object GroundBattleOperations {
             .filter {it.base==base.id && GroundBattleRules.admitsCrewType(base,specifications.getValue(it.stack.kind).type)}
             .sortedBy {it.id}.take(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
 
-    fun sides(stocks:PlanetStocks,base:GalaxyBase)=stocks.outfits.values
-        .map {it.country to CoupActions.outfitCamp(stocks,it)}.distinct()
+    fun sides(stocks:PlanetStocks,base:GalaxyBase,eliminated:Set<CountryId> = emptySet())=stocks.outfits.values
+        .filter {it.country !in eliminated}.map {it.country to CoupActions.outfitCamp(stocks,it)}.distinct()
         .sortedWith(compareBy({it.first.value},{it.second})).mapNotNull {side ->
             participants(stocks,base,side.first,side.second).takeIf {it.isNotEmpty()}?.let {side to it}
         }
@@ -30,7 +30,8 @@ internal object GroundBattleOperations {
     private fun conclusion(winner:Pair<CountryId,Int>?,withdrawal:Boolean=false)=
         GroundBattleConclusion(winner?.first,withdrawal,insurgent=winner?.second==1)
 
-    fun contested(stocks:PlanetStocks,base:GalaxyBase)=sides(stocks,base).size>1
+    fun contested(stocks:PlanetStocks,base:GalaxyBase,eliminated:Set<CountryId> = emptySet())=
+        sides(stocks,base,eliminated).size>1
 
     fun advance(session:SessionState,galaxy:Galaxy,players:Map<String,Navigator>,stocks:PlanetStocks,
         scale:Long,events:MutableList<GroundBattleResult>,withdrawals:Set<Int> = emptySet()):PlanetStocks {
@@ -47,7 +48,7 @@ internal object GroundBattleOperations {
                 }?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
                 events+=GroundBattleResult(session.generation,base.grid,base.id,seconds,damaged,destroyed,recipients,conclusion)
             }
-            val present=sides(next,base)
+            val present=sides(next,base,session.eliminated.keys)
             if(present.size<=1) {
                 clocks.remove(base.id)
                 if(base.id in withdrawals)emit(now,emptyList(),emptyList(),conclusion(present.singleOrNull()?.first,withdrawal=true))
@@ -57,8 +58,8 @@ internal object GroundBattleOperations {
             val damaged=linkedSetOf<Int>();val destroyed=linkedSetOf<Int>()
             // Bound each actor pass; the durable clock retains unprocessed exchanges.
             var rounds=0
-            while(at<=now-step && rounds++<256 && contested(next,base)) {
-                val sides=sides(next,base)
+            while(at<=now-step && rounds++<256 && contested(next,base,session.eliminated.keys)) {
+                val sides=sides(next,base,session.eliminated.keys)
                 val losses=mutableMapOf<Int,Int>()
                 fun attack(from:List<ActiveGroundUnit>,targets:List<ActiveGroundUnit>) {
                     from.forEachIndexed {i,attacker->
@@ -97,7 +98,7 @@ internal object GroundBattleOperations {
                 }
                 next=next.copy(outfits=outfits,tacticalCommands=next.tacticalCommands.copy(morale=morale));at+=step
             }
-            val survivors=sides(next,base)
+            val survivors=sides(next,base,session.eliminated.keys)
             if(survivors.size>1)clocks[base.id]=at else clocks.remove(base.id)
             if(damaged.isNotEmpty()) {
                 val conclusion=if(survivors.size<=1)conclusion(survivors.singleOrNull()?.first) else null
@@ -108,6 +109,7 @@ internal object GroundBattleOperations {
         val orders=if(targets.isEmpty())targets else {
             val positions=buildMap {
                 for(outfit in next.outfits.values) {
+                    if(outfit.country in session.eliminated)continue
                     for(unit in outfit.activeGround?.values.orEmpty()) {
                         if(unit.base>0)put(unit.id,unit.base to TacticalAuthority.camp(outfit,next))
                     }

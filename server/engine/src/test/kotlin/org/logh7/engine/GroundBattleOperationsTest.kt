@@ -25,6 +25,19 @@ class GroundBattleOperationsTest {
     private fun advance(s:PlanetStocks,after:Long,events:MutableList<GroundBattleResult> = mutableListOf())=
         GroundBattleOperations.advance(session.copy(gameMillis=(now+after)*1000),galaxy,emptyMap(),s,1,events)
 
+    @Test fun eliminatedCountryCannotExchangeDamageWithSurvivingGroundTroops() {
+        val defeated=session.copy(gameMillis=(now+5)*1000,eliminated=mapOf(Power.ALLIANCE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.EMPIRE.country)))
+        val before=stocks().copy(groundBattles=mapOf(base.id to now),
+            tacticalCommands=TacticalCommandState(groundTargets=mapOf(1 to 2,2 to 1)))
+        val events=mutableListOf<GroundBattleResult>()
+        val after=GroundBattleOperations.advance(defeated,galaxy,emptyMap(),before,1,events)
+        assertEquals(before.outfits,after.outfits)
+        assertTrue(after.groundBattles.isEmpty())
+        assertTrue(after.tacticalCommands.groundTargets.isEmpty())
+        assertTrue(events.isEmpty())
+    }
+
     @Test fun simultaneousLossesPreserveIdentityUntilDeathAndCannotReplayAtSameTime() {
         val original=stocks();val started=advance(original,0)
         assertEquals(now,started.groundBattles[1000]);assertEquals(original.outfits,started.outfits)

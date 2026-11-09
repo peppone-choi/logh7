@@ -34,6 +34,17 @@ class BaseOccupationTest {
         outfits=s.outfits.mapValues {(_,o)->o.copy(country=CountryId(if(o.country==CountryId(2))42 else 43))},
         warehouses=s.warehouses.mapValues {(_,w)->w.copy(country=CountryId(if(w.country==CountryId(2))42 else 43))})}
 
+    @Test fun troopsFromAnEliminatedCountryCannotCaptureABaseInAContinuingSession() {
+        val original=additionalCountries()
+        val defeated=session.copy(eliminated=mapOf(CountryId(42) to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,CountryId(43))))
+        val events=mutableListOf<BaseOccupation>()
+        assertFalse(BaseOccupationOperations.pending(original,galaxy,defeated.eliminated.keys))
+        assertSame(original,advance(original,events=events,state=defeated))
+        assertTrue(events.isEmpty())
+        assertEquals(CountryId(42),advance(original).bases.getValue(base.id).country)
+    }
+
     @Test fun additionalCountryCapturesOnlyTheDefendersPropertyAndExpelsOnlyItsCharacters() {
         val original=additionalCountries()
         val loser=Navigator(1,10001,Power.ALLIANCE,2487,777,555,321,baseId=1000,mode=4,
