@@ -426,6 +426,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             return NavigationResult(after, before)
         }
         request.energy?.let { energy ->
+            if (stocks?.social?.justice?.detained(before.characterId) == true) return reject(NavigationRejection.BUSY)
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
             if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
