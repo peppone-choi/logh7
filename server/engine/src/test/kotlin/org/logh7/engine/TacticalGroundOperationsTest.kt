@@ -344,6 +344,21 @@ class TacticalGroundOperationsTest {
         assertEquals(2,troops.size)
         assertTrue(troops.all {it.carrier==1 && it.base==0 && it.order==null})
     }
+    @Test fun eliminatedCountryCancelsSavedLandingWithoutMovingTroops() {
+        val s=state()
+        val accepted=accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s))
+        val readyAt=assertNotNull(accepted.groundReadyAt)
+        val outfit=s.stocks.outfits.getValue(1)
+        val defeated=session.copy(gameMillis=readyAt*1000,
+            eliminated=mapOf(checkNotNull(outfit.country) to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        val events=mutableListOf<TacticalGroundResult>()
+        val result=TacticalGroundOperations.advance(defeated,galaxy,s.players,s.stocks,events)
+
+        assertTrue(events.single().cancelled)
+        assertEquals(outfit.activeGround!!.values.map {it.copy(order=null)},
+            result.outfits.getValue(1).activeGround!!.values)
+    }
+
     @Test fun shipWithoutMotionUsesItsBerthForCommandRange() {
         for (mode in listOf(TacticalShipMode.STATIONED, TacticalShipMode.ANCHORED)) {
             val s=state();val old=s.stocks.outfits.getValue(1)
