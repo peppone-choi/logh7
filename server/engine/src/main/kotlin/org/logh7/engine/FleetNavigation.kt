@@ -85,6 +85,10 @@ internal object FleetNavigation {
             it.cpPaused || it.navigationPending || (it.hull?.woundedUntil ?: 0) > now
         })
             return deferred(NavigationRejection.BUSY)
+        if (starting && request.destination != null && after.warpTarget == request.destination) {
+            val reservedCruise = navigation.warpCruise(after.grid, request.destination)
+            if (followers.values.any { it.cruise < reservedCruise }) return deferred(NavigationRejection.CRUISE)
+        }
         if (position == outfit.positionIn(galaxy))
             return personal(units,false)
         if (committer == null) return NavigationResult(null, before, NavigationRejection.DISABLED)
