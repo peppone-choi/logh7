@@ -148,7 +148,7 @@ static void __fastcall receivedOutfitPagePacket(void* world,void*,unsigned opcod
     matchLobbySelectionRefusal(world,opcode,record);
     if((opcode&65535)==0x032f && (at<BYTE>(record,8)==4 || at<BYTE>(record,8)==6 ||
         at<BYTE>(record,8)==7 || at<BYTE>(record,8)==fuelStatusMode))return;
-    groundOrderReplied(opcode,static_cast<const BYTE*>(record));
+    if(groundOrderReplied(opcode,static_cast<const BYTE*>(record)))return;
     if(groundPanelConsumes(opcode,static_cast<const BYTE*>(record)))return;
     bool consume=(opcode&65535)==0x032f && at<BYTE>(record,8)==2;
     AcquireSRWLockExclusive(&outfitReplyLock);

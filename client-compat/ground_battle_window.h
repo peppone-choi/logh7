@@ -3,8 +3,9 @@
 // CD's unsent 0417 CommandAttackTroop / 0418 CommandStopTroop records through the native transport. Author: Peppone Choi.
 #pragma once
 static struct GroundBattleWindow {
-    bool visible,pending; unsigned own,target,base,orderUnit,orderTarget,commander; ULONGLONG acceptAfter,sentAt; const wchar_t* message;
+    bool visible,pending; unsigned own,target,base,orderUnit,orderTarget,orderToken,orderCharacter,commander; ULONGLONG acceptAfter,sentAt; const wchar_t* message;
 } groundWindow={};
+static unsigned groundOrderSerial=0;
 // Thumbnail/Unit it001~013 (64x36): crew 1/2, light 3/4, grenadier 5/6, armored 7/8, 擲弾兵教導 9, 薔薇の騎士 10.
 // Faction pairs follow the art (empire dark/blue, alliance green/tan); the kind mapping is evidence:guess
 // except 9/10 (user 2026-11-03). Server kinds: empire 0 light,1 grenadier,2 armored,3 crew,8 guard,9 教導;
@@ -124,19 +125,28 @@ static void sendGroundOrder(unsigned own,unsigned target) {
     // CD record (debug printer 004a1d10): +8 character, +0xc count, +0x10 units[32], +0x90 target.
     BYTE record[0x94]={};at<unsigned>(record,8)=at<unsigned>(self,0x24);record[0xc]=1;at<unsigned>(record,0x10)=own;
     if (target) at<unsigned>(record,0x90)=target;
+    // +4 wait = 'LG'<<16 | token asks a current server for a 032f mode-23 result; it schedules nothing.
+    groundOrderSerial=logh::nextGroundOrderToken(groundOrderSerial);at<unsigned>(record,4)=0x4c470000u|groundOrderSerial;
     auto transport=at<void*>(service,0x44);auto table=at<void**>(transport,0);
     groundWindow.pending=true;groundWindow.sentAt=GetTickCount64();groundWindow.orderUnit=own;groundWindow.orderTarget=target;
+    groundWindow.orderToken=groundOrderSerial;groundWindow.orderCharacter=at<unsigned>(self,0x24);
     groundPanel.pollAt=0;
     groundWindow.message=target ? L"공격 대상 지정을 요청했습니다." : L"공격 대상 해제를 요청했습니다.";
     reinterpret_cast<unsigned(__thiscall*)(void*,void*,unsigned,void*)>(table[6])(transport,at<void*>(service,0x40),target ? 0x0417 : 0x0418,record);
 }
-// 0417/0418 replies reach the world dispatcher, which has no case for them; a refused reply carries time 1.
-static void groundOrderReplied(unsigned opcode,const BYTE* record) {
-    if (((opcode&65535)!=0x0417 && (opcode&65535)!=0x0418) || !groundWindow.pending) return;
-    groundWindow.pending=false;
-    bool refused=logh::infoWord(record,0)==1;
-    groundWindow.message=refused ? L"지정할 수 없습니다(지휘권·위치·대상 확인)." : (opcode&65535)==0x0417 ? L"공격 대상을 지정했습니다." : L"공격 대상을 해제했습니다.";
+// The CD never hands a 0417/0418 reply to this window, so the plain reply is left to the native dispatcher.
+// A current server follows it with 032f mode 23. Always keep that record from the native dispatcher; only
+// the pending order's unit, token, character and direction may finish it. Returns true when consumed.
+static bool groundOrderReplied(unsigned opcode,const BYTE* record) {
+    if ((opcode&65535)!=0x032f || record[8]!=logh::groundOrderResultMode) return false;
+    auto& w=groundWindow;
+    const int result=w.pending ? logh::groundOrderResult(record,w.orderUnit,w.orderToken,w.orderCharacter,w.orderTarget!=0) : -1;
+    if (result<0) return true;
+    w.pending=false;
+    w.message=result ? (w.orderTarget ? L"공격 대상을 지정했습니다." : L"공격 대상을 해제했습니다.") :
+        w.orderTarget ? L"공격 대상을 지정할 수 없습니다(지휘권·위치·대상 확인)." : L"공격 대상을 해제할 수 없습니다(지휘권·위치·대상 확인).";
     groundPanel.pollAt=0;
+    return true;
 }
 static bool updateGroundWindow() {
     auto& w=groundWindow;
@@ -184,7 +194,7 @@ static bool updateGroundWindow() {
     if (row && row->target) _snwprintf_s(text,_countof(text),_TRUNCATE,L"현재 공격 대상 #%u",row->target);
     else wcscpy_s(text,L"공격 대상 없음(순서대로 공격)");
     taxText(5,text);
-    // The CD has no world case for the 0417/0418 reply; confirm the order from the next roster instead.
+    // An older server sends no mode-23 result; confirm the order from the next roster or time out instead.
     if (w.pending && GetTickCount64()-w.sentAt>=500) {
         auto ordered=groundWindowRow(w.orderUnit);
         if (ordered && ordered->target==w.orderTarget) {

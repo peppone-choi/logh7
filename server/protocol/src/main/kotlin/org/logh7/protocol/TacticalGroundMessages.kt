@@ -38,18 +38,31 @@ object TacticalGroundMessages {
     }
     /** Unsent CD commands 0417 CommandAttackTroop (debug printer 004a1d10: units then target u32) and
      * 0418 CommandStopTroop, reused by the reconstructed ground battle window. [target] 0 clears the order. */
-    data class Target(val character:Int,val units:List<Int>,val target:Int) {
-        init {validate(character,units);require(target>=0)}
+    const val TARGET_RESULT_MODE=23
+    private const val TARGET_RESULT_TAG=0x4c470000
+    data class Target(val character:Int,val units:List<Int>,val target:Int,val resultToken:Int=0) {
+        init {validate(character,units);require(target>=0 && resultToken in 0..65535)}
     }
     fun target(message:ByteArray):Target {
         require(message.size>=2)
         val opcode=ByteBuffer.wrap(message).short.toInt() and 65535
         require(opcode==0x0417 || opcode==0x0418)
         val (input,source)=read(message,opcode,if(opcode==0x0417)4 else 0)
-        return Target(source.first,source.second,if(opcode==0x0417)input.int.also {require(it>0)} else 0)
+        val wait=input.getInt(6)
+        val token=if((wait and -0x10000)==TARGET_RESULT_TAG && source.second.size==1)wait and 0xffff else 0
+        return Target(source.first,source.second,if(opcode==0x0417)input.int.also {require(it>0)} else 0,token)
     }
     fun reply(command:Target,seconds:Long,accepted:Boolean=true)=reply(if(command.target>0)0x0417 else 0x0418,command.character,
         command.units,if(command.target>0)ByteBuffer.allocate(4).putInt(command.target).array() else byteArrayOf(),seconds,0,accepted)
+
+    fun targetReplies(command:Target,seconds:Long,accepted:Boolean):List<ByteArray> {
+        val native=reply(command,seconds,accepted)
+        if(command.resultToken==0)return listOf(native)
+        val query=OutfitPartyMessages.Query(command.units.single(),command.resultToken,TARGET_RESULT_MODE)
+        val result=OutfitPartyMessages.Member(command.character,if(accepted)1 else 0,if(command.target>0)1 else 0,"")
+        return listOf(native,LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(
+            query,2,0,0,emptyList(),emptyList(),0,0,listOf(result))))
+    }
     fun posture(message:ByteArray):Posture {
         val (input,source)=read(message,0x0411,5)
         return Posture(source.first,source.second,input.get().toInt() and 255,input.int)

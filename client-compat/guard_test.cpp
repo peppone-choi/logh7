@@ -841,6 +841,22 @@ static bool groundTransferReasonTest() {
     value(0x4c480008);if(logh::groundTransferReason(record,reason))return false;
     record[20]=2;value(0x4c470008);return !logh::groundTransferReason(record,reason) && reason==99;
 }
+static bool groundOrderResultTest() {
+    unsigned char record[64]={};
+    auto word=[&](unsigned offset,unsigned value){memcpy(record+offset,&value,4);};
+    word(0,501);word(4,7);record[8]=23;record[9]=2;record[20]=1;word(24,1200);record[28]=1;record[29]=1;
+    if(logh::groundOrderResult(record,501,7,1200,true)!=1)return false;
+    record[28]=0;if(logh::groundOrderResult(record,501,7,1200,true)!=0)return false; // Refusal.
+    // Another direction, unit, token or character never finishes the pending order.
+    if(logh::groundOrderResult(record,501,7,1200,false)!=-1 || logh::groundOrderResult(record,502,7,1200,true)!=-1 ||
+        logh::groundOrderResult(record,501,8,1200,true)!=-1 || logh::groundOrderResult(record,501,7,1201,true)!=-1)return false;
+    record[29]=0;if(logh::groundOrderResult(record,501,7,1200,false)!=0)return false;
+    record[28]=2;if(logh::groundOrderResult(record,501,7,1200,false)!=-1)return false;
+    record[28]=1;record[20]=2;if(logh::groundOrderResult(record,501,7,1200,false)!=-1)return false;
+    record[20]=1;record[8]=2;if(logh::groundOrderResult(record,501,7,1200,false)!=-1)return false;
+    record[8]=23;word(4,0);if(logh::groundOrderResult(record,501,0,1200,false)!=-1)return false; // Unmarked order.
+    return logh::nextGroundOrderToken(0)==1 && logh::nextGroundOrderToken(7)==8 && logh::nextGroundOrderToken(0xffff)==1;
+}
 static bool groundLocationPageTest() {
     unsigned char wire[4+70*88]={};wire[0]=2;
     auto set=[&](unsigned row,unsigned field,unsigned value){memcpy(wire+4+row*88+field,&value,4);};
@@ -1608,6 +1624,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(!sessionEndingDataTest())return 86;
     if (!groundLocationPageTest()) return 85;
     if (!groundTransferReasonTest()) return 915;
+    if (!groundOrderResultTest()) return 916;
     if (!tacticalMotionOriginsTest()) return 81;
     if (!tacticalClockScaleTest()) return 81;
     if (!tacticalNoticesTest()) return 82;

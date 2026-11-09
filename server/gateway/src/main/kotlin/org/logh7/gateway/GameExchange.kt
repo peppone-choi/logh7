@@ -784,7 +784,7 @@ class GameExchange(
                         val command=org.logh7.protocol.TacticalGroundMessages.target(body)
                         require(command.character==character.id.toInt())
                         if(command.units.any {it !in 1..999999} || command.target !in 0..999999 || command.target in command.units)
-                            return handshake.stageAll(listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),false)),clearHeader=0)
+                            return handshake.stageAll(org.logh7.protocol.TacticalGroundMessages.targetReplies(command,gameSeconds(),false),clearHeader=0)
                         pendingWorld=navigate(org.logh7.engine.NavigationRequest(identity.account,
                             character.id.toInt(),if(character.power==2)org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
                             connection,checkNotNull(generation),shipKind=character.shipKind,commandAbility=character.abilities[4],
@@ -792,7 +792,7 @@ class GameExchange(
                                 if(command.target>0)org.logh7.engine.TacticalGroundAction.TARGET else org.logh7.engine.TacticalGroundAction.CLEAR,
                                 command.units,target=command.target))).thenApply {result->
                             if(result.player==null)println("tactical ground target rejected account=${identity.account} units=${command.units} target=${command.target} reason=${result.rejection}")
-                            listOf(org.logh7.protocol.TacticalGroundMessages.reply(command,gameSeconds(),result.player!=null))
+                            org.logh7.protocol.TacticalGroundMessages.targetReplies(command,gameSeconds(),result.player!=null)
                         }
                         return null
                     }

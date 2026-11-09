@@ -112,5 +112,29 @@ class TacticalGroundMessagesTest {
         kotlin.test.assertFails {TacticalGroundMessages.target(raw(0x0418,1902))}
         val reply=java.nio.ByteBuffer.wrap(TacticalGroundMessages.reply(attack,100))
         kotlin.test.assertEquals(0x0417,reply.getShort(4).toInt())
+        kotlin.test.assertEquals(100,reply.getInt(6))
+        kotlin.test.assertEquals(1,TacticalGroundMessages.targetReplies(attack,100,false).size)
+        for((opcode,target) in listOf(0x0417 to 1902,0x0418 to null)) {
+            val tagged=raw(opcode,target)
+            java.nio.ByteBuffer.wrap(tagged).putInt(6,0x4c47002a)
+            val command=TacticalGroundMessages.target(tagged)
+            kotlin.test.assertEquals(42,command.resultToken)
+            for(accepted in listOf(false,true)) {
+                val (native,extension)=TacticalGroundMessages.targetReplies(command,100,accepted)
+                val header=java.nio.ByteBuffer.wrap(native)
+                kotlin.test.assertEquals(if(accepted)0 else 1,header.getInt(0))
+                kotlin.test.assertEquals(opcode,header.getShort(4).toInt())
+                kotlin.test.assertEquals(100,header.getInt(6))
+                val body=java.nio.ByteBuffer.wrap(extension)
+                kotlin.test.assertEquals(0x032f,body.getShort(4).toInt())
+                kotlin.test.assertEquals(1811,body.getInt(6))
+                kotlin.test.assertEquals(42,body.getInt(10))
+                kotlin.test.assertEquals(23,body.get(14).toInt())
+                kotlin.test.assertEquals(1,body.get(25).toInt())
+                kotlin.test.assertEquals(10002,body.getInt(26))
+                kotlin.test.assertEquals(if(accepted)1 else 0,body.get(30).toInt())
+                kotlin.test.assertEquals(if(target!=null)1 else 0,body.get(31).toInt())
+            }
+        }
     }
 }
