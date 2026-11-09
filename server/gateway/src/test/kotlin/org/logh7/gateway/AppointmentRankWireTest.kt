@@ -17,7 +17,8 @@ import kotlin.test.*
 class AppointmentRankWireTest {
     @TempDir lateinit var directory: Path
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
-        listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f)),
+        listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f),
+            GalaxyBase(1050,2487,80,0,"Other",0,20f,86400,0,0f,2f)),
         mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))
     private class State(galaxy:Galaxy,storedTargetRank:Int,militaryRank:Int):WorldStateCommitter {
         var players=(0..1).associate { "load-%03d".format(it) to Navigator(1,10000+it,Power.EMPIRE,2487,1000,1000,1000,
@@ -54,7 +55,11 @@ class AppointmentRankWireTest {
 
     @Test fun aDetainedCandidateIsHiddenAndCannotBeAppointed() = exercise(10, 10, false, detained = true)
 
-    private fun exercise(profileTargetRank:Int,storedTargetRank:Int,accepted:Boolean,militaryRank:Int=0,detained:Boolean=false) {
+    @Test fun aCandidateWithTheSameCardElsewhereIsHiddenAndCannotBeAppointed() =
+        exercise(10, 10, false, duplicateCard = true)
+
+    private fun exercise(profileTargetRank:Int,storedTargetRank:Int,accepted:Boolean,militaryRank:Int=0,
+        detained:Boolean=false,duplicateCard:Boolean=false) {
         val properties=Properties()
         for(i in 0..1) {
             val person=CharacterMessages.Generate(4,10000L+i,2,0,0,"Pilot$i","Test",30,1,1,1,List(8){50},
@@ -64,6 +69,10 @@ class AppointmentRankWireTest {
         }
         Files.newBufferedWriter(directory.resolve("characters.properties")).use { properties.store(it,null) }
         val state=State(galaxy,storedTargetRank,militaryRank)
+        if (duplicateCard) {
+            val other = state.stocks.bases.getValue(1050).copy(garrisonCommanderId = 10001)
+            state.stocks = state.stocks.copy(bases = state.stocks.bases + (1050 to other))
+        }
         if (detained) {
             val now = SessionRules.load().startSeconds
             val detention = Detention(10001, CountryId(2), now, now + 60)
