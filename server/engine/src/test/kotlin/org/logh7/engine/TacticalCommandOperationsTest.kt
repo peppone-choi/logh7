@@ -81,6 +81,32 @@ class TacticalCommandOperationsTest {
         assertEquals(15,s.stocks.tacticalCommands.morale[1])
     }
 
+    @Test fun commandReassignmentRequiresSameOutfitAtAcceptanceAndCompletion() {
+        for (opcode in listOf(0x40b,0x420)) {
+            val s=state()
+            s.players=s.players+("pilot" to s.players.getValue("pilot").copy(motion=motion(50f)))
+            val order=TacticalCommand(opcode,listOf(1),target=1010001)
+            assertEquals(NavigationRejection.CARD,accept(run(s),order,"ally").rejection)
+            assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+
+            val outfit=s.stocks.outfits.getValue(1)
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(aideId=10001)))
+            val ready=assertNotNull(accept(run(s),order,"ally").commandReadyAt)
+            val events=mutableListOf<TacticalCommandResult>()
+            settle(run(s),ready,events)
+            assertFalse(events.single().cancelled)
+            assertEquals(10001,s.stocks.tacticalCommands.authority[1])
+
+            val nextOrder=order.copy(units=listOf(2))
+            val nextReady=assertNotNull(accept(run(s),nextOrder,"ally").commandReadyAt)
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit))
+            events.clear()
+            settle(run(s),nextReady,events)
+            assertTrue(events.single().cancelled)
+            assertNull(s.stocks.tacticalCommands.authority[2])
+        }
+    }
+
     @Test fun explicitAntiAirWaitsAcrossReloadDispersesTheWingAndRestoresSpeedWithoutHittingItsCarrier() {
         val s=state();val enemy=s.stocks.outfits.getValue(2)
         val carrier=ProductionUnits.definitions.first {it.ship && it.power==3 && it.name.startsWith("戦闘艇母艦")}.kind
