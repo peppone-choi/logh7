@@ -239,6 +239,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val candidates = galaxy.bases.filter { it.grid == start }.filter { base ->
                     val condition = galaxy.conditions.getValue(base.id)
                     val stock = stocks?.bases?.get(base.id)
+                    if(stocks!=null && stock==null)return@filter false
                     val allegiance = stock?.owner ?: galaxy.initialOwners.getValue(base.id)
                     condition.habitability == 1 && allegiance == Allegiance.Country(owner) &&
                         (stock?.camp ?: condition.camp) == 0

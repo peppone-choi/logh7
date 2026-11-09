@@ -371,7 +371,7 @@ class GameExchangeTest {
             } finally {game.close()}
         }
     }
-    @Test fun clockRefreshPublishesOnlyStarDetectionChangesForTheCurrentViewer() {
+    @Test fun clockRefreshPublishesChangedDetectionAndReturnPlanetToTheCurrentViewer() {
         var lotteryTime=java.time.Instant.EPOCH
         val clock=object:java.time.Clock() {
             override fun getZone()=java.time.ZoneOffset.UTC
@@ -387,7 +387,7 @@ class GameExchangeTest {
             return Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true,
                 motion=TacticalMotion(2487,seconds,TacticalPose(point,0f),0f,0f,listOf(point)))
         }
-        var player=at(21f)
+        var player=at(21f).copy(returnBase=1048)
         val target=900001
         val stock=PlanetStocks(1,0,emptyMap(),social=SocialState(pirates=PirateState(
             mapOf(1 to PirateFleet(1,2487,seconds,listOf(PirateUnit(target,300)))),2)))
@@ -420,7 +420,7 @@ class GameExchangeTest {
             }
             fun refresh(y:Float):Map<Int,Int> {
                 seconds+=24
-                player=at(y)
+                player=at(y).copy(returnBase=player.returnBase)
                 val packets=assertNotNull(game.refreshWorld()).join()
                 game.finishWorld(packets)
                 return status(packets)
@@ -429,6 +429,16 @@ class GameExchangeTest {
             assertEquals(mapOf(target to 1),refresh(18f))
             assertTrue(refresh(18f).isEmpty())
             assertEquals(mapOf(target to 0),refresh(21f))
+            seconds+=24
+            player=player.copy(returnBase=0)
+            val cleared=assertNotNull(game.refreshWorld()).join()
+            val changed=cleared.single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0356}
+            assertEquals(0,ByteBuffer.wrap(changed).getInt(27))
+            assertTrue(status(cleared).isEmpty())
+            assertNotNull(game.finishWorld(cleared))
+            seconds+=24
+            val unchanged=assertNotNull(game.refreshWorld()).join()
+            assertTrue(unchanged.none {ByteBuffer.wrap(it).getShort(4).toInt()==0x0356})
         } finally {game.close()}
     }
 
@@ -447,7 +457,7 @@ class GameExchangeTest {
             val motion=TacticalMotion(2487,0,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
                 listOf(TacticalPoint(0f,100f)))
             var player=Navigator(1,1001,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true,
-                energy=TacticalEnergy(listOf(100)+List(10){0}),motion=motion)
+                energy=TacticalEnergy(listOf(100)+List(10){0}),motion=motion,returnBase=1049)
             var seconds=0L;var syncs=0;var recoveries=0
             var sampled=CompletableFuture<Unit>()
             val navigation=object:GameNavigation {
@@ -488,7 +498,7 @@ class GameExchangeTest {
                 seconds=10
                 if(outcome=="retreat") player=player.copy(grid=2488,cpPaused=false,motion=null)
                 if(outcome=="same-grid-return") {
-                    player=player.copy(baseId=1000,mode=4,cpPaused=false,motion=null)
+                    player=player.copy(baseId=1000,mode=4,cpPaused=false,motion=null,returnBase=0)
                     assertNotNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
                     assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))))
                 }
@@ -504,7 +514,8 @@ class GameExchangeTest {
                 assertEquals(0x0349,position.getShort(4).toInt())
                 if(outcome=="retreat" || outcome=="same-grid-return") {
                     assertEquals(0,position.getShort(6).toInt());assertEquals(2,recoveries)
-                    assertTrue(messages.any {ByteBuffer.wrap(it).getShort(4).toInt()==0x0356})
+                    val changed=messages.single {ByteBuffer.wrap(it).getShort(4).toInt()==0x0356}
+                    assertEquals(if(outcome=="same-grid-return")0 else 1049,ByteBuffer.wrap(changed).getInt(27))
                     val bytes=assertNotNull(game.finishWorld(messages)).bytes
                     var offset=0;val opcodes=mutableListOf<Int>()
                     while(offset<bytes.size) {

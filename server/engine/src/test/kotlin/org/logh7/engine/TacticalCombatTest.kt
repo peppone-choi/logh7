@@ -173,6 +173,22 @@ class TacticalCombatTest {
         assertEquals(300,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
     }
 
+    @Test fun quietWorldClearsInvalidSavedReturnPlanetAndPreservesOrigin() {
+        val invalid=Navigator(1,10000,Power.ALLIANCE.country,2488,1000,1000,1000,returnBase=1000,originBase=1000)
+        val valid=Navigator(1,10001,Power.EMPIRE.country,2488,1000,1000,1000,returnBase=1000,originBase=1000)
+        val state=State(mapOf("pilot" to invalid,"other" to valid),
+            PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100)),deploymentInitialized=true))
+        val navigation=Navigation(galaxy,state.nav,NavigationPolicy())
+        val production=production(state)
+        state.fail=true
+        assertFailsWith<java.io.IOException> {TacticalCombat.settle(session,galaxy,navigation,production,state.commit)}
+        assertEquals(invalid,navigation.snapshot(1).getValue("pilot"))
+        state.fail=false
+        assertTrue(TacticalCombat.settle(session,galaxy,navigation,production,state.commit).isEmpty())
+        assertEquals(invalid.copy(returnBase=0),state.players.getValue("pilot"))
+        assertEquals(valid,state.players.getValue("other"))
+    }
+
     @Test fun deceasedFlagshipRejectsNewFireAndCancelsSavedOrdersAtomically() {
         val state=state()
         val live=Navigation(galaxy,state.nav,NavigationPolicy())
