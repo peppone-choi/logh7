@@ -500,6 +500,19 @@ class TacticalCommandOperationsTest {
         assertTrue(events.single {it.order.command.opcode==0x419}.cancelled)
         assertEquals(lost.bases.getValue(1000).supplies,after.bases.getValue(1000).supplies)
     }
+    @Test fun fortressCannonHitsBeforeTheStarButCannotHitThroughIt() {
+        val s=state()
+        s.players=s.players+mapOf(
+            "pilot" to s.players.getValue("pilot").copy(motion=motion(2f,0f)),
+            "ally" to s.players.getValue("ally").copy(motion=motion(0f,-1f)))
+        s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(
+            fortresses=mapOf(1000 to TacticalFortressMotion(2488,motion(0f,-2f)))))
+        val r=run(s)
+        assertNotNull(accept(r,TacticalCommand(0x419,base=1000,direction=0f)).player)
+        val impacts=mutableListOf<TacticalImpact>()
+        settle(r,now+35,impacts=impacts)
+        assertEquals(listOf(s.players.getValue("ally").unitId),impacts.filter {it.fortress}.map {it.hit.target})
+    }
     @Test fun fortressRepairsAndSuppliesItsStationedShipsAcrossReloadWithoutLaunchingThem() {
         for(opcode in listOf(0x41b,0x41c))for(atBase in listOf(false,true)) {
             val s=state();val outfit=s.stocks.outfits.getValue(1)
@@ -1074,6 +1087,29 @@ class TacticalCommandOperationsTest {
         val detachment=moved.outfits.values.single {it.activeShips?.values?.any {unit->unit.id==1}==true}
         assertEquals(2489,detachment.positionIn(galaxy).grid)
         assertEquals(troops,detachment.activeGround)
+        assertEquals(1,events.size)
+    }
+
+    @Test fun eliminatedFleetDoesNotConsumeARetreatDestinationCampSlot() {
+        val s=state()
+        val fleet=s.stocks.outfits.getValue(1)
+        val retreat=TacticalRetreat(2489,now,5,150,membershipChecked=true)
+        val ships=ActiveShipUnits(fleet.activeShips!!.values.map {
+            if(it.id==1)it.copy(motionCommander=10000,tactical=NpcTacticalState(motion(260f),now,now,retreat=retreat)) else it
+        })
+        val pirates=PirateFleet(1,2489,now,listOf(PirateUnit(900001,1)))
+        val blocker=s.stocks.outfits.getValue(2).copy(position=OutfitPosition(2489))
+        val before=s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ships))+(2 to blocker),
+            social=s.stocks.social.copy(pirates=PirateState(mapOf(1 to pirates),2)))
+        val due=session.copy(gameMillis=(now+155)*1000)
+        val events=mutableListOf<TacticalMovement>()
+        assertEquals(before,TacticalFleetRetreat.advance(due,galaxy,s.players.toMutableMap(),before,events))
+        assertTrue(events.isEmpty())
+
+        val defeated=due.copy(eliminated=mapOf(Power.ALLIANCE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        val moved=TacticalFleetRetreat.advance(defeated,galaxy,s.players.toMutableMap(),before,events)
+        val detachment=moved.outfits.values.single {it.activeShips?.values?.any {unit->unit.id==1}==true}
+        assertEquals(2489,detachment.positionIn(galaxy).grid)
         assertEquals(1,events.size)
     }
 

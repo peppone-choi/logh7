@@ -49,7 +49,7 @@ class EngineGameAdmission(private val engine: WorldEngine, private val scope: Co
                     !character.generated, result, connection, generation, StrategicPerson(rank = character.rank,
                         peerage = Peerage.entries.getOrNull(character.title - 1), merit = character.merit, influence = character.influence,
                         evaluation = character.evaluation, money = character.money, abilities = character.abilities,
-                        decorations = character.decorations)))
+                        decorations = character.decorations), characterId = character.id.toInt()))
                 future.complete(result.await())
             } catch (failure: Throwable) { future.completeExceptionally(failure) }
         }

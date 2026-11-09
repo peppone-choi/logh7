@@ -11,6 +11,12 @@ import java.util.Random
 import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.protocol.CharacterMessages
 import org.logh7.engine.Flagships
+import org.logh7.engine.CountryId
+import org.logh7.engine.OriginalCandidateEdit
+import org.logh7.engine.OriginalCandidateProfile
+import org.logh7.engine.OriginalStartingOffice
+import org.logh7.engine.PublishedOriginalCandidates
+import org.logh7.engine.ShipStyleId
 import java.nio.file.Files
 import java.util.Properties
 import kotlin.test.*
@@ -105,6 +111,26 @@ class OriginalCharacterLotteryTest {
         val reloaded=CharacterCreation(file,clock)
         assertEquals(awarded,listOf("empire","alliance").map {reloaded.character(it)})
     }
+    @Test fun onlyTheExplicitlyBoundAwardRetainsItsStartingOfficeAfterRestart() {
+        val clock = TestClock()
+        val file = directory.resolve("starting-office.properties")
+        val country = CountryId(2)
+        val office = OriginalStartingOffice.REINHARD_FLEET_2
+        val data = OriginalCandidateProfile("Reinhard", "Fixture", 26, 5, List(8) { 50 })
+        val published = PublishedOriginalCandidates()
+        published.publish(listOf(OriginalCandidateEdit(1003, 1, data.copy(startingOffice = office), country),
+            OriginalCandidateEdit(1004, 1, data, country)))
+        val selection = CharacterCreation.CountrySelection(country, 2, ShipStyleId("empire"))
+        val service = CharacterCreation(file, clock, 10, publishedOriginals = published)
+        service.apply("marked", listOf(1003), selection)
+        service.apply("unmarked", listOf(1004), selection)
+        clock.time += 10
+        assertEquals(office, service.profiles().getValue("marked").startingOffice)
+        val restored = CharacterCreation(file, clock)
+        assertEquals(office, restored.profiles().getValue("marked").startingOffice)
+        assertNull(restored.profiles().getValue("unmarked").startingOffice)
+    }
+
     @Test fun oldOriginalPlaceholdersAreDisplayedConsistentlyWithoutRewritingTheArchive() {
         val file=directory.resolve("legacy-originals.properties")
         val properties=Properties()

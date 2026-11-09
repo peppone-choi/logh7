@@ -141,8 +141,11 @@ class CountrySelectionWireTest {
                 assertEquals("1",choice(client,0)[1])
                 id=create(client,3,"FreeSettler").id.toInt()
             }
+            val observer=f.join(f.account(1),true,false).client
+            observer.send(SyntheticClient.opcode(0x0f00));through(observer,0x0f01)
             f.join(account,false,false).client.use {client->
                 client.send(SyntheticClient.opcode(0x0f00));through(client,0x0f01)
+                assertNotEquals(2489,f.engine.snapshot().navigators.getValue(f.account(1)).grid)
                 fun send(text:String) {
                     val packet=ChatMessages.grid(ChatMessages.Grid(id,0,text),0)
                     client.send(packet.copyOfRange(4,packet.size))
@@ -163,11 +166,25 @@ class CountrySelectionWireTest {
                     assertTrue(reply().contains("저장할 수 없어"))
                     assertEquals(before.navigators.getValue(account),f.engine.snapshot().navigators.getValue(account))
                     assertEquals(Allegiance.Neutral,f.engine.snapshot().planetStocks?.bases?.get(neutralBase)?.owner)
+                    observer.send(SyntheticClient.opcode(0x0300))
+                    assertTrue((1..32).any {
+                        val response=try {observer.receive()} catch (_:java.io.EOFException) {
+                            // The world storage fence can close the observer before it answers.
+                            return@any true
+                        }
+                        val packet=ByteBuffer.wrap(response)
+                        val opcode=packet.getShort(4).toInt()
+                        assertFalse(opcode in setOf(0x031f,0x0321),"Failed settlement announced an ownership change")
+                        opcode==0x0301
+                    },"Missing observer clock response or disconnect")
                 } else {
                     through(client,0x0b0b)
                     assertTrue(reply().contains("Free Port 확보"))
                     val after=f.engine.snapshot()
                     assertEquals(Allegiance.Independent(id),after.planetStocks?.bases?.get(neutralBase)?.owner)
+                    val bootstrap=WorldBootstrap(world)
+                    assertContentEquals(bootstrap.conditions(listOf(neutralBase),after.planetStocks),through(observer,0x031f).array())
+                    assertContentEquals(bootstrap.places(listOf(neutralBase),after.planetStocks),through(observer,0x0321).array())
                     assertEquals(neutralBase,after.navigators.getValue(account).baseId)
                     assertEquals(before.navigators.getValue(account).mcp,after.navigators.getValue(account).mcp)
                     val facility=neutralBase*100+1

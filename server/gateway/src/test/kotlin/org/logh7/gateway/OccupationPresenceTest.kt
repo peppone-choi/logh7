@@ -21,11 +21,11 @@ class OccupationPresenceTest {
                 old.countries.getValue(2).copy(id=id,key="country_$id",name="Country $id")})}
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",3)),
             listOf(GalaxyBase(1049,2487,80,if(moving)1 else 0,"Here",0,20f,86400,0,0f,2f,mobile=moving)),Power.entries.associateWith {2487})
-        val people=(0..2).map {i->CharacterMessages.Generate(0,10000L+i,if(i==1)3 else 2,if(i==1)89 else 0,
+        val people=(0..2).map {i->CharacterMessages.Generate(0,10000L+i,if(i!=0)3 else 2,if(i!=0)89 else 0,
             0,"Pilot","Name",30,1,1,0,List(8){50},0,0,0,20,0,0,"Ship",0)}
         val winner=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,cpPaused=true).copy(country=CountryId(winnerCountry))
         val loser=Navigator(1,10001,Power.ALLIANCE,2487,700,500,300,baseId=1049,mode=4,spotId=10490001,returnBase=1049).copy(country=CountryId(loserCountry))
-        val far=Navigator(1,10002,Power.EMPIRE,2488,1000,1000,1000).copy(country=CountryId(winnerCountry))
+        val far=Navigator(1,10002,Power.ALLIANCE,2488,1000,1000,1000,returnBase=1049).copy(country=CountryId(loserCountry))
         val fortressMotion=TacticalMotion(2487,200,TacticalPose(TacticalPoint(30f,40f),0f),TacticalFortressMotion.VELOCITY,0f,
             listOf(TacticalPoint(60f,40f)),waitSeconds=0)
         val expelledMotion=TacticalMotion(2487,250,TacticalPose(TacticalPoint(39f,40f),0f),0f,0f,
@@ -36,7 +36,7 @@ class OccupationPresenceTest {
             tacticalCommands=TacticalCommandState(fortresses=
                 if(moving)mapOf(1049 to TacticalFortressMotion(2487,fortressMotion)) else emptyMap()))
         val snapshot=WorldSnapshot(0,0,SessionSnapshot(1,250,0,0,emptyMap(),1,1,null),
-            navigators=mapOf("winner" to winner,"loser" to expelled,"far" to far),planetStocks=stocks)
+            navigators=mapOf("winner" to winner,"loser" to expelled,"far" to far.copy(returnBase=0)),planetStocks=stocks)
         val packets=List(3){mutableListOf<List<ByteArray>>()};val presence=GamePresence()
         listOf(winner,loser,far).forEachIndexed {i,p->presence.update(GamePresence.Member("c$i",people[i],p,packets[i]::add,
             if(i==1)listOf(BootstrapMessages.OfficeCard(190,1049)) else emptyList()))}
@@ -66,6 +66,9 @@ class OccupationPresenceTest {
         assertContentEquals(TacticsMessages.notify(2487,true),messages(1,0x0f1f).single())
         assertContentEquals(PlaceMessages.dockNotification(10001,0,5,250),messages(1,0x0b0b).single())
         assertTrue(messages(1,0x0356).isNotEmpty())
+        assertContentEquals(BootstrapMessages.changedCharacter(people[2],far.pcp,far.mcp,far.spotId,far.spotOwner,0),
+            messages(2,0x0356).single())
+        assertTrue(messages(2,0x0b0b).isEmpty())
         assertEquals(occupationLine,notice(messages(0,0x0f1d).single()))
         assertTrue(messages(1,0x0f1d).isEmpty());assertTrue(messages(2,0x0f1d).isEmpty())
         assertNull(presence.takeGroundResult("c1",expelled))

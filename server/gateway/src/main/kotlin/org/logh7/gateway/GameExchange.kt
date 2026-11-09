@@ -275,8 +275,11 @@ class GameExchange(
                     val updated=checkNotNull(currentCharacter(account))
                     publication=Publication(updated,player,false)
                     val name=bootstrap.galaxy.bases.single {it.id==player.baseId}.name
-                    listOf(bootstrap.conditions(listOf(player.baseId),result.stocks),characterMessage(updated,player,true),
-                        unitMessage(updated,player),org.logh7.protocol.PlaceMessages.dockNotification(id,player.baseId,player.mode,gameSeconds()),
+                    val baseIds=listOf(player.baseId)
+                    val packets=listOf(bootstrap.conditions(baseIds,result.stocks),bootstrap.places(baseIds,result.stocks))
+                    presence?.refreshBaseOwnership(player.generation,connection,packets)
+                    packets+listOf(characterMessage(updated,player,true),unitMessage(updated,player),
+                        org.logh7.protocol.PlaceMessages.dockNotification(id,player.baseId,player.mode,gameSeconds()),
                         notice("${name.take(32)} 확보 · 무소속 지배 거점"))
                 } else {
                     val message=when(result.rejection) {
@@ -321,9 +324,15 @@ class GameExchange(
                     val country=checkNotNull(player.country)
                     val definition=bootstrap.lobbyCountryDefinitions().first.countries.getValue(country.value)
                     publication=Publication(updated,player,false)
-                    listOf(bootstrap.conditions(listOf(player.baseId),result.stocks),
-                        bootstrap.places(listOf(player.baseId),result.stocks),characterMessage(updated,player,true),
-                        unitMessage(updated,player),notice("${definition.name} 건국 · 현재 거점을 수도로 지정"))
+                    val stocks=checkNotNull(result.stocks)
+                    // The new country has no prior holdings; founding transfers every base of the founder.
+                    val packets=stocks.bases.values.filter {it.country==country}.sortedBy {it.baseId}.flatMap {
+                        val baseIds=listOf(it.baseId)
+                        listOf(bootstrap.conditions(baseIds,stocks),bootstrap.places(baseIds,stocks))
+                    }
+                    presence?.refreshBaseOwnership(player.generation,connection,packets)
+                    packets+listOf(characterMessage(updated,player,true),unitMessage(updated,player),
+                        notice("${definition.name} 건국 · 현재 거점을 수도로 지정"))
                 } else listOf(notice(when(result.rejection) {
                     StrategyActionRejection.LOCATION -> "지배 중인 거점에 기항한 뒤 다시 시도하세요."
                     StrategyActionRejection.AUTHORITY -> "건국이 가능한 월드의 무소속 캐릭터가 필요합니다."
@@ -479,7 +488,8 @@ class GameExchange(
         return navigate(org.logh7.engine.NavigationRequest(account,
             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
             connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])
-            .copy(acknowledgedOfflineWarpCancellation = acknowledged)).thenApply { result ->
+            .copy(acknowledgedOfflineWarpCancellation = acknowledged, initializeOriginal = !character.generated,
+                rank = character.rank, startingOffice = currentProfile(account,character.id.toInt()).startingOffice)).thenApply { result ->
             val player = checkNotNull(result.player ?: result.previous?.takeIf { it.navigationPending &&
                 (result.rejection == org.logh7.engine.NavigationRejection.BUSY ||
                     result.rejection == org.logh7.engine.NavigationRejection.CRUISE) }) { "CP refresh lost its authenticated session" }
@@ -2798,7 +2808,8 @@ class GameExchange(
                             val request = org.logh7.engine.NavigationRequest(identity.account, character.id.toInt(),
                                 currentProfile(identity.account,character.id.toInt()).country,
                                 connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4],
-                                politics=character.abilities[1],administration=character.abilities[2],initializeOriginal=!character.generated)
+                                politics=character.abilities[1],administration=character.abilities[2],initializeOriginal=!character.generated,
+                                rank=character.rank,startingOffice=currentProfile(identity.account,character.id.toInt()).startingOffice)
                             pendingWorld = stocks().thenCompose { stored -> navigate(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 val captured=navigation.snapshot()

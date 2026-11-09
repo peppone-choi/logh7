@@ -87,6 +87,9 @@ interface NavigationStore : AutoCloseable {
     fun save(players: Map<String, Navigator>)
     override fun close() {}
 }
+internal fun Navigator.blocksFirstEntry(request: NavigationRequest, stocks: PlanetStocks?): Boolean =
+    generation == request.generation && (characterId == request.characterId || !BattleDeath.deceased(stocks,characterId))
+
 data class NavigationRequest(val account: String, val characterId: Int, val country: CountryId?,
     val connection: String, val generation: Long, val destination: Int? = null, val unitId: Int? = null,
     val captainCard: Int? = null, val place: PlaceMove? = null, val rank: Int = 20,
@@ -109,7 +112,7 @@ data class NavigationRequest(val account: String, val characterId: Int, val coun
     val shipStyle:ShipStyleId?=null,
     val acknowledgedOfflineWarpCancellation: NavigationRejection? = null,
     /** Authenticated original-character bootstrap, never a client-selected placement. */
-    val initializeOriginal:Boolean=false) {
+    val initializeOriginal:Boolean=false,val startingOffice:OriginalStartingOffice?=null) {
     /** Compatibility for old internal callers; membership checks use [country]. */
     constructor(account: String, characterId: Int, power: Power,
     connection: String, generation: Long, destination: Int? = null, unitId: Int? = null,
@@ -216,8 +219,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val deceased = BattleDeath.deceased(stocks,request.characterId)
         if (persist && !deceased) settleRetreats(session, stocks)
         // U-11: a dead character's navigator gives way to the account's next character.
-        val existing = players[request.account]?.takeIf { it.generation == request.generation &&
-            !(it.characterId != request.characterId && BattleDeath.deceased(stocks,it.characterId)) }
+        val existing = players[request.account]?.takeIf { it.blocksFirstEntry(request,stocks) }
         if (existing != null && (existing.characterId != request.characterId || existing.country != request.country))
             return reject(NavigationRejection.IDENTITY)
         if(existing!=null && request.shipStyle!=null && existing.shipStyle!=request.shipStyle)
@@ -375,7 +377,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy,countries)
             if (!RetreatRules.outside(pose)) return reject(NavigationRejection.INSIDE_RADAR)
-            val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose)
+            val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose, session.eliminated.keys)
                 ?: return reject(NavigationRejection.GRID)
             if (now > 0xffffffffL - 155 * clockScale) return reject(NavigationRejection.CLOCK)
             val after = before.copy(retreat = TacticalRetreat(target, now, 5 * clockScale, 150 * clockScale))
@@ -567,7 +569,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 changed = true
                 continue
             }
-            if (!TacticalContact.active(galaxy, player, next.values, stocks)) {
+            if (!TacticalContact.active(galaxy, player, next.values, stocks, session.eliminated.keys)) {
                 next[account] = player.copy(cpPaused = false, motion = null, retreat = null, charge = null,commandRange=null,
                     attack=null,fire=player.fire?.copy(pending=null),cpRecoveryAt = now)
                 changed = true
@@ -576,12 +578,12 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (now < retreat.completesAt) continue
             val pose = player.motion?.pose(now,player.posture,galaxy) ?: continue
             if (!RetreatRules.outside(pose)) continue
-            val forces = GridForces.collect(galaxy, session.generation, next.values, stocks)
+            val forces = GridForces.collect(galaxy, session.generation, next.values, stocks, session.eliminated.keys)
             if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces, stocks)) continue
             val moved = player.copy(grid = retreat.destination, motion = null, retreat = null, charge = null,commandRange=null,
                 attack=null,fire=player.fire?.copy(pending=null),
                 cpRecoveryAt = now, moves = Math.addExact(player.moves, 1))
-            val active = TacticalContact.active(galaxy, moved, next.values, stocks)
+            val active = TacticalContact.active(galaxy, moved, next.values, stocks, session.eliminated.keys)
             next[account] = moved.copy(cpPaused = active,commandRange=if(active)TacticalCommandRange(now,
                 command=player.commandRange?.command ?: 50) else null)
             changed = true
