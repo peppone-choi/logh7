@@ -10,6 +10,22 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredPirateCounterattackFiresBetweenRegularTicks() = runTest {
+        val rig=Rig(this,testScheduler,pirateDeadline=true)
+        val impacts=mutableListOf<TacticalImpact>()
+        rig.engine.observeCombat(impacts::add)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun lastVolley()=rig.engine.snapshot().planetStocks!!.social.pirates.fleets.getValue(1).firedAt
+            advanceTimeBy(833);runCurrent()
+            assertEquals(rig.start,lastVolley())
+            assertTrue(impacts.isEmpty())
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+20,lastVolley())
+            assertEquals(900_001,impacts.single().source)
+            assertEquals(0L,rig.engine.snapshot().session!!.strategyTicks)
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun restoredFleetShotFiresBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,fleetFireDeadline=true)
         val impacts=mutableListOf<TacticalImpact>()
@@ -151,7 +167,7 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
-        supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false) {
+        supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,pirateDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -182,6 +198,14 @@ class TacticalDeadlineTest {
                     stocks=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
                         warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
                 }
+            }
+            if(pirateDeadline) {
+                val pilot=players.getValue("pilot")
+                val point=TacticalPoint(0f,-9f)
+                val motion=TacticalMotion(2488,start,TacticalPose(point,0f),0f,0f,listOf(point))
+                players=mapOf("pilot" to pilot.copy(motion=motion))
+                val fleet=PirateFleet(1,2488,start,listOf(PirateUnit(900_001,300)),firedAt=start)
+                stocks=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2)))
             }
             if(supportDeadline) {
                 val pilot=players.getValue("pilot")
