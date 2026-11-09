@@ -100,6 +100,7 @@ internal object TacticalGroundOperations {
             c.groundTargets+command.units.associateWith {command.target}
         }
         val players=navigation.snapshot(session.generation)
+        if(targets.size>TacticalCommandState.MAX_GROUND_TARGETS)return reject(NavigationRejection.BUSY)
         val next=stocks.copy(tacticalCommands=c.copy(groundTargets=targets))
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players,prepared)

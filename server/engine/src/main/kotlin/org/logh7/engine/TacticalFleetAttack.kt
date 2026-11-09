@@ -34,7 +34,8 @@ internal object TacticalFleetAttack {
             val pair=stocks.outfits.values.flatMap {o->o.activeShips?.values.orEmpty().filter {it.id==id}.map {o to it}}
                 .singleOrNull() ?: return reject(NavigationRejection.UNIT)
             val(o,u)=pair
-            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId || o.country!=player.country ||
+            if(TacticalAuthority.commander(o,u,stocks)!=player.characterId ||
+                TacticalAuthority.camp(o,stocks)!=TacticalAuthority.camp(player,stocks) ||
                 o.positionIn(galaxy)!=OutfitPosition(player.grid))return reject(NavigationRejection.CARD)
             if(u.boats<=u.damaged || u.support!=null)return reject(NavigationRejection.BUSY)
             val pose=u.tactical?.takeIf {it.motion.grid==player.grid}?.motion?.pose(now,u.posture,galaxy,stocks) ?:
@@ -81,6 +82,7 @@ internal object TacticalFleetAttack {
                 TacticalAuthority.commander(outfit,unit,stocks)!=command.commander || position.baseId!=0 || unit.tactical?.motion?.grid!=position.grid ||
                 unit.boats<=unit.damaged || unit.support!=null ||
                 commander==null || commander.baseId!=0 || !commander.cpPaused || commander.grid!=position.grid ||
+                TacticalAuthority.camp(commander,stocks)!=TacticalAuthority.camp(outfit,stocks) ||
                 command.order.issuedByOfflineAi && !TacticalOfflineAi.eligible(session,commanderEntry.key,commander,stocks)) {
                 stocks=replace(stocks,outfit,unit.copy(attack=null));continue
             }
