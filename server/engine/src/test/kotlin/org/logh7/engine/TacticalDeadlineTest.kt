@@ -10,6 +10,22 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredAutomaticAttackStartsBetweenPeriodicTicks() = runTest {
+        val rig=Rig(this,testScheduler,automaticFireDeadline=true)
+        val impacts=mutableListOf<TacticalImpact>()
+        rig.engine.observeCombat(impacts::add).use {
+            try {
+                rig.engine.submit(WorldCommand.Probe);runCurrent()
+                advanceTimeBy(624);runCurrent()
+                assertTrue(impacts.isEmpty())
+                advanceTimeBy(1);runCurrent()
+                assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+                assertTrue(impacts.isNotEmpty())
+                assertTrue(impacts.all {it.hit.target==1010001 && it.hit.seconds==rig.start+15})
+                assertTrue(rig.players.getValue("pilot").attack!!.nextAt>rig.start+15)
+            } finally {rig.engine.drainAndClose()}
+        }
+    }
     @Test fun restoredFleetShotFiresBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,fleetFireDeadline=true)
         val impacts=mutableListOf<TacticalImpact>()
@@ -151,7 +167,7 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
-        supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false) {
+        supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -162,13 +178,14 @@ class TacticalDeadlineTest {
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         init {
-            if(fireDeadline || fleetFireDeadline) {
+            if(fireDeadline || fleetFireDeadline || automaticFireDeadline) {
                 fun at(y:Float):TacticalMotion {
                     val point=TacticalPoint(180f,y)
                     return TacticalMotion(2488,start,TacticalPose(point,0f),0f,0f,listOf(point))
                 }
                 val pilot=players.getValue("pilot").copy(motion=at(-97f),charge=TacticalCharge(start,24000),
-                    fire=if(fireDeadline)TacticalFire(1,TacticalPendingFire(1,2488,0,1010001,start,start+15)) else null)
+                    fire=if(fireDeadline)TacticalFire(1,TacticalPendingFire(1,2488,0,1010001,start,start+15)) else null,
+                    attack=if(automaticFireDeadline)TacticalAttackOrder(2,start,start+15,start+15) else null)
                 val enemy=Navigator(1,10001,Power.ALLIANCE,2488,1000,1000,1000,
                     cpPaused=true,hull=FlagshipHull(89,start),motion=at(-95f))
                 players=mapOf("pilot" to pilot,"enemy" to enemy)
