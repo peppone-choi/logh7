@@ -35,7 +35,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
     }
 
     /** Ownership is public on the strategic map, including outside the viewer's current system. */
-    @Synchronized internal fun refreshBaseOwnership(generation:Long,except:String,packets:List<ByteArray>) {
+    @Synchronized internal fun refreshBaseOwnership(generation:Long,except:String?,packets:List<ByteArray>) {
         for(viewer in members.values.filter {it.connection!=except && it.player.generation==generation})
             send(viewer,packets)
     }

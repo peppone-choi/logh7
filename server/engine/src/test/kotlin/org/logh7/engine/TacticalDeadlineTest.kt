@@ -120,6 +120,11 @@ class TacticalDeadlineTest {
     @Test fun restoredCapitalOccupationTransfersPowerAtItsDeadline() = runTest {
         val hold=CoupActions.CAPITAL_DAYS*Justice.DAY
         val rig=Rig(this,testScheduler,resumedAt=hold*1000/SessionRules.load().speed,coupDeadline=true)
+        val changes=mutableListOf<Pair<List<Int>,Int>>()
+        val subscription=rig.engine.observeCoupBases {stocks,bases->
+            assertEquals(rig.engine.snapshot().planetStocks,stocks)
+            changes.add(bases to stocks.bases.getValue(1049).camp)
+        }
         try {
             rig.engine.submit(WorldCommand.Probe);runCurrent()
             advanceTimeBy(624);runCurrent()
@@ -133,7 +138,11 @@ class TacticalDeadlineTest {
             assertEquals(0,after.bases.getValue(1049).camp)
             assertTrue(after.social.coup.plots.isEmpty())
             assertTrue(after.strategic.offices.any {it.card==1 && it.character==10000 && it.seat==1049})
-        } finally {rig.engine.drainAndClose()}
+            assertEquals(listOf(listOf(1049) to 0),changes)
+        } finally {
+            subscription.close()
+            rig.engine.drainAndClose()
+        }
     }
 
     @Test fun absentOrderExecutesBetweenPeriodicTicksAfterRestart() = runTest {

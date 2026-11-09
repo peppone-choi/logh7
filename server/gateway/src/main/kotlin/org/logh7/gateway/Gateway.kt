@@ -108,6 +108,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var postureSubscription:AutoCloseable? = null
     private var tacticalCommandSubscription:AutoCloseable? = null
     private var supportSubscription: AutoCloseable? = null
+    private var coupBaseSubscription:AutoCloseable?=null
     private var civicSubscription:AutoCloseable?=null
     private var budgetSubscription:AutoCloseable?=null
     private var successionSubscription:AutoCloseable?=null
@@ -155,6 +156,11 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         movementSubscription = presence?.let { p -> navigation!!.observeMovements { event ->
             p.movement(event,navigation.snapshot())
         } }
+        coupBaseSubscription=presence?.let {p->stock?.observeCoupBases {stocks,bases->
+            val bootstrap=checkNotNull(world)
+            val packets=bases.chunked(4).flatMap {ids->listOf(bootstrap.conditions(ids,stocks),bootstrap.places(ids,stocks))}
+            p.refreshBaseOwnership(stocks.generation,null,packets)
+        }}
         civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}
         budgetSubscription=presence?.let {p->stock?.observeBudget {event->p.budget(event,checkNotNull(world))}}
         val characterStores = CharacterStores(characterFile,accountFame,originalCandidates) { navigation?.snapshot() }
@@ -463,6 +469,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         supportSubscription?.close()
         civicSubscription?.close();successionSubscription?.close();tidalSubscription?.close()
         budgetSubscription?.close()
+        coupBaseSubscription?.close()
         identitySubscription?.close()
         fameSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
