@@ -260,7 +260,7 @@ internal object TacticalCombat {
         }
         for((account,player) in original) {
             if((player.attack!=null || player.fire?.pending!=null) &&
-                ((session.participants[account]?.country ?: player.country) in session.eliminated ||
+                (player.country in session.eliminated || session.participants[account]?.country in session.eliminated ||
                     BattleDeath.deceased(stocks,player.characterId)))
                 players[account]=players.getValue(account).copy(attack=null,fire=player.fire?.copy(pending=null))
         }
