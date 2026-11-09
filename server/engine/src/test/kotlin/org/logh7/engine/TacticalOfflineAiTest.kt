@@ -127,6 +127,49 @@ class TacticalOfflineAiTest {
         }
     }
 
+    @Test fun offlineSupportApproachesBeforeReservingAndCompletingLegalSupport() {
+        val scale=24L
+        val delay=5*scale
+        for(action in TacticalSupportAction.entries) {
+            val pilots=players()
+            val pilot=pilots.getValue("pilot")
+            val ally=pilot.copy(characterId=10001,supplies=9500,hull=pilot.hull!!.copy(hp=40),motion=motion(0f,1.7f))
+            pilots["ally"]=ally
+            val stock=stocks(1)
+            val name=if(action==TacticalSupportAction.REPAIR)"工作艦" else "輸送艦"
+            val kind=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith(name)}.kind
+            val source=ActiveShipUnit(1,UnitStack(kind),tactical=NpcTacticalState(motion(0f,.5f),now,now),supplies=500)
+            val own=stock.outfits.getValue(1).copy(units=UnitInventory(mapOf(source.stack to 1)),
+                activeShips=ActiveShipUnits(listOf(source)),supplies=500)
+            val before=stock.copy(outfits=stock.outfits+(1 to own))
+            val events=mutableListOf<TacticalCommandResult>()
+            val approaching=TacticalOfflineAi.advance(offline,galaxy,pilots,before,scale,events)
+            val moving=approaching.outfits.getValue(1).activeShips!!.values.single()
+            assertNull(moving.support)
+            assertNull(moving.attack)
+            assertEquals(500,moving.supplies)
+            assertEquals(TacticalPoint(0f,1.2f),events.single().motions.getValue(1).waypoints.last())
+            assertEquals(ally,pilots.getValue("ally"))
+
+            val ready=offline.copy(gameMillis=(now+delay)*1000)
+            val ordered=TacticalOfflineAi.advance(ready,galaxy,pilots,approaching,scale,events)
+            assertEquals(TacticalSupportOrder(action,10000,ally.unitId,2488,now+delay,now+2*delay),
+                ordered.outfits.getValue(1).activeShips!!.values.single().support)
+            val results=mutableListOf<TacticalSupportResult>()
+            val finished=TacticalSupportOperations.advance(offline.copy(gameMillis=(now+2*delay)*1000),galaxy,pilots,ordered,results)
+            assertFalse(results.single().cancelled)
+            assertNull(finished.outfits.getValue(1).activeShips!!.values.single().support)
+            if(action==TacticalSupportAction.SUPPLY) {
+                assertEquals(10000,pilots.getValue("ally").supplies)
+                assertEquals(0,finished.outfits.getValue(1).supplies)
+            } else {
+                assertEquals(100,pilots.getValue("ally").hull!!.hp)
+                val cost=Flagships.find(0)!!.number("修理消費物資(１隻):修理消費物資(１隻)")
+                assertEquals(500-cost,finished.outfits.getValue(1).supplies)
+            }
+        }
+    }
+
     @Test fun offlineSupportFallsBackToAnAlliedShipInRange() {
         for(action in TacticalSupportAction.entries) {
             val players=players()

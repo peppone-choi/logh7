@@ -120,14 +120,12 @@ internal object TacticalOfflineAi {
                 }
                 val updated=original.activeShips?.values?.map {unit ->
                     if(unit.id !in commandable || unit.posture?.mode?.requiresBase==true)return@map unit
-                    if(kind in 0..1) {
-                        val support=TacticalSupportOperations.offlineOrder(original,unit,p,now,scale,players,stocks,g,
-                            alliedTargets,reserved)
-                        if(support!=null) {
-                            reserved.add(support.action to support.target)
-                            commanded=true
-                            return@map unit.copy(support=support,attack=null,shot=null)
-                        }
+                    val support=if(kind in 0..1)TacticalSupportOperations.offlineSupport(original,unit,p,now,scale,players,stocks,g,
+                        alliedTargets,reserved,pose.position) else null
+                    if(support!=null && support.approach==null) {
+                        reserved.add(support.order.action to support.order.target)
+                        commanded=true
+                        return@map unit.copy(support=support.order,attack=null,shot=null)
                     }
                     val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
                         ?: TacticalDeployment.initial(unit.id,p.grid,players.values,stocks,g)
@@ -136,12 +134,14 @@ internal object TacticalOfflineAi {
                     val lateral=((unit.id%5)-2)*1.5f
                     val destination=goal?.let {TacticalPoint(it.x+lateral,it.y)}
                     val carrying=occupied!=null && original.activeGround?.values.orEmpty().any {it.carrier==unit.id && it.order==null}
-                    val moving=path(g,p.grid,now,at,if(carrying)TacticalCommandOperations.basePoint(occupied!!,now,stocks) else destination,
-                        if(carrying)0.2f else stop,velocity)
+                    val approach=support?.approach
+                    val moving=path(g,p.grid,now,at,approach ?:
+                        if(carrying)TacticalCommandOperations.basePoint(occupied!!,now,stocks) else destination,
+                        if(approach!=null)(TacticalSupportRules.SUPPORT_RANGE/2).toFloat() else if(carrying)0.2f else stop,velocity)
                     val old=unit.tactical
                     val withdraw=if(kind==5 && retreat!=null)retreat.copy(membershipChecked=false) else null
                     val state=(old ?: NpcTacticalState(moving,now,now)).copy(motion=moving,nextDecisionAt=now+5*scale,retreat=withdraw)
-                    val firing=if(attack==null)null else unit.attack ?: TacticalUnitAttack(p.characterId,TacticalAttackOrder(2,now,now,now+5*scale))
+                    val firing=if(attack==null || approach!=null)null else unit.attack ?: TacticalUnitAttack(p.characterId,TacticalAttackOrder(2,now,now,now+5*scale))
                     motions[unit.id]=moving;commanded=true
                     unit.copy(tactical=state,motionCommander=p.characterId,attack=firing)
                 } ?: continue
