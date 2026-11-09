@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NavigationTest {
-    @Test fun bothDepartureCommandsRejectCapturedOrRemovedBerths() {
+    @Test fun bothDepartureCommandsRejectCapturedBerthsAndAllowLeavingRemovedBerths() {
         val base = GalaxyBase(1000, 2487, 60, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)), listOf(base),
             Power.entries.associateWith { 2487 })
@@ -16,13 +16,20 @@ class NavigationTest {
             mode = 4, cpRecoveryAt = session.gameMillis / 1000)
         val captured = mapOf(1000 to PlanetStock(1000, 3, 0, 100, 100, 100))
         for (command in listOf(PlaceMove.SwitchMode(5), PlaceMove.Dock(0, 5))) {
-            for ((bases, rejection) in listOf(captured to NavigationRejection.ACCESS, emptyMap<Int, PlanetStock>() to NavigationRejection.BASE)) {
+            for (bases in listOf(captured, emptyMap())) {
                 val store = Store().also { it.saved = mapOf("pilot" to before) }
                 val nav = Navigation(galaxy, store, NavigationPolicy())
                 val result = nav.apply(request.copy(unitId = 1010000, captainCard = 59, place = command),
                     session, PlanetStocks(1, 0, bases))
-                assertEquals(rejection, result.rejection)
-                assertEquals(before, store.saved.getValue("pilot"))
+                if (bases.isEmpty()) {
+                    val departed = assertNotNull(result.player)
+                    assertEquals(0, departed.baseId)
+                    assertEquals(5, departed.mode)
+                    assertEquals(before.mcp, departed.mcp)
+                } else {
+                    assertEquals(NavigationRejection.ACCESS, result.rejection)
+                    assertEquals(before, store.saved.getValue("pilot"))
+                }
             }
         }
     }

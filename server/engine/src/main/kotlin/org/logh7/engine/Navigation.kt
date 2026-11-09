@@ -619,7 +619,6 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (before.baseId == 0 || before.mode != 4) return NavigationRejection.BASE
             val base = galaxy.conditions[before.baseId] ?: return NavigationRejection.BASE
             val stock = stocks?.bases?.get(base.baseId)
-            if (stocks != null && stock == null) return NavigationRejection.BASE
             return NavigationRejection.ACCESS.takeIf {
                 base.grid != before.grid || !ownBase(before, stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),
                     stock?.camp ?: base.camp, stocks)
@@ -636,7 +635,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 departureRejection()?.let { return reject(it) }
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
-                if (before.spotId != 0 && (before.spotOwner != 0 ||
+                if (before.spotId != 0 && (before.spotOwner != 0 || stocks != null && before.baseId !in stocks.bases ||
                     galaxy.facilitiesAt(before.baseId, stocks,countries).none { facility -> facility.kind == 4 &&
                         facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
                     return reject(NavigationRejection.EMBARKED)
