@@ -10,6 +10,42 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredSabotageExplodesWithoutCombatAtItsDeadline() = runTest {
+        val rig=Rig(this,testScheduler,espionageDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun justice()=rig.engine.snapshot().planetStocks!!.social.justice
+            advanceTimeBy(624);runCurrent()
+            assertEquals(rig.start+15,justice().bombs.getValue(10001).explodesAt)
+            assertEquals(0L,rig.players.getValue("pilot").hull!!.woundedUntil)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertTrue(justice().bombs.isEmpty())
+            assertTrue(justice().infiltrations.isEmpty())
+            assertEquals(rig.start+15+EspionageActions.DISABLED_DAYS*Justice.DAY,justice().disabled[1000])
+            assertEquals(rig.start+15+Justice.WOUND_SECONDS,rig.players.getValue("pilot").hull!!.woundedUntil)
+        } finally {rig.engine.drainAndClose()}
+    }
+
+    @Test fun restoredDetentionEndsInAQuietWorldAtItsDeadline() = runTest {
+        val rig=Rig(this,testScheduler,justiceDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun stock()=rig.engine.snapshot().planetStocks!!
+            advanceTimeBy(624);runCurrent()
+            assertTrue(stock().social.justice.detained(10000))
+            assertEquals(10000019,rig.players.getValue("pilot").spotId)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertFalse(stock().social.justice.detained(10000))
+            assertEquals(0,rig.players.getValue("pilot").spotId)
+            assertEquals(9,stock().strategic.people.getValue(10000).rank)
+            assertEquals(50L,stock().strategic.people.getValue(10000).merit)
+            advanceTimeBy(375);runCurrent()
+            assertEquals(9,stock().strategic.people.getValue(10000).rank)
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun absentOrderExecutesBetweenPeriodicTicksAfterRestart() = runTest {
         val rig=Rig(this,testScheduler,resumedAt=149375,orderDeadline=true)
         try {
@@ -356,7 +392,7 @@ class TacticalDeadlineTest {
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
         uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
-        mailDeadline:Boolean=false,orderDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
+        mailDeadline:Boolean=false,orderDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
         operationDeadline:Boolean=false,exchangeOffer:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
@@ -373,6 +409,21 @@ class TacticalDeadlineTest {
                 if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)),
             Power.entries.associateWith {homeGrid})
         init {
+            if(espionageDeadline) {
+                val pilot=players.getValue("pilot")
+                players=mapOf("pilot" to pilot.copy(baseId=1000,mode=4,spotId=10000019,cpPaused=false,motion=null,energy=null))
+                val bomb=Bomb(10001,1000,10000019,start+15)
+                val infiltration=Infiltration(10001,1000,10000019,start+15)
+                stocks=stocks.copy(social=stocks.social.copy(justice=JusticeState(
+                    bombs=mapOf(10001 to bomb),infiltrations=mapOf(10001 to infiltration))))
+            }
+            if(justiceDeadline) {
+                val pilot=players.getValue("pilot")
+                players=mapOf("pilot" to pilot.copy(baseId=1000,mode=4,spotId=10000019,cpPaused=false,motion=null,energy=null,hull=null))
+                val detention=Detention(10000,CountryId(2),start,start+15,base=1000)
+                stocks=stocks.copy(strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=8,merit=100))),
+                    social=stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
+            }
             if(mailDeadline) {
                 players=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2488,1000,960,1000))
                 val mail=ProposalMail(1,10000,10001,17,19,ProposalActions.RESIGNATION,false,start,start+15,mcp=40)
