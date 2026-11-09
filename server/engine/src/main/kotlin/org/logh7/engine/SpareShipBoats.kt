@@ -79,9 +79,13 @@ internal object ReplacementBoats {
             if(amount/size>0)full[unit.stack]=Math.addExact(full[unit.stack] ?: 0,amount/size)
             if(amount%size==0)spare.remove(unit.stack) else spare[unit.stack]=amount%size
         }
+        val remainder=SpareShipBoats(spare)
+        require(warehouseShipIncreaseFits(warehouse.units.ships,warehouse.spareShips,full,remainder)) {
+            "Warehouse ship capacity exceeded"
+        }
         return next.copy(outfits=next.outfits+(outfitId to next.outfits.getValue(outfitId).copy(
             activeShips=ActiveShipUnits(nextUnits))),warehouses=next.warehouses+(warehouse.id to warehouse.copy(
-            units=UnitInventory(full,moved.source.troops),spareShips=SpareShipBoats(spare))))
+            units=UnitInventory(full,moved.source.troops),spareShips=remainder)))
     }
 
     fun crewRequired(outfit: OutfitStock): Long = checkNotNull(outfit.activeShips).values.sumOf {unit ->

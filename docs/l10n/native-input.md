@@ -222,3 +222,11 @@ Python **38개 통과**. 새 5개 검사는 원본 EXE 해시·패치 17곳의 �
 Python6개와 x86 `/W4 /WX` DLL·지원 외 프로세스 guard 통과. 수정 전 `run-03`과 최종 `run-07`을 구분한다. 중간의 무조건 차단 해제안은 빈 본문을 송신했고, 잘못 고른 getter는 null 입력에서 사본을 종료시켜 수정했다. `run-05`의 캡처 파일 동시 쓰기 오류도 드라이버에서 고쳐 재실행했다. 실행2~7 모두 원본 해시·프로세스 정리·설정/DLL 복원과 전경/커서 보존을 확인했으며, 중간 실패를 최종 통과로 세지 않는다.
 
 이번 시험은 소유 창 UI 스레드에서 실제 IMM 함수를 호출하고 명시적으로 조합/종료/키 이벤트 순서를 정했다. 물리 자모·후보 선택·한영 전환, 모든 입력칸·최대 길이 경계와 두 원본의 전체 채널 재검증은 아직 미완료다. 전체 한글 입력 체크는 유지한다.
+
+## 채팅 조합 확정 키와 송신 분리 (2026-11-09)
+
+작성: Peppone Choi ([peppone-choi](https://github.com/peppone-choi)). 원본 키다운 `004e73e2`가 부르는 `004ffdc0`은 Enter에서 편집기의 제출 플래그를 세운다. 키 큐에서 현재 바인딩된 원본 편집기와 한국어 레이아웃의 조합 중 Enter·Esc를 구분한다. `VK_PROCESSKEY`는 IME로 전달하고, 같은 입력의 재전달과 반복은 편집기에 전달하지 않는다. 조합 중 직접 도착한 Enter·Esc는 IMM에 확정·취소를 요청한다. 키를 놓은 뒤 별도로 누른 Enter는 기존 송신 경로를 탄다. `evidence:client`(원본 분기) / `evidence:guess`(이벤트 순서 가정). [Win32 IME 키 메시지](https://learn.microsoft.com/en-us/windows/win32/api/immdev/nf-immdev-immgetvirtualkey)
+
+조합 메시지의 `GCS_RESULTSTR` 플래그가 있을 때만 원본 결과 길이 조회를 통과시킨다. 취소 종료에서 확정 플래그가 없고 조합 길이가 0 또는 `IMM_ERROR_NODATA`이면 문자 반송 차단을 푼다. 이때 커서·삭제와 조합 문자열 조회는 기존 원본 경로를 사용한다. [Win32 조합 메시지](https://learn.microsoft.com/en-us/windows/win32/intl/processing-the-wm-ime-composition-message)
+
+최종 x86 DLL `/W4 /WX` 빌드·가드와 Python 원본 바이트 대조를 포함한 관련 검사 10개가 통과했다. 가드의 합성 이벤트는 확정·취소 키 재전달, 다음 Enter, 편집 키 통과, 창·레이아웃 전환과 IMM 빈 결과 판정을 검사한다. 실제 한국어 IME에서 자모와 후보를 조합해 첫 Enter에 송신 0회, 별도 Enter에 송신 1회인지 확인해야 한다. 기존 문구 중간에서 Esc 취소 후 재편집, 한/영 전환, 선택·삭제·붙여넣기, 마지막 한글 길이 경계도 실기 확인이 남는다.

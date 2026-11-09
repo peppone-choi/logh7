@@ -155,8 +155,8 @@ object SessionResults {
             ships=outfit.activeShips?.values?.count {it.boats>0}?.toLong() ?: outfit.units.ships.values.sumOf(Int::toLong),
             ground=outfit.activeGround?.values?.size?.toLong() ?: troops(outfit.units))
         // A navigator always owns its personal unit; a legacy null hull is the default hull,
-        // and defeat replaces rather than deletes it. Offline units remain in the world.
-        for(player in snapshot.navigators.values)if(player.generation==session.generation)
+        // and nonfatal defeat replaces it. Living offline units remain in the world.
+        for(player in snapshot.navigators.values)if(player.generation==session.generation && !BattleDeath.deceased(stocks,player.characterId))
             add(player.country,ships=1)
         return SessionCountryStatistics(total.value(),java.util.Collections.unmodifiableMap(countries.mapValues {it.value.value()}))
     }
