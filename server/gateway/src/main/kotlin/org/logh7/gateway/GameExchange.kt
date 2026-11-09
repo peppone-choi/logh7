@@ -2374,6 +2374,8 @@ class GameExchange(
                                                 .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)}
                                             else inventory.outfits.values.filter {org.logh7.engine.TacticalAuthority.camp(it,inventory)==regular &&
                                                 it.activeShips?.values.orEmpty().any {ship->ship.boats>0} &&
+                                                it.activeShips?.values.orEmpty().none {ship->ship.tactical!=null || ship.support!=null} &&
+                                                it.activeGround?.values.orEmpty().none {unit->unit.order!=null} &&
                                                 (if(force==0)it.kind==org.logh7.engine.OutfitKind.FLEET else it.kind in setOf(
                                                     org.logh7.engine.OutfitKind.TRANSPORT,org.logh7.engine.OutfitKind.PATROL))}
                                                 .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id,"부대 ${it.id}")}
