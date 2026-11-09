@@ -85,6 +85,19 @@ class CountryOperationTest {
         }
     }
 
+    @Test fun fullPersonRegistryDoesNotBlockOperationSettlement() {
+        val initial=stock()
+        val plan=StrategicOperation(1,10000,24,country,2487,StrategicForce.FLEET,StrategicPurpose.DEFEND,1,now,
+            StrategicPlanState.STARTED,now,characters=setOf(10002),defended=setOf(1000),issuer=10001)
+        val people=(1..4095).associateWith {StrategicPerson()}+(10001 to StrategicPerson(merit=5))
+        val pending=initial.copy(strategic=initial.strategic.copy(operations=listOf(plan),people=people))
+        val deadline=OperationPlanRules.endGameSeconds(now)
+        val settled=StrategicOperations.settle(galaxy,pending,deadline)
+        assertEquals(OperationOutcome.FULL_SUCCESS,settled.strategic.operations.single().outcome)
+        assertEquals(people+(10001 to StrategicPerson(merit=105)),settled.strategic.people)
+        assertEquals(settled,StrategicOperations.settle(galaxy,settled,deadline+1))
+    }
+
     @Test fun expiredOperationsCannotBeWithdrawnOrAssignedBeforeSettlement() {
         val initial=stock()
         val plan=StrategicOperation(1,10000,24,country,2490,StrategicForce.FLEET,StrategicPurpose.OCCUPY,1,now,
