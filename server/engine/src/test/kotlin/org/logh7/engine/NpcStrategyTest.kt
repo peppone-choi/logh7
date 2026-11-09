@@ -548,6 +548,39 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun dockedNpcReplacesLostBoatsFromItsOwnWarehouseOnceAndKeepsTheActiveUnit() {
+        val initial = stocks()
+        val full = initial.outfits.getValue(1)
+        val ship = full.activeShips!!.values.single()
+        val crewKind = UnitSpecifications.crews.first { it.power == 2 && it.type == 3 }.kind
+        val crew = UnitStack(crewKind)
+        val equipped = full.copy(
+            units = UnitInventory(full.units.ships, full.units.troops +
+                (crew to ReplacementBoats.crewRequired(full).toInt())),
+            activeShips = ActiveShipUnits(listOf(ship.copy(boats = ship.boats - 12))))
+        val warehouse = initial.warehouses.getValue(10)
+        val readyWarehouse = warehouse.copy(spareShips = SpareShipBoats(mapOf(stack to 12)))
+        val before = initial.copy(outfits = mapOf(1 to equipped), warehouses = mapOf(10 to readyWarehouse))
+
+        val after = advance(0, before, mutableMapOf(), mutableListOf())
+        val replaced = after.outfits.getValue(1).activeShips!!.values.single()
+        assertEquals(ship, replaced)
+        assertEquals(warehouse, after.warehouses.getValue(10))
+        assertEquals(before.bases, after.bases)
+        assertEquals(equipped.units, after.outfits.getValue(1).units)
+        assertEquals(after, advance(1, after, mutableMapOf(), mutableListOf()))
+
+        val uncrewed = before.copy(outfits = mapOf(1 to equipped.copy(units = full.units)))
+        val skipped = advance(0, uncrewed, mutableMapOf(), mutableListOf())
+        assertEquals(equipped.activeShips, skipped.outfits.getValue(1).activeShips)
+        assertEquals(readyWarehouse, skipped.warehouses.getValue(10))
+
+        val locked = NpcStrategy.advance(simulation.copy(gameMillis = 0), galaxy, mutableMapOf(), before,
+            mutableListOf(), warehouseBlocked = { _, outfitId -> outfitId == equipped.id })
+        assertEquals(equipped.activeShips, locked.outfits.getValue(1).activeShips)
+        assertEquals(readyWarehouse, locked.warehouses.getValue(10))
+    }
+
     @Test fun depotRepairSkipsGuardShipsAndHumanCommandedOutfits() {
         val initial = stocks()
         val damaged = TacticalLosses.apply(initial.outfits.getValue(1), 1, 40)

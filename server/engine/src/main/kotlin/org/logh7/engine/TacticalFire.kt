@@ -255,6 +255,7 @@ internal object TacticalCombat {
         onFortressSunk:(Navigator)->Unit = {},
         settleOfficeRecovery:(PlanetStocks, PlanetStocks, Map<String, Navigator>)->Map<String, Navigator> =
             { _, _, players -> players },
+        npcWarehouseBlocked: (PlanetStocks, Int) -> Boolean = { _, _ -> false },
         onCoupDockCancellations: (List<Navigator>) -> Unit = {}): List<TacticalImpact> {
         val original = navigation.snapshot(session.generation)
         val players = original.toMutableMap()
@@ -345,7 +346,7 @@ internal object TacticalCombat {
         if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
         if(session.ended==null)inventory=PirateActions.counter(session,galaxy,players,inventory,now,impacts)
         if(npcPolicy.enabled && session.ended==null) {
-            if(npcPolicy.strategic)inventory=NpcStrategy.advance(session,galaxy,players,inventory,strategicMovements)
+            if(npcPolicy.strategic)inventory=NpcStrategy.advance(session,galaxy,players,inventory,strategicMovements,npcWarehouseBlocked)
             inventory=NpcTactics.advance(session,galaxy,players,inventory,npcPolicy,scale,impacts,movements)
         }
         val support=mutableListOf<TacticalSupportResult>()
