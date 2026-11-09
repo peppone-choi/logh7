@@ -27,6 +27,24 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
 
+    @Test fun restoredFleetRetreatChecksMembershipAndCompletesBetweenPeriodicTicks() = runTest {
+        val rig=Rig(this,testScheduler,retreatDeadline=true,fleetRetreat=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun fleet()=rig.engine.snapshot().planetStocks!!.outfits.getValue(1)
+            advanceTimeBy(208);runCurrent()
+            assertFalse(fleet().activeShips!!.values.single().tactical!!.retreat!!.membershipChecked)
+            advanceTimeBy(1);runCurrent()
+            assertTrue(fleet().activeShips!!.values.single().tactical!!.retreat!!.membershipChecked)
+            assertEquals(rig.start+5,rig.engine.snapshot().session!!.gameSeconds)
+            advanceTimeBy(415);runCurrent()
+            assertEquals(OutfitPosition(2488),fleet().position)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(OutfitPosition(2487),fleet().position)
+            assertNull(fleet().activeShips!!.values.single().tactical)
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun blockedPersonalRetreatKeepsItsReservationAndLetsTheClockAdvance() = runTest {
         val rig=Rig(this,testScheduler,retreatDeadline=true,blockedRetreat=true)
         try {
@@ -251,7 +269,7 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,coupDeadline:Boolean=false) {
+        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,coupDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -276,12 +294,22 @@ class TacticalDeadlineTest {
                 val enemy=Navigator(1,10001,Power.ALLIANCE,2488,1000,1000,1000,
                     cpPaused=true,hull=FlagshipHull(89,start))
                 players=mapOf("pilot" to pilot,"enemy" to enemy)
+                if(fleetRetreat) {
+                    players=players+("pilot" to pilot.copy(retreat=null))
+                    val stack=UnitStack(119)
+                    val unit=ActiveShipUnit(1,stack,motionCommander=pilot.characterId,
+                        tactical=NpcTacticalState(motion,start,start,retreat=TacticalRetreat(2487,start,5,10)))
+                    val fleet=OutfitStock(1,pilot.country!!,OutfitKind.FLEET,1000,10,commanderId=pilot.characterId,
+                        units=UnitInventory(mapOf(stack to 1)),activeShips=ActiveShipUnits(listOf(unit)),position=OutfitPosition(2488))
+                    stocks=stocks.copy(outfits=mapOf(1 to fleet),nextShipId=2,
+                        warehouses=mapOf(10 to OutfitWarehouse(10,fleet.country,OutfitKind.FLEET,1000,1)))
+                }
                 if(blockedRetreat) {
                     val stack=UnitStack(119)
                     val blocker=OutfitStock(1,3,OutfitKind.FLEET,1000,10,units=UnitInventory(mapOf(stack to 1)),
                         activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,stack))),position=OutfitPosition(2487))
                     stocks=stocks.copy(outfits=mapOf(1 to blocker),nextShipId=2,
-                        warehouses=mapOf(10 to OutfitWarehouse(10,3,OutfitKind.FLEET,1000,1)))
+                        warehouses=mapOf(10 to OutfitWarehouse(10,blocker.country,OutfitKind.FLEET,1000,1)))
                 }
             }
             if(fireDeadline || fleetFireDeadline || automaticFireDeadline) {
