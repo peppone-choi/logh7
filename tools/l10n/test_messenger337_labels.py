@@ -107,11 +107,37 @@ class Messenger337LabelTests(unittest.TestCase):
         self.assertEqual(0x4ffb50,self.target(0x4e72b9))
         source=(catalog.ROOT/'client-compat/input_editor.h').read_text('utf-8')
         helper=source.split('static void __cdecl finishImeComposition',1)[1].split('static unsigned imeMessageResume',1)[0]
-        self.assertIn('GCS_RESULTSTR,nullptr,0)==0',helper)
-        self.assertIn('GCS_COMPSTR,nullptr,0)==0',helper)
+        self.assertIn('logh::imeCompositionCanceled(imeCompositionFlags,',helper)
+        self.assertIn('GCS_COMPSTR,nullptr,0)',helper)
+        self.assertNotIn('GCS_RESULTSTR',helper)
         self.assertIn('*reinterpret_cast<BYTE*>(0xc51598)=0',helper)
+        self.assertIn('imeCompositionHandler=0x4ff7f0',source)
+        self.assertIn('reinterpret_cast<void*>(0x4e72af),oldComposition,compositionCall',source)
         self.assertNotIn('ImmSet',helper)
         self.assertNotIn('0x2214640',helper)
+
+    def test_result_gate_replaces_only_the_result_length_query_of_the_two_native_calls(self):
+        # Both sites call the same thunk with stdcall args; only their flags differ.
+        self.assertEqual(bytes.fromhex('e8c26e1100'),self.raw(0x4ff84b,5))
+        self.assertEqual(bytes.fromhex('e8b16e1100'),self.raw(0x4ff85c,5))
+        self.assertEqual(0x616712,self.target(0x4ff84b))
+        self.assertEqual(0x616712,self.target(0x4ff85c))
+        self.assertEqual(bytes.fromhex('ff25'),self.raw(0x616712,2))
+        gcs_result=bytes.fromhex('6800080000') # push GCS_RESULTSTR
+        gcs_composition=bytes.fromhex('6a08') # push GCS_COMPSTR
+        self.assertIn(gcs_result,self.raw(0x4ff83b,16))
+        between=self.raw(0x4ff850,12)
+        self.assertIn(gcs_composition,between)
+        self.assertNotIn(gcs_result,between)
+        source=(catalog.ROOT/'client-compat/input_editor.h').read_text('utf-8')
+        helper=source.split('static LONG WINAPI queryFreshImeResultLength(HIMC context,DWORD index,LPVOID buffer,DWORD length)',1)[1]
+        helper=helper.split('static unsigned imeCompositionHandler',1)[0]
+        self.assertIn('if (!(imeCompositionFlags&GCS_RESULTSTR)) return 0;',helper)
+        self.assertIn('ImmGetCompositionStringA(context,index,buffer,length)',helper)
+        self.assertIn('oldResultLength[]={0xe8,0xc2,0x6e,0x11,0}',source)
+        self.assertIn('memcmp(reinterpret_cast<void*>(0x4ff84b),oldResultLength,sizeof(oldResultLength))',source)
+        self.assertIn('patchBytes(reinterpret_cast<void*>(0x4ff84b),oldResultLength,resultLengthCall,sizeof(oldResultLength))',source)
+        self.assertNotIn('reinterpret_cast<void*>(0x4ff85c)',source)
 
     def test_chat_getter_narrows_the_native_unicode_submission_on_the_acp_boundary(self):
         self.assertEqual(0x504ea0,self.target(0x516dc0))
