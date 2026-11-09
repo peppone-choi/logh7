@@ -71,6 +71,33 @@ class TacticalOfflineAiTest {
         }
     }
 
+    @Test fun offlineSupportFallsBackToAnAlliedShipInRange() {
+        for(action in TacticalSupportAction.entries) {
+            val players=players()
+            val stock=stocks(1)
+            val original=stock.outfits.getValue(1)
+            val name=if(action==TacticalSupportAction.REPAIR)"工作艦" else "輸送艦"
+            val kind=ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith(name)}.kind
+            val source=ActiveShipUnit(1,UnitStack(kind),tactical=NpcTacticalState(motion(0f,.5f),now,now),supplies=500)
+            val ally=original.activeShips!!.values.single().copy(id=3,damaged=1,supplies=0)
+            val far=ally.copy(id=2,tactical=NpcTacticalState(motion(0f,3f),now,now))
+            val own=original.copy(units=UnitInventory(mapOf(source.stack to 1,ally.stack to 2)),
+                activeShips=ActiveShipUnits(listOf(source,far,ally)),supplies=500)
+            val enemy=stock.outfits.getValue(2)
+            val hostile=enemy.activeShips!!.values.single().copy(damaged=1,supplies=0,tactical=ally.tactical)
+            val state=stock.copy(outfits=mapOf(1 to own,2 to enemy.copy(activeShips=ActiveShipUnits(listOf(hostile)),supplies=0)))
+            val ordered=TacticalOfflineAi.advance(offline,galaxy,players,state,1,mutableListOf())
+            assertEquals(TacticalSupportOrder(action,10000,3,2488,now,now+5),
+                ordered.outfits.getValue(1).activeShips!!.values.single {it.id==1}.support)
+            val results=mutableListOf<TacticalSupportResult>()
+            val finished=TacticalSupportOperations.advance(offline.copy(gameMillis=(now+5)*1000),galaxy,players,ordered,results)
+            assertFalse(results.single().cancelled)
+            val supported=finished.outfits.getValue(1).activeShips!!.values.single {it.id==3}
+            if(action==TacticalSupportAction.REPAIR)assertEquals(0,supported.damaged)
+            else assertTrue(supported.supplies!!>0)
+        }
+    }
+
     @Test fun offlineAiIgnoresADeceasedCommanderInAnOlderTacticalSave() {
         val players=players()
         val before=players.toMap()
