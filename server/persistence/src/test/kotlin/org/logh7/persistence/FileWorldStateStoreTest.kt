@@ -25,6 +25,31 @@ class FileWorldStateStoreTest {
             assertEquals(paid, it.loadNavigation()["pilot"]); assertEquals(spent, it.loadStocks())
         } }
     }
+    @Test fun transientPointerAccessDenialRetriesWithoutPublishingStagedState() {
+        val root = directory.resolve("world")
+        val paid = pilot.copy(mcp = 840)
+        val spent = inventory.copy(producedDays = 1)
+        var attempts = 0
+        FileWorldStateStore(root).use { store ->
+            store.saveWorld(mapOf("pilot" to pilot), inventory)
+            val pointer = Files.readString(root.resolve("CURRENT"))
+            store.beforeSwitch = {
+                assertEquals(pointer, Files.readString(root.resolve("CURRENT")))
+                assertEquals(pilot, store.loadNavigation().getValue("pilot"))
+                assertEquals(inventory, store.loadStocks())
+                if (++attempts < 3) throw java.nio.file.AccessDeniedException("CURRENT")
+            }
+            store.saveWorld(mapOf("pilot" to paid), spent)
+            assertEquals(3, attempts)
+            assertEquals(paid, store.loadNavigation().getValue("pilot"))
+            assertEquals(spent, store.loadStocks())
+        }
+        FileWorldStateStore(root).use { store ->
+            assertEquals(paid, store.loadNavigation().getValue("pilot"))
+            assertEquals(spent, store.loadStocks())
+        }
+    }
+
     @Test fun failureAfterStagingKeepsOldPaymentAndEffectAndFencesWriter() {
         val root = directory.resolve("world")
         FileWorldStateStore(root).use {

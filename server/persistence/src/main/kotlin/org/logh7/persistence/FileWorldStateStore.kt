@@ -93,8 +93,18 @@ class FileWorldStateStore(private val directory: Path, legacyNavigation: Path? =
                 while (buffer.hasRemaining()) it.write(buffer)
                 it.force(true)
             }
-            beforeSwitch()
-            Files.move(temporary, directory.resolve("CURRENT"), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            // Windows readers may briefly deny replacing the pointer. Retry only the atomic move.
+            val pointer = directory.resolve("CURRENT")
+            for (attempt in 0..3) {
+                try {
+                    beforeSwitch()
+                    Files.move(temporary, pointer, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+                    break
+                } catch (denied: AccessDeniedException) {
+                    if (attempt == 3) throw denied
+                    Thread.sleep(10L * (attempt + 1))
+                }
+            }
             active = next; players = verified.first; stocks = verified.second
         } catch (failure: Exception) {
             failed = true
