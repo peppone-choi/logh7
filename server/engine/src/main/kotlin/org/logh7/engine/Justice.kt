@@ -38,6 +38,11 @@ data class JusticeState(val permits:Map<Int,ArrestPermit> = emptyMap(),val right
         watches=java.util.Collections.unmodifiableMap(LinkedHashMap(watches)),infiltrations=java.util.Collections.unmodifiableMap(LinkedHashMap(infiltrations)),
         bombs=java.util.Collections.unmodifiableMap(LinkedHashMap(bombs)),disabled=java.util.Collections.unmodifiableMap(LinkedHashMap(disabled)),
         disguises=java.util.Collections.unmodifiableMap(LinkedHashMap(disguises)))
+    internal fun deadlines():Sequence<Long> = permits.values.asSequence().map {it.until} +
+        rights.values.asSequence().map {it.until} + watches.values.asSequence().map {it.checkAt} +
+        detentions.values.asSequence().map {it.releaseAt} + bombs.values.asSequence().map {it.explodesAt} +
+        infiltrations.values.asSequence().map {it.until} + disabled.values.asSequence() +
+        disguises.values.asSequence().map {it.checkAt}
     fun detained(character:Int)=character in detentions
 }
 
