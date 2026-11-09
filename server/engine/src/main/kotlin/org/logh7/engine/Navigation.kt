@@ -112,7 +112,7 @@ data class NavigationRequest(val account: String, val characterId: Int, val coun
     val shipStyle:ShipStyleId?=null,
     val acknowledgedOfflineWarpCancellation: NavigationRejection? = null,
     /** Authenticated original-character bootstrap, never a client-selected placement. */
-    val initializeOriginal:Boolean=false) {
+    val initializeOriginal:Boolean=false,val startingOffice:OriginalStartingOffice?=null) {
     /** Compatibility for old internal callers; membership checks use [country]. */
     constructor(account: String, characterId: Int, power: Power,
     connection: String, generation: Long, destination: Int? = null, unitId: Int? = null,

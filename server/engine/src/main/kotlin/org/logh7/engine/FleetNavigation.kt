@@ -9,13 +9,18 @@ internal object FleetNavigation {
         val players = navigation.snapshot(session.generation)
         val saved = players[request.account]
         val before = saved?.takeIf { it.blocksFirstEntry(request,stocks) }
-        // Manual pp.60/75: Kircheis is the aide of the Empire's Second Fleet at Odin.
+        // Manual pp.60/75: Kircheis and Lohengramm hold separate offices in the Empire's Second Fleet at Odin.
+        val startingRole=when {
+            request.characterId==1001 -> FleetOffice.EMPIRE_AIDE
+            request.startingOffice?.accepts(request.characterId.toLong(),request.country,request.rank)==true -> FleetOffice.EMPIRE_COMMANDER
+            else -> null
+        }
         val startingFleet=stocks.outfits[2]?.takeIf {fleet->
-            request.initializeOriginal && request.shipKind!=null && request.characterId==1001 && request.country==Power.EMPIRE.country &&
+            startingRole!=null && request.initializeOriginal && request.shipKind!=null && request.country==Power.EMPIRE.country &&
                 session.participants[request.account]?.original==true && before==null && committer!=null &&
                 players.values.none {it.characterId==request.characterId} && !BattleDeath.deceased(stocks,request.characterId) &&
                 fleet.country==request.country && fleet.kind==OutfitKind.FLEET && fleet.number==2 && fleet.baseId==1049 &&
-                fleet.positionIn(galaxy).baseId==1049 && fleet.aideId==0 && CoupActions.outfitCamp(stocks,fleet)==0 &&
+                fleet.positionIn(galaxy).baseId==1049 && startingRole.holders(fleet).isEmpty() && CoupActions.outfitCamp(stocks,fleet)==0 &&
                 stocks.bases[1049]?.let {it.country==request.country && it.camp==0}==true &&
                 stocks.outfits.values.none {request.characterId in it.members()}
         }
@@ -38,7 +43,7 @@ internal object FleetNavigation {
                 updated.copy(strategic=updated.strategic.copy(people=updated.strategic.people+(after.characterId to startingPerson)))
             else updated
             val assigned=if(startingFleet!=null && result.rejection==null)withPerson.copy(outfits=withPerson.outfits+
-                (startingFleet.id to FleetOffice.EMPIRE_AIDE.assign(startingFleet,after.characterId))) else withPerson
+                (startingFleet.id to checkNotNull(startingRole).assign(startingFleet,after.characterId))) else withPerson
             val prepared=production.prepareReplacement(stocks,assigned)
             committer.saveWorld(next,prepared)
             navigation.publishCommitted(players,next,session.generation);production.publishCommitted(stocks,prepared)

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.logh7.engine.CountryId
 import org.logh7.engine.OriginalCandidateProfile
+import org.logh7.engine.OriginalStartingOffice
 import org.logh7.engine.Peerage
 import java.sql.DriverManager
 import java.sql.SQLException
@@ -84,6 +85,57 @@ class PostgresOriginalCandidatesTest {
                 assertEquals(1,contenders.mapNotNull {it.get(7,TimeUnit.SECONDS)}.size)
                 assertEquals(94,store.load().count {it.country==CountryId(42)})
                 assertNull(store.save(1003,2,profile,CountryId(42)))
+
+                connect().use {test->test.createStatement().use {
+                    it.execute("""CREATE TABLE nation_asset (
+                        asset_key text PRIMARY KEY, asset_kind text NOT NULL CHECK (asset_kind IN ('emblem','flag'))
+                    )""")
+                }}
+                migrate("V5__country_images.sql")
+                migrate("V15__original_candidate_portrait_asset.sql")
+                store.load()
+                val empire=CountryId(2)
+                val commander=profile.copy(rank=5,startingOffice=OriginalStartingOffice.REINHARD_FLEET_2)
+                assertTrue(store.supportsPortraits)
+                assertFalse(store.supportsStartingOffice)
+                assertFailsWith<IllegalArgumentException> {store.save(1004,0,commander,empire)}
+
+                migrate("V16__original_candidate_starting_office.sql")
+                assertTrue(store.load().all {it.profile.startingOffice==null})
+                assertTrue(store.supportsStartingOffice)
+                assertFailsWith<IllegalArgumentException> {store.save(1002,0,commander,empire)}
+                assertFailsWith<IllegalArgumentException> {store.save(1004,0,commander)}
+                assertFailsWith<IllegalArgumentException> {store.save(1004,0,commander,CountryId(42))}
+                assertFailsWith<IllegalArgumentException> {store.save(1004,0,commander.copy(rank=6),empire)}
+                connect().use {test->test.createStatement().use {
+                    val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile
+                        SET starting_office='reinhard-fleet-2', rank=5 WHERE world_identity='$world' AND candidate_id=1001""")}
+                    assertEquals("23514",rejected.sqlState)
+                }}
+                val assign=CountDownLatch(1)
+                val assignments=listOf(1004L,1005L).map {id->CompletableFuture.supplyAsync {
+                    check(assign.await(5,TimeUnit.SECONDS))
+                    store.save(id,0,commander,empire)
+                }}
+                assign.countDown()
+                val assigned=assignments.mapNotNull {it.get(7,TimeUnit.SECONDS)}.single()
+                val rival=if(assigned.id==1004L)1005L else 1004L
+                assertEquals(assigned,PostgresOriginalCandidates(::connect,world).load().single {it.profile.startingOffice!=null})
+                assertNull(store.save(assigned.id,1,commander.copy(startingOffice=null),empire))
+                assertNull(store.save(assigned.id,1,commander.copy(startingOffice=null)))
+                assertNull(store.save(rival,0,commander,empire))
+                connect().use {test->test.createStatement().use {
+                    val duplicate=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile
+                        SET starting_office='reinhard-fleet-2', rank=5 WHERE world_identity='$world' AND candidate_id=1003""")}
+                    assertEquals("23505",duplicate.sqlState)
+                }}
+                val edited=assertNotNull(store.save(assigned.id,1,commander.copy(givenName="라인하르트"),empire))
+                assertEquals(2L,edited.revision)
+                assertEquals(edited,store.load().single {it.profile.startingOffice!=null})
+                assertNull(store.save(assigned.id,1,commander,empire))
+                val other=PostgresOriginalCandidates(::connect,UUID.randomUUID())
+                assertTrue(other.load().isEmpty())
+                assertNotNull(other.save(rival,0,commander,empire))
             } finally {
                 db.createStatement().use {it.execute("DROP SCHEMA $schema CASCADE")}
             }

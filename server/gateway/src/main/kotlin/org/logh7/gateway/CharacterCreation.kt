@@ -240,7 +240,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         val shipNames = (registered.values.map { it.character } + pending.values)
             .mapTo(mutableSetOf()) { normalized(it.shipName) }
         val unavailable = unavailableOriginals().toMutableSet()
-        val roster=originalPool(publishedOriginals.current()).associateBy {it.character.id}
+        val edits=publishedOriginals.current()
+        val roster=originalPool(edits).associateBy {it.character.id}
         val countries=CountryCatalogLoader.current()
         val accounts = applications.keys.toMutableList().also { java.util.Collections.shuffle(it, random) }
         for (account in accounts) {
@@ -262,7 +263,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             }
             val won=character.copy(generated = false,shipKind=kind,power=selection?.nativePower ?: character.power,
                 title=title,shipName=shipName)
-            winners[account] = if(selection==null)profile(won) else CharacterProfile(won,selection.country,selection.shipStyle)
+            val office=edits[id]?.profile?.startingOffice?.takeIf {it.accepts(id,country,won.rank)}
+            winners[account] = if(selection==null)profile(won) else CharacterProfile(won,selection.country,selection.shipStyle,office)
             unavailable.add(id)
         }
         save(winners, emptyMap(), 0, emptyMap())

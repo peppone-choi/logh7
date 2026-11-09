@@ -488,7 +488,8 @@ class GameExchange(
         return navigate(org.logh7.engine.NavigationRequest(account,
             character.id.toInt(), if (character.power == 2) org.logh7.engine.Power.EMPIRE else org.logh7.engine.Power.ALLIANCE,
             connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4], politics = character.abilities[1], administration = character.abilities[2])
-            .copy(acknowledgedOfflineWarpCancellation = acknowledged, initializeOriginal = !character.generated)).thenApply { result ->
+            .copy(acknowledgedOfflineWarpCancellation = acknowledged, initializeOriginal = !character.generated,
+                rank = character.rank, startingOffice = currentProfile(account,character.id.toInt()).startingOffice)).thenApply { result ->
             val player = checkNotNull(result.player ?: result.previous?.takeIf { it.navigationPending &&
                 (result.rejection == org.logh7.engine.NavigationRejection.BUSY ||
                     result.rejection == org.logh7.engine.NavigationRejection.CRUISE) }) { "CP refresh lost its authenticated session" }
@@ -2807,7 +2808,8 @@ class GameExchange(
                             val request = org.logh7.engine.NavigationRequest(identity.account, character.id.toInt(),
                                 currentProfile(identity.account,character.id.toInt()).country,
                                 connection, checkNotNull(generation), shipKind=character.shipKind,commandAbility=character.abilities[4],
-                                politics=character.abilities[1],administration=character.abilities[2],initializeOriginal=!character.generated)
+                                politics=character.abilities[1],administration=character.abilities[2],initializeOriginal=!character.generated,
+                                rank=character.rank,startingOffice=currentProfile(identity.account,character.id.toInt()).startingOffice)
                             pendingWorld = stocks().thenCompose { stored -> navigate(request).thenApply { result ->
                                 val player = checkNotNull(result.player) { "Navigation initialization rejected: ${result.rejection}" }
                                 val captured=navigation.snapshot()

@@ -5,12 +5,15 @@ import org.logh7.engine.*
 import org.logh7.protocol.CharacterMessages
 
 /** Stored country and ship style are independent of the original client's display byte. */
-data class CharacterProfile(val character:CharacterMessages.Generate,val country:CountryId?,val shipStyle:ShipStyleId) {
-    init { require(character.category==4 && character.id>0) }
+data class CharacterProfile(val character:CharacterMessages.Generate,val country:CountryId?,val shipStyle:ShipStyleId,
+    val startingOffice:OriginalStartingOffice?=null) {
+    init { require(character.category==4 && character.id>0 && (startingOffice==null || !character.generated)) }
 
     internal fun encoded():String {
         val wire=CharacterMessages.generateReply(character)
-        return "v2:${if(character.generated) "generated" else "original"}:${country?.value ?: "-"}:${shipStyle.value}:"+
+        val version=if(startingOffice==null)"v2" else "v3"
+        val office=startingOffice?.let {"${it.key}:"}.orEmpty()
+        return "$version:${if(character.generated) "generated" else "original"}:${country?.value ?: "-"}:${shipStyle.value}:$office"+
             HexFormat.of().formatHex(wire.copyOfRange(4,wire.size))
     }
 
@@ -18,14 +21,16 @@ data class CharacterProfile(val character:CharacterMessages.Generate,val country
         fun legacy(character:CharacterMessages.Generate)=CharacterProfile(character,CountryId(character.power),ShipStyleId.fromLegacy(character.power))
 
         internal fun decoded(value:String):CharacterProfile {
-            if(value.startsWith("v2:")) {
+            if(value.startsWith("v2:") || value.startsWith("v3:")) {
                 val fields=value.split(':')
-                require(fields.size==5 && fields[1] in setOf("generated","original")) { "Invalid character profile" }
+                val hasOffice=fields[0]=="v3"
+                require(fields.size==(if(hasOffice)6 else 5) && fields[1] in setOf("generated","original")) { "Invalid character profile" }
                 val country=if(fields[2]=="-")null else CountryId(fields[2].toInt().also {
                     require(it.toString()==fields[2]) { "Invalid character country" }
                 })
-                val data=CharacterMessages.generate(HexFormat.of().parseHex(fields[4])).copy(generated=fields[1]=="generated")
-                return CharacterProfile(data,country,ShipStyleId(fields[3]))
+                val data=CharacterMessages.generate(HexFormat.of().parseHex(fields.last())).copy(generated=fields[1]=="generated")
+                val office=if(hasOffice)requireNotNull(OriginalStartingOffice.fromKey(fields[4])) else null
+                return CharacterProfile(data,country,ShipStyleId(fields[3]),office)
             }
             var data=CharacterMessages.generate(HexFormat.of().parseHex(value.removePrefix("original:")))
                 .copy(generated=!value.startsWith("original:"))
