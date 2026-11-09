@@ -170,6 +170,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private fun settleCombat(session: SessionState, base: WorldSnapshot, afterCommit:()->Unit = {}) {
         if (navigation == null || production == null || galaxy == null) return
+        val oldStocks=published.get().planetStocks?.takeIf {it.generation==session.generation}
         val experienced=settleExperience(session)
         val before=navigation.snapshot(session.generation)
         val movements=mutableListOf<TacticalMovement>()
@@ -221,6 +222,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             for(observer in tacticalEndObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Tactical end delivery failed: ${failure.javaClass.simpleName}")}
         }
+        // Keep the previous battlefield membership until damage and exit notifications have been delivered.
+        val changedMerit=if(oldStocks==null)emptyList() else production.snapshot(session.generation)?.strategic?.people.orEmpty()
+            .filter { (id,person)->person.merit!=(oldStocks.strategic.people[id]?.merit ?: 0L) }.keys.toList()
+        if(changedMerit.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changedMerit)}
+        catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
     }
     // Validate definitions before any recovery write; actual IDs never become native display identities.
     private fun validateWorldCountry(id:CountryId?) {
