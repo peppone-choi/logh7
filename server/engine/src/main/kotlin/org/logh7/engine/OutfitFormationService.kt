@@ -9,7 +9,7 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
     private val drafts=linkedMapOf<String,Draft>()
     private fun prune(s:SessionState) {
         val now=clock()
-        drafts.entries.removeIf {(_,d)->d.expires<=now || d.request.identity.generation!=s.generation ||
+        drafts.entries.removeIf {(_,d)->d.expires<=now || d.request.identity.generation!=s.generation || d.request.identity.country in s.eliminated ||
             s.participants[d.request.identity.account]?.let {!it.online || it.connection!=d.request.identity.connection || it.country!=d.request.identity.country}!=false}
     }
     fun blocksBase(s:SessionState,base:Int):Boolean {prune(s);return drafts.values.any {it.request.base==base}}
@@ -18,7 +18,7 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
         prune(s)
         val i=request.identity
         fun reject(reason:StrategyActionRejection)=OutfitFormationResult(p,stocks,reason,base=request.base)
-        if(s.ended!=null || s.generation!=i.generation || stocks.generation!=i.generation ||
+        if(s.ended!=null || i.country in s.eliminated || s.generation!=i.generation || stocks.generation!=i.generation ||
             s.participants[i.account]?.let {it.online && it.connection==i.connection && it.country==i.country}!=true)
             return reject(StrategyActionRejection.SESSION)
         if(p==null || i.country==null || p.characterId!=i.characterId || p.country!=i.country || p.generation!=i.generation)return reject(StrategyActionRejection.IDENTITY)

@@ -134,6 +134,27 @@ class OutfitFormationTest {
         assertEquals(OutfitSequence(2,2),stored.outfitSequence)
         assertTrue(stored.warehouses.getValue(outfit.warehouseId).units.ships.isEmpty())
     }
+    @Test fun eliminatedCountryCannotCommitItsFormationOrKeepTheBaseReserved() {
+        val service=OutfitFormationService {0L}
+        val before=stocks()
+        val begin=service.evaluate(galaxy,request(),session,player,before)
+        assertNull(begin.rejection)
+        val select=request(FormationPhase.SET_UNIT).copy(target=begin.lease,unit=code,amount=1)
+        assertNull(service.evaluate(galaxy,select,session,player,before).rejection)
+        assertTrue(service.blocksBase(session,1049))
+
+        val defeated=session.copy(eliminated=mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,1,Power.ALLIANCE.country)))
+        val denied=service.evaluate(galaxy,select.copy(phase=FormationPhase.COMMIT),defeated,player,before)
+        assertEquals(StrategyActionRejection.SESSION,denied.rejection)
+        assertEquals(player,denied.player)
+        assertEquals(before,denied.stocks)
+        assertFalse(service.blocksBase(defeated,1049))
+        assertEquals(StrategyActionRejection.SESSION,service.evaluate(galaxy,request(),defeated,player,before).rejection)
+        assertEquals(StrategyActionRejection.SESSION,
+            service.evaluate(galaxy,request(FormationPhase.DELETE,command=26),defeated,player,before).rejection)
+    }
+
     @Test fun crewCpCapacityAndChangedInventoryFailuresNeverPartiallyDebit() {
         val before=stocks();val noCrew=before.copy(bases=before.bases+(1049 to before.bases.getValue(1049).copy(
             units=UnitInventory(mapOf(ship to 2)))))
