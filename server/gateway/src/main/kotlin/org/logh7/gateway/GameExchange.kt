@@ -275,8 +275,11 @@ class GameExchange(
                     val updated=checkNotNull(currentCharacter(account))
                     publication=Publication(updated,player,false)
                     val name=bootstrap.galaxy.bases.single {it.id==player.baseId}.name
-                    listOf(bootstrap.conditions(listOf(player.baseId),result.stocks),characterMessage(updated,player,true),
-                        unitMessage(updated,player),org.logh7.protocol.PlaceMessages.dockNotification(id,player.baseId,player.mode,gameSeconds()),
+                    val baseIds=listOf(player.baseId)
+                    val packets=listOf(bootstrap.conditions(baseIds,result.stocks),bootstrap.places(baseIds,result.stocks))
+                    presence?.refreshBaseOwnership(player.generation,connection,packets)
+                    packets+listOf(characterMessage(updated,player,true),unitMessage(updated,player),
+                        org.logh7.protocol.PlaceMessages.dockNotification(id,player.baseId,player.mode,gameSeconds()),
                         notice("${name.take(32)} 확보 · 무소속 지배 거점"))
                 } else {
                     val message=when(result.rejection) {
@@ -321,9 +324,15 @@ class GameExchange(
                     val country=checkNotNull(player.country)
                     val definition=bootstrap.lobbyCountryDefinitions().first.countries.getValue(country.value)
                     publication=Publication(updated,player,false)
-                    listOf(bootstrap.conditions(listOf(player.baseId),result.stocks),
-                        bootstrap.places(listOf(player.baseId),result.stocks),characterMessage(updated,player,true),
-                        unitMessage(updated,player),notice("${definition.name} 건국 · 현재 거점을 수도로 지정"))
+                    val stocks=checkNotNull(result.stocks)
+                    // The new country has no prior holdings; founding transfers every base of the founder.
+                    val packets=stocks.bases.values.filter {it.country==country}.sortedBy {it.baseId}.flatMap {
+                        val baseIds=listOf(it.baseId)
+                        listOf(bootstrap.conditions(baseIds,stocks),bootstrap.places(baseIds,stocks))
+                    }
+                    presence?.refreshBaseOwnership(player.generation,connection,packets)
+                    packets+listOf(characterMessage(updated,player,true),unitMessage(updated,player),
+                        notice("${definition.name} 건국 · 현재 거점을 수도로 지정"))
                 } else listOf(notice(when(result.rejection) {
                     StrategyActionRejection.LOCATION -> "지배 중인 거점에 기항한 뒤 다시 시도하세요."
                     StrategyActionRejection.AUTHORITY -> "건국이 가능한 월드의 무소속 캐릭터가 필요합니다."
