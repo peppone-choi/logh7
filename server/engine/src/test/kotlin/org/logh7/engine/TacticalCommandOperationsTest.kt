@@ -684,8 +684,16 @@ class TacticalCommandOperationsTest {
         val another=impacts.map {it.copy(source=1010001)}.toMutableList()
         val earlierHit=impacts.single().let {it.copy(hit=it.hit.copy(destroyed=1))}
         another.add(0,earlierHit)
-        assertTrue(TacticalCommandOperations.finishMissions(session,galaxy,players,stock,1,mutableListOf(),another,emptySet())
-            .tacticalCommands.merits.isEmpty())
+        val surviving=target.copy(id=98)
+        val contested=stock.copy(outfits=stock.outfits+(2 to enemy.copy(
+            units=UnitInventory(mapOf(target.stack to 2)),activeShips=ActiveShipUnits(listOf(dead,surviving)))))
+        assertTrue(TacticalContact.contested(GridForces.collect(galaxy,session.generation,players.values,contested)
+            .getValue(2488)))
+        val otherEvents=mutableListOf<TacticalCommandResult>()
+        val lostTarget=TacticalCommandOperations.finishMissions(session,galaxy,players,contested,1,otherEvents,another,emptySet())
+        assertTrue(lostTarget.tacticalCommands.merits.isEmpty())
+        assertTrue(lostTarget.tacticalCommands.missions.getValue(10000).completed)
+        assertEquals(mapOf(10000 to (3 to 0L)),otherEvents.single().finishedMissions)
     }
     @Test fun boardingReturnDoesNotCountAsDestroyingTheInterceptionTarget() {
         val s=state()
