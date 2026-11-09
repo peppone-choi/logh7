@@ -118,7 +118,8 @@ internal object TacticalGroundOperations {
         val c=stocks.tacticalCommands
         val targets=if(command.action==TacticalGroundAction.CLEAR)c.groundTargets-command.units.toSet() else {
             val (enemy,victim)=landed(command.target) ?: return reject(NavigationRejection.TARGET)
-            if(TacticalAuthority.camp(enemy,stocks)==camp || sites!=setOf(victim.base))return reject(NavigationRejection.TARGET)
+            if(enemy.country in session.eliminated || TacticalAuthority.camp(enemy,stocks)==camp || sites!=setOf(victim.base))
+                return reject(NavigationRejection.TARGET)
             c.groundTargets+command.units.associateWith {command.target}
         }
         val players=navigation.snapshot(session.generation)
