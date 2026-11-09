@@ -112,5 +112,16 @@ class TacticalGroundMessagesTest {
         kotlin.test.assertFails {TacticalGroundMessages.target(raw(0x0418,1902))}
         val reply=java.nio.ByteBuffer.wrap(TacticalGroundMessages.reply(attack,100))
         kotlin.test.assertEquals(0x0417,reply.getShort(4).toInt())
+        kotlin.test.assertEquals(100,reply.getInt(6))
+        for((opcode,command) in listOf(0x0417 to attack,0x0418 to attack.copy(target=0))) {
+            val refused=java.nio.ByteBuffer.wrap(TacticalGroundMessages.reply(command,100,false))
+            kotlin.test.assertEquals(1,refused.getInt(0))
+            kotlin.test.assertEquals(opcode,refused.getShort(4).toInt())
+            kotlin.test.assertEquals(1,refused.getInt(6))
+            kotlin.test.assertEquals(10002,refused.getInt(14))
+            val accepted=java.nio.ByteBuffer.wrap(TacticalGroundMessages.reply(command,1))
+            kotlin.test.assertEquals(0,accepted.getInt(0))
+            kotlin.test.assertEquals(2,accepted.getInt(6))
+        }
     }
 }

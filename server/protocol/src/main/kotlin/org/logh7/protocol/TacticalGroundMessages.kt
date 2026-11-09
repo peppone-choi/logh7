@@ -48,8 +48,17 @@ object TacticalGroundMessages {
         val (input,source)=read(message,opcode,if(opcode==0x0417)4 else 0)
         return Target(source.first,source.second,if(opcode==0x0417)input.int.also {require(it>0)} else 0)
     }
-    fun reply(command:Target,seconds:Long,accepted:Boolean=true)=reply(if(command.target>0)0x0417 else 0x0418,command.character,
-        command.units,if(command.target>0)ByteBuffer.allocate(4).putInt(command.target).array() else byteArrayOf(),seconds,0,accepted)
+    // The reconstructed ground window only sees the decoded body. It reserves time 1 for refusal.
+    fun reply(command:Target,seconds:Long,accepted:Boolean=true):ByteArray {
+        require(seconds in 0..0xffffffffL)
+        val replyTime=when {
+            !accepted -> 1L
+            seconds==1L -> 2L
+            else -> seconds
+        }
+        return reply(if(command.target>0)0x0417 else 0x0418,command.character,command.units,
+            if(command.target>0)ByteBuffer.allocate(4).putInt(command.target).array() else byteArrayOf(),replyTime,0,accepted)
+    }
     fun posture(message:ByteArray):Posture {
         val (input,source)=read(message,0x0411,5)
         return Posture(source.first,source.second,input.get().toInt() and 255,input.int)
