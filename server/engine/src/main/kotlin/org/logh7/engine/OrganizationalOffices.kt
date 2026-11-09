@@ -154,7 +154,20 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy,private val configure
     fun target(role:OrganizationalOffice,seat:Int,stocks:PlanetStocks?=null):Int = if(role.scope==OfficeScope.NATIONAL && role.facility>=0)
         galaxy.facilitiesAt(seat,stocks,countries).singleOrNull {it.kind==role.facility}?.id ?: seat else seat
     fun set(stocks:PlanetStocks,holding:OfficeHolding,remove:Boolean=false):PlanetStocks {
-        if(!remove)return store(stocks,holding,false)
+        if(!remove) {
+            val appointed=store(stocks,holding,false)
+            val outfit=appointed.outfits[holding.seat] ?: return appointed
+            if(stocks.outfits[holding.seat]?.commanderId!=0 || outfit.commanderId!=holding.character ||
+                outfit.kind==OutfitKind.GROUND)return appointed
+            // A retreat detachment keeps temporary command until its vacant commander seat is filled.
+            val members=outfit.members()
+            val authority=appointed.tacticalCommands.authority
+            val released=outfit.activeShips?.values.orEmpty().filter {unit->
+                authority[unit.id]?.let {it !in members}==true
+            }.map {it.id}
+            return if(released.isEmpty())appointed else appointed.copy(tacticalCommands=appointed.tacticalCommands.copy(
+                authority=authority-released))
+        }
         // A seat may sit in its concrete field or in the general seat list; removal clears both.
         val cleared=store(stocks,holding,true)
         val replacement=if(holding in cleared.strategic.offices)

@@ -37,6 +37,41 @@ class FleetOfficeTest {
             assertEquals(stock.outfits,resigned.stocks!!.outfits)
         }
     }
+    @Test fun appointingADetachmentCommanderEndsNonmemberTacticalAuthority() {
+        val role=FleetOffice.EMPIRE_COMMANDER
+        val actor=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4)
+        val former=10001
+        val incoming=10002
+        val aide=10003
+        val stack=UnitStack(0)
+        val units=ActiveShipUnits(listOf(ActiveShipUnit(1,stack),ActiveShipUnit(2,stack)))
+        val detachment=OutfitStock(200,2,OutfitKind.FLEET,1049,300,aideId=aide,
+            units=UnitInventory(units.quantities()),activeShips=units,position=OutfitPosition(2488))
+        val remaining=ActiveShipUnits(listOf(ActiveShipUnit(3,stack)))
+        val source=OutfitStock(201,2,OutfitKind.FLEET,1049,301,commanderId=former,
+            units=UnitInventory(remaining.quantities()),activeShips=remaining,position=OutfitPosition(2487))
+        val before=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300)),
+            outfits=mapOf(200 to detachment,201 to source),
+            warehouses=mapOf(300 to OutfitWarehouse(300,2,OutfitKind.FLEET,1049,200),
+                301 to OutfitWarehouse(301,2,OutfitKind.FLEET,1049,201)),
+            nationalOffices=mapOf(checkNotNull(NationalOffice.of(role.authority)) to actor.characterId),nextShipId=4,
+            tacticalCommands=TacticalCommandState(authority=mapOf(1 to former,2 to aide,3 to former)))
+        assertEquals(former,TacticalAuthority.commander(detachment,units.values.first(),before))
+
+        val session=SessionSimulation(SessionRules.load()).also {it.join("actor",Power.EMPIRE,false,"c")}.exportState()
+        val request=GarrisonAppointmentRequest("actor","c",actor.characterId,Power.EMPIRE,1,0,incoming,role.card,2,role.lowest,2,outfit=200)
+        val result=GarrisonAppointment.evaluate(galaxy,request,session,actor,before)
+        assertNull(result.rejection)
+        assertEquals(840,result.player?.mcp)
+        val after=assertNotNull(result.stocks)
+        val appointed=after.outfits.getValue(200)
+        assertEquals(incoming,appointed.commanderId)
+        assertEquals(incoming,TacticalAuthority.commander(appointed,units.values.first(),after))
+        assertEquals(aide,TacticalAuthority.commander(appointed,units.values.last(),after))
+        assertEquals(mapOf(2 to aide,3 to former),after.tacticalCommands.authority)
+        assertEquals(source,after.outfits.getValue(201))
+    }
+
     @Test fun sixStaffSeatsDoNotReplaceEachOtherAndTheSeventhPaysNothing() {
         val role=FleetOffice.EMPIRE_STAFF
         var stock=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300)),
