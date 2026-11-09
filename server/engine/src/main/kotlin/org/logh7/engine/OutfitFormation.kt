@@ -70,7 +70,7 @@ object OutfitFormationPolicy {
         return OutfitSequence(nextOutfit.toInt(),nextWarehouse.toInt())
     }
     internal fun create(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks,selected:Map<Int,Int>,supplies:Int,
-        style:ShipStyleId=countries.shipStyle(checkNotNull(p.country))):OutfitFormationResult {
+        style:ShipStyleId=countries.shipStyle(checkNotNull(p.country)),eliminated:Set<CountryId> = emptySet()):OutfitFormationResult {
         fun reject(reason:StrategyActionRejection)=OutfitFormationResult(p,stocks,reason,base=r.base)
         if(selected.isEmpty())return reject(StrategyActionRejection.TROOPS)
         val country=checkNotNull(p.country)
@@ -125,7 +125,7 @@ object OutfitFormationPolicy {
             outfits=prepared.outfits+(id to outfit),warehouses=prepared.warehouses+(warehouse to
                 (sharedWarehouse ?: temporary.copy(units=UnitInventory(),spareShips=SpareShipBoats()))),deploymentInitialized=true,
             outfitSequence=OutfitSequence(id+1,if(sharedWarehouse==null)warehouse+1 else ids.nextWarehouse))
-        val forces=GridForces.collect(galaxy,stocks.generation,r.identity.navigators.values,stocks)
+        val forces=GridForces.collect(galaxy,stocks.generation,r.identity.navigators.values,stocks,eliminated)
         val count=GridForces.units(outfit)
         if(count !in 1..300 || GridEntryRules.evaluate(GridForces.state(galaxy,p.grid,forces),
                 GridEntry(Camp.of(p),count.toInt(),false))!=GridEntryVerdict.ALLOWED)return reject(StrategyActionRejection.MAXIMUM)
