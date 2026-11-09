@@ -52,6 +52,15 @@ class CoupActionsTest {
         assertEquals(0,ended.bases.getValue(1049).camp);assertTrue(ended.social.coup.plots.isEmpty())
         assertTrue(policy.held(ended,10000).isEmpty())
     }
+    @Test fun aDeceasedLeadersPendingPlotEndsBeforeAnyRevolt() {
+        val plotted=stocks().let {it.copy(social=it.social.copy(coup=CoupState(
+            mapOf(10000 to Plot(10000,CountryId(2),0,setOf(10001))))))}
+        val dead=BattleDeath.apply(plotted,listOf(10000),100) {_,_->true}
+        val ended=CoupActions.settle(galaxy,dead,100)
+        assertTrue(ended.social.coup.plots.isEmpty())
+        assertEquals(dead.bases,ended.bases)
+        assertSame(ended,CoupActions.settle(galaxy,ended,101))
+    }
     @Test fun revoltSettlementClearsOnlyReturnDesignationsThatAreNoLongerFriendly() {
         val start=stocks()
         val state=start.copy(bases=start.bases.mapValues {(_,base)->base.copy(camp=1)},
@@ -103,6 +112,16 @@ class CoupActionsTest {
         val started=CoupActions.settle(galaxy,withEmperor,1000)
         assertEquals(1000,started.social.coup.plots.getValue(10000).capitalSince,"holding starts")
         assertSame(started,CoupActions.settle(galaxy,started,1000+6*86400),"not yet")
+
+        val deadline=1000+CoupActions.CAPITAL_DAYS*Justice.DAY
+        val dead=BattleDeath.apply(started,listOf(10000),deadline-1) {_,_->true}
+        val ended=CoupActions.settle(galaxy,dead,deadline)
+        assertTrue(ended.social.coup.plots.isEmpty());assertEquals(0,ended.bases.getValue(1049).camp)
+        assertTrue(policy.held(ended,10000).isEmpty())
+        assertTrue(policy.held(ended,10001).isEmpty(),"rebel deputy loses the alias")
+        assertEquals(listOf(10009),policy.holders(ended,1).map {it.character})
+        assertEquals(dead.social.succession,ended.social.succession)
+
         val won=CoupActions.settle(galaxy,started,1000+7*86400)
         assertTrue(won.social.coup.plots.isEmpty());assertEquals(0,won.bases.getValue(1049).camp)
         val held=policy.held(won,10000).map {it.card}.toSet()
