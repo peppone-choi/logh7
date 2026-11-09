@@ -520,10 +520,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // Offline navigation jobs: future completions only (a deferred, already-due job must not re-arm an immediate tick).
         // A ready retreat blocked by position or destination is retried by ordinary ticks.
         val retreatDeadlines=snapshot.navigators.values.mapNotNull {it.retreat?.completesAt?.takeIf {at->at>nowSeconds}}
-        val identities by lazy {production?.identities?.invoke().orEmpty().associateBy {it.id}}
+        // The registry can attach after startup scheduling; execution still checks warp abilities.
         val navigationDeadlines=snapshot.navigators.filter {(account,p)->p.generation==session.generation && !p.cpPaused &&
-            session.participants[account]?.online==false &&
-            (p.warpTarget==null || offlineAbilities(account,p,snapshot.planetStocks) {identities[p.characterId]?.abilities}!=null)}.values.flatMap {p->
+            session.participants[account]?.online==false}.values.flatMap {p->
             (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
