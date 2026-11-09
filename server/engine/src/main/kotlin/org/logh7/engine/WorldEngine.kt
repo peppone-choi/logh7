@@ -76,7 +76,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val combatObservers = java.util.concurrent.CopyOnWriteArrayList<(TacticalImpact) -> Unit>()
     private val budgetObservers=java.util.concurrent.CopyOnWriteArrayList<(BudgetChange)->Unit>()
     fun provideIdentities(supplier:()->List<StrategicIdentity>):AutoCloseable {
-        production?.identities=supplier;return AutoCloseable {production?.identities={emptyList()}}
+        production?.identities=supplier
+        tickPulse.trySend(Unit)
+        return AutoCloseable {production?.identities={emptyList()}}
     }
     private val resultObservers=java.util.concurrent.CopyOnWriteArrayList<(WorldSnapshot)->Unit>()
     /** U-27: each published snapshot carrying a session result; observers must be idempotent per generation. */
@@ -1362,6 +1364,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val interval = minOf(rules.strategyTickRealMillis, rules.tacticsTickRealMillis)
         var regularAt=Math.addExact(origin,interval)
         while (isActive) {
+            if(awaitIdentities && production!=null && production.identities==null) {
+                tickPulse.receive()
+                continue
+            }
             val now=monotonicMillis()
             val wakeAt=if(storageFailed)regularAt else minOf(regularAt,tacticalTickAt.get() ?: regularAt)
             val wait=maxOf(0,wakeAt-now)
