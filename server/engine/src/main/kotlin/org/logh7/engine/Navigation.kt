@@ -547,8 +547,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         var changed = false
         for ((account, player) in next.toSortedMap()) {
             val retreat = player.retreat ?: continue
-            val country = session.participants[account]?.country ?: player.country
-            if (country in session.eliminated || BattleDeath.deceased(stocks,player.characterId)) {
+            if (player.country in session.eliminated || session.participants[account]?.country in session.eliminated ||
+                BattleDeath.deceased(stocks,player.characterId)) {
                 next[account] = player.copy(retreat=null)
                 changed = true
                 continue

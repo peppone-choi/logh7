@@ -71,8 +71,18 @@ class TacticalRetreatTest {
         val prepared=Navigation(galaxy,store,NavigationPolicy()).apply(request,session,stocks).player!!
         val due=session.copy(gameMillis=prepared.retreat!!.completesAt*1000,participants=emptyMap(),
             eliminated=mapOf(Power.ALLIANCE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,seconds)))
-        Navigation(galaxy,store,NavigationPolicy()).settleRetreats(due,stocks)
-        assertEquals(prepared.copy(retreat=null),store.players.getValue("pilot"))
+        val conflicting=session.participants.mapValues {(_,member)->member.copy(country=Power.EMPIRE.country)}
+        for(participants in listOf(emptyMap(),conflicting)) {
+            store.players=store.players+("pilot" to prepared)
+            val nav=Navigation(galaxy,store,NavigationPolicy())
+            val tick=due.copy(participants=participants)
+            store.fail=true
+            assertFailsWith<java.io.IOException> {nav.settleRetreats(tick,stocks)}
+            assertEquals(prepared,nav.snapshot(1).getValue("pilot"))
+            store.fail=false
+            nav.settleRetreats(tick,stocks)
+            assertEquals(prepared.copy(retreat=null),store.players.getValue("pilot"))
+        }
     }
 
     @Test fun completedPreparationWaitsForLegalExitAndBattleEndCancelsItWithoutWarping() {

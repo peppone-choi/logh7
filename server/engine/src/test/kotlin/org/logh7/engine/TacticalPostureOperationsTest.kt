@@ -68,10 +68,18 @@ class TacticalPostureOperationsTest {
         assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture==TacticalPosture(2487)})
     }
     @Test fun eliminatedCountryCancelsSavedStationingForFlagshipAndFleet() {
+        assertSavedStationingCancelled(emptyMap())
+    }
+
+    @Test fun eliminatedFlagshipCancelsSavedStationingDespiteConflictingParticipantCountry() {
+        assertSavedStationingCancelled(session.participants.mapValues {(_,member)->member.copy(country=Power.ALLIANCE.country)})
+    }
+
+    private fun assertSavedStationingCancelled(participants:Map<String,Participant>) {
         val s=state()
         val command=request(TacticalShipMode.STATIONED,1000)
         val readyAt=assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).postureReadyAt)
-        val defeated=session.copy(gameMillis=readyAt*1000,participants=emptyMap(),
+        val defeated=session.copy(gameMillis=readyAt*1000,participants=participants,
             eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
         val out=mutableListOf<TacticalPostureResult>()
         TacticalCombat.settle(defeated,galaxy,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),
