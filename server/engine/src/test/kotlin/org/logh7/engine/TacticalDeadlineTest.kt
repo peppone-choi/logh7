@@ -10,6 +10,20 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun absentOrderExecutesBetweenPeriodicTicksAfterRestart() = runTest {
+        val rig=Rig(this,testScheduler,resumedAt=149375,orderDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            advanceTimeBy(624);runCurrent()
+            assertEquals(1000,rig.players.getValue("recipient").mcp)
+            advanceTimeBy(1);runCurrent()
+            val snapshot=rig.engine.snapshot()
+            assertEquals(rig.start+ProposalActions.ABSENT_ORDER_SECONDS,snapshot.session!!.gameSeconds)
+            assertEquals(Proposals.APPROVE,snapshot.planetStocks!!.social.proposals.mails.single().reply)
+            assertEquals(960,rig.players.getValue("recipient").mcp)
+            assertTrue(OrganizationalOfficePolicy(rig.galaxy).held(snapshot.planetStocks,10001).none {it.card==19})
+        } finally {rig.engine.drainAndClose()}
+    }
     @Test fun proposalExpiryRefundsBetweenPeriodicTicks() = runTest {
         val rig=Rig(this,testScheduler,mailDeadline=true)
         try {
@@ -104,7 +118,7 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
-        mailDeadline:Boolean=false) {
+        mailDeadline:Boolean=false,orderDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -114,17 +128,36 @@ class TacticalDeadlineTest {
                 listOf(TacticalPoint(0f,10f)),turnRate=1f).let {if(postureDeadline)it.copy(velocity=0f) else it},
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
+        private val homeGrid=if(orderDeadline)2487 else 2488
+        val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(orderDeadline)2 else 3)),
+            listOf(GalaxyBase(if(orderDeadline)1049 else 1000,homeGrid,80,0,
+                if(orderDeadline)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f)),
+            Power.entries.associateWith {homeGrid})
         init {
             if(mailDeadline) {
                 players=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2488,1000,960,1000))
                 val mail=ProposalMail(1,10000,10001,17,19,ProposalActions.RESIGNATION,false,start,start+15,mcp=40)
                 stocks=stocks.copy(social=stocks.social.copy(proposals=ProposalState(listOf(mail))))
             }
+            if(orderDeadline) {
+                players=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,homeGrid,1000,960,1000),
+                    "recipient" to Navigator(1,10001,Power.EMPIRE,homeGrid,1000,1000,1000))
+                val mail=ProposalMail(1,10000,10001,17,19,ProposalActions.RESIGNATION,true,start,
+                    start+Proposals.LIFETIME,mcp=40)
+                stocks=OrganizationalOfficePolicy(galaxy).set(stocks.copy(
+                    bases=mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
+                    social=stocks.social.copy(proposals=ProposalState(listOf(mail)))),
+                    OfficeHolding(19,1049,10001))
+            }
         }
-        private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3)),
-            listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2488})
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
-            private var saved=DurableWorldState(SessionSimulation(rules).apply {advance(elapsed)}.exportState(),elapsed)
+            private var saved=DurableWorldState(SessionSimulation(rules).apply {
+                if(orderDeadline) {
+                    join("recipient",Power.EMPIRE,false,"before-restart")
+                    disconnect("recipient","before-restart")
+                }
+                advance(elapsed)
+            }.exportState(),elapsed)
             override fun load()=saved
             override fun commit(action:SessionAction,transition:SessionTransition){saved=transition.state}
             override fun close() {}
