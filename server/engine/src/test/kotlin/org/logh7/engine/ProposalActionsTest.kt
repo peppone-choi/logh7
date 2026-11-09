@@ -231,9 +231,24 @@ class ProposalActionsTest {
         val opened=SocialActions.evaluate(galaxy,r,session,b,s,listOf(a,b),mapOf("a" to a,"b" to b))
         assertNull(opened.rejection);val mail=assertNotNull(opened.stocks).social.proposals.mails.single()
         assertEquals(10001,mail.target);assertEquals(seat,mail.seat);assertEquals(920,opened.player?.mcp,"half of 160")
-        val approved=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,assertNotNull(opened.stocks))
+        val players = linkedMapOf("a" to a, "b" to assertNotNull(opened.player))
+        val now = session.gameMillis / 1000
+        val detained = assertNotNull(JusticeActions.detain(galaxy, assertNotNull(opened.stocks), players,
+            b.characterId, CountryId(2), now))
+        val reply = SocialRequest(StrategyActionRequest("a", "a", a.characterId, Power.EMPIRE, 1,
+            ProposalActions.REPLY, 0, 9, target = mail.id, value = Proposals.APPROVE))
+        val rejected = SocialActions.evaluate(galaxy, reply, session, a, detained, players.values, players)
+        assertEquals(SocialRejection.CARD, rejected.rejection)
+        assertEquals(a, rejected.player)
+        assertEquals(detained, rejected.stocks)
+        assertTrue(rejected.navigators.isEmpty())
+
+        val released = detained.copy(social = detained.social.copy(
+            justice = detained.social.justice.copy(detentions = emptyMap())))
+        val approved = SocialActions.evaluate(galaxy, reply, session, a, released, players.values, players)
         assertNull(approved.rejection)
-        assertEquals(mapOf("b" to b),approved.navigators)
+        assertEquals(920, approved.player?.mcp)
+        assertEquals(mapOf("b" to players.getValue("b")), approved.navigators)
         val appointed=assertNotNull(approved.stocks)
         assertTrue(OrganizationalOfficePolicy(galaxy).held(appointed,10001).any {it.card==card && it.seat==seat})
         val duplicate=act("a",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,appointed)

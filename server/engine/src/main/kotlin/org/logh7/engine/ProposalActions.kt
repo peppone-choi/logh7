@@ -28,7 +28,7 @@ object ProposalActions {
         if(power !in countries.countries)return emptyList()
         val country=CountryId(power);val policy=OrganizationalOfficePolicy(g,countries)
         if(candidate==actor || BattleDeath.deceased(s,actor) || BattleDeath.deceased(s,candidate) ||
-            policy.cardCount(s,candidate)>=14)return emptyList()
+            s.social.justice.detained(candidate) || policy.cardCount(s,candidate)>=14)return emptyList()
         val held=policy.held(s,candidate).filter {it.country==country}.map {it.card}.toSet()
         return policy.available(s,actor,power,rank).flatMap {(card,seats)->
             val role=checkNotNull(policy.role(card,country))
