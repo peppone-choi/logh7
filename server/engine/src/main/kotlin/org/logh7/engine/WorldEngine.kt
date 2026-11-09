@@ -519,10 +519,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
-        val pirateDeadlines=snapshot.planetStocks?.social?.pirates?.fleets.orEmpty().values.mapNotNull {fleet->
-            (fleet.firedAt+PirateActions.FIRE_SECONDS).takeIf {at->at>nowSeconds && session.ended==null && fleet.alive &&
-                snapshot.navigators.values.any {it.generation==session.generation && it.cpPaused && it.baseId==0 && it.grid==fleet.grid}}
-        }
+        val pirateDeadlines=if(galaxy==null || session.ended!=null)emptyList() else snapshot.planetStocks?.let {stocks->
+            stocks.social.pirates.fleets.values.mapNotNull {fleet->
+                (fleet.firedAt+PirateActions.FIRE_SECONDS).takeIf {at->at>nowSeconds && fleet.alive &&
+                    PirateActions.engaged(galaxy,stocks,snapshot.navigators.values,fleet.grid)}
+            }
+        }.orEmpty()
         val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+pirateDeadlines+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)

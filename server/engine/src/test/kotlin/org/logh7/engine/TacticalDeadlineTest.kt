@@ -10,8 +10,12 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
-    @Test fun restoredPirateCounterattackFiresBetweenRegularTicks() = runTest {
-        val rig=Rig(this,testScheduler,pirateDeadline=true)
+    @Test fun restoredPirateCounterattackFiresBetweenRegularTicks() = assertPirateCounterattack(regular=false)
+
+    @Test fun restoredPirateCounterattackAgainstRegularShipsFiresBetweenRegularTicks() = assertPirateCounterattack(regular=true)
+
+    private fun assertPirateCounterattack(regular:Boolean) = runTest {
+        val rig=Rig(this,testScheduler,pirateDeadline=true,pirateRegularTarget=regular)
         val impacts=mutableListOf<TacticalImpact>()
         rig.engine.observeCombat(impacts::add)
         try {
@@ -220,7 +224,7 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,pirateDeadline:Boolean=false) {
+        uncharged:Boolean=false,pirateDeadline:Boolean=false,pirateRegularTarget:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -262,6 +266,15 @@ class TacticalDeadlineTest {
                 players=mapOf("pilot" to pilot.copy(motion=motion))
                 val fleet=PirateFleet(1,2488,start,listOf(PirateUnit(900_001,300)),firedAt=start)
                 stocks=stocks.copy(social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2)))
+                if(pirateRegularTarget) {
+                    players=emptyMap()
+                    val stack=UnitStack(32)
+                    val ship=ActiveShipUnit(1,stack,tactical=NpcTacticalState(motion,start,start))
+                    val outfit=OutfitStock(1,2,OutfitKind.FLEET,1000,10,units=UnitInventory(mapOf(stack to 1)),
+                        activeShips=ActiveShipUnits(listOf(ship)),position=OutfitPosition(2488))
+                    stocks=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
+                        warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
+                }
             }
             if(supportDeadline) {
                 val pilot=players.getValue("pilot")
