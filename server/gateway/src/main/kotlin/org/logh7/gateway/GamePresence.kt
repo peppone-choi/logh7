@@ -154,6 +154,12 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             }
             val expelled=previous.player.baseId==event.base && player.grid==event.grid &&
                 player.cpPaused && player.baseId==0 && event.expelled.values.any {it.characterId==player.characterId}
+            if(occupationLine!=null && !expelled && previous.player.dockTarget==event.base && player.dockTarget==null &&
+                player.grid==previous.player.grid && player.baseId==previous.player.baseId) {
+                packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,
+                    event.seconds,player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)
+                packets+=ChatMessages.spot(ChatMessages.Spot(player.characterId,"[기항] 거점 점령으로 예약이 취소됐습니다."),event.seconds)
+            }
             if(expelled) {
                 packets+=unit(member)
                 packets+=org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,0,5,event.seconds)
@@ -495,7 +501,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     if(!finalWarp)return@forEach
                 }
                 if(event.formation.isNotEmpty()) {
-                    send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character))
+                    send(viewer,TacticalMotionMessages.formation(event.formation,event.seconds,event.character),event.grid)
                     return@forEach
                 }
                 val packet=if(event.reverseTarget!=null)org.logh7.protocol.TacticalTurnMessages.turned(event.seconds,event.unit,checkNotNull(event.reverseTarget))
@@ -511,8 +517,10 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     org.logh7.protocol.TacticalMoveMessages.moved(event.seconds,event.unit,pose.direction,
                         org.logh7.protocol.TacticalMoveMessages.Point(pose.position.x,pose.position.y,0f),index)
                 } else TacticalMotionMessages.npc(event.unit,checkNotNull(event.motion),event.seconds,event.character)
+                // The final warp can share a tick with the transition out of tactics.
                 send(viewer,(if(event.stopped)listOf(org.logh7.protocol.TacticalStopMessages.reply(
-                    org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),event.seconds)) else emptyList())+packet)
+                    org.logh7.protocol.TacticalStopMessages.Stop(event.character,listOf(event.unit)),event.seconds)) else emptyList())+packet,
+                    event.grid.takeIf {event.destination==null})
             }
     }
 

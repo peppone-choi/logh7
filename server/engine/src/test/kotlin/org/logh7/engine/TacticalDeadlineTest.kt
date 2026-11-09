@@ -10,6 +10,37 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun restoredOperationEndsBetweenRegularTicksWithoutCombat() = runTest {
+        val resumedAt=OperationPlanRules.DURATION_GAME_SECONDS*1000/SessionRules.load().speed
+        val rig=Rig(this,testScheduler,resumedAt=resumedAt,operationDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun operation()=rig.engine.snapshot().planetStocks!!.strategic.operations.single()
+            advanceTimeBy(624);runCurrent()
+            assertEquals(StrategicPlanState.STARTED,operation().state)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+OperationPlanRules.DURATION_GAME_SECONDS+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(OperationOutcome.FULL_SUCCESS,operation().outcome)
+            assertEquals(100L,rig.engine.snapshot().planetStocks!!.strategic.people.getValue(10000).merit)
+            advanceTimeBy(375);runCurrent()
+            assertEquals(100L,rig.engine.snapshot().planetStocks!!.strategic.people.getValue(10000).merit)
+        } finally {rig.engine.drainAndClose()}
+    }
+
+    @Test fun restoredTradePassageExpiresBetweenRegularTicks() = runTest {
+        val rig=Rig(this,testScheduler,tradeDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun passages()=rig.engine.snapshot().planetStocks!!.social.trade.passages
+            advanceTimeBy(624);runCurrent()
+            assertEquals(mapOf(2 to rig.start+15),passages())
+            advanceTimeBy(1);runCurrent()
+            assertTrue(passages().isEmpty())
+            assertEquals(rig.start+15,rig.engine.snapshot().session!!.gameSeconds)
+            assertEquals(0L,rig.engine.snapshot().session!!.strategyTicks)
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredMovingFortressStopsAtItsFinalWaypointBetweenRegularTicks() = runTest {
         val rig=Rig(this,testScheduler,fortressDeadline=true)
         try {
@@ -284,7 +315,8 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,fortressDeadline:Boolean=false,shipOrder:Boolean=false) {
+        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
+        operationDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -295,6 +327,16 @@ class TacticalDeadlineTest {
             posture=if(postureDeadline)TacticalPosture(2488,order=TacticalPostureOrder(10000,TacticalShipMode.BATTLE,0,start,start+15)) else null))
         private var stocks=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,3,0,0,0,0)),deploymentInitialized=true)
         init {
+            if(operationDeadline) {
+                players=emptyMap()
+                val plan=StrategicOperation(1,10000,147,CountryId(3),2488,StrategicForce.FLEET,StrategicPurpose.DEFEND,1,
+                    start+15,StrategicPlanState.STARTED,start+15,defended=setOf(1000),issuer=10001)
+                stocks=stocks.copy(strategic=stocks.strategic.copy(operations=listOf(plan)))
+            }
+            if(tradeDeadline) {
+                players=emptyMap()
+                stocks=stocks.copy(social=stocks.social.copy(trade=TradeState(passages=mapOf(2 to start+15))))
+            }
             if(shipOrder) {
                 players=emptyMap()
                 stocks=stocks.copy(social=stocks.social.copy(

@@ -239,6 +239,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val candidates = galaxy.bases.filter { it.grid == start }.filter { base ->
                     val condition = galaxy.conditions.getValue(base.id)
                     val stock = stocks?.bases?.get(base.id)
+                    if(stocks!=null && stock==null)return@filter false
                     val allegiance = stock?.owner ?: galaxy.initialOwners.getValue(base.id)
                     condition.habitability == 1 && allegiance == Allegiance.Country(owner) &&
                         (stock?.camp ?: condition.camp) == 0
@@ -287,7 +288,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         val dockOwner=dueDock?.let {id->
             val base=galaxy.conditions[id]
             val stock=stocks?.bases?.get(id)
-            base!=null && ownBase(ranged,stock?.owner ?: galaxy.initialOwners.getValue(id),stock?.camp ?: base.camp,stocks)
+            base!=null && (stocks==null || stock!=null) &&
+                ownBase(ranged,stock?.owner ?: galaxy.initialOwners.getValue(id),stock?.camp ?: base.camp,stocks)
         }
         val docked = if (dueDock != null && dockOwner!=true)
             fueled.copy(baseId = ranged.baseId, mode = ranged.mode, moves = ranged.moves) else fueled
@@ -532,7 +534,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     }
     /** CD confirmation: approaching an issued operation target costs the base price (80 of 320 before the patch). */
     private fun operationTarget(player: Navigator, destination: Int, stocks: PlanetStocks?): Boolean =
-        stocks?.strategic?.operations.orEmpty().any { operation -> operation.live &&
+        stocks != null && !CoupActions.rebel(stocks,player.characterId,player.country) &&
+        stocks.strategic.operations.any { operation -> operation.live &&
             operation.country==player.country && operation.state != StrategicPlanState.PLANNED && player.characterId in operation.characters &&
             abs(operation.grid % 100 - destination % 100) <= 1 && abs(operation.grid / 100 - destination / 100) <= 1 }
     /** Runs on clock advances as well as requests, including while the captain is offline. */
@@ -543,7 +546,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         var changed = false
         for ((account, player) in next.toSortedMap()) {
             val retreat = player.retreat ?: continue
-            if (BattleDeath.deceased(stocks,player.characterId)) {
+            val country = session.participants[account]?.country ?: player.country
+            if (country in session.eliminated || BattleDeath.deceased(stocks,player.characterId)) {
                 next[account] = player.copy(retreat=null)
                 changed = true
                 continue
@@ -612,6 +616,15 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     }
     private fun movePlace(request: NavigationRequest, before: Navigator, now: Long, stocks: PlanetStocks?,countries:CountryCatalog): NavigationResult {
         fun reject(reason: NavigationRejection) = NavigationResult(null, previous = before, rejection = reason)
+        fun departureRejection(): NavigationRejection? {
+            if (before.baseId == 0 || before.mode != 4) return NavigationRejection.BASE
+            val base = galaxy.conditions[before.baseId] ?: return NavigationRejection.BASE
+            val stock = stocks?.bases?.get(base.baseId)
+            return NavigationRejection.ACCESS.takeIf {
+                base.grid != before.grid || !ownBase(before, stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),
+                    stock?.camp ?: base.camp, stocks)
+            }
+        }
         val after: Navigator
         val cost: Long
         val pool: CpPool
@@ -619,14 +632,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             is PlaceMove.SwitchMode -> {
                 if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
                 if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
-                if (move.mode != 5 || before.baseId == 0 || before.mode != 4) return reject(NavigationRejection.BASE)
-                val base = galaxy.conditions[before.baseId] ?: return reject(NavigationRejection.BASE)
-                val stock=stocks?.bases?.get(base.baseId)
-                if (base.grid != before.grid || !ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),
-                    stock?.camp ?: base.camp,stocks)) return reject(NavigationRejection.ACCESS)
+                if (move.mode != 5) return reject(NavigationRejection.BASE)
+                departureRejection()?.let { return reject(it) }
                 // The CD departs from its flagship quay. A public lobby or another
                 // person's private room must never move this character's ship.
-                if (before.spotId != 0 && (before.spotOwner != 0 ||
+                if (before.spotId != 0 && (before.spotOwner != 0 || stocks != null && before.baseId !in stocks.bases ||
                     galaxy.facilitiesAt(before.baseId, stocks,countries).none { facility -> facility.kind == 4 &&
                         facility.spots.any { it.id == before.spotId && it.kind == 6 } }))
                     return reject(NavigationRejection.EMBARKED)
@@ -638,11 +648,13 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
                 if (before.spotId != 0) return reject(NavigationRejection.EMBARKED)
                 if (move.baseId == 0) {
-                    if (move.mode != 5 || before.baseId == 0) return reject(NavigationRejection.BASE)
+                    if (move.mode != 5) return reject(NavigationRejection.BASE)
+                    departureRejection()?.let { return reject(it) }
                 } else {
                     val base = galaxy.conditions[move.baseId] ?: return reject(NavigationRejection.BASE)
                     if (base.grid != before.grid || move.mode != 4) return reject(NavigationRejection.BASE)
                     val stock=stocks?.bases?.get(base.baseId)
+                    if (stocks != null && stock == null) return reject(NavigationRejection.BASE)
                     if (!ownBase(before,stock?.owner ?: galaxy.initialOwners.getValue(base.baseId),stock?.camp ?: base.camp,stocks))
                         return reject(NavigationRejection.ACCESS)
                     if (before.baseId == move.baseId && before.mode == move.mode) return reject(NavigationRejection.BASE)
@@ -660,15 +672,18 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             }
             is PlaceMove.Spot -> {
                 if (before.baseId == 0) return reject(NavigationRejection.BASE)
-                val condition = galaxy.conditions.getValue(before.baseId)
+                val condition = galaxy.conditions[before.baseId]
                 val stored = stocks?.bases?.get(before.baseId)
-                val friendly = ownBase(before,stored?.owner ?: galaxy.initialOwners.getValue(condition.baseId),
-                    stored?.camp ?: condition.camp,stocks)
-                val facilities = galaxy.facilitiesAt(before.baseId, stocks,countries)
+                val available = condition != null && (stocks == null || stored != null)
+                if (move.id != 0 && !available) return reject(NavigationRejection.BASE)
+                val facilities = if (available) galaxy.facilitiesAt(before.baseId, stocks,countries) else emptyList()
                 val target = facilities.singleOrNull { f -> f.spots.any { it.id == move.id } }
                 if (move.id == 0) {
                     if (move.owner != before.characterId || before.spotId == 0) return reject(NavigationRejection.SPOT)
                 } else {
+                    val base = checkNotNull(condition)
+                    val friendly = ownBase(before,stored?.owner ?: galaxy.initialOwners.getValue(base.baseId),
+                        stored?.camp ?: base.camp,stocks)
                     val spot = target?.spots?.single { it.id == move.id } ?: return reject(NavigationRejection.SPOT)
                     if (move.id == before.spotId && move.owner == before.spotOwner) return reject(NavigationRejection.SPOT)
                     val allowed = when (spot.access) {

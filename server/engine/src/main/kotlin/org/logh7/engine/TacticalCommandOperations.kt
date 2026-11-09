@@ -650,8 +650,11 @@ internal object TacticalCommandOperations {
         events:MutableList<TacticalCommandResult>,impacts:MutableList<TacticalImpact>):PlanetStocks {
         val battle=Battle(session,g,players,initial,scale,events,impacts)
         for(o in initial.tacticalCommands.orders.sortedWith(compareBy({it.readyAt},{it.character}))) {
-            val p=players.values.singleOrNull {it.characterId==o.character && it.grid==o.grid}
-            val valid=session.ended==null && p!=null && validate(o.command,p,battle.now,players,battle.stocks,g,false,
+            val commander=players.entries.singleOrNull {it.value.characterId==o.character && it.value.grid==o.grid}
+            val p=commander?.value
+            val country=commander?.key?.let {session.participants[it]?.country} ?: p?.country
+            val valid=session.ended==null && country !in session.eliminated && p!=null &&
+                validate(o.command,p,battle.now,players,battle.stocks,g,false,
                 session.participants.mapValues {it.value.online},fortressStartAt=minOf(o.readyAt,battle.now))==null
             if(valid && o.readyAt>battle.now)continue
             battle.stocks=battle.stocks.copy(tacticalCommands=battle.stocks.tacticalCommands.copy(orders=battle.stocks.tacticalCommands.orders-o))

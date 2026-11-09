@@ -459,7 +459,9 @@ class WorldBootstrap(val galaxy: Galaxy,
     }
     fun places(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->
-            WorldMessages.BaseInstitutions(base.id, galaxy.facilitiesAt(base.id, stocks, countryCatalog).map { facility ->
+            val facilities=if(stocks!=null && base.id !in stocks.bases)emptyList()
+                else galaxy.facilitiesAt(base.id, stocks, countryCatalog)
+            WorldMessages.BaseInstitutions(base.id, facilities.map { facility ->
                 WorldMessages.Institution(facility.kind, facility.id, facility.spots.map {
                     WorldMessages.Spot(it.kind, it.id, it.image)
                 })

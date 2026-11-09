@@ -245,11 +245,14 @@ internal object TacticalCombat {
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
         val stocks = checkNotNull(production.snapshot(session.generation))
+        if(committer!=null && session.ended==null)players.replaceAll {_,player->
+            navigation.clearInvalidReturnBase(player,stocks)
+        }
         for((account,player) in original) {
             if((player.attack!=null || player.fire?.pending!=null) &&
                 ((session.participants[account]?.country ?: player.country) in session.eliminated ||
                     BattleDeath.deceased(stocks,player.characterId)))
-                players[account]=player.copy(attack=null,fire=player.fire?.copy(pending=null))
+                players[account]=players.getValue(account).copy(attack=null,fire=player.fire?.copy(pending=null))
         }
         clearFinishedOrders(players,galaxy,stocks,now)
         val movements=mutableListOf<TacticalMovement>()

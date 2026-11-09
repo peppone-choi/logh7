@@ -38,6 +38,19 @@ class CountryNavigationRoutingTest {
         assertEquals(NavigationRejection.ACCESS,foreign.apply(request(CountryId(43)).copy(returnBase=1049),session(CountryId(43))).rejection)
     }
 
+    @Test fun initialOriginSkipsASeedPlanetMissingFromTheCurrentWorld() {
+        val country=CountryId(42)
+        val alternative=galaxy.bases.single().copy(id=1050,name="Alternative")
+        val g=Galaxy(galaxy.systems,galaxy.bases+alternative,galaxy.starts,countryStarts=galaxy.countryStarts,
+            initialOwners=mapOf(1049 to Allegiance.Country(country),1050 to Allegiance.Country(country)))
+        val live=stocks.copy(bases=mapOf(1050 to PlanetStock(1050,Allegiance.Country(country),0,100,200,300)))
+        fun assigned(world:PlanetStocks?)=assertNotNull(
+            Navigation(g,Store(emptyMap()),NavigationPolicy(),configuredCountries=catalog).apply(request(),session(),world).player)
+        assertEquals(1049,assigned(null).originBase)
+        assertEquals(1050,assigned(live).originBase)
+        assertEquals(0,assigned(live.copy(bases=emptyMap())).originBase)
+    }
+
     @Test fun theCountryStartAndStoredStyleAreIndependentOfTheNativeDisplayFaction() {
         val nav=navigation()
         val initialized=assertNotNull(nav.apply(request(),session(),stocks).player)
@@ -54,19 +67,22 @@ class CountryNavigationRoutingTest {
             assertEquals(NavigationRejection.IDENTITY,nav.apply(request(id),session(),stocks).rejection)
         assertEquals(0,store.saves);assertEquals(pilot,store.saved.getValue("pilot"))
     }
-    @Test fun aForeignOperationDoesNotKeepTheWarpDiscountAfterAMembershipChange() {
-        val state=session();val now=state.gameMillis/1000
+    @Test fun warpDiscountRequiresTheOperationCountryAndItsRegularCamp() {
+        val state=session().let {it.copy(gameMillis=it.gameMillis+1000)};val now=state.gameMillis/1000
         val plan=StrategicOperation(1,10001,26,CountryId(42),2490,StrategicForce.SOLO,StrategicPurpose.SWEEP,1,now,
             StrategicPlanState.ISSUED,now,characters=setOf(pilot.characterId),issuer=10002)
-        fun warp(country:CountryId):Navigator {
-            val s=stocks.copy(strategic=StrategicState(operations=listOf(plan.copy(country=country))))
-            val result=navigation(Store(mapOf("pilot" to pilot))).apply(request().copy(destination=2489,
+        fun warp(country:CountryId,revolt:Long=0):Navigator {
+            val plot=Plot(pilot.characterId,CountryId(42),now,revolt=revolt)
+            val s=stocks.copy(strategic=StrategicState(operations=listOf(plan.copy(country=country))),
+                social=stocks.social.copy(coup=CoupState(plots=mapOf(pilot.characterId to plot))))
+            val result=navigation(Store(mapOf("pilot" to pilot.copy(grid=2486)))).apply(request().copy(destination=2489,
                 unitId=pilot.unitId,captainCard=59),state,s)
             assertNull(result.rejection)
             return assertNotNull(result.player)
         }
         assertEquals(960,warp(CountryId(42)).mcp)
-        assertEquals(920,warp(CountryId(43)).mcp)
+        assertEquals(880,warp(CountryId(43)).mcp)
+        assertEquals(880,warp(CountryId(42),revolt=now).mcp)
     }
     @Test fun aCountryCaptainCanWarpAndSettleFuelWithoutChangingCountryOrShipStyle() {
         val store=Store(mapOf("pilot" to pilot));val nav=navigation(store);val initial=session()
@@ -112,6 +128,55 @@ class CountryNavigationRoutingTest {
             assertNull(settled.dockTarget);assertEquals(pilot.moves,settled.moves)
         }
     }
+    @Test fun aBaseMissingFromWorldStocksCannotAcceptOrCompleteDocking() {
+        val g=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,countryStarts=galaxy.countryStarts,
+            initialOwners=mapOf(1049 to Allegiance.Country(CountryId(42))))
+        val missing=stocks.copy(bases=emptyMap())
+        val dock=request().copy(unitId=pilot.unitId,captainCard=59,place=PlaceMove.Dock(1049,4))
+        val initial=session()
+        for(offline in listOf(false,true)) {
+            val store=Store(mapOf("pilot" to pilot))
+            val nav=Navigation(g,store,NavigationPolicy(),configuredCountries=catalog)
+            assertEquals(NavigationRejection.BASE,nav.apply(dock,initial,missing).rejection)
+            assertNull(store.saved.getValue("pilot").dockTarget)
+            assertEquals(pilot.mcp,store.saved.getValue("pilot").mcp)
+            val reserved=assertNotNull(nav.apply(dock,initial,stocks).player)
+            val due=initial.copy(gameMillis=reserved.strategy!!.jobs.single().completesAtGameMillis)
+            val settled=if(offline)nav.apply(NavigationRequest("pilot",pilot.characterId,pilot.country,"",1,offlineSettle=true),
+                due.copy(participants=due.participants.mapValues {(_,member)->member.copy(online=false,connection=null)}),missing)
+                else nav.apply(request(),due,missing)
+            val saved=assertNotNull(settled.player)
+            assertTrue(settled.completedDock) // Ends the reservation and clears the waiting HUD.
+            assertNull(saved.dockTarget)
+            assertEquals(0,saved.baseId)
+            assertEquals(pilot.moves,saved.moves)
+            assertEquals(reserved.mcpUsed,saved.mcpUsed)
+            if(offline)assertEquals(reserved.mcp,saved.mcp)
+        }
+    }
+
+    @Test fun missingWorldBaseBlocksFacilityEntryButDoesNotTrapAnExistingOccupant() {
+        val g=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,countryStarts=galaxy.countryStarts,
+            initialOwners=mapOf(1049 to Allegiance.Country(CountryId(42))))
+        val quay=galaxy.facilitiesAt(1049,stocks,catalog).single {it.kind==4}.spots.single {it.kind==6}
+        val inside=pilot.copy(baseId=1049,mode=4,spotId=quay.id)
+        val store=Store(mapOf("pilot" to inside))
+        val nav=Navigation(g,store,NavigationPolicy(),configuredCountries=catalog)
+        val missing=stocks.copy(bases=emptyMap())
+        val command=request().copy(unitId=pilot.unitId,place=PlaceMove.Spot(quay.id,0))
+        val launch=command.copy(captainCard=59,place=PlaceMove.SwitchMode(5))
+        assertEquals(NavigationRejection.EMBARKED,nav.apply(launch,session(),missing).rejection)
+        assertEquals(NavigationRejection.BASE,nav.apply(command,session(),missing).rejection)
+        assertEquals(inside.pcp,store.saved.getValue("pilot").pcp)
+        val exited=assertNotNull(nav.apply(command.copy(place=PlaceMove.Spot(0,pilot.characterId)),session(),missing).player)
+        assertEquals(0,exited.spotId)
+        assertEquals(1049,exited.baseId)
+        assertEquals(NavigationRejection.BASE,nav.apply(command,session(),missing).rejection)
+        val departed=assertNotNull(nav.apply(launch,session(),missing).player)
+        assertEquals(0,departed.baseId)
+        assertEquals(5,departed.mode)
+    }
+
     @Test fun rebelDockingAndQuayAccessFollowTheCurrentCamp() {
         val country=assertNotNull(pilot.country)
         val rebel=CoupState(mapOf(pilot.characterId to Plot(pilot.characterId,country,0,revolt=5,bases=setOf(1049))))

@@ -523,12 +523,19 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             (p.dockReadyAt ?: p.warpReadyAt)?.let(::listOf) ?:
                 (p.strategy?.jobs.orEmpty().map {it.completesAtGameMillis/1000} + listOfNotNull(p.fuelReadyAt.takeIf {p.strategy==null}))
         }.filter {it>nowSeconds}
+        val trade=snapshot.planetStocks?.social?.trade
+        val tradeDeadlines=(trade?.routes.orEmpty().values.map {minOf(it.until,it.paidThrough+Justice.DAY)}+
+            trade?.convoys.orEmpty().values+trade?.pacts.orEmpty().values+trade?.passages.orEmpty().values)
+            .filter {it>nowSeconds}
         val npcWarpDeadline=if(npcPolicy.enabled && npcPolicy.strategic && worldStateCommitter!=null && session.ended==null)
             snapshot.planetStocks?.outfits?.values.orEmpty().mapNotNull {it.strategy?.arrivesAt?.takeIf {at->at>nowSeconds}}.minOrNull()
             else null
         val shipProductionDeadlines=snapshot.planetStocks?.social?.production?.orders.orEmpty().values
             .map {it.readyAt}.filter {it>nowSeconds}
-        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+listOfNotNull(npcWarpDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
+        val operationDeadline=snapshot.planetStocks?.strategic?.operations.orEmpty().asSequence()
+            .filter {it.live}.mapNotNull {it.issuedAt}.map(OperationPlanRules::endGameSeconds)
+            .filter {it>nowSeconds}.minOrNull()
+        val deadline=((personal+ships).mapNotNull {it.nextProgressAt}.toList()+shipOrderDeadlines+groundDeadlines+commandDeadlines+aiDeadlines+civicDeadlines+navigationDeadlines+retreatDeadlines+shipProductionDeadlines+tradeDeadlines+listOfNotNull(npcWarpDeadline,operationDeadline)+snapshot.planetStocks?.groundBattles.orEmpty().values.map {it+5*rules.speed}).minOrNull()
         tacticalTickAt.set(deadline?.let {
             val remaining=maxOf(0,it*1000-session.gameMillis)
             val currentElapsed=durableState?.elapsed ?: elapsed
@@ -1266,7 +1273,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     durability.commit(command.sessionAction(), next)
                     durableState = next.state
                     if (command is WorldCommand.AdvanceTo) {
-                        production?.settle(next.state.session.generation, next.state.session.gameMillis / 1000)
+                        production?.settle(next.state.session)
                         settleCombat(next.state.session,next.state.snapshot(rules)) {reconcileTerritory()}
                         val current=checkNotNull(durableState).session
                         navigation?.settleRetreats(current, production?.snapshot(current.generation))
@@ -1301,7 +1308,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val events = if (restartAt?.let { command.elapsedRealMillis >= it } == true) restart()
                         else simulation.advance(command.elapsedRealMillis - elapsed)
                     elapsed = command.elapsedRealMillis
-                    if (!storageFailed) production?.settle(simulation.snapshot().generation, simulation.exportState().gameMillis / 1000)
+                    if (!storageFailed) production?.settle(simulation.exportState())
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot())) {reconcileTerritory()}
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
                     if (!storageFailed) settleOfflineNavigation(simulation.exportState())

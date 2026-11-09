@@ -266,7 +266,7 @@ object TradeActions {
                 for(b in listOf(r.from,r.to))bases=bases+(b to bases.getValue(b).let {it.copy(treasury=Math.addExact(it.treasury,profit))})
             }
             val paid=r.paidThrough+days*Justice.DAY
-            if(alive && paid<r.until)routes[r.character]=r.copy(paidThrough=paid,country=country)
+            if(alive && now<r.until && paid<r.until)routes[r.character]=r.copy(paidThrough=paid,country=country)
         }
         val next=t.copy(routes=routes,convoys=t.convoys.filterValues {it>now},pacts=t.pacts.filterValues {it>now},passages=t.passages.filterValues {it>now})
         return if(next==t && bases==s.bases)s else s.copy(bases=bases,social=s.social.copy(trade=next))

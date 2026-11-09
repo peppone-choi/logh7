@@ -29,7 +29,9 @@ static void __fastcall refreshedCharacterUpdate(void* self,void*,void* record) {
     logh::CharacterCards before;
     bool known=own && logh::CharacterCards::read(own,0x370,before);
     const int rankBefore=hudNameRank(own);
+    const unsigned returnBefore=own ? at<unsigned>(own,0x3c) : 0;
     reinterpret_cast<void(__thiscall*)(void*,void*)>(characterUpdate)(self,record);
+    if (own) returnSettingsCharacterUpdated(world,returnBefore,at<unsigned>(own,0x3c));
     logh::CharacterCards after;
     if (known && logh::CharacterCards::read(own,0x370,after) && !before.same(after))
         reinterpret_cast<void(__cdecl*)(unsigned,void*)>(characterRefresh)(0x356,record);

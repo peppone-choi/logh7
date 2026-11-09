@@ -19,6 +19,10 @@ class SystemOwnershipBootstrapTest {
             PlanetStock(1000,Allegiance.Country(CountryId(42)),0,1,2,3))),catalog),galaxy.facilitiesAt(1000,countries=catalog))
         val occupied=PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,1,2,3)))
         assertEquals(2,world.conditions(listOf(1000),occupied)[11].toInt())
+        val empty=org.logh7.protocol.WorldMessages.institutions(listOf(org.logh7.protocol.WorldMessages.BaseInstitutions(1000,emptyList())))
+        assertContentEquals(org.logh7.protocol.LoginMessages.sessionMessage(0x0321,empty),
+            world.places(listOf(1000),occupied.copy(bases=emptyMap())))
+        assertTrue(world.places(listOf(1000),occupied).size>world.places(listOf(1000),occupied.copy(bases=emptyMap())).size)
     }
     @Test fun countryOwnerUsesCatalogAppearanceWithoutTurningNeutralOrPiratesIntoCountries() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),

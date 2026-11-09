@@ -173,6 +173,22 @@ class TacticalCombatTest {
         assertEquals(300,state.stocks.outfits.getValue(1).activeShips!!.values.single().boats)
     }
 
+    @Test fun quietWorldClearsInvalidSavedReturnPlanetAndPreservesOrigin() {
+        val invalid=Navigator(1,10000,Power.ALLIANCE.country,2488,1000,1000,1000,returnBase=1000,originBase=1000)
+        val valid=Navigator(1,10001,Power.EMPIRE.country,2488,1000,1000,1000,returnBase=1000,originBase=1000)
+        val state=State(mapOf("pilot" to invalid,"other" to valid),
+            PlanetStocks(1,0,mapOf(1000 to PlanetStock(1000,2,0,100,100,100)),deploymentInitialized=true))
+        val navigation=Navigation(galaxy,state.nav,NavigationPolicy())
+        val production=production(state)
+        state.fail=true
+        assertFailsWith<java.io.IOException> {TacticalCombat.settle(session,galaxy,navigation,production,state.commit)}
+        assertEquals(invalid,navigation.snapshot(1).getValue("pilot"))
+        state.fail=false
+        assertTrue(TacticalCombat.settle(session,galaxy,navigation,production,state.commit).isEmpty())
+        assertEquals(invalid.copy(returnBase=0),state.players.getValue("pilot"))
+        assertEquals(valid,state.players.getValue("other"))
+    }
+
     @Test fun deceasedFlagshipRejectsNewFireAndCancelsSavedOrdersAtomically() {
         assertSavedFlagshipOrdersCancelled(deceased=true)
     }
@@ -190,7 +206,7 @@ class TacticalCombatTest {
         val live=Navigation(galaxy,state.nav,NavigationPolicy())
         val accepted=assertNotNull(TacticalCombat.accept(request,session,galaxy,live,state.stocks,state.commit,24).player)
         val due=assertNotNull(accepted.fire?.pending).firesAt
-        state.players=mapOf("pilot" to accepted.copy(attack=TacticalAttackOrder(2,now,now,due)))
+        state.players=mapOf("pilot" to accepted.copy(attack=TacticalAttackOrder(2,now,now,due),returnBase=65535))
         if(deceased)state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(people=mapOf(10000 to StrategicPerson(deceasedAt=1))))
         val current=if(deceased)session else session.copy(participants=session.participants.takeIf {registered}.orEmpty(),
             eliminated=mapOf(Power.ALLIANCE.country to
@@ -214,6 +230,7 @@ class TacticalCombatTest {
         val saved=Navigation(galaxy,state.nav,NavigationPolicy()).snapshot(1).getValue("pilot")
         assertNull(saved.attack)
         assertEquals(before.fire!!.copy(pending=null),saved.fire)
+        assertEquals(0,saved.returnBase)
         assertEquals(before.charge,saved.charge)
         assertEquals(before.supplies,saved.supplies)
         assertEquals(target,state.stocks.outfits.getValue(1))

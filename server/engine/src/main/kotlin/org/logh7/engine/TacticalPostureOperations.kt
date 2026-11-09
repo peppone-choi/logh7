@@ -124,8 +124,9 @@ internal object TacticalPostureOperations {
                 recipients[grid].orEmpty(),cancelled=cancelled)
         for((account,p) in players.toMap()) {
             val state=p.posture ?: continue;val order=state.order ?: continue
+            val country=session.participants[account]?.country ?: p.country
             val context=session.ended==null && p.cpPaused && p.baseId==0 && p.grid==state.grid && order.character==p.characterId &&
-                !BattleDeath.deceased(stocks,order.character)
+                country !in session.eliminated && !BattleDeath.deceased(stocks,order.character)
             if(order.readyAt>now && context)continue
             val at=pose(p,minOf(now,order.readyAt),players.values,stocks,galaxy)
             val valid=context &&
@@ -143,7 +144,8 @@ internal object TacticalPostureOperations {
         for(id in due) {
             val s=ship(id,stocks) ?: continue;val state=checkNotNull(s.unit.posture);val order=checkNotNull(state.order)
             val p=commanders.values.singleOrNull {it.characterId==order.character}
-            val context=session.ended==null && p!=null && p.cpPaused && p.baseId==0 && p.grid==state.grid &&
+            val context=session.ended==null && s.outfit.country !in session.eliminated &&
+                p!=null && p.cpPaused && p.baseId==0 && p.grid==state.grid &&
                 !BattleDeath.deceased(stocks,order.character) && owned(s,p,galaxy,stocks)
             if(order.readyAt>now && context)continue
             val at=pose(s,state.grid,minOf(now,order.readyAt),players.values,stocks,galaxy)
