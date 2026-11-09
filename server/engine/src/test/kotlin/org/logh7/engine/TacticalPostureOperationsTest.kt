@@ -67,6 +67,20 @@ class TacticalPostureOperationsTest {
         assertEquals(TacticalPosture(2487),player.posture)
         assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture==TacticalPosture(2487)})
     }
+    @Test fun woundCancelsSavedStationingForFlagshipAndFleet() {
+        val s=state()
+        val command=request(TacticalShipMode.STATIONED,1000)
+        val readyAt=assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),command).postureReadyAt)
+        val pilot=s.players.getValue("pilot")
+        s.players=mapOf("pilot" to pilot.copy(hull=pilot.hull!!.copy(woundedUntil=readyAt+1)))
+        val out=mutableListOf<TacticalPostureResult>()
+        settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),readyAt,out)
+        assertEquals(setOf(pilot.unitId,1,2),out.flatMap {it.units.keys}.toSet())
+        assertTrue(out.all {it.cancelled})
+        assertEquals(0,s.players.getValue("pilot").baseId)
+        assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture==TacticalPosture(2487)})
+    }
+
     @Test fun eliminatedCountryCancelsSavedStationingForFlagshipAndFleet() {
         assertSavedStationingCancelled(emptyMap())
     }

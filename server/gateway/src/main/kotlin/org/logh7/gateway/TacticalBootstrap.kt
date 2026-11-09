@@ -154,11 +154,21 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         }
     }
     private fun postureOrders():List<ByteArray> {
-        val records=people.mapNotNull {p->p.posture?.takeIf {it.grid==viewer.grid}?.order?.let {p.unitId to it}} +
-            snapshot.planetStocks!!.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
-                o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u->
-                    u.posture?.takeIf {it.grid==viewer.grid}?.order?.takeIf {it.character==TacticalAuthority.commander(o,u,snapshot.planetStocks!!)}?.let {u.id to it}}}
+        val stocks=checkNotNull(snapshot.planetStocks)
+        if(snapshot.session?.ended!=null)return emptyList()
         val now=snapshot.session?.gameSeconds ?: 0
+        val actors=people.filter {it.country !in eliminated}.groupBy {it.characterId}
+        val records=people.mapNotNull {p->p.posture?.takeIf {it.grid==viewer.grid}?.order?.takeIf {
+            actors[p.characterId]?.singleOrNull()==p && it.canBeExecutedBy(p,viewer.grid,now,stocks)
+        }?.let {p.unitId to it}} +
+            stocks.outfits.values.filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
+                o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u->
+                    val order=u.posture?.takeIf {it.grid==viewer.grid}?.order ?: return@mapNotNull null
+                    val actor=actors[order.character]?.singleOrNull() ?: return@mapNotNull null
+                    if(order.character==TacticalAuthority.commander(o,u,stocks) &&
+                        TacticalAuthority.camp(o,stocks)==TacticalAuthority.camp(actor,stocks) &&
+                        order.canBeExecutedBy(actor,viewer.grid,now,stocks))u.id to order else null
+                }}
         return records.groupBy {it.second}.flatMap {(order,entries)->entries.chunked(32).map {group->
                 val ids=group.map {it.first}
                 val sortie=order.mode==TacticalShipMode.ANCHORED && snapshot.planetStocks!!.outfits.values.any {o->
