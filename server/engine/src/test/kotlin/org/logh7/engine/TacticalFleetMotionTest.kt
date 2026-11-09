@@ -60,14 +60,21 @@ class TacticalFleetMotionTest {
             assertEquals(3,events.size)
         }
     }
-    @Test fun deceasedCommandersSavedRotationStopsAtTheOriginalPose() {
+    @Test fun deceasedCommandersSavedRotationStopsAtTheOriginalPose() = assertSavedRotationStopsAtTheOriginalPose { s ->
+        s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now) {_,_->true}
+    }
+    @Test fun woundedCommandersSavedRotationStopsAtTheOriginalPose() = assertSavedRotationStopsAtTheOriginalPose { s ->
+        val pilot=s.players.getValue("pilot")
+        s.players=s.players+("pilot" to pilot.copy(hull=pilot.hull!!.copy(woundedUntil=now+30)))
+    }
+    private fun assertSavedRotationStopsAtTheOriginalPose(invalidate:(State)->Unit) {
         for(kind in TacticalManeuver.entries) {
             val s=state()
             val request=request().copy(tacticalMove=TacticalMove(listOf(1,2,1010000),0f,1f,
                 listOf(TacticalPoint(0f,0f)),maneuver=kind))
             val accepted=move(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),request)
             assertEquals(3,accepted.tacticalMotions.size)
-            s.stocks=BattleDeath.apply(s.stocks,listOf(10000),now) {_,_->true}
+            invalidate(s)
             val nav=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
             val events=mutableListOf<TacticalMovement>()
             TacticalCombat.settle(session.copy(gameMillis=(now+20)*1000),galaxy,nav,p,s.commit,onMovement=events::add)

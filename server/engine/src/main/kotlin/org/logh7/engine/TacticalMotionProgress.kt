@@ -9,8 +9,8 @@ internal object TacticalMotionProgress {
             it.online && it.country==p.country && p.grid==grid && p.baseId==0 && p.cpPaused
         }?.connection?.let {p.characterId to it}}.toMap()
         fun progress(unit:Int,character:Int,motion:TacticalMotion,driftLimit:Float=BlackHoleTides.DRIFT_VELOCITY,
-            commanderChanged:Boolean=false):TacticalMotion {
-            if(motion.rotation!=null && (commanderChanged || BattleDeath.deceased(original,character))) {
+            invalidCommander:Boolean=false):TacticalMotion {
+            if(motion.rotation!=null && (invalidCommander || BattleDeath.deceased(original,character))) {
                 val stopped=motion.copy(direction=motion.origin.direction,waypoints=listOf(motion.origin.position),rotation=null)
                 events+=TacticalMovement(session.generation,unit,motion.grid,now,stopped,audience(motion.grid),
                     character=character,waypoint=-1)
@@ -42,7 +42,8 @@ internal object TacticalMotionProgress {
                 TacticalMotion(player.grid,now,pose,0f,pose.direction,listOf(pose.position))
             }
             // Navigator allows a parallel motion only within half its engine output.
-            val next=progress(player.unitId,player.characterId,motion,(player.energy ?: TacticalEnergy.ZERO).values[0]/100f*0.5f)
+            val next=progress(player.unitId,player.characterId,motion,(player.energy ?: TacticalEnergy.ZERO).values[0]/100f*0.5f,
+                invalidCommander=player.hull.woundedUntil>now)
             if(next!=motion)players[account]=player.copy(motion=next)
         }
         val commanders=players.values.associateBy {it.characterId}
@@ -55,10 +56,10 @@ internal object TacticalMotionProgress {
                 val state=unit.tactical?.takeIf {unit.boats>0 && it.motion.grid==position.grid} ?: return@map unit
                 val commanderChanged=unit.motionCommander!=0 && unit.motionCommander!=TacticalAuthority.commander(outfit,unit,stocks)
                 if(commanderChanged && state.motion.rotation==null)return@map unit
-                val wrongCamp=state.motion.rotation!=null && commanders[unit.motionCommander]?.let {
-                    TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks)
+                val commanderUnavailable=state.motion.rotation!=null && commanders[unit.motionCommander]?.let {
+                    (it.hull?.woundedUntil ?: 0)>now || TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks)
                 }==true
-                val motion=progress(unit.id,unit.motionCommander,state.motion,commanderChanged=commanderChanged || wrongCamp)
+                val motion=progress(unit.id,unit.motionCommander,state.motion,invalidCommander=commanderChanged || commanderUnavailable)
                 if(motion==state.motion)unit else unit.copy(tactical=state.copy(motion=motion,
                     nextDecisionAt=maxOf(state.nextDecisionAt,motion.acceptedAt)))
             }
