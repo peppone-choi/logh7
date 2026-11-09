@@ -55,9 +55,11 @@ internal object StrategicOperations {
     private fun sole(r:StrategyActionRequest,stocks:PlanetStocks)=r.navigators.values.filter {p->
         val rank=stocks.strategic.people[p.characterId]?.rank ?: r.identities.singleOrNull {it.id==p.characterId}?.rank
         p.generation==r.generation && p.country==r.country && !CoupActions.rebel(stocks,p.characterId,p.country) &&
-            rank!=null && rank in 2..20 && p.hull?.hp?.let {it>0}==true &&
+            rank!=null && rank in 2..20 && hasLiveFlagship(p,stocks) &&
             stocks.outfits.values.none {p.characterId in it.members()}
     }
+    private fun hasLiveFlagship(player:Navigator,stocks:PlanetStocks)=
+        !BattleDeath.deceased(stocks,player.characterId) && player.hull?.hp?.let {it>0}==true
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -158,9 +160,10 @@ internal object StrategicOperations {
             // Startup may restore stock before navigation; missing arrival context must not erase a solo reward.
             if(plan.force==StrategicForce.SOLO && plan.state!=StrategicPlanState.STARTED && navigators==null)return@map plan
             val regular=Camp(plan.country)
-            val reached=plan.outfits.any {stocks.outfits[it]?.let {o->TacticalAuthority.camp(o,stocks)==regular && o.positionIn(galaxy).grid==plan.grid}==true} ||
+            val reached=plan.outfits.any {stocks.outfits[it]?.let {o->TacticalAuthority.camp(o,stocks)==regular &&
+                o.positionIn(galaxy).grid==plan.grid && shipUnits(o)>0}==true} ||
                 (plan.force==StrategicForce.SOLO && navigators.orEmpty().any {it.generation==stocks.generation && TacticalAuthority.camp(it,stocks)==regular &&
-                    it.characterId in plan.characters && it.grid==plan.grid})
+                    it.characterId in plan.characters && it.grid==plan.grid && hasLiveFlagship(it,stocks)})
             if(seconds<issued+OperationPlanRules.DURATION_GAME_SECONDS)
                 return@map if(reached && plan.state==StrategicPlanState.ISSUED)plan.copy(state=StrategicPlanState.STARTED) else plan
             val outcome=when(plan.purpose) {

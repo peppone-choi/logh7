@@ -52,6 +52,9 @@ class CountryOperationTest {
         val arrived=assigned.copy(outfits=assigned.outfits.mapValues {(_,outfit)->outfit.copy(position=OutfitPosition(2490))})
         assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,rebel(arrived),now+1).strategic.operations.single().state)
         assertEquals(StrategicPlanState.STARTED,StrategicOperations.settle(galaxy,arrived,now+1).strategic.operations.single().state)
+        val sunk=arrived.copy(outfits=arrived.outfits.mapValues {(_,outfit)->
+            outfit.copy(activeShips=ActiveShipUnits(outfit.activeShips!!.values.map {it.copy(boats=0)}))})
+        assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,sunk,now+1).strategic.operations.single().state)
     }
 
     @Test fun sameDisplayAndOfficeNumberDoNotSharePlanLimitsOrdersOrRewards() {
@@ -118,8 +121,10 @@ class CountryOperationTest {
         assertEquals(op,StrategicOperations.settle(galaxy,s,now+OperationPlanRules.DURATION_GAME_SECONDS).strategic.operations.single(),
             "startup without restored navigation must defer rather than discard the arrival reward")
         assertEquals(StrategicPlanState.STARTED,StrategicOperations.settle(galaxy,s,now+1,listOf(participant)).strategic.operations.single().state)
-        for(p in listOf(participant.copy(country=other),participant.copy(generation=2)))
+        for(p in listOf(participant.copy(country=other),participant.copy(generation=2),participant.copy(hull=null)))
             assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,s,now+1,listOf(p)).strategic.operations.single().state)
+        val deceased=s.copy(strategic=s.strategic.copy(people=mapOf(10003 to StrategicPerson(deceasedAt=now+1))))
+        assertEquals(StrategicPlanState.ISSUED,StrategicOperations.settle(galaxy,deceased,now+1,listOf(participant)).strategic.operations.single().state)
     }
 
     @Test fun ordinaryProductionTicksSettleSoloDefenseWithoutACombatEvent() {

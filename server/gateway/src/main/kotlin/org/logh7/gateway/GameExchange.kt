@@ -2364,6 +2364,7 @@ class GameExchange(
                                                 return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,emptyList())
                                             val solo=navigation?.snapshot()?.navigators.orEmpty().values.filter {
                                                 it.generation==generation && org.logh7.engine.TacticalAuthority.camp(it,inventory)==regular &&
+                                                    !org.logh7.engine.BattleDeath.deceased(inventory,it.characterId) &&
                                                     it.hull?.hp?.let {hp->hp>0}==true &&
                                                     inventory.outfits.values.none {o->it.characterId in o.members()}}.map {it.characterId}.toSet()
                                             val rows=if(force==2)characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
