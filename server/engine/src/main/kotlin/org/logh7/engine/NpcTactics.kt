@@ -59,8 +59,9 @@ internal object NpcTactics {
     }
     private fun direction(from:TacticalPoint,to:TacticalPoint)=atan2(to.x-from.x,to.y-from.y)
     private fun stationary(grid:Int,now:Long,pose:TacticalPose)=TacticalMotion(grid,now,pose,0f,pose.direction,listOf(pose.position))
-    private fun exit(galaxy:Galaxy,outfit:OutfitStock,grid:Int,players:Map<String,Navigator>,stocks:PlanetStocks):Int? {
-        val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
+    private fun exit(galaxy:Galaxy,outfit:OutfitStock,grid:Int,players:Map<String,Navigator>,stocks:PlanetStocks,
+        eliminated:Set<CountryId>):Int? {
+        val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks,eliminated)
         val home=galaxy.bases.single {it.id==outfit.baseId}.grid
         val count=GridForces.mobileUnits(outfit).coerceAtMost(Int.MAX_VALUE.toLong()).toInt().coerceAtLeast(1)
         return (-1..1).flatMap {dy->(-1..1).mapNotNull {dx->
@@ -119,7 +120,7 @@ internal object NpcTactics {
                 live.all {stocks.tacticalCommands.confused(it.id)} ||
                 (returnJumps!=null && returnJumps>0 && live.any {cargo.getValue(it.id)<it.boats}) ||
                 live.all {u->TacticalWeapon.entries.all {TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},it).power==0}}
-            val withdrawal=retreat ?: if(critical && detectsEnemies) exit(galaxy,outfit,position.grid,players,stocks)?.let {
+            val withdrawal=retreat ?: if(critical && detectsEnemies) exit(galaxy,outfit,position.grid,players,stocks,session.eliminated.keys)?.let {
                 TacticalRetreat(it,now,5*scale,150*scale)} else null
             for(id in live.map {it.id}) {
                 outfit=stocks.outfits.getValue(outfitId)
@@ -208,7 +209,7 @@ internal object NpcTactics {
             val current=outfit.activeShips!!.values.filter {it.boats>0}
             if(withdrawal!=null && now>=withdrawal.completesAt && current.all {u->
                     u.tactical?.let {it.retreat==withdrawal && RetreatRules.outside(it.motion.pose(now,u.posture,galaxy))}==true}) {
-                val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks)
+                val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks,session.eliminated.keys)
                 val count=GridForces.mobileUnits(outfit).toInt().coerceAtLeast(1)
                 if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(outfit.country,false),count,false))==GridEntryVerdict.ALLOWED) {
                     stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),strategy=null,

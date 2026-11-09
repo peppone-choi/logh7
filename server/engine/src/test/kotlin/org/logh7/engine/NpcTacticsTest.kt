@@ -366,6 +366,27 @@ class NpcTacticsTest {
         assertNull(state.stocks.outfits.getValue(1).activeShips!!.values.single().tactical)
         assertEquals(2487,moves.last().destination);assertEquals(10000,moves.last().recipients.keys.single())
     }
+    @Test fun npcRetreatIgnoresEliminatedMobileForcesWhenChoosingAndEnteringItsDestination() {
+        val state = state(75)
+        val eliminated = CountryId(42)
+        val retreatSession = session.copy(eliminated = mapOf(eliminated to CountryDefeat(EndReason.SYSTEMS_REDUCED, now)))
+        val players = state.players.toMutableMap()
+        players["eliminated"] = Navigator(1, 10001, Power.ALLIANCE, 2487, 1000, 1000, 1000).copy(country = eliminated)
+        val movements = mutableListOf<TacticalMovement>()
+
+        val preparing = NpcTactics.advance(retreatSession, galaxy, players, state.stocks,
+            NpcTacticalPolicy(), 24, mutableListOf(), movements)
+        val retreat = assertNotNull(preparing.outfits.getValue(1).activeShips!!.values.single().tactical?.retreat)
+        assertEquals(2487, retreat.destination)
+
+        // A second live camp joins the destination after the retreat is accepted.
+        players["other"] = Navigator(1, 10002, Power.ALLIANCE, 2487, 1000, 1000, 1000)
+        val arrived = NpcTactics.advance(retreatSession.copy(gameMillis = retreat.completesAt * 1000),
+            galaxy, players, preparing, NpcTacticalPolicy(), 24, mutableListOf(), movements)
+        assertEquals(OutfitPosition(2487), arrived.outfits.getValue(1).position)
+        assertEquals(listOf(2487), movements.mapNotNull { it.destination })
+    }
+
     @Test fun aSavedNpcRetreatCannotWarpOnItsCompletionTickAfterElimination() {
         val state=state(75)
         val moves=mutableListOf<TacticalMovement>()
