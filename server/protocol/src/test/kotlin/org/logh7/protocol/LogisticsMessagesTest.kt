@@ -76,6 +76,30 @@ class LogisticsMessagesTest {
         assertEquals(56,result.resultOutfit.ships.single().kind); assertEquals(12,result.resultOutfit.troops.single().units)
         assertEquals(66,result.resultOutfitSupplies)
     }
+
+    @Test fun assignmentProposalRequiresExplicitFlagAndDiscardsForgedResults() {
+        val direct = LogisticsMessages.assignment(assignment())
+        assertNull(LogisticsMessages.assignmentProposal(direct))
+        val wire = ByteBuffer.wrap(assignment()).put(26, 0x82.toByte())
+            .put(30, -3).putShort(37, (-8).toShort()).putInt(39, -55).array()
+        val flagged = LogisticsMessages.assignment(wire)
+        val envelope = LogisticsMessages.AssignmentProposal(22, 33, 44, 1049, 700, 2,
+            LogisticsMessages.Moves(listOf(LogisticsMessages.ShipMove(32, -3, 7)),
+                listOf(LogisticsMessages.TroopMove(1003, 2, -8))), -55)
+        assertEquals(envelope, LogisticsMessages.assignmentProposal(flagged))
+        val encoded = LogisticsMessages.assignment(LogisticsMessages.encode(envelope))
+        assertEquals(0x82, encoded.kind)
+        assertEquals(envelope, LogisticsMessages.assignmentProposal(encoded))
+        val empty = LogisticsMessages.Inventory(emptyList(), emptyList())
+        assertEquals(empty, encoded.resultBase)
+        assertEquals(empty, encoded.resultOutfit)
+        assertEquals(0, encoded.resultBaseSupplies)
+        assertEquals(0, encoded.resultOutfitSupplies)
+        assertFailsWith<IllegalArgumentException> { LogisticsMessages.assignmentProposal(flagged.copy(kind = 0xff)) }
+        assertFailsWith<IllegalArgumentException> {
+            LogisticsMessages.assignmentProposal(flagged.copy(header = flagged.header.copy(mcp = 0)))
+        }
+    }
     @Test fun encodersPreserveIndependentNativeFieldOrder() {
         val reorg = LogisticsMessages.reorganization(reorganization())
         val assignment = LogisticsMessages.assignment(assignment())
