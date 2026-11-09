@@ -43,6 +43,41 @@ class TacticalCommandDeliveryTest {
         assertEquals(15,boot.units.single {it.id==1}.morale);assertTrue(boot.units.single {it.id==1}.confused)
         assertEquals(1,boot.corps.single().mission);assertEquals(6,boot.corps.single().formation)
     }
+    @Test fun reconnectDoesNotReplayOrdersFromAFormerOrDeceasedCombatant() {
+        val active=snapshot(TacticalCommandState(orders=listOf(order())))
+        fun replays(world:WorldSnapshot)=TacticalBootstrap(world,galaxy,player){person}.resume().any {opcode(it)==0x420}
+        assertTrue(replays(active))
+        assertFalse(replays(active.copy(navigators=mapOf("pilot" to player.copy(grid=2488)))))
+        assertFalse(replays(active.copy(navigators=mapOf("pilot" to player.copy(cpPaused=false)))))
+        assertFalse(replays(active.copy(navigators=mapOf(
+            "pilot" to player.copy(hull=FlagshipHull(0,100,woundedUntil=115))))))
+        val session=checkNotNull(active.session)
+        assertFalse(replays(active.copy(session=session.copy(eliminated=mapOf(
+            Power.EMPIRE.country to CountryDefeat(EndReason.CAPITAL_CAPTURED,105,Power.ALLIANCE.country))))))
+        val stocks=checkNotNull(active.planetStocks)
+        assertFalse(replays(active.copy(planetStocks=stocks.copy(
+            strategic=StrategicState(people=mapOf(player.characterId to StrategicPerson(deceasedAt=105)))))))
+    }
+    @Test fun reconnectDoesNotReplayFleetFireAfterTheCommanderReturnsFromBattle() {
+        val original=snapshot(TacticalCommandState())
+        val stocks=checkNotNull(original.planetStocks)
+        val outfit=stocks.outfits.getValue(1)
+        val motion=TacticalMotion(2487,100,TacticalPose(TacticalPoint(0f,0f),0f),0f,0f,listOf(TacticalPoint(0f,0f)))
+        val unit=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion,100,100))
+        val orders=listOf(unit.copy(attack=TacticalUnitAttack(10000,TacticalAttackOrder(2,100,120,120))) to 0x0405,
+            unit.copy(shot=TacticalUnitShot(10000,TacticalWeapon.BEAM,99,100,120)) to 0x0406)
+        for ((armed,code) in orders) {
+            val pending=original.copy(planetStocks=stocks.copy(
+                outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(armed))))))
+            fun replays(commander:Navigator)=TacticalBootstrap(
+                pending.copy(navigators=mapOf("pilot" to commander)),galaxy,player){person}
+                .resume().filter {opcode(it)==code}
+            assertEquals(10,ByteBuffer.wrap(replays(player).single()).getInt(10))
+            assertTrue(replays(player.copy(cpPaused=false)).isEmpty())
+            assertTrue(replays(player.copy(baseId=1000,mode=4,cpPaused=false)).isEmpty())
+        }
+    }
+
     @Test fun completionRefreshesOnlyItsAuthenticatedBattlefieldAndCancellationIsRejected() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         val viewer=GamePresence.Member("one",person,player,received::add)
