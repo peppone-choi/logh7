@@ -354,6 +354,46 @@ class OutfitLogisticsTest {
         assertEquals(LogisticsRejection.PREPARATION,f.act(reorganization).rejection)
         assertEquals(LogisticsRejection.PREPARATION,f.act(allocation).rejection)
     }
+    @Test fun eliminatedCountryCannotHoldOrCommitLogisticsReservations() {
+        for (mode in LogisticsMode.entries) {
+            val f = Fixture()
+            val request = f.request(id = if (mode == LogisticsMode.ALLOCATION) 10 else 11, mode = mode)
+            val prepared = f.prepare(request)
+            val before = f.store.saved
+            val writes = f.store.writes
+            assertTrue(f.logistics.blocksSupply(f.session, before, setOf(request.outfitId)))
+
+            f.session = f.session.copy(eliminated = mapOf(Power.EMPIRE.country to
+                CountryDefeat(EndReason.CAPITAL_CAPTURED, f.rules.startSeconds, Power.ALLIANCE.country)))
+            assertFalse(f.logistics.blocksSupply(f.session, before, setOf(request.outfitId)))
+            assertFalse(f.logistics.blocksMovement(f.session, request.outfitId, before))
+            val commit = prepared.copy(transfer = UnitTransfer(mapOf(ship to 2), mapOf(crew to 10)))
+            assertEquals(LogisticsRejection.SESSION, f.act(commit).rejection)
+            assertEquals(LogisticsRejection.SESSION, f.act(request).rejection)
+            assertEquals(before, f.store.saved)
+            assertEquals(writes, f.store.writes)
+            assertNotNull(f.act(f.request(14, 4)).reservation)
+        }
+    }
+
+    @Test fun eliminatedCountryCannotReplenishOrTransferGroundTroops() {
+        val f = Fixture()
+        val before = f.store.saved
+        val actor = f.player(11)
+        val defeated = f.session.copy(eliminated = mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED, f.rules.startSeconds, Power.ALLIANCE.country)))
+        val supply = Supplement.evaluate(SupplementRequest("p11", "c11", 11, Power.EMPIRE, 1, 1000, 1,
+            OutfitKind.FLEET.wire, 1, emptyMap()), defeated, actor, before)
+        val transfer = GroundTransfer.evaluate(GroundTransferRequest("p11", "c11", 11, Power.EMPIRE, 1, 1,
+            GroundTransferAction.LOAD), defeated, actor, before)
+        assertEquals(LogisticsRejection.SESSION, supply.rejection)
+        assertEquals(LogisticsRejection.SESSION, transfer.rejection)
+        assertEquals(before, supply.stocks)
+        assertEquals(before, transfer.stocks)
+        assertEquals(actor, supply.player)
+        assertEquals(actor, transfer.player)
+    }
+
     @Test fun authenticationAndStoredRolesCannotBeChosenByTheRequest() {
         val f = Fixture()
         val r = f.request()
