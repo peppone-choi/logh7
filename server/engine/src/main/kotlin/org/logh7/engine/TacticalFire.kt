@@ -236,12 +236,13 @@ internal object TacticalCombat {
         return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed,pirateSunk=pirateSunk)
     }
 
-    private fun clearFinishedOrders(players:MutableMap<String,Navigator>,galaxy:Galaxy,stocks:PlanetStocks,now:Long) {
+    private fun clearFinishedOrders(players:MutableMap<String,Navigator>,galaxy:Galaxy,stocks:PlanetStocks,now:Long,
+        eliminated:Set<CountryId>) {
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)
         // Hostile bases/ground troops can retain tactical contact but are never auto-fire targets.
         for((account,p) in players.toMap()) if(p.attack!=null &&
             ids.none {target(it,p.grid,TacticalAuthority.camp(p,stocks),stocks,galaxy,players)!=null})players[account]=p.copy(attack=null)
-        TacticalContact.endUncontested(galaxy,players,stocks,now)
+        TacticalContact.endUncontested(galaxy,players,stocks,now,eliminated)
     }
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
@@ -264,7 +265,7 @@ internal object TacticalCombat {
                     BattleDeath.deceased(stocks,player.characterId) || (player.hull?.woundedUntil ?: 0)>now))
                 players[account]=players.getValue(account).copy(attack=null,fire=player.fire?.copy(pending=null))
         }
-        clearFinishedOrders(players,galaxy,stocks,now)
+        clearFinishedOrders(players,galaxy,stocks,now,session.eliminated.keys)
         val movements=mutableListOf<TacticalMovement>()
         val strategicMovements=mutableListOf<NpcStrategicMovement>()
         var inventory=if(session.ended==null)TacticalMotionProgress.advance(session,galaxy,players,stocks,movements) else stocks
@@ -372,7 +373,7 @@ internal object TacticalCombat {
             inventory=BattleDeath.apply(inventory,sunkCharacters,now)
             inventory=SinkingExperience.apply(inventory,sunkCharacters,production.identities?.invoke().orEmpty())
         }
-        clearFinishedOrders(players,galaxy,inventory,now)
+        clearFinishedOrders(players,galaxy,inventory,now,session.eliminated.keys)
         if(inventory.social.coup!=stocks.social.coup)players.replaceAll {_,player->
             navigation.clearInvalidReturnBase(player,inventory)
         }

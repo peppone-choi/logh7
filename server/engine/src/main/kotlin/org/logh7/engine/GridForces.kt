@@ -14,7 +14,7 @@ object GridForces {
         val ship: Boolean = false, val base: Boolean = false, val deployedShip: Boolean = false)
 
     fun collect(galaxy: Galaxy, generation: Long, navigators: Collection<Navigator>,
-        stocks: PlanetStocks?): Map<Int, List<Force>> {
+        stocks: PlanetStocks?, eliminated: Set<CountryId> = emptySet()): Map<Int, List<Force>> {
         require(stocks == null || stocks.generation == generation)
         val result = linkedMapOf<Int, MutableMap<Camp, Force>>()
         fun add(grid: Int, force: Force) {
@@ -24,7 +24,7 @@ object GridForces {
                 previous.nonSolo || force.nonSolo, previous.ship || force.ship, previous.base || force.base,
                 previous.deployedShip || force.deployedShip)
         }
-        navigators.filter { it.generation == generation && !BattleDeath.deceased(stocks, it.characterId) }.forEach {
+        navigators.filter { it.generation == generation && it.country !in eliminated && !BattleDeath.deceased(stocks, it.characterId) }.forEach {
             val player = it
             val grouped = stocks?.outfits?.values?.any { outfit ->
                 player.characterId in outfit.members() && outfit.country == player.country &&
@@ -50,6 +50,7 @@ object GridForces {
                 add(base.grid, Force(Camp.FEZZAN, base = true))
         }
         stocks?.outfits?.values?.forEach { outfit ->
+            if(outfit.country in eliminated)return@forEach
             val ships = ships(outfit)
             val count = mobileUnits(outfit)
             if (count > 0) {
