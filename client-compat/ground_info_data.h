@@ -8,6 +8,17 @@ inline bool groundTransferReason(const unsigned char* record,unsigned& reason) {
     if(record[20]!=1 || (infoWord(record,24)>>16)!=0x4c47)return false;
     reason=infoWord(record,24)&0xffff;return true;
 }
+// 032f mode 23 (revival extension): the explicit result of one 0417/0418 sent with wait 0x4c470000|token.
+// +0 unit, +4 token, one member: +24 character, +28 accepted 1/refused 0, +29 attack 1/clear 0.
+// Returns 1 accepted, 0 refused, -1 when the record belongs to another order.
+constexpr unsigned groundOrderResultMode=23;
+inline int groundOrderResult(const unsigned char* record,unsigned unit,unsigned token,unsigned character,bool attack) {
+    if(record[8]!=groundOrderResultMode || record[20]!=1 || !unit || !token || token>0xffff || !character ||
+        infoWord(record,0)!=unit || infoWord(record,4)!=token || infoWord(record,24)!=character ||
+        record[28]>1 || record[29]!=(attack ? 1 : 0))return -1;
+    return record[28];
+}
+inline unsigned nextGroundOrderToken(unsigned token) {return token>=0xffff ? 1 : token+1;}
 struct GroundPage {
     unsigned count=0;
     unsigned char rows[70*88]={};

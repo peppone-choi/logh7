@@ -147,7 +147,7 @@ static bool openGroundWindow(void* gui);
 static bool updateUnitWindow();
 static bool openUnitWindow(void* gui);
 static void syncInspectWindow(void* gui);
-static void groundOrderReplied(unsigned opcode,const BYTE* record);
+static bool groundOrderReplied(unsigned opcode,const BYTE* record);
 static void outfitWarehouseResponse(void* world,const BYTE* record);
 static void updateCharacterInformation(void* manager);
 static bool updateSessionEnding(void* manager);
