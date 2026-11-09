@@ -27,6 +27,20 @@ class TacticalDeadlineTest {
         } finally {rig.engine.drainAndClose()}
     }
 
+    @Test fun restoredMovingFortressStopsAtItsFinalWaypointBetweenRegularTicks() = runTest {
+        val rig=Rig(this,testScheduler,fortressDeadline=true)
+        try {
+            rig.engine.submit(WorldCommand.Probe);runCurrent()
+            fun fortress()=rig.engine.snapshot().planetStocks!!.tacticalCommands.fortresses.getValue(1000)
+            advanceTimeBy(624);runCurrent()
+            assertEquals(.5f,fortress().motion.velocity)
+            advanceTimeBy(1);runCurrent()
+            assertEquals(rig.start+15,fortress().reportedAt)
+            assertEquals(0f,fortress().motion.velocity)
+            assertEquals(TacticalPoint(7.5f,0f),fortress().motion.origin.position)
+        } finally {rig.engine.drainAndClose()}
+    }
+
     @Test fun restoredShipOrderEntersStockAtItsDeadlineWithoutCombat() = runTest {
         val rig=Rig(this,testScheduler,shipOrder=true)
         try {
@@ -288,7 +302,7 @@ class TacticalDeadlineTest {
     }
     private class Rig(scope:CoroutineScope,scheduler:TestCoroutineScheduler,resumedAt:Long?=null,postureDeadline:Boolean=false,
         supportDeadline:Boolean=false,fireDeadline:Boolean=false,fleetFireDeadline:Boolean=false,automaticFireDeadline:Boolean=false,
-        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,coupDeadline:Boolean=false,shipOrder:Boolean=false) {
+        uncharged:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,coupDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -360,6 +374,14 @@ class TacticalDeadlineTest {
                         warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1)))
                 }
             }
+            if(fortressDeadline) {
+                players=emptyMap()
+                val motion=TacticalMotion(2488,start,TacticalPose(TacticalPoint(0f,0f),0f),.5f,0f,
+                    listOf(TacticalPoint(2f,0f),TacticalPoint(7.5f,0f)),waitSeconds=0)
+                stocks=stocks.copy(bases=mapOf(1000 to PlanetStock(1000,2,0,0,0,0)),
+                    strategic=StrategicState(offices=listOf(OfficeHolding(51,1000,10000))),
+                    tacticalCommands=TacticalCommandState(fortresses=mapOf(1000 to TacticalFortressMotion(2488,motion))))
+            }
             if(supportDeadline) {
                 val pilot=players.getValue("pilot")
                 val pose=pilot.motion!!.copy(velocity=0f,waypoints=listOf(TacticalPoint(0f,0f)))
@@ -376,7 +398,7 @@ class TacticalDeadlineTest {
         }
         private val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",3))+
             listOfNotNull(GalaxySystem(4,2487,4,"Odin",2).takeIf {coupDeadline}),
-            listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f))+
+            listOf(GalaxyBase(1000,2488,80,if(fortressDeadline)1 else 0,"Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline))+
             listOfNotNull(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f).takeIf {coupDeadline}),
             Power.entries.associateWith {2488})
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
