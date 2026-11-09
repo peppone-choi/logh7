@@ -270,6 +270,15 @@ class TacticalGroundOperationsTest {
         val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         fun order(units:List<Int>,target:Int)=accept(s,n,p,request().copy(tacticalGround=TacticalGroundCommand(
             if(target>0)TacticalGroundAction.TARGET else TacticalGroundAction.CLEAR,units,target=target)))
+        val defeated=session.copy(eliminated=mapOf(Power.ALLIANCE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED,now,Power.EMPIRE.country)))
+        val before=s.stocks
+        val saves=s.saves
+        val targetRequest=request().copy(tacticalGround=TacticalGroundCommand(TacticalGroundAction.TARGET,listOf(2),target=50))
+        val rejected=TacticalGroundOperations.accept(targetRequest,defeated,galaxy,n,p,p.snapshot(1)!!,s.commit,24)
+        assertEquals(NavigationRejection.TARGET,rejected.rejection)
+        assertEquals(before,s.stocks)
+        assertEquals(saves,s.saves)
         assertNotNull(order(listOf(2),50).player);assertEquals(mapOf(2 to 50),s.stocks.tacticalCommands.groundTargets)
         assertEquals(NavigationRejection.TARGET,order(listOf(2),3).rejection,"own troops are no target")
         assertEquals(NavigationRejection.UNIT,order(listOf(3),50).rejection,"a troop still aboard has no ground battle")
