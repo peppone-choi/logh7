@@ -81,6 +81,54 @@ class BaseOccupationTest {
         assertSame(after,advance(after,players))
     }
 
+    @Test fun foreignOccupationSettlesLocalUnladenTransportStockExactlyOnce() {
+        val original=stocks()
+        val old=original.bases.getValue(1000)
+        val remote=base.copy(id=1001,grid=2488)
+        val world=Galaxy(galaxy.systems+GalaxySystem(4,2488,4,"Remote",3),listOf(base,remote),galaxy.starts)
+        val marines=UnitStack(4)
+        val crew=UnitStack(UnitSpecifications.crews.first {it.power==3 && it.type==3}.kind)
+        val hull=UnitStack(ProductionUnits.definitions.first {it.ship && it.power==3 && it.name.startsWith("輸送艦")}.kind)
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(6,hull)))
+        val carrier=OutfitStock(3,3,OutfitKind.TRANSPORT,1001,103,
+            units=UnitInventory(ships.quantities()),activeShips=ships,position=OutfitPosition(2488,1001))
+        val held=TransportPackage(9,Power.ALLIANCE.country,1000,1001,700,
+            UnitInventory(mapOf(hull to 1),mapOf(marines to 5,crew to 7)))
+        val boats=TransportActions.boats(carrier)
+        val aboard=held.copy(id=1,carrier=3,carrierBoats=boats,survivingBoats=boats)
+        val elsewhere=held.copy(id=2,source=1001,destination=1000)
+        val winner=held.copy(id=3,country=Power.EMPIRE.country)
+        val untouched=listOf(aboard,elsewhere,winner)
+        val before=original.copy(bases=mapOf(1000 to old.copy(units=UnitInventory(old.units.ships,
+            mapOf(marines to 65534),old.units.work)),1001 to old.copy(baseId=1001)),
+            outfits=original.outfits+(3 to carrier),
+            warehouses=original.warehouses+(103 to OutfitWarehouse(103,3,OutfitKind.TRANSPORT,1001,3)),
+            strategic=original.strategic.copy(transports=untouched+held),nextShipId=7)
+        val events=mutableListOf<BaseOccupation>()
+        val captured=advance(before,events=events,world=world,cap=1200)
+        val local=captured.bases.getValue(1000)
+        assertEquals(Power.EMPIRE.country,local.country)
+        assertEquals(1200,local.supplies)
+        assertEquals(UnitInventory(troops=mapOf(marines to 65535,crew to 7)),local.units)
+        assertEquals(untouched,captured.strategic.transports)
+        assertEquals(9,captured.strategic.lastTransportId)
+        assertEquals(before.bases.getValue(1001),captured.bases.getValue(1001))
+        assertSame(captured,advance(captured,events=events,world=world,cap=1200))
+        assertEquals(1,events.size)
+
+        val defeated=captured.outfits.getValue(1).copy(activeGround=ActiveGroundUnits(emptyList()),units=UnitInventory())
+        val defenders=captured.outfits.getValue(2)
+        val returned=ActiveGroundUnits(assertNotNull(defenders.activeGround).values.map {it.copy(carrier=0,base=1000)})
+        val counterattack=captured.copy(outfits=captured.outfits+mapOf(1 to defeated,2 to defenders.copy(activeGround=returned)))
+        val retaken=advance(counterattack,events=events,world=world,cap=1200)
+        assertEquals(Power.ALLIANCE.country,retaken.bases.getValue(1000).country)
+        assertEquals(local.supplies,retaken.bases.getValue(1000).supplies)
+        assertEquals(UnitInventory(troops=mapOf(marines to 65535,crew to 14)),retaken.bases.getValue(1000).units)
+        assertEquals(listOf(aboard,elsewhere),retaken.strategic.transports)
+        assertEquals(9,retaken.strategic.lastTransportId)
+        assertEquals(2,events.size)
+    }
+
     @Test fun rebelCaptureAndRegularRecapturePreserveSameCountryWarehouses() {
         val original=stocks()
         val country=Power.ALLIANCE.country
@@ -92,7 +140,9 @@ class BaseOccupationTest {
         val openSupply=mapOf(1000 to country.value,1001 to country.value)
         val queued=TacticalQueuedCommand(10001,2487,now,now+30,TacticalCommand(0x422,base=1000))
         val neighboringOrder=queued.copy(command=queued.command.copy(base=1001))
+        val packageAshore=TransportPackage(1,country,1000,1001,50)
         val before=original.copy(outfits=original.outfits+(1 to rebels),
+            strategic=original.strategic.copy(transports=listOf(packageAshore),lastTransportId=1),
             bases=original.bases+(1001 to otherBase),
             tacticalCommands=original.tacticalCommands.copy(emergencySupplies=openSupply,orders=listOf(queued,neighboringOrder)),
             warehouses=original.warehouses+(101 to original.warehouses.getValue(101).copy(country=country)),
@@ -114,6 +164,7 @@ class BaseOccupationTest {
         assertEquals(0,players.getValue("regular").returnBase)
         assertEquals(rebel,players.getValue("rebel"))
         assertEquals(before.warehouses,captured.warehouses)
+        assertEquals(listOf(packageAshore),captured.strategic.transports)
         assertEquals(rebels,captured.outfits.getValue(1))
         assertSame(captured,advance(captured,players))
 
@@ -130,6 +181,7 @@ class BaseOccupationTest {
         assertTrue(retaken.social.coup.plots.getValue(10000).bases.isEmpty())
         assertEquals(setOf("rebel"),events.single().expelled.keys)
         assertEquals(before.warehouses,retaken.warehouses)
+        assertEquals(listOf(packageAshore),retaken.strategic.transports)
     }
 
     @Test fun multipleAttackingCountriesMustResolveTheirBattleBeforeOccupation() {

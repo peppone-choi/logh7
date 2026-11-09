@@ -74,9 +74,19 @@ internal object BaseOccupationOperations {
             }
             // Warehouses are keyed by country, so an internal camp change has no foreign stock to seize.
             val localWarehouses=stocks.warehouses.values.filter {it.baseId==base.id && it.country==loser && loser!=winner}
+            // Unladen packages are still stored locally. Use the existing capture rules for their contents.
+            val (localPackages,otherPackages)=stocks.strategic.transports.partition {
+                loser!=winner && it.country==loser && it.source==base.id && it.carrier==0
+            }
             // Same finite capacity as production. Accumulate in Long before applying the cap.
-            val supplies=(previous.supplies.toLong()+localWarehouses.sumOf {it.supplies.toLong()})
-                .coerceAtMost(maxOf(previous.supplies,maximumStock).toLong()).toInt()
+            val supplies=(previous.supplies.toLong()+localWarehouses.sumOf {it.supplies.toLong()}+
+                localPackages.sumOf {it.supplies.toLong()}).coerceAtMost(maxOf(previous.supplies,maximumStock).toLong()).toInt()
+            val troops=previous.units.troops.toMutableMap()
+            for(pack in localPackages.sortedBy {it.id})for((stack,count) in pack.units.troops) {
+                // Preserve existing stacks first, within the native 24-stack and u16 limits.
+                if(stack in troops || troops.size<24)
+                    troops[stack]=((troops[stack] ?: 0)+count).coerceAtMost(65535)
+            }
             val warehouses=stocks.warehouses.mapValues {(_,warehouse)->
                 if(warehouse.baseId!=base.id || warehouse.country!=loser || loser==winner)warehouse else warehouse.copy(
                     supplies=0,units=UnitInventory(troops=warehouse.units.troops),spareShips=SpareShipBoats())
@@ -84,7 +94,7 @@ internal object BaseOccupationOperations {
             val occupied=previous.copy(owner=Allegiance.Country(winner),camp=winningCamp,supplies=supplies,
                 governorId=0,garrisonCommanderId=0,capitalAdministratorId=0,capitalDefenseCommanderId=0,guardInspectorId=0,
                 // Captured works restart, including recruitment; never revive progress on recapture.
-                units=UnitInventory(troops=previous.units.troops),productionCountry=null,
+                units=UnitInventory(troops=troops),productionCountry=null,
                 spareShips=SpareShipBoats())
             val cancelled=stocks.tacticalCommands.orders.filter {it.command.base==base.id}
             val capital=Capital.of(base)
@@ -95,7 +105,9 @@ internal object BaseOccupationOperations {
                 tacticalCommands=stocks.tacticalCommands.copy(orders=stocks.tacticalCommands.orders-cancelled.toSet(),
                     emergencySupplies=stocks.tacticalCommands.emergencySupplies-base.id),
                 strategic=stocks.strategic.copy(suppressions=stocks.strategic.suppressions.filter {it.base!=base.id},
-                    fiefs=stocks.strategic.fiefs-base.id,offices=stocks.strategic.offices.filter {holding ->
+                    fiefs=stocks.strategic.fiefs-base.id,transports=otherPackages,
+                    lastTransportId=if(localPackages.isEmpty())stocks.strategic.lastTransportId else stocks.strategic.transportIdFloor,
+                    offices=stocks.strategic.offices.filter {holding ->
                         if(OrganizationOffices.of(holding.card)?.scope==OfficeScope.OUTFIT)
                             stocks.outfits[holding.seat]?.let {it.baseId==base.id && TacticalAuthority.camp(it,stocks)==losingSide}!=true else holding.seat!=base.id
                     }),
