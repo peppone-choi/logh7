@@ -290,6 +290,35 @@ class TransportActionsTest {
         assertEquals(StrategyActionRejection.TARGET,act(load(1),reinforced).rejection)
     }
 
+    @Test fun partialLossRemovesOnlyPackagesWithNoDeliverableCargo() {
+        val tiny = assertNotNull(act(plan(supplies=1,count=1),stocks()).stocks)
+        val planned = assertNotNull(act(plan(supplies=2,kind=TransportActions.NO_UNIT,count=0),tiny).stocks)
+        val aboard = assertNotNull(act(load(2),assertNotNull(act(load(1),planned).stocks)).stocks)
+        val store = object : PlanetStockStore {
+            var saved = aboard
+            override fun load() = saved
+            override fun save(stocks: PlanetStocks) { saved = stocks }
+        }
+        val now = session.gameMillis / 1000
+        val production = PlanetProduction(galaxy,store,now,PlanetProductionPolicy())
+        val before = production.settle(1,now)
+        val carrier = before.outfits.getValue(200)
+        val damaged = TacticalLosses.apply(carrier,1,1)
+        val lost = production.replace(before,before.copy(outfits=before.outfits+(200 to damaged)))
+        val remaining = lost.strategic.transports.single()
+        assertEquals(2,remaining.id)
+        assertEquals(1,TransportActions.delivered(remaining,boats-1).first)
+        assertEquals(2,lost.strategic.transportIdFloor)
+        assertEquals(before.bases,lost.bases)
+        assertEquals(lost,store.saved)
+
+        val reopened = PlanetProduction(galaxy,store,now,PlanetProductionPolicy()).settle(1,now)
+        val rejected = act(load(1),reopened)
+        assertEquals(StrategyActionRejection.TARGET,rejected.rejection)
+        assertEquals(captain.mcp,rejected.player?.mcp)
+        assertEquals(reopened,rejected.stocks)
+    }
+
     @Test fun lostCargoReleasesMaterialAndUnitSlotsForTheNextLoad() {
         val initial=stocks()
         val outfit=initial.outfits.getValue(200)

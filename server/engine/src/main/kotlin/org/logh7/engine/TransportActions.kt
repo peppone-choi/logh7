@@ -207,8 +207,10 @@ object TransportActions {
                 val surviving=if(before!=null && alive<before)
                     (minOf(before,pack.survivingBoats).toLong()*alive/before).toInt()
                     else minOf(alive,pack.survivingBoats)
+                val largestCargo=maxOf(pack.supplies,pack.units.ships.values.maxOrNull() ?: 0,
+                    pack.units.troops.values.maxOrNull() ?: 0)
                 when {
-                    surviving==0 -> null
+                    surviving==0 || cargoShare(largestCargo,surviving,pack.carrierBoats)==0 -> null
                     surviving<pack.survivingBoats -> pack.copy(survivingBoats=surviving)
                     else -> pack
                 }
@@ -217,11 +219,14 @@ object TransportActions {
         return if(settled==existing)stocks else stocks.copy(strategic=stocks.strategic.copy(transports=settled,lastTransportId=stocks.strategic.transportIdFloor))
     }
 
+    private fun cargoShare(amount:Int,surviving:Int,carrierBoats:Int)=
+        (amount.toLong()*surviving/carrierBoats).toInt()
+
     /** The share of a carried package that survives with [boats] of its [TransportPackage.carrierBoats]. */
     fun delivered(pack:TransportPackage,boats:Int):Pair<Int,UnitInventory> {
         val surviving=minOf(boats,pack.survivingBoats)
         if(surviving>=pack.carrierBoats)return pack.supplies to pack.units
-        fun scale(v:Int)=(v.toLong()*maxOf(0,surviving)/pack.carrierBoats).toInt()
+        fun scale(v:Int)=cargoShare(v,maxOf(0,surviving),pack.carrierBoats)
         return scale(pack.supplies) to UnitInventory(pack.units.ships.mapValues {scale(it.value)}.filterValues {it>0},
             pack.units.troops.mapValues {scale(it.value)}.filterValues {it>0})
     }
