@@ -27,7 +27,7 @@ class SharedFameWireTest {
         return SyntheticClient(f.sessionPort,LoadMetrics()).also {it.send(SyntheticClient.token(token),SyntheticClient.opcode(0x2000));it.expect(0x2001)}
     }
     private fun endingEvaluation(bytes:ByteArray,f:LoadFixture,name:String):SessionEndingMessages.Evaluation {
-        val info=SessionEndingReport.session(f.engine.snapshot(),listOf(profile)).copy(name=name)
+        val info=SessionEndingReport.session(f.engine.snapshot(),mapOf("actor" to CharacterProfile.legacy(profile))).copy(name=name)
         val offset=bytes.size-SessionEndingMessages.information(info).size-17
         val b=ByteBuffer.wrap(bytes).position(offset)
         fun u32()=b.int.toLong() and 0xffffffffL
@@ -112,7 +112,7 @@ class SharedFameWireTest {
                             val view=if(index==0)alpha else beta
                             val character=CharacterStores(directory.resolve(if(index==0)"alpha/characters.properties" else "beta/characters.properties"),view)
                                 .get(1).character("load-000")!!
-                            val info=SessionEndingReport.session(f.engine.snapshot(),listOf(character))
+                            val info=SessionEndingReport.session(f.engine.snapshot(),mapOf("actor" to CharacterProfile.legacy(character)))
                                 .copy(id=index+1,name=if(index==0)"Alpha" else "Beta")
                             LobbyMessages.ChargedSession(character,info,SessionEndingMessages.Evaluation(0,1000,(index*10).toLong(),((index+1)*10).toLong(),0))
                         }

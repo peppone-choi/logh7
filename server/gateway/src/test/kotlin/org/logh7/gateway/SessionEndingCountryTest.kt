@@ -24,7 +24,7 @@ class SessionEndingCountryTest {
         return WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot().copy(ended=end),result=value)
     }
     private fun message(who:CharacterMessages.Generate,nav:Navigator,countries:CountryCatalog=catalog)=
-        SessionEndingReport.message(world(),who,nav,listOf(who),emptyList(),countries=countries)
+        SessionEndingReport.message(world(),who,nav,mapOf("actor" to CharacterProfile.legacy(who)),emptyList(),countries=countries)
 
     @Test fun addedCountriesReceiveTheirEndingReportByDisplayCodeWithoutLegacyAuthority() {
         // 42 displays as 3 regardless of its empire office family or empire ship style; 43 displays as 2.
@@ -60,7 +60,23 @@ class SessionEndingCountryTest {
         val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0),1177 to PlanetStock(1177,3,0,0,0,0),
             1050 to PlanetStock(1050,Allegiance.Country(CountryId(42)),0,0,0,0),1051 to PlanetStock(1051,2,1,0,0,0)))
         val info=SessionEndingReport.information(WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot(),
-            planetStocks=stocks),listOf(actor))
+            planetStocks=stocks),mapOf("actor" to CharacterProfile.legacy(actor)))
         assertEquals(listOf(1L,1L),info.powers.map {it.bases},"42's base is not read as either side; the rebel base is excluded")
+    }
+
+    @Test fun lobbyAndEndingCountsUseActualMembershipRatherThanDisplayPower() {
+        val empire=CharacterProfile.legacy(actor)
+        val profiles=mapOf(
+            "defected" to empire,
+            "unaffiliated" to empire.copy(character=actor.copy(id=10001),country=null),
+            "additional" to empire.copy(character=actor.copy(id=10002,power=3),country=CountryId(42)),
+            "offline" to empire.copy(character=actor.copy(id=10003)))
+        val ended=world().copy(navigators=mapOf(
+            "defected" to player(CountryId(3)),
+            "offline" to player(CountryId(3)).copy(characterId=10003,generation=2)))
+        val running=ended.copy(session=ended.session!!.copy(ended=null),result=null)
+
+        assertEquals(listOf(1L,1L),SessionEndingReport.information(running,profiles).powers.map {it.characters})
+        assertEquals(listOf(1L,1L),SessionEndingReport.session(ended,profiles).powers.map {it.characters})
     }
 }

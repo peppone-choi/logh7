@@ -19,6 +19,9 @@ internal object WorldCharacters {
         }
         if(player==null)profile else profile.copy(country=player.country,shipStyle=player.shipStyle)
     }
+    fun memberCounts(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):Map<CountryId,Int> =
+        profiles(stored,snapshot).values.mapNotNull {it.country}.groupingBy {it}.eachCount()
+
     fun identities(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):List<StrategicIdentity> =
         profiles(stored,snapshot).values.sortedBy {it.character.id}.map {profile->
             val c=profile.character
