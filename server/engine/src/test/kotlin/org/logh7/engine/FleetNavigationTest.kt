@@ -309,6 +309,9 @@ class FleetNavigationTest {
             assertEquals(listOf(2,number,number,base,39,5),
                 listOf(office.country.value,office.fleetId,office.fleetNumber,office.baseId,office.role.card,office.rank))
         }
+        val seekt=OriginalStartingOffice.SEEKT_FLEET_12
+        assertEquals(listOf(2,12,12,1040,39,4),
+            listOf(seekt.country.value,seekt.fleetId,seekt.fleetNumber,seekt.baseId,seekt.role.card,seekt.rank))
         for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
     }
 
@@ -331,6 +334,8 @@ class FleetNavigationTest {
                 home.copy(id=1100,grid=4472,model=113,kind=1,name="Garmisch")
             OriginalStartingOffice.FLEGEL_FLEET_10 ->
                 home.copy(id=1001,grid=3757,model=112,kind=1,name="Geiersburg")
+            OriginalStartingOffice.SEEKT_FLEET_12 ->
+                home.copy(id=1040,grid=1253,model=110,kind=1,name="Iserlohn")
         }
         val systems=if(base.grid==start.grid)listOf(start) else
             listOf(start,GalaxySystem(4,base.grid,4,base.name,power.country.value))
