@@ -71,7 +71,7 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
         require(validName(account) && validPassword(currentPassword) && validPassword(newPassword)) { "invalid account or password" }
         val accounts = fresh()
         if (!matchesPassword(accounts[account], currentPassword)) return false
-        write(accounts + (account to AccountPassword.hash(newPassword)))
+        replacePasswordAndRevoke(accounts, account, newPassword)
         return true
     }
 
@@ -94,9 +94,13 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
             ?.let { runCatching { HexFormat.of().parseHex(it) }.getOrNull() }
         val matches = MessageDigest.isEqual(digest ?: ByteArray(32), codeDigest(code))
         if (!matches || digest == null) return false
-        write(accounts + (account to AccountPassword.hash(newPassword)))
-        recoveryVersions.merge(account, 1L, Long::plus)
+        replacePasswordAndRevoke(accounts, account, newPassword)
         return true
+    }
+
+    private fun replacePasswordAndRevoke(accounts: Map<String, String>, account: String, password: String) {
+        write(accounts + (account to AccountPassword.hash(password)))
+        recoveryVersions.merge(account, 1L, Long::plus)
     }
 
     internal fun recoveryVersion(account: String) = recoveryVersions[account] ?: 0L
