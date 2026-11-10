@@ -107,6 +107,7 @@ internal object TacticalOfflineAi {
                 charge=p.charge?.settle(now,p.energy ?: TacticalEnergy.ZERO) ?: TacticalCharge(now,clockScale=scale))
             players[account]=next
             val motions=linkedMapOf<Int,TacticalMotion>()
+            val movingOutfits=mutableSetOf<Int>()
             if(!flagshipBusy)motions[p.unitId]=motion
             var commanded=false
             val alliedFlagships=if(kind in 0..1) players.values.asSequence()
@@ -160,17 +161,32 @@ internal object TacticalOfflineAi {
                     val withdraw=if(kind==5 && retreat!=null)retreat.copy(membershipChecked=false) else null
                     val state=(old ?: NpcTacticalState(moving,now,now)).copy(motion=moving,nextDecisionAt=now+5*scale,retreat=withdraw)
                     val firing=if(attack==null || approach!=null)null else unit.attack ?: TacticalUnitAttack(p.characterId,TacticalAttackOrder(2,now,now,now+5*scale))
-                    motions[unit.id]=moving;commanded=true
+                    motions[unit.id]=moving;movingOutfits+=outfitId;commanded=true
                     unit.copy(tactical=state,motionCommander=p.characterId,attack=firing)
                 } ?: continue
                 stocks=stocks.copy(outfits=stocks.outfits+(outfitId to original.copy(activeShips=ActiveShipUnits(updated))))
             }
             if(commanded)players[account]=next.copy(commandRange=next.commandRange?.reset(now))
             if(motions.isEmpty() && !commanded)continue
+            val (adjusted,commands)=TacticalFleetMotion.withAirSlowdown(motions,stocks.tacticalCommands)
+            if(adjusted!==motions) {
+                adjusted[p.unitId]?.let {players[account]=players.getValue(account).copy(motion=it)}
+                val outfits=stocks.outfits.toMutableMap()
+                for(id in movingOutfits) {
+                    val outfit=outfits.getValue(id)
+                    val ships=outfit.activeShips!!.values.map {unit->
+                        val adjustedMotion=adjusted[unit.id]
+                        if(adjustedMotion==null || adjustedMotion===motions[unit.id])unit
+                        else unit.copy(tactical=checkNotNull(unit.tactical).copy(motion=adjustedMotion))
+                    }
+                    outfits[id]=outfit.copy(activeShips=ActiveShipUnits(ships))
+                }
+                stocks=stocks.copy(outfits=outfits,tacticalCommands=commands)
+            }
             val audience=session.participants.mapNotNull {(a,m)->players[a]?.takeIf {
                 m.online && m.connection!=null && it.grid==p.grid && (it.cpPaused || it.baseId>0)}?.let {it.characterId to checkNotNull(m.connection)}}.toMap()
             events+=TacticalCommandResult(session.generation,TacticalQueuedCommand(p.characterId,p.grid,now,now,
-                TacticalCommand(0x421)),now,audience,motions=motions,stateOnly=true)
+                TacticalCommand(0x421)),now,audience,motions=adjusted,stateOnly=true)
         }
         return stocks
     }

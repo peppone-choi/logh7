@@ -39,6 +39,40 @@ class TacticalOfflineAiTest {
         assertEquals(next,TacticalOfflineAi.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,players,next,1,events))
         assertEquals(saved,players);assertEquals(1,events.size)
     }
+    @Test fun newOfflineRoutesKeepActiveAirSlowdownAndRestoreTheirOwnSpeeds() {
+        val initial=stocks()
+        fun escort(s:PlanetStocks)=s.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion
+        val baselinePlayers=players()
+        val baseline=TacticalOfflineAi.advance(offline,galaxy,baselinePlayers,initial,1,mutableListOf())
+        val flagship=baselinePlayers.getValue("pilot")
+        val normal=mapOf(flagship.unitId to flagship.motion!!.velocity,1 to escort(baseline).velocity)
+        assertTrue(normal.values.all {it>0f})
+        for((mode,applied,grid) in listOf(Triple(1,.1f,2488),Triple(1,null,2488),Triple(0,null,2488),Triple(1,.1f,2487))) {
+            val pilots=players()
+            val wings=listOf(flagship.unitId,1).mapIndexed {index,target->
+                val source=98+index
+                source to TacticalAirWing(10001,grid,source,target,mode,now+100,applied)
+            }.toMap()
+            val state=initial.copy(tacticalCommands=initial.tacticalCommands.copy(air=wings))
+            val events=mutableListOf<TacticalCommandResult>()
+            val moved=TacticalOfflineAi.advance(offline,galaxy,pilots,state,1,events)
+            val slowed=applied!=null && grid==flagship.grid
+            val ratio=if(slowed).5f else 1f
+            assertEquals(normal.getValue(flagship.unitId)*ratio,pilots.getValue("pilot").motion!!.velocity)
+            assertEquals(normal.getValue(1)*ratio,escort(moved).velocity)
+            for((id,velocity) in normal)assertEquals(velocity*ratio,events.single().motions.getValue(id).velocity)
+            for(wing in moved.tacticalCommands.air.values)assertEquals(if(slowed)normal.getValue(wing.target) else applied,wing.slowVelocity)
+            if(slowed) {
+                // The opposing wing commander is absent. Settlement removes the wings and restores both speeds.
+                val restored=TacticalCommandOperations.advance(offline.copy(gameMillis=(now+1)*1000),galaxy,pilots,moved,1,
+                    mutableListOf(),mutableListOf())
+                assertTrue(restored.tacticalCommands.air.isEmpty())
+                assertEquals(normal.getValue(flagship.unitId),pilots.getValue("pilot").motion!!.velocity)
+                assertEquals(normal.getValue(1),escort(restored).velocity)
+            }
+        }
+    }
+
     @Test fun offlineAiPursuesTheRemainingEnemyAndIgnoresAnEliminatedMissionTarget() {
         val third=CountryId(4)
         val session=offline.copy(countries=offline.countries+third,
