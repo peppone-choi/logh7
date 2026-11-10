@@ -43,11 +43,7 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
     private fun open(generation:Long)=CharacterCreation(path(generation),accountFame=fame.accounts,publishedOriginals=publishedOriginals,
         worldOccupiedOriginals = { worldCharacterIds(generation).filter { it in 1..9999 }.map { it.toLong() }.toSet() },
         worldGeneratedIdFloor = {
-            val stocks = worldSnapshot()?.planetStocks?.takeIf { it.generation == generation }
-            val retired = stocks?.strategic?.people.orEmpty().asSequence()
-                .filter { (id, person) -> id >= 10_000 && person.deceasedAt > 0 }
-                .maxOfOrNull { it.key.toLong() }
-            (retired ?: 9999) + 1
+            (worldCharacterIds(generation).filter {it>=10_000}.maxOrNull() ?: 9_999).toLong()+1
         })
     /** U-27 carry-over (W p.11): writes this generation's qualifying characters into the next generation's store. */
     @Synchronized fun carryOver(snapshot: WorldSnapshot, countries: CountryCatalog = CountryCatalogLoader.current()): List<String> {
