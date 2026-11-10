@@ -83,9 +83,15 @@ internal object Supplement {
         val crew=transferCrew(outfit,warehouse,required.toLong())
         if(required>0 && crew.available==0L) return reject(LogisticsRejection.CREW)
         val cargo=outfit.supplies.toLong()+r.supplies;val stockCargo=warehouse.supplies.toLong()-r.supplies
-        if(cargo !in 0..OutfitSupplies.capacity(outfit.copy(activeShips=ActiveShipUnits(restored))).toLong() || stockCargo !in 0..Int.MAX_VALUE.toLong())
+        val restoredOutfit = outfit.copy(activeShips = ActiveShipUnits(restored))
+        val capacity = OutfitSupplies.capacity(restoredOutfit).toLong()
+        if (cargo !in 0..capacity || stockCargo !in 0..Int.MAX_VALUE.toLong())
             return reject(LogisticsRejection.STOCK)
-        val nextOutfit=outfit.copy(activeShips=ActiveShipUnits(restored),
+        if (r.supplies > 0) {
+            val packages = TransportActions.carriedCargo(outfit, stocks.strategic.transports)
+            if (cargo + packages.sumOf { it.first.toLong() } > capacity) return reject(LogisticsRejection.STOCK)
+        }
+        val nextOutfit=restoredOutfit.copy(
             units=UnitInventory(outfit.units.ships,crew.onboard),supplies=cargo.toInt())
         warehouse=warehouse.copy(units=UnitInventory(warehouse.units.ships,crew.reserve),supplies=stockCargo.toInt())
         val next=stocks.copy(outfits=stocks.outfits+(outfit.id to nextOutfit),warehouses=stocks.warehouses+(warehouse.id to warehouse))
