@@ -187,8 +187,33 @@ class TacticalOfflineAiTest {
             val ordered=TacticalOfflineAi.advance(offline,galaxy,players,state,1,mutableListOf())
             val pending=ordered.outfits.getValue(1)
             val targetId=players.getValue(targetAccount).unitId
-            assertEquals(TacticalSupportOrder(action,10000,targetId,2488,now,now+5),pending.activeShips!!.values.single().support)
+            val order=TacticalSupportOrder(action,10000,targetId,2488,now,now+5,issuedByOfflineAi=true)
+            assertEquals(order,pending.activeShips!!.values.single().support)
             assertEquals(500,pending.supplies)
+            val disabled=ordered.copy(tacticalCommands=ordered.tacticalCommands.copy(aiSwitches=emptyMap()))
+            for((current,reserved) in listOf(baseSession to ordered,offline to disabled)) {
+                val pilots=players.toMutableMap()
+                val notices=mutableListOf<TacticalSupportResult>()
+                val cancelled=TacticalSupportOperations.advance(current.copy(gameMillis=(now+1)*1000),galaxy,pilots,reserved,notices)
+                val outfit=cancelled.outfits.getValue(1)
+                assertTrue(notices.single().cancelled)
+                assertNull(outfit.activeShips!!.values.single().support)
+                assertEquals(500,OutfitSupplies.distribution(outfit).getValue(ship.id))
+                assertEquals(players,pilots)
+                val reenabled=cancelled.copy(tacticalCommands=ordered.tacticalCommands)
+                notices.clear()
+                assertEquals(reenabled,TacticalSupportOperations.advance(offline.copy(gameMillis=(now+5)*1000),
+                    galaxy,pilots,reenabled,notices))
+                assertTrue(notices.isEmpty())
+            }
+            val manual=pending.copy(activeShips=ActiveShipUnits(listOf(
+                pending.activeShips.values.single().copy(support=order.copy(issuedByOfflineAi=false)))))
+            val manualStock=disabled.copy(outfits=disabled.outfits+(pending.id to manual))
+            val manualResults=mutableListOf<TacticalSupportResult>()
+            val manuallyFinished=TacticalSupportOperations.advance(baseSession.copy(gameMillis=(now+5)*1000),
+                galaxy,players.toMutableMap(),manualStock,manualResults)
+            assertFalse(manualResults.single().cancelled)
+            assertTrue(manuallyFinished.outfits.getValue(1).supplies<500)
             val result=mutableListOf<TacticalSupportResult>()
             val finished=TacticalSupportOperations.advance(offline.copy(gameMillis=(now+5)*1000),galaxy,players,ordered,result)
             assertFalse(result.single().cancelled)
@@ -254,7 +279,7 @@ class TacticalOfflineAiTest {
 
             val ready=offline.copy(gameMillis=(now+delay)*1000)
             val ordered=TacticalOfflineAi.advance(ready,galaxy,pilots,approaching,scale,events)
-            assertEquals(TacticalSupportOrder(action,10000,ally.unitId,2488,now+delay,now+2*delay),
+            assertEquals(TacticalSupportOrder(action,10000,ally.unitId,2488,now+delay,now+2*delay,issuedByOfflineAi=true),
                 ordered.outfits.getValue(1).activeShips!!.values.single().support)
             val results=mutableListOf<TacticalSupportResult>()
             val finished=TacticalSupportOperations.advance(offline.copy(gameMillis=(now+2*delay)*1000),galaxy,pilots,ordered,results)
@@ -287,7 +312,7 @@ class TacticalOfflineAiTest {
             val hostile=enemy.activeShips!!.values.single().copy(damaged=1,supplies=0,tactical=ally.tactical)
             val state=stock.copy(outfits=mapOf(1 to own,2 to enemy.copy(activeShips=ActiveShipUnits(listOf(hostile)),supplies=0)))
             val ordered=TacticalOfflineAi.advance(offline,galaxy,players,state,1,mutableListOf())
-            assertEquals(TacticalSupportOrder(action,10000,3,2488,now,now+5),
+            assertEquals(TacticalSupportOrder(action,10000,3,2488,now,now+5,issuedByOfflineAi=true),
                 ordered.outfits.getValue(1).activeShips!!.values.single {it.id==1}.support)
             val results=mutableListOf<TacticalSupportResult>()
             val finished=TacticalSupportOperations.advance(offline.copy(gameMillis=(now+5)*1000),galaxy,players,ordered,results)
