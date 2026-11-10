@@ -144,6 +144,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
             val order=(capitals.values.sorted()+bases.keys.sorted()).distinct()
             val countryDefinitions=CountryCatalogLoader.current()
             val bombs=initialized.social.justice.bombs.values.groupBy(Bomb::base)
+            var upkeepProjection=initialized
             repeat(Math.toIntExact(days - initialized.producedDays)) {day->
                 val dayEnd=Math.addExact(startSeconds,Math.multiplyExact(initialized.producedDays+day+1,86400L))
                 for(id in order) {
@@ -171,11 +172,11 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
                         .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
                 }
-                // The day's income first, then that day's upkeep on the ships a settlement at the day's end would
-                // leave after black-hole losses (PR #261 review). Only a preview: the losses themselves stay with
-                // the single later BlackHoleTides settlement, which keeps its per-settlement backlog cap.
-                if(policy.fleetUpkeepPerShip>0)FleetUpkeep.pay(BlackHoleTides.settle(galaxy,initialized,dayEnd),
-                    national,policy.fleetUpkeepPerShip)
+                // Carry projected losses across daily bills; actual ship losses keep their separate backlog cap.
+                if(policy.fleetUpkeepPerShip>0) {
+                    upkeepProjection=BlackHoleTides.settle(galaxy,upkeepProjection,dayEnd)
+                    FleetUpkeep.pay(upkeepProjection,national,policy.fleetUpkeepPerShip)
+                }
             }
             initialized.copy(producedDays=days,bases=bases,nationalTreasuries=national).let {produced ->
                 if(lords.isEmpty())produced else produced.copy(strategic=produced.strategic.copy(people=produced.strategic.people+

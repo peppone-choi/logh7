@@ -62,6 +62,13 @@ class FleetUpkeepTest {
         assertTrue(FleetUpkeep.ships(atOnce, CountryId(2)) < FleetUpkeep.ships(initial, CountryId(2)), "the tide removed ships during the day")
         assertEquals(hourly.outfits, atOnce.outfits)
         assertEquals(hourly.nationalTreasuries, atOnce.nationalTreasuries, "the bill does not depend on settlement frequency")
+
+        val daily = run((1..3).map { start + it * 86400L })
+        val batched = run(listOf(start + 3 * 86400L))
+        assertEquals(daily.nationalTreasuries, batched.nationalTreasuries,
+            "each day of catch-up pays for its projected survivors")
+        val capped = BlackHoleTides.settle(galaxy, initial, start + 3 * 86400L)
+        assertEquals(capped.outfits, batched.outfits, "actual tide losses retain the per-settlement backlog cap")
     }
 
     @Test fun dailySettlementChargesOncePerDayAfterThatDaysIncome() {
