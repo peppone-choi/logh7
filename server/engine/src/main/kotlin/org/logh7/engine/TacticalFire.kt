@@ -368,7 +368,6 @@ internal object TacticalCombat {
         inventory=FortressArmor.advance(session,galaxy,players,inventory,fortressSunk)
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations,commands)
         inventory=StrategicOperations.settle(galaxy,inventory,now,players.values)
-        if(session.ended==null)inventory=ProposalActions.settle(galaxy,session,players,inventory,assignmentBlocked=assignmentBlocked) {production.identities?.invoke().orEmpty()};if(session.ended==null)inventory=JusticeActions.settle(galaxy,session,players,inventory);if(session.ended==null) {inventory=EspionageActions.settle(galaxy,session,players,inventory);inventory=economy(galaxy,session,players,inventory)}
         val departedIds=impacts.mapNotNull {it.departed?.characterId}+fortressSunk.map {it.characterId}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts,departedIds.toSet())
         val sunkFlagships=impacts.mapNotNull {if(it.hit.destroyed>0)it.departed else null}+fortressSunk
@@ -379,6 +378,14 @@ internal object TacticalCombat {
             val sunkCharacters=sunkFlagships.map {it.characterId}.distinct()
             inventory=BattleDeath.apply(inventory,sunkCharacters,now)
             inventory=SinkingExperience.apply(inventory,sunkCharacters,production.identities?.invoke().orEmpty())
+        }
+        if (session.ended == null) {
+            inventory = ProposalActions.settle(galaxy, session, players, inventory, assignmentBlocked = assignmentBlocked) {
+                production.identities?.invoke().orEmpty()
+            }
+            inventory = JusticeActions.settle(galaxy, session, players, inventory)
+            inventory = EspionageActions.settle(galaxy, session, players, inventory)
+            inventory = economy(galaxy, session, players, inventory)
         }
         clearFinishedOrders(players,galaxy,inventory,now,session.eliminated.keys)
         val cancelledDocking = mutableListOf<String>()
