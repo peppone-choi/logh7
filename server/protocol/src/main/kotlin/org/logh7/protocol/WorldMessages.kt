@@ -148,7 +148,8 @@ object WorldMessages {
         // U-01: 179 オフライン設定 opens the compatibility DLL's window; the CD has no screen that sends 0f18.
         0 -> listOf(10, 11, 12, 13, 14, 71, 82, 83, 84, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 39, 179, 234)
         37,38,173,174 -> listOf(27)
-        59, 195 -> listOf(43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 60, 61, 85)
+        // 59 = native strategic search; its original callback sends opcode 0b03.
+        59, 195 -> listOf(43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 59, 60, 61, 85)
         54 -> listOf(5,6,7,21,30)
         2,3,17,134,135,161,169,171 -> listOf(5,6,7)
         190,192 -> listOf(7,21,30)

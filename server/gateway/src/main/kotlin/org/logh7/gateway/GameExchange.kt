@@ -2069,6 +2069,27 @@ class GameExchange(
                         }
                         return null
                     }
+                    0x0b03 -> {
+                        check(gameStarted && worldInitialized)
+                        val movement = checkNotNull(navigation)
+                        val galaxy = checkNotNull(world).galaxy
+                        val character = checkNotNull(currentCharacter(identity.account))
+                        val characterId = character.id.toInt()
+                        require(org.logh7.protocol.StrategicSearchMessages.requester(body) == characterId)
+                        val request = org.logh7.engine.NavigationRequest(identity.account, characterId,
+                            currentProfile(identity.account, characterId).country, connection, checkNotNull(generation),
+                            politics = character.abilities[1], administration = character.abilities[2], strategicSearch = true)
+                        pendingWorld = navigate(request).thenApply { result ->
+                            val player = result.player ?: result.previous ?: return@thenApply emptyList()
+                            publication = Publication(character, player, false)
+                            val updates = listOf(characterMessage(character, player, true)) + completedWork(result, character)
+                            if (result.player == null) return@thenApply updates
+                            val seconds = gameSeconds()
+                            listOf(org.logh7.protocol.StrategicSearchMessages.reply(characterId, seconds, 0, player.pcp, player.mcp)) +
+                                updates + movement.snapshot()?.let { GridForceReport.search(it, galaxy, player, seconds) }.orEmpty()
+                        }
+                        return null
+                    }
                     0x0f1c -> {
                         check(gameStarted && worldInitialized && presence != null)
                         val message = org.logh7.protocol.ChatMessages.grid(body)

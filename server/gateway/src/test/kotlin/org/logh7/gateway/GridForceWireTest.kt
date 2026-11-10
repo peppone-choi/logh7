@@ -65,4 +65,23 @@ class GridForceWireTest {
             assertEquals(960, after.mcp); assertEquals(900, after.cruise)
         }
     }
+
+    @Test fun encryptedSearchChargesServerBalanceAndReturnsTheMapReport() = runBlocking<Unit> {
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire"), GalaxySystem(4, 2015, 4, "Alliance")),
+            emptyList(), mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015))
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false).use { fixture ->
+            val client = fixture.join(fixture.account(0), true, false).client
+            client.send(SyntheticClient.opcode(0x0f00)); through(client, 0x0f01)
+            val search = ByteBuffer.allocate(22).putShort(0x0b03).putInt(-1).putInt(-1)
+                .putInt(10000).putInt(-1).putInt(-1).array()
+            val reply = ByteBuffer.wrap(client.request(search, 0x0b03, "strategicSearch"))
+            assertEquals(0, reply.getInt(10))
+            assertEquals(10000, reply.getInt(14))
+            assertEquals(1000, reply.getInt(18))
+            assertEquals(760, reply.getInt(22))
+            client.expect(0x0356)
+            report(client, 2487)
+            assertEquals(760, fixture.engine.snapshot().navigators.values.single().mcp)
+        }
+    }
 }
