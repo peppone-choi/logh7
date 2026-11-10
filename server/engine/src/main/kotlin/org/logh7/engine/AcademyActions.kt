@@ -52,7 +52,7 @@ object AcademyActions {
         val member=session.participants[i.account]
         if(session.ended!=null || session.generation!=i.generation || s.generation!=i.generation || member==null ||
             !member.online || member.connection!=i.connection)return reject(SocialRejection.SESSION)
-        if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
+        if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country || BattleDeath.deceased(s,i.characterId))
             return reject(SocialRejection.IDENTITY)
         if(i.country.value !in countries.countries)return reject(SocialRejection.CARD)
         val ability=i.argument
@@ -67,7 +67,7 @@ object AcademyActions {
         val inRoom=base!=null && base.belongsTo(i.country) && base.camp==0 && p.mode in 1..4 && p.spotOwner==0 &&
             g.bases.single {it.id==p.baseId}.grid==p.grid &&
             g.facilitiesAt(p.baseId,s,countries).any {f->f.kind==ACADEMY && f.spots.any {it.id==p.spotId && it.kind==room}}
-        val activeLectures=a.lectures.filterValues {it.until>now}
+        val activeLectures=a.lectures.filterValues {it.until>now && !BattleDeath.deceased(s,it.lecturer)}
         val own=activeLectures[i.characterId]
         val lecture=if(!inRoom)null else activeLectures.values.filter {it.base==p.baseId && it.spot==p.spotId &&
             it.lecturer!=i.characterId && present(it,p,navigators)}.minByOrNull {it.at}

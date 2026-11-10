@@ -57,6 +57,21 @@ class AcademyActionsTest {
         assertEquals(20,ended.academy?.gained)
         assertEquals(SocialRejection.COOLDOWN,act(request(27,2,ticket=2,card=38,account="peer",id=10001),s,lecturer).rejection)
     }
+    @Test fun deceasedLecturerCannotTeachAndTheirLectureStopsCounting() {
+        val opened=act(request(27,1,card=38,account="peer",id=10001),p=lecturer)
+        val live=assertNotNull(opened.stocks)
+        val deceased=BattleDeath.apply(live,listOf(10001),now) { _,_ -> true }
+        val attend=request(93,0,ticket=deceased.social.nextId)
+        val oldQuote=assertNotNull(act(request(93,0,0,0),live,others=listOf(lecturer)).academy).quote
+        val quoted=attend.copy(identity=attend.identity.copy(value=oldQuote))
+        val rejected=act(quoted,deceased,others=listOf(lecturer))
+        assertEquals(SocialRejection.QUOTE_CHANGED,rejected.rejection)
+        assertEquals(student,rejected.player)
+        assertEquals(deceased,rejected.stocks)
+        assertEquals(20,act(attend,deceased,others=listOf(lecturer)).academy?.gained)
+        assertEquals(SocialRejection.IDENTITY,act(request(27,1,card=38,account="peer",id=10001),deceased,lecturer).rejection)
+    }
+
     @Test fun expiredLecturesFreeCapacityWhileLiveLecturesStillFillTheLimit() {
         val original=stocks()
         val lectureTime=now+AcademyActions.LECTURE_SECONDS
