@@ -218,7 +218,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // A later recapture must not restore a warehouse reservation from before occupation.
         occupations.forEach {logistics.occupationCommitted(it.base)}
         // Publish this committed transaction before a later movement/retreat save can fail.
-        publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)))
+        publish(base.copy(navigators=navigation.snapshot(session.generation),planetStocks=production.snapshot(session.generation)),
+            deferredCharacterRefresh=experienced.toSet())
         // Reconcile durable capital/session endings before observers can start a native
         // forced-undock transition that cannot finish once gameplay requests are frozen.
         afterCommit()
@@ -542,7 +543,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             BattleDeath.deceased(production?.snapshot(session.generation), predecessor.characterId)
     }
 
-    private fun publish(snapshot:WorldSnapshot) {
+    private fun publish(snapshot:WorldSnapshot,deferredCharacterRefresh:Set<Int> = emptySet()) {
         val old=published.get().planetStocks
         val inventory=snapshot.planetStocks
         // Retire the old berth reservation even if the same commander is appointed again before the next logistics request.
@@ -558,17 +559,23 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             if(bases.isNotEmpty())for(observer in coupBaseObservers)try {observer(inventory,bases)}
             catch(failure:Exception){System.err.println("Coup base refresh failed: ${failure.javaClass.simpleName}")}
         }
-        // Monthly personnel changes are committed before the online character view is refreshed.
-        if(inventory!=null && old!=null && old.generation==inventory.generation &&
-            inventory.producedDays/PoliticianLadder.PERIOD_DAYS>old.producedDays/PoliticianLadder.PERIOD_DAYS) {
+        // An imperial vacancy can be resolved on any settlement, before the next monthly personnel changes.
+        if(inventory!=null && old!=null && inventory!==old && old.generation==inventory.generation) {
+            val monthly=inventory.producedDays/PoliticianLadder.PERIOD_DAYS>old.producedDays/PoliticianLadder.PERIOD_DAYS
+            val priorEmperors by lazy { officePolicy?.all(old).orEmpty().filter {it.card==1}.map {it.character}.toSet() }
             val changedPeople=inventory.strategic.people.keys.filter {id ->
                 val before=old.strategic.people[id]
                 val after=inventory.strategic.people[id]
-                before?.rank!=after?.rank || before?.abilities!=after?.abilities
+                val rankChanged=before?.rank!=after?.rank
+                val throneChanged=rankChanged && (before?.rank==0 ||
+                    (after?.rank==0 && id !in priorEmperors))
+                throneChanged || monthly && (rankChanged || before?.abilities!=after?.abilities)
             }
-            val oldChairs=old.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
-            val newChairs=inventory.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
-            val changed=(changedPeople+((oldChairs-newChairs)+(newChairs-oldChairs)).map {it.character}).distinct()
+            val changed=(if(monthly) {
+                val oldChairs=old.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
+                val newChairs=inventory.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
+                (changedPeople+((oldChairs-newChairs)+(newChairs-oldChairs)).map {it.character}).distinct()
+            } else changedPeople).filterNot {it in deferredCharacterRefresh}
             if(changed.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changed)}
             catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
         }
