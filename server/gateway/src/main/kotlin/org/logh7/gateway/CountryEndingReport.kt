@@ -27,7 +27,7 @@ internal object CountryEndingReport {
         val status=when(end?.reason) {null->1;EndReason.CAPITAL_CAPTURED->3;EndReason.SYSTEMS_REDUCED->4;EndReason.TIME_LIMIT->5}
         val seconds=end?.gameSeconds ?: session.gameSeconds
         // Membership from the current checkpoint; an old navigator never relabels a profile (WorldCharacters).
-        val members=WorldCharacters.profiles(profiles,snapshot).values.mapNotNull {it.country}.groupingBy {it}.eachCount()
+        val members=WorldCharacters.memberCounts(profiles,snapshot)
         // A defeated viewer may inspect its own current forces while other countries keep playing.
         val partial=if(result==null && viewerCountry>0 && CountryId(viewerCountry) in session.eliminated && galaxy!=null)
             SessionResults.statistics(galaxy,snapshot).countries[CountryId(viewerCountry)] else null

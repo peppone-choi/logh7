@@ -10,7 +10,6 @@ import io.netty.channel.socket.nio.NioServerSocketChannel
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder
 import org.logh7.protocol.Frames
 import org.logh7.protocol.LobbyMessages
-import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.SessionEndingMessages
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -169,7 +168,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         fun currentOffices(player:org.logh7.engine.Navigator)=player.country
             ?.takeIf {world?.lobbyCountryDefinitions()?.first?.countries?.containsKey(it.value)==true}
             ?.let {administration?.offices(player.characterId,it.value,player.generation)}.orEmpty()
-        fun information(snapshot:org.logh7.engine.WorldSnapshot?,registered:List<CharacterMessages.Generate>):SessionEndingMessages.Session {
+        fun information(snapshot:org.logh7.engine.WorldSnapshot?,registered:Map<String,CharacterProfile>):SessionEndingMessages.Session {
             return SessionEndingReport.information(snapshot,registered,sessionId,sessionName,admission?.generation ?: 1L)
         }
         // Mode 7 lobby catalogue of this world: definitions, colors and counts read once per request.
@@ -200,7 +199,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                     else -> null
                 }
             },
-            information={information(navigation?.snapshot(),currentCharacters().registeredCharacters())},
+            information={information(navigation?.snapshot(),currentCharacters().profiles())},
             character={account->
                 val snapshot=navigation?.snapshot();val characters=currentCharacters()
                 val generation=snapshot?.session?.generation
@@ -210,7 +209,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                             ?.let {characters.retire(account,it.id)}
                     }
                     characters.character(account)?.takeIf {admission?.running!=false || snapshot?.result!=null}?.let {character->
-                        val info=information(snapshot,characters.registeredCharacters())
+                        val info=information(snapshot,characters.profiles())
                         val evaluation=if(snapshot?.result==null)null else characterStores.fame.evaluation(snapshot,characters,account)
                         LobbyMessages.ChargedSession(character,info,evaluation)
                     }

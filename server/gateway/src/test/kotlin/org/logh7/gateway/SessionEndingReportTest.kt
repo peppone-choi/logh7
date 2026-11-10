@@ -20,7 +20,8 @@ class SessionEndingReportTest {
         return WorldSnapshot(0,0,session,result=value) to value
     }
     private fun message(world:WorldSnapshot,who:CharacterMessages.Generate=actor,nav:Navigator=player)=
-        SessionEndingReport.message(world,who,nav,listOf(actor,actor.copy(id=10001,power=3)),emptyList())
+        SessionEndingReport.message(world,who,nav,mapOf("alpha" to CharacterProfile.legacy(actor),
+            "beta" to CharacterProfile.legacy(actor.copy(id=10001,power=3))),emptyList())
     private fun ByteBuffer.u8()=get().toInt() and 255
     private fun ByteBuffer.u32()=int.toLong() and 0xffffffffL
     private fun ByteBuffer.skipString(){val count=u8();position(position()+count*2)}
@@ -64,7 +65,7 @@ class SessionEndingReportTest {
     @Test fun settledEvaluationAndFameAreTransmittedWithoutAnotherAward() {
         val (world,_)=report()
         val evaluation=SessionEndingMessages.Evaluation(250,933,12,21,0)
-        val packet=SessionEndingReport.message(world,actor,player,listOf(actor),emptyList(),evaluation)
+        val packet=SessionEndingReport.message(world,actor,player,mapOf("alpha" to CharacterProfile.legacy(actor)),emptyList(),evaluation)
         val at=BootstrapMessages.character(actor,840,920).size
         assertContentEquals(SessionEndingMessages.evaluation(evaluation),packet.copyOfRange(at,at+17))
     }
@@ -77,7 +78,7 @@ class SessionEndingReportTest {
         val result=SessionResults.assessCountries(old.end,old.total,old.countries.mapValues {it.value.statistics},
             VictoryConditions(countries=mapOf(CountryId(2) to CountryVictoryConditions(true,false))),catalog)
         assertEquals(SessionGrade.DECISIVE,result.countries.getValue(CountryId(2)).grade)
-        val native=SessionEndingReport.session(world.copy(result=result),listOf(actor))
+        val native=SessionEndingReport.session(world.copy(result=result),mapOf("alpha" to CharacterProfile.legacy(actor)))
         assertEquals(1,native.powers.single {it.power==2}.ending!!.empirePlace)
     }
 
@@ -87,7 +88,7 @@ class SessionEndingReportTest {
         val result=SessionResults.assessCountries(end,SessionStatistics(population=2),mapOf(
             a to SessionStatistics(population=1),b to SessionStatistics(population=1)))
         val world=WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot().copy(ended=end),result=result)
-        val native=SessionEndingReport.session(world,listOf(actor))
+        val native=SessionEndingReport.session(world,mapOf("alpha" to CharacterProfile.legacy(actor)))
         assertTrue(native.powers.all {it.ending==null},"42/43 never become native countries 2/3")
         val request=org.logh7.protocol.CountryEndingMessages.Request(org.logh7.protocol.OutfitPartyMessages.Query(1,512,14))
         assertEquals(5,CountryEndingReport.reply(request,world,emptyMap(),CountryCatalogLoader.current(),emptyList()).size,
