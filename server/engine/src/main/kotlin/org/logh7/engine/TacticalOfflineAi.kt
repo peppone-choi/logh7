@@ -15,6 +15,13 @@ internal object TacticalOfflineAi {
     private fun currentMission(p:Navigator,stocks:PlanetStocks)=stocks.tacticalCommands.missions[p.characterId]
         ?.takeIf {!it.completed && (it.grid==null || it.grid==p.grid)}
 
+    fun canFinishOccupationAnchor(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks,base:Int):Boolean {
+        val mission=currentMission(p,stocks)
+        val owner=stocks.bases[base] ?: return false
+        return eligible(session,account,p,stocks) && mission?.mission==2 && mission.target==base &&
+            TacticalAuthority.camp(owner)!=TacticalAuthority.camp(p,stocks)
+    }
+
     fun defenseBase(p:Navigator,stocks:PlanetStocks,g:Galaxy):GalaxyBase? {
         if(currentMission(p,stocks)?.defaultDefense==false || TacticalAuthority.camp(p,stocks).insurgent)return null
         return g.bases.asSequence().filter {it.grid==p.grid}.filter {base->
@@ -184,6 +191,7 @@ internal object TacticalOfflineAi {
             if(aboard.isEmpty() || unit.id !in commandable)continue
             val posture=unit.posture?.takeIf {it.grid==p.grid}
             if(posture?.order!=null)continue
+            if(posture?.mode==TacticalShipMode.STATIONED)continue
             if(posture?.mode==TacticalShipMode.ANCHORED && posture.base==base.id) {
                 val landing=aboard.take(maxOf(0,GroundBattleRules.BOX_CAPACITY_PER_FACTION-box))
                 if(landing.isEmpty())continue
@@ -196,7 +204,8 @@ internal object TacticalOfflineAi {
                 ?: TacticalDeployment.initial(unit.id,p.grid,players.values,stocks,g)
             if(hypot((at.position.x-point.x).toDouble(),(at.position.y-point.y).toDouble())>reach)continue
             val current=posture ?: TacticalPosture(p.grid)
-            val anchor=current.copy(order=TacticalPostureOrder(p.characterId,TacticalShipMode.ANCHORED,base.id,now,now+10*scale))
+            val anchor=current.copy(order=TacticalPostureOrder(p.characterId,TacticalShipMode.ANCHORED,base.id,now,now+10*scale,
+                issuedByOfflineAi=true))
             units=units.map {if(it.id==unit.id)it.copy(posture=anchor,attack=null,shot=null) else it};changed=true
         }
         return if(!changed)outfit else outfit.copy(activeShips=ActiveShipUnits(units),activeGround=ActiveGroundUnits(troops))

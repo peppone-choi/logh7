@@ -57,6 +57,16 @@ class TacticalPostureBootstrapTest {
             val wounded=viewer.copy(hull=FlagshipHull(0,200,woundedUntil=201))
             val woundedBootstrap=TacticalBootstrap(snapshot.copy(navigators=mapOf("pilot" to wounded)),galaxy,wounded){person}
             assertTrue(woundedBootstrap.resume().none {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0411})
+            if(mode==TacticalShipMode.SAILING) {
+                val offlineAnchor=posture.copy(order=pending.copy(mode=TacticalShipMode.ANCHORED,issuedByOfflineAi=true))
+                val aiShip=ships.values.single().copy(posture=offlineAnchor)
+                val aiStock=stock.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(listOf(aiShip)))),
+                    tacticalCommands=TacticalCommandState(aiSwitches=mapOf(10000 to 16)))
+                val returningPilot=viewer.copy(posture=null)
+                val aiSnapshot=snapshot.copy(navigators=mapOf("pilot" to returningPilot),planetStocks=aiStock)
+                val returning=TacticalBootstrap(aiSnapshot,galaxy,returningPilot){person}
+                assertTrue(returning.resume().none {java.nio.ByteBuffer.wrap(it).getShort(4).toInt()==0x0411})
+            }
             if(mode==TacticalShipMode.STATIONED) {
                 val leaving=posture.copy(order=pending.copy(mode=TacticalShipMode.ANCHORED))
                 val leavingStock=stock.copy(outfits=mapOf(1 to outfit.copy(activeShips=ActiveShipUnits(

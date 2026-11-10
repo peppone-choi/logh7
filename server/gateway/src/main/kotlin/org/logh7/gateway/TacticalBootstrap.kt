@@ -174,6 +174,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
             stocks.outfits.values.filter {it.country !in eliminated && it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {o->
                 o.activeShips?.values.orEmpty().filter {it.boats>0}.mapNotNull {u->
                     val order=u.posture?.takeIf {it.grid==viewer.grid}?.order ?: return@mapNotNull null
+                    if(order.issuedByOfflineAi &&
+                        (order.character==viewer.characterId || !stocks.tacticalCommands.tacticalAi(order.character)))return@mapNotNull null
                     val actor=actors[order.character]?.singleOrNull() ?: return@mapNotNull null
                     if(order.character==TacticalAuthority.commander(o,u,stocks) &&
                         TacticalAuthority.camp(o,stocks)==TacticalAuthority.camp(actor,stocks) &&
