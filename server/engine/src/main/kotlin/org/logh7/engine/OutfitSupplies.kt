@@ -18,13 +18,15 @@ object OutfitSupplies {
     /** Preserve explicit unit allocations. Legacy/bulk changes fill in ID order and withdraw in
      * reverse ID order. The outfit total remains authoritative for strategic logistics; unit balances
      * specify where that total is carried, rather than creating another supply pool. */
-    fun distribution(outfit: OutfitStock): Map<Int, Int> {
+    fun distribution(outfit: OutfitStock): Map<Int, Int> = distribute(outfit, emptyMap())
+
+    private fun distribute(outfit: OutfitStock, starting: Map<Int, Int>): Map<Int, Int> {
         require(outfit.supplies <= capacity(outfit.units))
         val ships = requireNotNull(outfit.activeShips).values.sortedBy { it.id }
         // Keep legacy overloaded saves readable; commands cannot add to their overload.
         val live=outfit.supplies<=capacity(outfit)
         fun limit(unit:ActiveShipUnit)=if(live)unitCapacity(unit) else unitCapacity(unit.stack.kind)
-        val result = ships.associateTo(linkedMapOf()) { it.id to minOf(it.supplies ?: 0,limit(it)) }
+        val result = ships.associateTo(linkedMapOf()) { it.id to minOf(starting[it.id] ?: it.supplies ?: 0, limit(it)) }
         var difference = outfit.supplies.toLong() - result.values.sumOf(Int::toLong)
         for (unit in if (difference < 0) ships.asReversed() else ships) {
             val current = result.getValue(unit.id)
@@ -44,6 +46,13 @@ object OutfitSupplies {
         require(ships.all { balances.getValue(it.id) in 0..unitCapacity(it.stack.kind) })
         return outfit.copy(supplies = Math.toIntExact(balances.values.sumOf(Int::toLong)),
             activeShips = ActiveShipUnits(ships.map { it.copy(supplies = balances.getValue(it.id)) }))
+    }
+
+    internal fun withBulkSupplies(outfit: OutfitStock, total: Int): OutfitStock {
+        val updated = outfit.copy(supplies = total)
+        if (outfit.activeShips?.values.orEmpty().none { it.supplies != null }) return updated
+        // Resolve any legacy difference before applying this transaction's change.
+        return withBalances(updated, distribute(updated, distribution(outfit)))
     }
 
     /** Spend or receive on the resolved unit, preserving every other unit's allocation. */

@@ -78,8 +78,8 @@ object CompletenessSupply {
         val amount = quote.amount
         val after = player.paidWith(paid.balance)
         val next = stocks.copy(outfits = stocks.outfits + mapOf(
-            from.id to from.copy(supplies = from.supplies - amount),
-            to.id to to.copy(supplies = Math.addExact(to.supplies, amount))))
+            from.id to OutfitSupplies.withBulkSupplies(from, from.supplies - amount),
+            to.id to OutfitSupplies.withBulkSupplies(to, Math.addExact(to.supplies, amount))))
         return CompletenessSupplyResult(after, next, transferred = amount, payment = paid, source = from.id)
     }
 }
