@@ -62,6 +62,8 @@ internal object TacticalFleetRetreat {
     fun advance(session:SessionState,g:Galaxy,players:MutableMap<String,Navigator>,initial:PlanetStocks,
         events:MutableList<TacticalMovement>):PlanetStocks {
         var stocks=initial;val now=session.gameMillis/1000
+        // Both sides can leave in one settlement; judge source contact before any fleet moves.
+        val sourceForces by lazy { GridForces.collect(g, session.generation, players.values, initial, session.eliminated.keys) }
         for(outfitId in initial.outfits.keys.sorted()) {
             var outfit=stocks.outfits[outfitId] ?: continue
             val position=outfit.positionIn(g)
@@ -77,6 +79,7 @@ internal object TacticalFleetRetreat {
                     !TacticalOfflineAi.eligible(session,commanderEntry.key,commanderEntry.value,stocks))
                 if(outfit.country in session.eliminated || memberCountry in session.eliminated ||
                     position.baseId!=0 || state.motion.grid!=grid ||
+                    sourceForces[grid].orEmpty().none { it.camp != outfitCamp && it.combatPresence } ||
                     BattleDeath.deceased(stocks,u.motionCommander) || stocks.social.justice.detained(u.motionCommander) || delegationEnded ||
                     TacticalAuthority.commander(outfit,u,stocks)!=u.motionCommander ||
                     commander?.let {(it.hull?.woundedUntil ?: 0)>now || TacticalAuthority.camp(it,stocks)!=outfitCamp}==true)
