@@ -31,6 +31,10 @@ object EspionageActions {
     const val INTRUDE=80
     const val RETURN=81
     val commands=setOf(INFILTRATE,ESCAPE,INTELLIGENCE,SABOTAGE,AGITATE,INTRUDE,RETURN)
+    private val sabotageFacilities = setOf(
+        0, 1, 7, 10, 12, 13, 14, 21, 23, // Government, defense, and military production facilities.
+        29, 31, 32, 33, 34, 35, 36, 37 // Military command and logistics headquarters.
+    )
     /** Forged surnames offered by the window (evidence:guess). */
     val aliases=listOf("Muller","Schmidt","Fischer","Weber","Wagner","Becker","Hoffmann","Schulz")
     const val RANGE_CELLS=10
@@ -158,6 +162,9 @@ object EspionageActions {
             }
             SABOTAGE -> {
                 inside ?: return reject(SocialRejection.STALE)
+                if (g.facilitiesAt(p.baseId, s, catalog).none { facility ->
+                        facility.kind in sabotageFacilities && facility.spots.any { it.id == p.spotId }
+                    }) return reject(SocialRejection.TARGET)
                 if(j.bombs.containsKey(i.characterId))return reject(SocialRejection.BUSY)
                 if(roll(i.characterId,p.spotId,now)>=threshold(intelligence,CivicActions.guardStrength(s,p.baseId,p.spotId,now)))
                     return SocialResult(payer,s,changed=true,outcome=3)

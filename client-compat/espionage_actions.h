@@ -36,7 +36,9 @@ static bool readEspionageAction(void* record) {
     }
     state.message=reply==4 ? L"첩보 직무 카드가 필요합니다." : reply==6 ? L"거점 안에서만 할 수 있습니다." :
         reply==7 ? L"진행 중인 작업이 있거나 구금 중입니다." : reply==8 ? L"MCP가 부족합니다." :
-        reply==10 ? L"잠입한 상태가 아닙니다." : reply==13 ? L"대상이 맞지 않습니다(선동·침입은 타 진영, 귀환은 자진영 거점)." :
+        reply==10 ? L"잠입한 상태가 아닙니다." :
+        reply==13 && command==78 ? L"전략 시설에 잠입한 상태에서만 파괴 공작을 할 수 있습니다." :
+        reply==13 ? L"대상이 맞지 않습니다(선동·침입은 타 진영, 귀환은 자진영 거점)." :
         reply ? L"실행할 수 없습니다." :
         outcome==1 ? (command==75 ? L"잠입했습니다(게임 7일)." : command==76 ? L"중앙 광장으로 탈출했습니다." :
             command==77 ? L"정보를 얻었습니다." : command==78 ? L"시한폭탄을 설치했습니다. 게임 내 4시간 안에 탈출하십시오." :
@@ -61,7 +63,7 @@ static bool updateEspionageAction() {
         else swprintf_s(label,L"10칸 안에 %ls 거점이 없습니다.",command==80 ? L"타 진영" : L"자진영");
         taxText(1,label);
     } else taxText(1,command==76 ? L"잠입한 스폿에서 중앙 광장으로 나갑니다." : command==77 ? L"잠입한 스폿의 정보를 얻습니다." :
-        command==78 ? L"잠입한 시설에 시한폭탄을 설치합니다(게임 내 4시간 뒤 폭발, 거점 생산 7일 정지)." : L"타 진영 거점의 시민을 선동합니다.");
+        command==78 ? L"잠입한 전략 시설에 시한폭탄을 설치합니다(게임 내 4시간 뒤 폭발, 거점 생산 7일 정지)." : L"타 진영 거점의 시민을 선동합니다.");
     if(command==80) {swprintf_s(label,L"위조 성명: %ls (버튼으로 변경)",espionageAliases[espionageAlias%8]);taxText(2,label);}
     else taxText(2,espionageReport);
     taxText(3,command>=80 ? L"MCP 320 · 정보 능력 판정" : L"MCP 160 · 정보 능력 판정 · 특별경비 중이면 어려움");
