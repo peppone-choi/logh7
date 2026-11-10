@@ -62,6 +62,41 @@ class FleetNavigationTest {
         assertEquals(player,apply(state,request).single().player)
     }
 
+    @Test fun leavingTheInfiltratedQuayWithAConvoyClearsOnlyDepartingInfiltrationsOnCommit() {
+        val state = state()
+        addAide(state)
+        val captain = state.players.getValue("pilot")
+        val aide = state.players.getValue("aide")
+        val until = session.gameMillis / 1000 + Justice.DAY
+        val captainInfiltration = Infiltration(captain.characterId, home.id, captain.spotId, until, captain.country, captain.country)
+        val aideInfiltration = captainInfiltration.copy(character = aide.characterId)
+        val remainingInfiltration = captainInfiltration.copy(character = 10002)
+        val infiltrations = listOf(captainInfiltration, aideInfiltration, remainingInfiltration).associateBy { it.character }
+        state.stocks = state.stocks.copy(social = state.stocks.social.copy(
+            justice = state.stocks.social.justice.copy(infiltrations = infiltrations)))
+        val navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+        val production = PlanetProduction(galaxy, state.inventory, SessionRules.load().startSeconds, PlanetProductionPolicy())
+        val initialStocks = production.settle(1, session.gameMillis / 1000)
+        val initialPlayers = state.players
+        fun depart() = FleetNavigation.apply(request.copy(place = PlaceMove.SwitchMode(5)), session, galaxy, navigation,
+            production, assertNotNull(production.snapshot(1)), state.commit) { false }
+
+        state.fail = true
+        assertFailsWith<java.io.IOException> { depart() }
+        assertEquals(initialStocks, state.stocks)
+        assertEquals(initialPlayers, state.players)
+        assertEquals(initialStocks, production.snapshot(1))
+        assertEquals(initialPlayers, navigation.snapshot(1))
+        assertEquals(0, state.commits)
+
+        state.fail = false
+        assertNull(depart().rejection)
+        assertEquals(1, state.commits)
+        assertEquals(OutfitPosition(home.grid), state.stocks.outfits.getValue(1).position)
+        assertTrue(state.players.values.all { it.baseId == 0 && it.spotId == 0 })
+        assertEquals(mapOf(remainingInfiltration.character to remainingInfiltration), state.stocks.social.justice.infiltrations)
+    }
+
     @Test fun directDepartureIntoBattleKeepsFlagshipAndFleetNearTheSameBerth() {
         for (command in listOf(PlaceMove.SwitchMode(5), PlaceMove.Dock(0,5))) {
             val state = state()
