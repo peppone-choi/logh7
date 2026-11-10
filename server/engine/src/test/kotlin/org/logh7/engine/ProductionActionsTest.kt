@@ -88,6 +88,26 @@ class ProductionActionsTest {
         assertSame(delivered, ProductionActions.settle(delivered, order.readyAt + 2))
     }
 
+    @Test fun rebellionHoldsThePaidShipOrderUntilRegularControlReturns() {
+        val ship = ProductionActions.kinds(2, true).first()
+        val accepted = act(ProductionActions.SHIP, stocks, ship.kind)
+        assertEquals(920, accepted.player?.mcp)
+        val pending = assertNotNull(accepted.stocks)
+        val order = pending.social.production.orders.getValue(1049)
+        val paidWarehouse = pending.bases.getValue(1049)
+        val rebel = pending.copy(bases = mapOf(1049 to paidWarehouse.copy(camp = 1)))
+
+        assertEquals(SocialRejection.LOCATION, act(ProductionActions.SHIP, rebel, ship.kind).rejection)
+        assertSame(rebel, ProductionActions.settle(rebel, order.readyAt))
+        assertSame(rebel, ProductionActions.settle(rebel, order.readyAt + 1))
+        val restored = rebel.copy(bases = pending.bases)
+        val delivered = ProductionActions.settle(restored, order.readyAt + 2)
+        assertEquals(paidWarehouse.copy(units = UnitInventory(ships = mapOf(UnitStack(ship.kind) to 1))),
+            delivered.bases.getValue(1049))
+        assertTrue(delivered.social.production.orders.isEmpty())
+        assertSame(delivered, ProductionActions.settle(delivered, order.readyAt + 3))
+    }
+
     @Test fun aFullStackKeepsTheOrderWaitingAndAFullTroopStackRefusesRecruiting() {
         val ship=ProductionActions.kinds(2,true).first();val troop=ProductionActions.kinds(2,false).first()
         val base=stocks.bases.getValue(1049)
