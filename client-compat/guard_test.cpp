@@ -14,6 +14,7 @@
 #include "country_icon_data.h"
 #include "creation_menu_data.h"
 #include "lobby_empty_data.h"
+#include "lobby_deletion_data.h"
 #include "planet_info_data.h"
 #include "facility_guide_data.h"
 #include "facility_label_data.h"
@@ -2550,6 +2551,40 @@ static int runGuard(int argc, wchar_t** argv) {
     emptySessions[0x2a0]=0;emptySessions[0]=2;emptySessions[0x36c+4]=2;emptySessions[0x36c+6]=2;
     if(!logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
     emptySessions[0x36c+0x2a1]=1;if(logh::emptyPlayableLobby(emptySessions,sizeof(emptySessions)))return 94;
+    {
+        // Lobby deletion: exact charged row, 032e mode 24 query/body BE, outcome only from a refreshed list.
+        BYTE list[logh::lobbyListBytes]={};logh::LobbyDeletionRow row;
+        if(logh::readLobbyDeletionRow(list,sizeof(list),0,row))return 1610;
+        list[0]=2;
+        auto charge=[&](unsigned chargedIndex,unsigned short chargedSession,unsigned chargedCharacter) {
+            auto chargedRow=list+chargedIndex*logh::lobbyRowBytes;
+            memcpy(chargedRow+4,&chargedSession,2);memcpy(chargedRow+0x2a4,&chargedCharacter,4);
+            chargedRow[0x2a0]=2;chargedRow[0x2a1]=1;
+        };
+        charge(0,0x1234,10002);charge(1,7,10005);
+        const wchar_t name[]=L"ODIN";list[7]=4;memcpy(list+8,name,8);
+        if(!logh::readLobbyDeletionRow(list,sizeof(list),0,row) || row.session!=0x1234 || row.character!=10002 ||
+            wcscmp(row.name,L"ODIN"))return 1611;
+        if(!logh::readLobbyDeletionRow(list,sizeof(list),1,row) || row.session!=7 || row.character!=10005 || row.name[0])return 1612;
+        if(logh::readLobbyDeletionRow(list,sizeof(list),2,row) || logh::readLobbyDeletionRow(list,logh::lobbyRowBytes,1,row) ||
+            logh::readLobbyDeletionRow(nullptr,sizeof(list),0,row))return 1613;
+        list[7]=14;if(logh::readLobbyDeletionRow(list,sizeof(list),0,row))return 1614;list[7]=4;
+        list[0x36c+0x2a1]=0;if(logh::readLobbyDeletionRow(list,sizeof(list),1,row))return 1615;list[0x36c+0x2a1]=1;
+        logh::LobbyDeletionRow target;logh::readLobbyDeletionRow(list,sizeof(list),0,target);
+        unsigned char deletionBody[logh::lobbyDeletionBodyBytes]={};
+        const unsigned char deletionWire[]={0x00,0x00,0x27,0x12,0x00,0x00,0x12,0x34,24};
+        unsigned deletionQuery[3]={};
+        if(!logh::lobbyDeletionQuery(target,deletionQuery) || deletionQuery[0]!=10002 || deletionQuery[1]!=0x1234 ||
+            deletionQuery[2]!=24)return 1616;
+        if(sizeof(deletionWire)!=logh::lobbyDeletionBodyBytes || !logh::encodeLobbyDeletion(target,deletionBody) ||
+            memcmp(deletionBody,deletionWire,sizeof(deletionBody)))return 1616;
+        logh::LobbyDeletionRow blank;
+        if(logh::encodeLobbyDeletion(blank,deletionBody) || logh::lobbyDeletionQuery(blank,deletionQuery))return 1617;
+        if(logh::lobbyDeletionOutcome(list,sizeof(list),target)!=logh::LobbyDeletionOutcome::Remaining)return 1618;
+        memset(list+0x2a0,0,2); // the session row stays without its charged character
+        if(logh::lobbyDeletionOutcome(list,sizeof(list),target)!=logh::LobbyDeletionOutcome::Deleted)return 1619;
+        list[0]=0;if(logh::lobbyDeletionOutcome(list,sizeof(list),target)!=logh::LobbyDeletionOutcome::Unknown)return 1620;
+    }
     HMODULE module = LoadLibraryW(argv[1]);
     if (!module) return 2;
     auto status = reinterpret_cast<LONG(WINAPI*)()>(GetProcAddress(module, "LoghPlanetLayoutStatus"));
