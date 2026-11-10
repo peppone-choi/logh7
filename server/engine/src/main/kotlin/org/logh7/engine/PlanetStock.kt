@@ -84,7 +84,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
     private val startSeconds: Long, private val policy: PlanetProductionPolicy, generation: Long = 1,
     restored:PlanetStocks?=store?.load(),
     private val civicPlayers:(Long)->Collection<Navigator>? = {null},
-    private val commitOfficeRecovery:(PlanetStocks, PlanetStocks, Long)->Boolean = { _, _, _ -> false }) {
+    private val commitPersonnel:(PlanetStocks, PlanetStocks, Long, List<PersonnelActions.MonthlyPromotion>)->Boolean =
+        { _, _, _, _ -> false }) {
     private val units = UnitProduction(galaxy, policy.units, policy.economy, policy.maximumStock)
     private val deployment = InitialOutfitDeployment(galaxy)
     private var current = restored?.also { restored ->
@@ -188,13 +189,17 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                         it.copy(money=minOf(0xffffffffL,it.money+amount))}}))
             }
         }
-        // U-28: politician-ladder rules run once per crossed 30-day boundary, in order.
+        // Personnel rules run once per crossed 30-day boundary, in order.
         var monthly=result
+        val promoted=mutableListOf<PersonnelActions.MonthlyPromotion>()
         val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
         if(days>initialized.producedDays && lastMonth>=firstMonth) {
             val people=checkNotNull(supplier)()
-            if(people.isNotEmpty())for(month in firstMonth..lastMonth)
+            if(people.isNotEmpty())for(month in firstMonth..lastMonth) {
+                val at=startSeconds+month*PoliticianLadder.PERIOD_DAYS*Justice.DAY
+                monthly=PersonnelActions.promoteMonthly(monthly,people,eliminated,at,promoted)
                 monthly=AbilityAging.monthly(PoliticianLadder.monthly(galaxy,monthly,people,month),people,month)
+            }
         }
         // A throne vacated by death or removal is filled at the next settlement (SuccessionActions).
         if(monthly.social.succession.anyVacant())supplier?.invoke()?.let {monthly=SuccessionActions.accede(galaxy,monthly,it,seconds)}
@@ -203,7 +208,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val withCargo = TransportActions.settleCargo(settled,previous)
         if (withCargo == previous) return checkNotNull(previous)
         val next = detached(withCargo)
-        if (previous == null || previous.generation != generation || !commitOfficeRecovery(previous, next, seconds))
+        if (previous == null || previous.generation != generation || !commitPersonnel(previous, next, seconds, promoted))
             store?.save(next)
         current = next
         return next

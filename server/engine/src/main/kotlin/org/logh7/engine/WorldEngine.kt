@@ -350,7 +350,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val initialElapsed = durableState?.elapsed ?: 0L
     private val production = galaxy?.let { PlanetProduction(it, stockStore, rules.startSeconds, productionPolicy,
         durableState?.session?.generation ?: simulation.snapshot().generation,initialWorld.first,
-        {generation->navigation?.snapshot(generation)?.values}, ::commitProductionOfficeRecovery)
+        {generation->navigation?.snapshot(generation)?.values}, ::commitProductionPersonnel)
         .also {if(awaitIdentities)it.identities=null} }
     private val territory=galaxy?.let(::WorldTerritory)
     private val officePolicy = galaxy?.let { OrganizationalOfficePolicy(it) }
@@ -371,12 +371,20 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         return OfficeCpRecovery.penalty(officesIn(stocks)[player.characterId to country] ?: 0)
     }
 
-    /** Settle whole intervals at the previous rate before publishing a new office count. */
-    private fun commitProductionOfficeRecovery(old: PlanetStocks, updated: PlanetStocks, now: Long): Boolean {
+    /** Commit automatic flagship upgrades together with rank and office changes. */
+    private fun commitProductionPersonnel(old: PlanetStocks, updated: PlanetStocks, now: Long,
+        promoted: List<PersonnelActions.MonthlyPromotion>): Boolean {
         val committer = worldStateCommitter ?: return false
         val movement = navigation ?: return false
         val previous = movement.snapshot(old.generation)
-        val next = settleOfficeRecovery(now, old, updated, previous)
+        val recovered = settleOfficeRecovery(now, old, updated, previous)
+        val byCharacter=promoted.groupBy {it.character}
+        val next = if(byCharacter.isEmpty())recovered else recovered.mapValues {(_, player)->
+            byCharacter[player.characterId].orEmpty().fold(player) { current,promotion->
+                if(promotion.country==current.country)
+                    PersonnelActions.upgradeFlagship(current,promotion.rank,promotion.at) else current
+            }
+        }
         if (previous == next) return false
         committer.saveWorld(next, updated)
         movement.publishCommitted(previous, next, old.generation)
@@ -570,7 +578,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 val rankChanged=before?.rank!=after?.rank
                 val throneChanged=rankChanged && (before?.rank==0 ||
                     (after?.rank==0 && id !in priorEmperors))
-                throneChanged || monthly && (rankChanged || before?.abilities!=after?.abilities)
+                throneChanged || monthly && (rankChanged || before?.militaryRank!=after?.militaryRank || before?.abilities!=after?.abilities)
             }
             val changed=(if(monthly) {
                 val oldChairs=old.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
