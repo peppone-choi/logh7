@@ -394,10 +394,29 @@ internal object TacticalCombat {
         }
         clearFinishedOrders(players,galaxy,inventory,now,session.eliminated.keys)
         val cancelledDocking = mutableListOf<String>()
-        if(inventory.social.coup!=stocks.social.coup)players.replaceAll {account,player->
-            val after = navigation.clearLostDockReservation(player, stocks, inventory)
-            if (after != player) cancelledDocking += account
-            navigation.clearInvalidReturnBase(after,inventory)
+        val reroutedReturns = mutableSetOf<Navigator>()
+        if (inventory.social.coup != stocks.social.coup) {
+            val returns = buildMap {
+                for (impact in impacts) impact.departed?.let { put(it.characterId, it to impact.hit.seconds) }
+                for (departed in fortressSunk) put(departed.characterId, departed to now)
+            }
+            val roster = players.values.toList()
+            players.replaceAll { account, player ->
+                val after = navigation.clearLostDockReservation(player, stocks, inventory)
+                if (after != player) cancelledDocking += account
+                val validated = navigation.clearInvalidReturnBase(after, inventory)
+                val (departed, at) = returns[player.characterId] ?: return@replaceAll validated
+                if (player.baseId == 0 || (player != departed && player != departed.copy(returnBase = 0)))
+                    return@replaceAll validated
+                val camp = CoupActions.camp(inventory, player.characterId, player.country)
+                val dock = inventory.bases[player.baseId]
+                if (dock != null && TacticalAuthority.ownsBase(player, dock.owner, dock.camp, camp))
+                    return@replaceAll validated
+                // A coup can flip the berth selected earlier in this tick. Preserve the sinking time
+                // and choose a return against the committed allegiance, leaving existing occupants alone.
+                reroutedReturns += departed
+                FlagshipRecovery.defeated(validated, at, galaxy, inventory, roster, session.eliminated.keys)
+            }
         }
         if (committer!=null) inventory=TacticalEntryAssignment.settle(session,galaxy,original,players,inventory) {
             production.identities?.invoke().orEmpty()
@@ -418,11 +437,12 @@ internal object TacticalCombat {
         occupations.forEach(onOccupation)
         commands.forEach(onCommand)
         if (fortressSunk.isEmpty() && impacts.none { it.departed != null }) return impacts
-        // Occupation or coup settlement may clear the designation after recovery has chosen a safe dock.
+        // Occupation or coup settlement can clear the designation or reroute the earlier recovery.
         val returned = recovered.values.associateBy { it.generation to it.characterId }
         fun committedReturn(departed: Navigator): Navigator {
             val current = returned[departed.generation to departed.characterId]
-            return current?.takeIf { it.returnBase == 0 && departed.copy(returnBase = 0) == it } ?: departed
+            return current?.takeIf { departed in reroutedReturns || it.returnBase == 0 && departed.copy(returnBase = 0) == it }
+                ?: departed
         }
         fortressSunk.forEach { onFortressSunk(committedReturn(it)) }
         return impacts.map { impact ->

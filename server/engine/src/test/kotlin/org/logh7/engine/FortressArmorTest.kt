@@ -191,6 +191,79 @@ class FortressArmorTest {
         assertFalse(FortressArmor.pending(invalidDamage,galaxy,listOf(docked.copy(baseId=planet.id))))
     }
 
+    @Test fun aCoupSettlingOnTheSinkingTickReroutesTheFortressReturn() = checkCoupReturn(fortress = true)
+
+    @Test fun aCoupSettlingOnTheSinkingTickReroutesTheTacticalImpactReturn() = checkCoupReturn(fortress = false)
+
+    private fun checkCoupReturn(fortress: Boolean) {
+        val initial = SessionSimulation(SessionRules.load()).exportState()
+        val since = initial.gameMillis / 1000 + 1
+        val now = since + CoupActions.CAPITAL_DAYS * Justice.DAY
+        val session = initial.copy(gameMillis = now * 1000)
+        val capital = planet.copy(grid = 2015, name = Capital.ALLIANCE.baseName)
+        val origin = planet.copy(id = 1004, grid = 2491, name = "Origin")
+        val country = Power.ALLIANCE.country
+        val galaxy = Galaxy(listOf(GalaxySystem(3, fixed.grid, 4, "Fortress", 3),
+            GalaxySystem(4, capital.grid, 4, "Capital", 3), GalaxySystem(5, origin.grid, 4, "Origin", 3)),
+            listOf(fixed, capital, origin), mapOf(Power.EMPIRE to fixed.grid, Power.ALLIANCE to capital.grid))
+        val winning = Plot(10001, country, since, revolt = since, bases = setOf(capital.id),
+            capitalSince = since, capitalBase = capital.id)
+        val continuing = Plot(10002, country, since, members = listOf(10003, 10004), revolt = since, bases = setOf(fixed.id, origin.id))
+        val stocks = PlanetStocks(1, now / 86400,
+            listOf(fixed, capital, origin).associate { it.id to PlanetStock(it.id, 3, 1, 0, 0, 0) },
+            deploymentInitialized = true, social = SocialState(coup = CoupState(mapOf(winning.leader to winning,
+                continuing.leader to continuing))))
+        val before = if (fortress) FortressArmor.strike(fixed, stocks, 20) else stocks
+        fun stationary(point: TacticalPoint) = TacticalMotion(fixed.grid, now, TacticalPose(point, 0f), 0f, 0f, listOf(point))
+        val defender = Navigator(1, 10003, country, fixed.grid, 1000, 1000, 900,
+            returnBase = capital.id, originBase = origin.id).let {
+            if (fortress) it.copy(baseId = fixed.id, mode = 4) else it.copy(cpPaused = true,
+                hull = FlagshipHull(89, now, hp = 1, shields = List(6) { 0L }), motion = stationary(TacticalPoint(180f, -95f)))
+        }
+        assertEquals(capital.id, FlagshipRecovery.defeated(defender, now, galaxy, before).baseId)
+        val occupant = Navigator(1, 10004, country, capital.grid, 1000, 1000, 900, baseId = capital.id, mode = 4)
+        val attacker = Navigator(1, 10005, Power.EMPIRE, fixed.grid, 1000, 1000, 900, cpPaused = true,
+            energy = TacticalEnergy(List(11) { if (it == 3) 100 else 0 }), charge = TacticalCharge(now, 24000),
+            hull = FlagshipHull(0, now), motion = stationary(TacticalPoint(180f, -97f)),
+            fire = TacticalFire(1, TacticalPendingFire(1, fixed.grid, 0, defender.unitId, now, now)))
+        val players = mapOf("defender" to defender, "occupant" to occupant) +
+            if (fortress) emptyMap() else mapOf("attacker" to attacker)
+        val navigation = Navigation(galaxy, object : NavigationStore {
+            override fun load() = players
+            override fun save(players: Map<String, Navigator>) = error("expected a world save")
+        }, NavigationPolicy())
+        val production = PlanetProduction(galaxy, object : PlanetStockStore {
+            override fun load() = before
+            override fun save(stocks: PlanetStocks) = error("expected a world save")
+        }, now, PlanetProductionPolicy())
+        var saved: Navigator? = null
+        var savedStocks: PlanetStocks? = null
+        val sinkings = mutableListOf<Navigator>()
+        val impacts = TacticalCombat.settle(session, galaxy, navigation, production, WorldStateCommitter { next, inventory ->
+            saved = next.getValue("defender")
+            assertEquals(occupant, next.getValue("occupant"))
+            savedStocks = inventory
+        }, onFortressSunk = sinkings::add)
+
+        val returned = assertNotNull(saved)
+        val committed = assertNotNull(savedStocks)
+        assertEquals(0, committed.bases.getValue(capital.id).camp)
+        assertEquals(1, CoupActions.camp(committed, defender.characterId, country))
+        assertEquals(origin.id, returned.baseId)
+        assertEquals(origin.grid, returned.grid)
+        assertEquals(origin.id, returned.originBase)
+        assertEquals(0, returned.returnBase)
+        assertEquals(now + Justice.DAY, returned.hull?.woundedUntil)
+        assertEquals(returned, navigation.snapshot(1).getValue("defender"))
+        if (fortress) {
+            assertTrue(impacts.isEmpty())
+            assertEquals(listOf(returned), sinkings)
+        } else {
+            assertTrue(sinkings.isEmpty())
+            assertEquals(returned, impacts.single().departed)
+        }
+    }
+
     @Test fun duringARevoltOnlyTheHoldingCampIsSunk() {
         // PR #214 review: a rebel fortress breach must spare loyal units of the same power stationed there.
         val session=SessionSimulation(SessionRules.load()).exportState()
