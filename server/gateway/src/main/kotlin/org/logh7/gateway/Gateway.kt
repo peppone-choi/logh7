@@ -114,6 +114,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var successionSubscription:AutoCloseable?=null
     private var tidalSubscription:AutoCloseable?=null
     private var identitySubscription:AutoCloseable?=null
+    private var originalBerthSubscription:AutoCloseable?=null
     private var fameSubscription:AutoCloseable?=null
     private var communication:GameCommunication?=null
     /** Read-only lifecycle observation; listeners and bind policy are unchanged. */
@@ -236,6 +237,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             stock.snapshot(generation).get(10,java.util.concurrent.TimeUnit.SECONDS)
             navigation?.snapshot()?.takeIf {it.result!=null}?.let(::settleResult)
         }
+        originalBerthSubscription=stock?.provideOriginalBerthClaims {generation->characterStores.get(generation).originalBerthClaims()}
         identitySubscription=stock?.provideIdentities {WorldCharacters.identities(currentCharacters().profiles(),navigation?.snapshot())}
         communication=presence?.let {p->GameCommunication(p,{if(admission?.running==false)0 else admission?.generation ?: 1},
             {generation,id->communicationIdentity(characterStores.get(generation),id,
@@ -489,6 +491,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         coupBaseSubscription?.close()
         coupDockSubscription?.close()
         identitySubscription?.close()
+        originalBerthSubscription?.close()
         fameSubscription?.close()
         try { channels.forEach { it.close().syncUninterruptibly() }; clients.close().awaitUninterruptibly() }
         finally {

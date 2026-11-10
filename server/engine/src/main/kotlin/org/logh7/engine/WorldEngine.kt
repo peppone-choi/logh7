@@ -80,6 +80,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         tickPulse.trySend(Unit)
         return AutoCloseable {production?.identities={emptyList()}}
     }
+    @Volatile private var originalBerthClaims:(Long)->List<OriginalBerthClaim> = {emptyList()}
+    fun provideOriginalBerthClaims(supplier:(Long)->List<OriginalBerthClaim>):AutoCloseable {
+        originalBerthClaims=supplier
+        return AutoCloseable {originalBerthClaims={emptyList()}}
+    }
     private val coupBaseObservers=java.util.concurrent.CopyOnWriteArrayList<(PlanetStocks,List<Int>)->Unit>()
     fun observeCoupBases(observer:(PlanetStocks,List<Int>)->Unit):AutoCloseable {
         coupBaseObservers+=observer;return AutoCloseable {coupBaseObservers.remove(observer)}
@@ -214,6 +219,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             settleOfficeRecovery = { old, updated, players -> settleOfficeRecovery(session.gameMillis / 1000, old, updated, players) },
             assignmentBlocked = { stocks, payload -> assignmentBlocked(session, stocks, payload) },
             npcWarehouseBlocked = { stocks, outfit -> logistics.blocksSupply(session, stocks, setOf(outfit)) },
+            originalBerthClaims = if(npcPolicy.enabled && npcPolicy.strategic && worldStateCommitter!=null && session.ended==null)
+                originalBerthClaims(session.generation) else emptyList(),
             onCoupDockCancellations = { cancelledDocking.addAll(it) })
         // A later recapture must not restore a warehouse reservation from before occupation.
         occupations.forEach {logistics.occupationCommitted(it.base)}

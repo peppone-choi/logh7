@@ -8,6 +8,7 @@ import org.logh7.engine.CountryId
 import org.logh7.engine.OriginalCandidateDefinition
 import org.logh7.engine.OriginalCandidateEdit
 import org.logh7.engine.OriginalCandidateProfile
+import org.logh7.engine.OriginalBerthClaim
 import org.logh7.engine.PublishedOriginalCandidates
 import org.logh7.engine.ShipStyleId
 import org.logh7.engine.supportsNativePeerage
@@ -72,6 +73,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val casualties = mutableMapOf<Int,RetiredCasualty>()
     private val applications = mutableMapOf<String, List<Long>>()
     private val applicationSelections = mutableMapOf<String, CountrySelection>()
+    private val berthHoldUntil = mutableMapOf<Int, Long>()
     private var deadline = 0L
     private val originalIds=originals.map {it.character.id}.toSet()
     init {
@@ -97,6 +99,11 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 require(id>0 && id.toString()==fields[0] && id !in casualties)
                 casualties[id]=RetiredCasualty(fields[1],fields[2].toInt())
                 nextId=maxOf(nextId,id.toLong()+1)
+            }
+            contents.lineSequence().takeWhile {it.startsWith('#')}.filter {it.startsWith("#original-berth/")}.forEach {line->
+                val (id,until)=line.removePrefix("#original-berth/").split(':').also {require(it.size==2)}
+                val character=id.toInt();val expires=until.toLong()
+                require(character in 1..9999 && expires>0 && berthHoldUntil.put(character,expires)==null)
             }
             val properties = Properties().also { contents.reader().use(it::load) }
             for (account in properties.stringPropertyNames()) {
@@ -145,6 +152,16 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         ShipStyleId.fromLegacy(checkNotNull(Flagships.find(data.shipKind)).power))
     @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.character?.let(::displayed) }
     @Synchronized fun profiles():Map<String,CharacterProfile> { resolveLottery();return registered.toMap() }
+    @Synchronized fun originalBerthClaims():List<OriginalBerthClaim> {
+        resolveLottery()
+        val now=clock.millis()
+        return registered.mapNotNull {(account,profile)->
+            val character=profile.character
+            if(character.generated || (berthHoldUntil[character.id.toInt()] ?: 0)<=now ||
+                character.id!=1001L && profile.startingOffice==null)null
+            else OriginalBerthClaim(account,character.id.toInt(),profile.country,character.rank,profile.startingOffice)
+        }
+    }
     @Synchronized internal fun fameParticipants():Pair<Map<String,CharacterProfile>,Map<Int,RetiredCasualty>> =
         profiles() to casualties.toMap()
 
@@ -253,8 +270,11 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         retiredOriginals + worldOccupiedOriginals() + registered.values.map { it.character.id }
 
     private fun resolveLottery() {
-        if (applications.isEmpty() || clock.millis() < deadline || !lotteryOpen()) return
+        if (applications.isEmpty()) return
+        val now=clock.millis()
+        if (now < deadline || !lotteryOpen()) return
         val winners = registered.toMutableMap()
+        val holds = berthHoldUntil.toMutableMap()
         val shipNames = (registered.values.map { it.character } + pending.values)
             .mapTo(mutableSetOf()) { normalized(it.shipName) }
         val unavailable = unavailableOriginals().toMutableSet()
@@ -283,16 +303,19 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 title=title,shipName=shipName)
             val office=edits[id]?.profile?.startingOffice?.takeIf {it.accepts(id,country,won.rank)}
             winners[account] = if(selection==null)profile(won) else CharacterProfile(won,selection.country,selection.shipStyle,office)
+            if(id==1001L && country==CountryId(2) || winners.getValue(account).startingOffice!=null)
+                holds[id.toInt()]=Math.addExact(now,lotteryWindowMillis)
             unavailable.add(id)
         }
-        save(winners, emptyMap(), 0, emptyMap())
+        save(winners, emptyMap(), 0, emptyMap(), holds=holds)
+        berthHoldUntil.clear();berthHoldUntil.putAll(holds)
         registered.clear(); registered.putAll(winners); applications.clear(); applicationSelections.clear(); deadline = 0
         println("original lottery resolved assigned=${accounts.count { it in winners }}")
     }
     private fun normalized(value: String) = Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT)
     private fun save(values: Map<String, CharacterProfile>, entries: Map<String, List<Long>> = applications, closesAt: Long = deadline,
         selections: Map<String, CountrySelection> = applicationSelections, retired: Set<Long> = retiredOriginals,
-        fallen: Map<Int,RetiredCasualty> = casualties) {
+        fallen: Map<Int,RetiredCasualty> = casualties, holds:Map<Int,Long> = berthHoldUntil) {
         if (file == null) return
         val target = file.toAbsolutePath()
         Files.createDirectories(target.parent)
@@ -309,6 +332,10 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             val comments=buildString {
                 append("LOGH7 local characters\nnext-id=$nextId")
                 for((id,casualty) in fallen)append("\ncasualty/$id:${casualty.account}:${casualty.rank}")
+                for(profile in values.values) {
+                    val id=profile.character.id.toInt()
+                    holds[id]?.let {append("\noriginal-berth/$id:$it")}
+                }
             }
             Files.newBufferedWriter(temporary).use { properties.store(it, comments) }
             Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)

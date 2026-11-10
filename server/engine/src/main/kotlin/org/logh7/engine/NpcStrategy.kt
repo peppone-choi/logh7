@@ -216,11 +216,13 @@ internal object NpcStrategy {
     }
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
         movements:MutableList<NpcStrategicMovement>,
-        warehouseBlocked: (PlanetStocks, Int) -> Boolean = { _, _ -> false }):PlanetStocks {
+        warehouseBlocked: (PlanetStocks, Int) -> Boolean = { _, _ -> false },
+        startingClaims:List<OriginalBerthClaim> = emptyList()):PlanetStocks {
         if(session.ended!=null)return original
         val now=session.gameMillis/1000
         if(now>0xffffffffL-21600)return original
         var stocks=original
+        val claimsByFleet=startingClaims.groupBy {it.berth()?.first?.fleetId}
         var forceCache:Map<Int,List<GridForces.Force>>?=null
         fun forces():Map<Int,List<GridForces.Force>> = forceCache ?: GridForces.collect(galaxy,stocks.generation,players.values,stocks,session.eliminated.keys).also {forceCache=it}
         fun repairAtDepot(outfit:OutfitStock):OutfitStock {
@@ -294,6 +296,7 @@ internal object NpcStrategy {
                 if(outfit.strategy!=null)stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=null)))
                 continue
             }
+            if(claimsByFleet[id].orEmpty().any {it.vacantFleet(outfit,stocks,galaxy,players)!=null})continue
             val hasTacticalBerth=position.baseId==0 && outfit.activeShips!!.values.any {unit->
                 unit.boats>0 && unit.posture?.let {it.grid==position.grid && it.mode.requiresBase}==true
             }

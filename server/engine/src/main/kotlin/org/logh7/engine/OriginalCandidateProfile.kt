@@ -16,6 +16,26 @@ enum class OriginalStartingOffice(val key:String,val country:CountryId,val fleet
     }
 }
 
+data class OriginalBerthClaim(val account:String,val character:Int,val country:CountryId?,val rank:Int,
+    val office:OriginalStartingOffice?) {
+    internal fun berth():Pair<OriginalStartingOffice,FleetOffice>? {
+        if(character==1001 && country==CountryId(2))return OriginalStartingOffice.REINHARD_FLEET_2 to FleetOffice.EMPIRE_AIDE
+        return office?.takeIf {it.accepts(character.toLong(),country,rank)}?.let {it to it.role}
+    }
+
+    internal fun vacantFleet(fleet:OutfitStock,stocks:PlanetStocks,galaxy:Galaxy,players:Map<String,Navigator>):FleetOffice? {
+        val (site,role)=berth() ?: return null
+        if(players[account]?.let {it.generation==stocks.generation &&
+                (it.characterId==character || !BattleDeath.deceased(stocks,it.characterId))}==true ||
+            players.values.any {it.generation==stocks.generation && it.characterId==character} ||
+            BattleDeath.deceased(stocks,character) || stocks.outfits.values.any {character in it.members()})return null
+        return role.takeIf {fleet.id==site.fleetId && fleet.country==site.country && fleet.kind==OutfitKind.FLEET &&
+            fleet.number==site.fleetNumber && fleet.baseId==site.baseId && fleet.positionIn(galaxy).baseId==site.baseId &&
+            role.holders(fleet).isEmpty() && CoupActions.outfitCamp(stocks,fleet)==0 &&
+            stocks.bases[site.baseId]?.let {it.country==site.country && it.camp==0}==true}
+    }
+}
+
 /** Editable starting data for a lottery candidate. Its ID and creation side are stable. */
 data class OriginalCandidateProfile(
     val surname:String,val givenName:String,val face:Int,val rank:Int,val abilities:List<Int>,val peerage:Peerage?=null,

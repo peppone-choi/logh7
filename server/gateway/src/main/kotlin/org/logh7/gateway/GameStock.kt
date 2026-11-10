@@ -13,6 +13,7 @@ fun interface GameStock {
     fun observeTides(observer:(TidalLoss)->Unit):AutoCloseable = AutoCloseable {}
     fun observeSessionResults(observer:(WorldSnapshot)->Unit):AutoCloseable = AutoCloseable {}
     fun provideIdentities(supplier:()->List<org.logh7.engine.StrategicIdentity>):AutoCloseable = AutoCloseable {}
+    fun provideOriginalBerthClaims(supplier:(Long)->List<OriginalBerthClaim>):AutoCloseable = AutoCloseable {}
 }
 class EngineGameStock(private val engine: WorldEngine, private val scope: CoroutineScope) : GameStock {
     override fun observeCoupBases(observer:(PlanetStocks,List<Int>)->Unit)=engine.observeCoupBases(observer)
@@ -22,6 +23,7 @@ class EngineGameStock(private val engine: WorldEngine, private val scope: Corout
     override fun observeTides(observer:(TidalLoss)->Unit)=engine.observeTides(observer)
     override fun observeSessionResults(observer:(WorldSnapshot)->Unit)=engine.observeSessionResults(observer)
     override fun provideIdentities(supplier:()->List<org.logh7.engine.StrategicIdentity>)=engine.provideIdentities(supplier)
+    override fun provideOriginalBerthClaims(supplier:(Long)->List<OriginalBerthClaim>)=engine.provideOriginalBerthClaims(supplier)
     override fun snapshot(generation: Long): CompletableFuture<PlanetStocks> {
         val future = CompletableFuture<PlanetStocks>()
         scope.launch {
