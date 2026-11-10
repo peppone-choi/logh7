@@ -78,6 +78,7 @@ object ProductionActions {
         if(p==null || i.country==null || p.generation!=i.generation || p.characterId!=i.characterId || p.country!=i.country || member.country!=i.country)
             return reject(SocialRejection.IDENTITY)
         if(i.country.value !in catalog.countries)return reject(SocialRejection.CARD)
+        if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
         if(i.command !in commands)return reject(SocialRejection.COMMAND)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         val office=OrganizationalOfficePolicy(g,catalog)
