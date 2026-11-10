@@ -5,6 +5,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
+import org.logh7.protocol.ChatMessages
+import org.logh7.protocol.NavigationMessages
+import org.logh7.protocol.PlaceMessages
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import kotlin.test.*
@@ -40,6 +43,63 @@ class FuelSupplyWireTest {
         assertEquals(0x0b02,notice.getShort(6).toInt())
         notice.position(9)
         assertEquals("[연료 보급] $text\u0000",CharArray(notice.get().toInt()) { notice.char }.concatToString())
+    }
+    @Test fun detentionRefusesWarpAndFuelWithoutPaymentUntilRelease() = runBlocking<Unit> {
+        val base = 1049
+        val character = 10000
+        val rules = SessionRules.load()
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire", 2)),
+            listOf(GalaxyBase(base, 2487, 80, 0, "Odin", 0, 20f, 86400, 0, 0f, 2f)),
+            Power.entries.associateWith { 2487 })
+        val detention = Detention(character, CountryId(2), rules.startSeconds, rules.startSeconds + 60, base = base)
+        var savedPlayers = mapOf("load-000" to Navigator(1, character, Power.EMPIRE, 2487, 1000, 1000, 900,
+            baseId = base, mode = 4, spotId = base * 10_000 + 19, cpRecoveryAt = rules.startSeconds))
+        var savedStocks = PlanetStocks(1, 0, mapOf(base to PlanetStock(base, 2, 0, 100, 200, 300)),
+            deploymentInitialized = true, social = SocialState(justice = JusticeState(detentions = mapOf(character to detention))))
+        val navigationStore = object : NavigationStore {
+            override fun load() = savedPlayers
+            override fun save(players: Map<String, Navigator>) { savedPlayers = players }
+        }
+        val stockStore = object : PlanetStockStore {
+            override fun load() = savedStocks
+            override fun save(stocks: PlanetStocks) { savedStocks = stocks }
+        }
+        val committer = WorldStateCommitter { players, stocks ->
+            navigationStore.save(players)
+            stockStore.save(checkNotNull(stocks))
+        }
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false, navigationStore = navigationStore,
+            stockStore = stockStore, worldStateCommitter = committer).use { fixture ->
+            val account = fixture.account(0)
+            val client = fixture.join(account, true, false).client
+            fun through(opcode: Int): ByteArray {
+                repeat(300) { val message = client.receive(); if (code(message) == opcode) return message }
+                error("Missing opcode ${opcode.toString(16)}")
+            }
+            client.send(SyntheticClient.opcode(0x0f00)); through(0x0f01)
+            val before = fixture.engine.snapshot().navigators.getValue(account)
+            assertEquals(base * 10_000 + 19, before.spotId)
+
+            val warp = NavigationMessages.accepted(NavigationMessages.Warp(character, 59, 2488, 0, 5), 0, 0, 0).drop(4).toByteArray()
+            client.send(warp)
+            assertEquals(1, ByteBuffer.wrap(through(0x0b01)).int)
+            assertEquals(ChatMessages.Spot(character, "[워프] 구금 중 이동 불가"), ChatMessages.spot(through(0x0f1d).drop(4).toByteArray()))
+            client.send(request(character))
+            expectRefusal(client, "구금 중 보급 불가")
+            assertEquals(before, fixture.engine.snapshot().navigators.getValue(account))
+
+            fixture.engine.submit(WorldCommand.AdvanceTo(60_000L / fixture.engine.clockSpeed))
+            fixture.await("detainee released") { fixture.engine.snapshot().planetStocks?.social?.justice?.detained(character) == false }
+            assertEquals(0, fixture.engine.snapshot().navigators.getValue(account).spotId)
+            val depart = PlaceMessages.switched(PlaceMessages.SwitchMode(character, 59, 5), 0, 0, 0, 5, 0, 0, true)
+            client.send(depart.copyOfRange(4, depart.size)); through(0x0b0b)
+            client.send(warp)
+            assertEquals(0, ByteBuffer.wrap(through(0x0b01)).int)
+            assertEquals(2488, ByteBuffer.wrap(through(0x0b07)).getInt(14))
+            client.send(request(character))
+            assertEquals(0, ByteBuffer.wrap(through(0x0b02)).int)
+            assertNotNull(fixture.engine.snapshot().navigators.getValue(account).fuelReadyAt)
+        }
     }
     @Test fun encryptedCaptainCommandChargesOnceAndNotifiesWhenTheServerDeadlinePasses() = runBlocking<Unit> {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Empire"), GalaxySystem(4, 2015, 4, "Alliance")),

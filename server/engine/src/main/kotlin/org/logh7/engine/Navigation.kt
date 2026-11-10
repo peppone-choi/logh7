@@ -187,7 +187,8 @@ data class NavigationResult(val player: Navigator?, val previous: Navigator? = n
     val supportNotifications: List<TacticalSupportResult> = emptyList(),
     val tacticalMotions: Map<Int,TacticalMotion> = emptyMap(),val postureReadyAt:Long?=null,val groundReadyAt:Long?=null,
     val commandReadyAt:Long?=null,val commandNotifications:List<TacticalCommandResult> = emptyList(),
-    val groundStopped:Set<TacticalGroundAction> = emptySet())
+    val groundStopped:Set<TacticalGroundAction> = emptySet(),
+    val blockedByDetention: Boolean = false)
 
 /** Called only on the world actor. No input can choose its own identity, balance or origin. */
 internal class Navigation(private val galaxy: Galaxy, private val store: NavigationStore?,
@@ -367,7 +368,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         // U-25: a detainee stays in the holding room until released (warp, docking, spot moves and supply refused).
         if (detained &&
             (request.destination != null || request.place != null || request.supplyFuel ||
-                request.tacticalMove != null || request.tacticalRetreat != null)) return reject(NavigationRejection.BUSY)
+                request.tacticalMove != null || request.tacticalRetreat != null))
+            return reject(NavigationRejection.BUSY).copy(blockedByDetention = true)
         if (request.shipKind!=null && before.hull!=null && request.shipKind!=before.hull.kind &&
             (request.energy!=null || request.tacticalMove!=null || request.tacticalRetreat!=null ||
                 request.tacticalStop!=null || request.tacticalShoot!=null || request.tacticalAttack!=null)) return reject(NavigationRejection.UNIT)
