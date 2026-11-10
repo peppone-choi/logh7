@@ -289,6 +289,8 @@ class FleetNavigationTest {
         assertEquals(listOf(2,4,4,1015,39),listOf(staden.country.value,staden.fleetId,staden.fleetNumber,staden.baseId,staden.role.card))
         val paetta=OriginalStartingOffice.PAETTA_FLEET_2
         assertEquals(listOf(3,134,2,1177,175),listOf(paetta.country.value,paetta.fleetId,paetta.fleetNumber,paetta.baseId,paetta.role.card))
+        val fogel=OriginalStartingOffice.FOGEL_FLEET_5
+        assertEquals(listOf(2,5,5,1015,39),listOf(fogel.country.value,fogel.fleetId,fogel.fleetNumber,fogel.baseId,fogel.role.card))
         for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
     }
 
@@ -299,7 +301,8 @@ class FleetNavigationTest {
         val base=when(office) {
             OriginalStartingOffice.REINHARD_FLEET_2 -> home.copy(id=office.baseId,name=Capital.EMPIRE.baseName)
             OriginalStartingOffice.VUCOCK_FLEET_5 -> home.copy(id=office.baseId,name="Santa Ana")
-            OriginalStartingOffice.STADEN_FLEET_4 -> home.copy(id=1015,grid=1260,model=51,name="Hafen")
+            OriginalStartingOffice.STADEN_FLEET_4,OriginalStartingOffice.FOGEL_FLEET_5 ->
+                home.copy(id=1015,grid=1260,model=51,name="Hafen")
             OriginalStartingOffice.PAETTA_FLEET_2 -> home.copy(id=1177,grid=2015,model=61,name=Capital.ALLIANCE.baseName)
         }
         val systems=if(base.grid==start.grid)listOf(start) else

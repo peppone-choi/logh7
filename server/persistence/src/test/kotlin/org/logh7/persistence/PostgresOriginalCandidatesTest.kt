@@ -180,6 +180,21 @@ class PostgresOriginalCandidatesTest {
                 assertNull(reopened.save(1103,1,paetta.copy(startingOffice=null),alliance))
                 assertEquals(earlierOfficers+paettaOfficer,
                     PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
+
+                val fogel=commander.copy(surname="Fogel",givenName="Admiral",startingOffice=OriginalStartingOffice.FOGEL_FLEET_5)
+                assertFalse(reopened.supportsFogelStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1105,0,fogel,empire)}
+                migrate("V20__fogel_original_starting_office.sql")
+                assertEquals(earlierOfficers+paettaOfficer,reopened.load().filter {it.profile.startingOffice!=null}.toSet())
+                assertTrue(reopened.supportsAllianceStartingOffice && reopened.supportsStadenStartingOffice &&
+                    reopened.supportsPaettaStartingOffice && reopened.supportsFogelStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1105,0,fogel,alliance)}
+                assertFailsWith<IllegalArgumentException> {reopened.save(1105,0,fogel.copy(rank=6),empire)}
+                val fogelOfficer=assertNotNull(reopened.save(1105,0,fogel,empire))
+                assertNull(reopened.save(1106,0,fogel,empire))
+                assertNull(reopened.save(1105,1,fogel.copy(startingOffice=null),empire))
+                assertEquals(earlierOfficers+paettaOfficer+fogelOfficer,
+                    PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
                 connect().use {test->test.createStatement().use {
                     val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile
                         SET starting_office='vucock-fleet-5' WHERE world_identity='$world' AND candidate_id=${edited.id}""")}
