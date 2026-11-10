@@ -113,6 +113,33 @@ class CountryCoupActionsTest {
         assertTrue(OfficeHolding(1,1002,10009,c) in won.strategic.offices)
     }
 
+    @Test fun onlyACompletedChairmanChangeRetiresTheFormerIncumbentsConfidenceVotes() {
+        val plotted=plotted(b,10002)
+        val funds=FundState(confidence=mapOf(a.value to (20L to 30L),b.value to (0L to 100L)),
+            support=mapOf(10002 to 80L))
+        val before=plotted.copy(
+            strategic=plotted.strategic.copy(offices=plotted.strategic.offices+OfficeHolding(132,1001,10010,b)),
+            social=plotted.social.copy(funds=funds))
+        val revolted=assertNotNull(act(CoupActions.REVOLT,before,"b").stocks)
+        val started=CoupActions.settle(galaxy,revolted,1000,catalog)
+        val due=1000+7*86400L
+        assertEquals(funds,CoupActions.settle(galaxy,started,due-1,catalog).social.funds)
+        val dead=started.copy(strategic=started.strategic.copy(people=started.strategic.people+
+            (10002 to StrategicPerson(deceasedAt=due-1))))
+        val failed=CoupActions.settle(galaxy,dead,due,catalog)
+        assertEquals(funds,failed.social.funds)
+        assertEquals(listOf(10010),policy.holders(failed,132,b).map {it.character})
+
+        val won=CoupActions.settle(galaxy,started,due,catalog)
+        assertEquals(funds.copy(confidence=funds.confidence-b.value),won.social.funds)
+        assertEquals(listOf(10002),policy.holders(won,132,b).map {it.character})
+        assertFalse(SuccessionActions.notices(started,won,due,catalog).any {
+            it.kind==SuccessionNotice.Kind.CHAIRMAN_DISMISSED && it.country==b
+        })
+        val monthly=PoliticianLadder.monthly(galaxy,won,emptyList(),1,catalog)
+        assertEquals(listOf(10002),policy.holders(monthly,132,b).map {it.character})
+    }
+
     @Test fun storedCapitalRelocationResetsContinuousOccupationAndOnlyThatCountrysHeadChanges() {
         val revolted=act(CoupActions.REVOLT,plotted()).stocks!!
         val started=CoupActions.settle(galaxy,revolted,1000,catalog)

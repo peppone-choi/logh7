@@ -251,11 +251,17 @@ object CoupActions {
                 next=policy.set(next,OfficeHolding(role.card,at,h.character,plot.country))
         }
         val head=headCard(system)
-        for(old in policy.holders(next,head,plot.country))next=policy.set(next,old,remove=true)
+        val incumbents=policy.holders(next,head,plot.country)
+        for(old in incumbents)next=policy.set(next,old,remove=true)
         next=policy.set(next,OfficeHolding(head,capital,plot.leader,plot.country))
         if(system==2)next=next.copy(social=next.social.copy(succession=next.social.succession.with(plot.country,
             ThroneState(emperor=plot.leader,at=maxOf(now,1L)))))
-        return next.copy(social=next.social.copy(coup=next.social.coup.copy(plots=next.social.coup.plots-plot.leader)))
+        val funds=next.social.funds
+        // Confidence votes concern the incumbent, so they cannot pass to a replacement chairman.
+        val confidence=if(system==3 && incumbents.singleOrNull()?.character!=plot.leader)
+            funds.confidence-plot.country.value else funds.confidence
+        return next.copy(social=next.social.copy(coup=next.social.coup.copy(plots=next.social.coup.plots-plot.leader),
+            funds=funds.copy(confidence=confidence)))
     }
     private fun leaderUnavailable(stocks:PlanetStocks,leader:Int)=
         stocks.social.justice.detained(leader) || BattleDeath.deceased(stocks,leader)
