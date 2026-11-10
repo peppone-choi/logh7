@@ -555,6 +555,33 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun currentTacticalAnchorageBlocksNewAndPendingStrategicJumps() {
+        val original=stocks()
+        val fleet=OutfitSupplies.withBalances(original.outfits.getValue(1).copy(position=OutfitPosition(2487)),mapOf(1 to 2700))
+        val events=mutableListOf<NpcStrategicMovement>()
+        val ready=original.copy(outfits=mapOf(1 to fleet))
+        val reserved=advance(0,ready,players(),events)
+        val strategy=assertNotNull(reserved.outfits.getValue(1).strategy)
+        assertEquals(2488,strategy.destination)
+        assertEquals(OutfitPosition(2488),advance(3600,reserved,players(),mutableListOf()).outfits.getValue(1).position)
+
+        for(mode in listOf(TacticalShipMode.ANCHORED,TacticalShipMode.STATIONED)) {
+            val ship=fleet.activeShips!!.values.single().copy(posture=TacticalPosture(2487,mode,1000))
+            val anchored=fleet.copy(activeShips=ActiveShipUnits(listOf(ship)))
+            val initial=ready.copy(outfits=mapOf(1 to anchored))
+            val considered=advance(0,initial,players(),events)
+            assertNull(considered.outfits.getValue(1).strategy?.destination)
+            assertEquals(anchored,considered.outfits.getValue(1).copy(strategy=null))
+
+            val pending=initial.copy(outfits=mapOf(1 to anchored.copy(strategy=strategy)))
+            val cancelled=advance(3600,pending,players(),events)
+            assertNull(cancelled.outfits.getValue(1).strategy?.destination)
+            assertEquals(anchored,cancelled.outfits.getValue(1).copy(strategy=null))
+            assertEquals(initial.bases,cancelled.bases)
+            assertTrue(events.isEmpty())
+        }
+    }
+
     @Test fun strandedFleetCanDockAndReloadWithoutAnotherJumpAndCannotUseAnOccupiedDepot() {
         val events=mutableListOf<NpcStrategicMovement>()
         val original=stocks()
