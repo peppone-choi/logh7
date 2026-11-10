@@ -64,9 +64,19 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
         {60, 0, "LOGH7_TACTICAL_BASE_SUPPORT_EMPTY", L"이 거점에 주둔한 함정이 없습니다.\n"},
         // 0425 (004c1990): a warped-out unit was a grid player's flagship; the native code drops that player entry.
         {57, 0, "LOGH7_TACTICAL_PLAYER_DEPARTED", L"플레이어 한 명이 전장을 이탈했습니다.\n"},
+        // 0f1f flag 0 (004c1be7): the release modal's body. Ordinary tactical ends use it too, so the text stays neutral.
+        {38, 0, "LOGH7_TACTICAL_SITUATION_ENDED", L"전술 상황이 종료되었습니다.\n"},
     };
     count = sizeof(rows) / sizeof(rows[0]);
     return rows;
+}
+// Lookups whose text goes to a window or modal instead of the chat log, so a marker would show raw:
+// 005104b2 (118/60) base-support empty list, 004c1be7 (118/38) 0f1f flag-0 body passed to 00517af0.
+// 004c1bb8 (flag 1, 118/37) is not hooked.
+static constexpr unsigned tacticalWindowNoticeCalls[] = {0x5104b2, 0x4c1be7};
+inline bool tacticalWindowNoticeCall(unsigned call) {
+    for (unsigned address : tacticalWindowNoticeCalls) if (address == call) return true;
+    return false;
 }
 inline const char* tacticalMissionNotice(const char* marker, bool chief) {
     return !chief && marker && !strcmp(marker, "LOGH7_TACTICAL_MISSION_RETREAT") ? "LOGH7_TACTICAL_MISSION_PROPOSED" : marker;

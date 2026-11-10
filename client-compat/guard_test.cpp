@@ -855,6 +855,24 @@ static bool tacticalNoticesTest() {
         strcmp(logh::tacticalNoticeFallback(118, 10, missing, 4), "LOGH7_TACTICAL_PARALLEL") ||
         strcmp(logh::tacticalNoticeFallback(118, 10, missing, 99), "LOGH7_TACTICAL_DESTINATION") ||
         strcmp(logh::tacticalNoticeFallback(118, 57, missing), "LOGH7_TACTICAL_PLAYER_DEPARTED")) return false;
+    {
+        // 0f1f flag 0: only the verified 118/38 call (e8 24 04 06 00 -> 00522010) becomes the neutral modal body.
+        const unsigned call = 0x4c1be7;
+        const BYTE native[5] = {0xe8, 0x24, 0x04, 0x06, 0x00};
+        if (call + 5 + *reinterpret_cast<const unsigned*>(native + 1) != 0x522010) return false;
+        if (!logh::tacticalWindowNoticeCall(call) || !logh::tacticalWindowNoticeCall(0x5104b2) ||
+            logh::tacticalWindowNoticeCall(0x4c1bb8) || logh::tacticalWindowNoticeCall(0x4c1bf9) ||
+            logh::tacticalWindowNoticeCall(0x4c19e0)) return false;
+        if (strcmp(logh::tacticalNoticeFallback(118, 38, missing), "LOGH7_TACTICAL_SITUATION_ENDED") ||
+            logh::tacticalNoticeFallback(118, 38, valid) != valid ||
+            logh::tacticalNoticeFallback(118, 37, missing) != missing) return false;
+        const wchar_t* body = nullptr;
+        for (size_t i = 0; i < count; ++i) if (rows[i].index == 38) body = rows[i].text;
+        std::string encoded; std::wstring back;
+        if (!body || wcscmp(body, L"전술 상황이 종료되었습니다.\n") ||
+            !logh::encodeKoreanResource(L"전술 상황이 종료되었습니다.", encoded) ||
+            !logh::japaneseFragment(encoded.c_str(), back) || back != L"전술 상황이 종료되었습니다.") return false;
+    }
     std::wstring decoded = L"unchanged";
     if (logh::tacticalNoticeFragment(missing, decoded) || decoded != L"unchanged" ||
         logh::tacticalNoticeFragment(nullptr, decoded)) return false;
