@@ -84,7 +84,8 @@ internal object TacticalFleetShoot {
     }
 
     fun advance(session:SessionState,galaxy:Galaxy,players:MutableMap<String,Navigator>,original:PlanetStocks,
-        impacts:MutableList<TacticalImpact>,scale:Long=24):PlanetStocks {
+        impacts:MutableList<TacticalImpact>,scale:Long=24, beforeMovementPlayers:Map<String,Navigator> = players,
+        beforeMovementStocks:PlanetStocks = original):PlanetStocks {
         var stocks=original
         val now=session.gameMillis/1000
         for(outfitId in original.outfits.keys.sorted()) for(id in original.outfits.getValue(outfitId).activeShips?.values.orEmpty()
@@ -111,22 +112,31 @@ internal object TacticalFleetShoot {
             if(victim==null)continue
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
             val mount=GuardCombat.mount(TacticalArmaments.mount(spec,shot.weapon),shot.weapon,outfit,unit.id)
-            val origin=state.motion.pose(now,unit.posture,galaxy,stocks)
-            val targetPosition=TacticalFleetAttack.pose(victim,now,players,stocks,galaxy).position
-            if(TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,TacticalAuthority.camp(outfit,stocks),
-                origin.position,targetPosition,now,players.values,stocks))continue
+            // Movement progress can replace a completed path with its final position before a late shot settles.
+            val overdue=shot.firesAt<now
+            val posePlayers=if(overdue)beforeMovementPlayers else players
+            val poseStocks=if(overdue)beforeMovementStocks else stocks
+            val camp=TacticalAuthority.camp(outfit,stocks)
+            val poseVictim=if(overdue)TacticalCombat.target(shot.target,position.grid,camp,poseStocks,galaxy,posePlayers,
+                session.eliminated.keys) ?: continue else victim
+            val poseUnit=poseStocks.outfits[outfitId]?.activeShips?.values?.singleOrNull {it.id==id} ?: unit
+            val motion=poseUnit.tactical?.motion ?: state.motion
+            val origin=motion.pose(shot.firesAt,poseUnit.posture,galaxy,poseStocks)
+            val targetPosition=TacticalFleetAttack.pose(poseVictim,shot.firesAt,posePlayers,poseStocks,galaxy).position
+            if(TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,
+                origin.position,targetPosition,shot.firesAt,posePlayers.values,poseStocks))continue
             val effect=TacticalArmaments.effectiveness(mount,origin,targetPosition)
             val cost=cost(unit,mount,shot.weapon)
-            if(effect==0 || stocks.tacticalCommands.confused(id) || TacticalLineOfFire.blocked(id,position.grid,TacticalAuthority.camp(outfit,stocks),origin.position,
-                targetPosition,now,players.values,stocks,galaxy) || mount.power==0 || !TacticalReload.canFire(unit,shot.weapon,now,scale) || state.sequence==Long.MAX_VALUE || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
-            val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,now,shot.target,shot.weapon,
+            if(effect==0 || stocks.tacticalCommands.confused(id) || TacticalLineOfFire.blocked(id,position.grid,camp,origin.position,
+                targetPosition,shot.firesAt,posePlayers.values,poseStocks,galaxy) || mount.power==0 || !TacticalReload.canFire(unit,shot.weapon,shot.firesAt,scale) || state.sequence==Long.MAX_VALUE || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
+            val resolved=TacticalCombat.strike(session,galaxy,players,stocks,id,position.grid,state.sequence+1,shot.firesAt,shot.target,shot.weapon,
                 TacticalArmaments.trainedMount(unit,mount,spec.number),effect,origin,victim)
             stocks=resolved.first;impacts+=resolved.second
             outfit=stocks.outfits.getValue(outfitId)
             if(cost>0)outfit=OutfitSupplies.change(outfit,id,-cost)
             unit=outfit.activeShips!!.values.single {it.id==id}
             stocks=replace(stocks,outfit,unit.copy(tactical=state.copy(sequence=state.sequence+1),
-                reload=(unit.reload ?: TacticalReload()).fired(shot.weapon,now,scale)))
+                reload=(unit.reload ?: TacticalReload()).fired(shot.weapon,shot.firesAt,scale)))
         }
         return stocks
     }
