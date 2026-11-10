@@ -32,6 +32,7 @@ class StrategicOperationsTest {
         val stored=assertNotNull(planned.stocks);assertEquals(StrategicPlanState.PLANNED,stored.strategic.operations.single().state)
         val issued=act(24,stored);assertNull(issued.rejection);assertEquals(1999,issued.player?.mcp)
         val assigned=assertNotNull(issued.stocks);assertEquals(setOf(200),assigned.strategic.operations.single().outfits)
+        assertEquals(StrategicPlanState.ISSUED,assigned.strategic.operations.single().state)
         val reached=assigned.copy(outfits=assigned.outfits.mapValues {(_,o)->o.copy(position=OutfitPosition(2500))})
         val started=StrategicOperations.settle(galaxy,reached,now+1)
         assertEquals(StrategicPlanState.STARTED,started.strategic.operations.single().state)
@@ -41,6 +42,18 @@ class StrategicOperationsTest {
         assertEquals(OperationOutcome.FULL_SUCCESS,ended.strategic.operations.single().outcome)
         assertEquals(mapOf(10002 to StrategicPerson(merit = 100)), ended.strategic.people)
         assertEquals(ended,StrategicOperations.settle(galaxy,ended,now+OperationPlanRules.DURATION_GAME_SECONDS+1))
+    }
+    @Test fun assigningFleetAlreadyInTheObjectiveStartsTheOperationWithPayment() {
+        val planned=assertNotNull(act(22,stocks()).stocks)
+        val fleet=planned.outfits.getValue(200).copy(position=OutfitPosition(2500))
+        val present=planned.copy(outfits=planned.outfits+(fleet.id to fleet))
+        val issued=act(24,present)
+        assertNull(issued.rejection)
+        assertEquals(1999,issued.player?.mcp)
+        val operation=assertNotNull(issued.stocks).strategic.operations.single()
+        assertEquals(StrategicPlanState.STARTED,operation.state)
+        assertEquals(now,operation.issuedAt)
+        assertEquals(setOf(fleet.id),operation.outfits)
     }
     @Test fun plannerAndIssuerAreDistinctStoredOfficesAndActivationIsEnforced() {
         val delayed=act(22,stocks(),r=request(22).copy(argument=1));assertNull(delayed.rejection)

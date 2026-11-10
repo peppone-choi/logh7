@@ -138,9 +138,12 @@ internal object StrategicOperations {
                 val count=if(force==StrategicForce.SOLO)characters.count {!CoupActions.rebel(stocks,it,country)}
                     else outfits.sumOf {stocks.outfits[it]?.takeIf {o->TacticalAuthority.camp(o,stocks)==regular}?.let(::shipUnits) ?: 0}
                 if(count>plan.units)return reject(StrategyActionRejection.MAXIMUM)
-                plans=plans.map {if(it.id==plan.id)it.copy(outfits=outfits,characters=characters,
-                    state=if(it.state==StrategicPlanState.PLANNED)StrategicPlanState.ISSUED else it.state,
-                    issuedAt=it.issuedAt ?: now,issuer=it.issuer.takeIf {id->id>0} ?: r.characterId) else it}
+                val assigned=plan.copy(outfits=outfits,characters=characters,
+                    state=if(plan.state==StrategicPlanState.PLANNED)StrategicPlanState.ISSUED else plan.state,
+                    issuedAt=plan.issuedAt ?: now,issuer=plan.issuer.takeIf {it>0} ?: r.characterId)
+                val updated=if(assigned.state==StrategicPlanState.ISSUED && reached(assigned,galaxy,stocks,r.navigators.values))
+                    assigned.copy(state=StrategicPlanState.STARTED) else assigned
+                plans=plans.map {if(it.id==plan.id)updated else it}
                 cost=count.toLong().coerceIn(1,320)
             }
             else->return reject(StrategyActionRejection.COMMAND)
