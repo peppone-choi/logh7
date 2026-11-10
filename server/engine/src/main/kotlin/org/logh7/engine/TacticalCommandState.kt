@@ -74,7 +74,9 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
                 fortress.copy(motion=fortress.motion.let {motion->motion.copy(waypoints=list(motion.waypoints),
                     rotation=motion.rotation?.let {it.copy(selection=list(it.selection))})})
             }),ranks=map(ranks),merits=map(merits),emergencySupplies=map(emergencySupplies),formationLeaders=map(formationLeaders),
-            aiSwitches=map(aiSwitches),creditedMerits=map(creditedMerits),aiNextAt=map(aiNextAt))
+            aiSwitches=map(aiSwitches),creditedMerits=map(creditedMerits),aiNextAt=map(aiNextAt),
+            fortressDamage=map(fortressDamage),brokenPropulsion=java.util.Collections.unmodifiableSet(LinkedHashSet(brokenPropulsion)),
+            groundTargets=map(groundTargets))
     }
 }
 data class TacticalCommandResult(val generation:Long,val order:TacticalQueuedCommand,val seconds:Long,

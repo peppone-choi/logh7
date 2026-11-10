@@ -49,6 +49,30 @@ class PlanetProductionTest {
         assertEquals(106000, reopened.settle(1, 6 * 86400L).bases.getValue(1000).supplies)
         assertFailsWith<UnsupportedOperationException> { (offline.bases as MutableMap).clear() }
     }
+    @Test fun restoredTacticalStateDetachesDamagePropulsionAndGroundTargets() {
+        val damage = linkedMapOf(1000 to 500)
+        val propulsion = linkedSetOf(1000)
+        val targets = linkedMapOf(11 to 12)
+        val policy = PlanetProductionPolicy()
+        val initial = PlanetProduction(galaxy, null, 0, policy).settle(1, 0)
+        val store = Store().apply {
+            saved = initial.copy(tacticalCommands = TacticalCommandState(
+                fortressDamage = damage, brokenPropulsion = propulsion, groundTargets = targets))
+        }
+        val production = PlanetProduction(galaxy, store, 0, policy)
+        damage[1000] = 1000
+        propulsion.clear()
+        targets[11] = 13
+
+        val state = assertNotNull(production.snapshot(1)).tacticalCommands
+        assertEquals(mapOf(1000 to 500), state.fortressDamage)
+        assertEquals(setOf(1000), state.brokenPropulsion)
+        assertEquals(mapOf(11 to 12), state.groundTargets)
+        assertFailsWith<UnsupportedOperationException> { (state.fortressDamage as MutableMap).clear() }
+        assertFailsWith<UnsupportedOperationException> { (state.brokenPropulsion as MutableSet).clear() }
+        assertFailsWith<UnsupportedOperationException> { (state.groundTargets as MutableMap).clear() }
+    }
+
     @Test fun failedStorageDoesNotPublishAndNewSessionResetsOnlyOnce() {
         val store = Store()
         val production = PlanetProduction(galaxy, store, 0, PlanetProductionPolicy(maximumStock = 100100))
