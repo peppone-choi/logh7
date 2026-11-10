@@ -25,6 +25,49 @@ class SessionEndingLobbyWireTest {
             it.send(SyntheticClient.token(token),SyntheticClient.opcode(0x2000));it.expect(0x2001)
         }
     }
+    @Test fun lobbyDeletionRefreshWaitsForCommitAndCannotDeleteAnotherAccount() = runBlocking {
+        val account = "load-000"
+        val character = 10000
+        var players = mapOf(account to Navigator(1, character, Power.EMPIRE, 2487, 1000, 1000, 1000,
+            baseId = 1000, mode = 1, spotId = 10003414, spotOwner = character))
+        var inventory = PlanetStocks(1, 0, mapOf(
+            1000 to PlanetStock(1000, 2, 0, 0, 0, 0),
+            1001 to PlanetStock(1001, 3, 0, 0, 0, 0)), deploymentInitialized = true)
+        fun request() = ByteBuffer.allocate(8).putShort(0x2008).putShort(1).putInt(character).array()
+        val refresh = SyntheticClient.opcode(0x2003)
+        LoadFixture(directory, 2, LoadMetrics(), galaxy, ticking = false,
+            navigationStore = object : NavigationStore {
+                override fun load() = players
+                override fun save(next: Map<String, Navigator>) { players = next }
+            }, stockStore = object : PlanetStockStore {
+                override fun load() = inventory
+                override fun save(next: PlanetStocks) { inventory = next }
+            }, worldStateCommitter = WorldStateCommitter { next, stocks ->
+                players = next
+                inventory = checkNotNull(stocks)
+            }, sessionDirectory = GameSessionDirectory()).use { f ->
+            f.join(account, true, false).client.close()
+            f.await("pilot disconnected") { f.engine.snapshot().session!!.online == 0 }
+            lobby(f, 1).use { client ->
+                client.send(refresh)
+                client.expect(0x2004)
+                client.send(request(), refresh)
+                client.expect(0x2004)
+                assertEquals(character, f.engine.snapshot().navigators.getValue(account).characterId)
+            }
+            lobby(f, 0).use { client ->
+                client.send(refresh)
+                val charged = client.expect(0x2004)
+                client.send(request(), refresh)
+                val empty = client.expect(0x2004)
+                assertTrue(empty.size < charged.size)
+                assertContentEquals(byteArrayOf(0, 0, 0), empty.takeLast(3).toByteArray())
+                assertNull(f.engine.snapshot().navigators[account])
+                assertEquals(setOf(character), f.engine.snapshot().planetStocks?.deletedCharacters?.get(account))
+                assertNull(CharacterCreation(directory.resolve("characters.properties")).character(account))
+            }
+        }
+    }
     @Test fun singleSessionSelectionReportsCurrentTerritoryCharactersAndElapsedTime()=runBlocking {
         LoadFixture(directory,3,LoadMetrics(),galaxy,ticking=false,powerByIndex={if(it==1)3 else 2}).use {f->
             for(index in 0..1)f.join(f.account(index),true,false).client.close()

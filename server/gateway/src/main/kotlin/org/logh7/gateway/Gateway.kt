@@ -230,6 +230,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             portrait={account,id->
                 currentCharacters().character(account)?.takeIf {it.id==id.toLong() && !it.generated}
                     ?.let {originalCandidates.portrait(it.id)}
+            }, deleteCharacter = { account, generation, character ->
+                val current = admission?.generation ?: 1L
+                deleteLobbyCharacter(account, generation, character, current, characterStores.get(current), stock)
             }),accounts)
         successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById,
             {country->org.logh7.engine.CountryCatalogLoader.current().countries[country.value]?.name})}}

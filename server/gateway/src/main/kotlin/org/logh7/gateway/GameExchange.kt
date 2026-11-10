@@ -92,6 +92,7 @@ class GameExchange(
         private set
     private var ticket: SessionTickets.Ticket? = null
     private var lobbyLoggedIn = false
+    private var lobbyDeletionGenerations = emptyMap<Int,Long>()
     private var gameLoggedIn = false
     private var gameStarted = false
     private data class AssignmentDraft(val recipient: Int,val token: Int,val card: Int,val expiresAt: Long)
@@ -3148,6 +3149,8 @@ class GameExchange(
                 0x2000 -> { check(!lobbyLoggedIn); lobbyLoggedIn = true; LobbyMessages.loginOk() }
                 0x2003 -> {
                     check(lobbyLoggedIn && body.size==2)
+                    lobbyDeletionGenerations = sessionDirectory?.deletionGenerations()
+                        ?: mapOf(sessionId to (admission?.generation ?: 1L))
                     if(sessionDirectory!=null) {
                         val entries=sessionDirectory.characters(identity.account)
                         // With no charged character, retain the default world's information for the native empty state.
@@ -3220,6 +3223,27 @@ class GameExchange(
                     val frames=if(sessionDirectory!=null)sessionDirectory.countries(request)
                         else if(request.sessionId==sessionId && admission?.running!=false)lobbyCountries?.invoke(request) else null
                     return handshake.stageAll(frames ?: LobbyCountryCatalogue.empty(request),clearHeader=0)
+                }
+                0x2008 -> {
+                    check(lobbyLoggedIn && body.size == 8)
+                    // CD compatibility extension. The original name is known, but this payload is project-defined.
+                    val fields = java.nio.ByteBuffer.wrap(body, 2, 6)
+                    val selected = fields.short.toInt() and 0xffff
+                    val character = fields.int
+                    val expected = lobbyDeletionGenerations[selected] ?: return null
+                    lobbyDeletionGenerations = lobbyDeletionGenerations - selected
+                    val operation = if (sessionDirectory != null)
+                        sessionDirectory.deleteCharacter(selected, identity.account, expected, character)
+                    else if (selected == sessionId && admission?.running != false && maintenance?.closed() != true)
+                        deleteLobbyCharacter(identity.account, expected, character, admission?.generation ?: 1L,
+                            characterProvider(), stock)
+                    else null
+                    pendingWorld = operation?.handle { _, failure ->
+                        if (failure != null) System.err.println("Lobby deletion failed: ${failure.javaClass.simpleName}")
+                        emptyList()
+                    }
+                    // The DLL immediately asks for 2003. The gateway defers it until this commit completes.
+                    return null
                 }
                 0x2009 -> {
                     check(lobbyLoggedIn)
