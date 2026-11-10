@@ -42,18 +42,14 @@ internal object NpcTactics {
         if(p.grid!=grid || p.baseId!=0 || !p.cpPaused || member?.online!=true || member.country!=p.country)null
         else member.connection?.let {p.characterId to it}
     }.toMap()
-    private fun initial(unit:ActiveShipUnit,outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,
-        stocks:PlanetStocks,galaxy:Galaxy):TacticalPose=unit.tactical?.takeIf {it.motion.grid==grid}?.motion?.pose(now,unit.posture,galaxy)
-        ?: TacticalDeployment.initial(unit.id,grid,players.values,stocks,galaxy)
-
     private fun contacts(outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,
         galaxy:Galaxy,eliminated:Set<CountryId>):List<Contact> = players.values.filter {it.country !in eliminated &&
         !BattleDeath.deceased(stocks,it.characterId) && it.grid==grid && it.baseId==0 && it.cpPaused &&
-        TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now,p.posture,galaxy) ?:
+        TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now,p.posture,galaxy,stocks) ?:
             TacticalDeployment.initial(p.unitId,grid,players.values,stocks,galaxy))} +
         stocks.outfits.values.filter {it.country !in eliminated && TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) &&
             it.positionIn(galaxy)==OutfitPosition(grid)}.flatMap {o ->
-            o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}.map {u -> Contact(u.id,initial(u,o,grid,now,players,stocks,galaxy))}} +
+            o.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.takeIf {s->s.grid==grid}?.mode!=TacticalShipMode.STATIONED}.map {u -> Contact(u.id,u.tacticalPose(grid,now,players.values,stocks,galaxy))}} +
         stocks.social.pirates.fleets.values.filter {it.grid==grid}.flatMap {fleet ->
             fleet.units.filter {it.boats>0}.mapNotNull {unit -> PirateActions.pose(stocks,unit.id)?.let {Contact(unit.id,it)}}
         }
@@ -116,7 +112,7 @@ internal object NpcTactics {
             val camp=TacticalAuthority.camp(outfit,stocks)
             val enemies=contacts(outfit,position.grid,now,players,stocks,galaxy,session.eliminated.keys)
             val detectsEnemies=enemies.isNotEmpty() && live.any { unit ->
-                val observer=initial(unit,outfit,position.grid,now,players,stocks,galaxy).position
+                val observer=unit.tacticalPose(position.grid,now,players.values,stocks,galaxy).position
                 enemies.any { hypot(it.pose.position.x.toDouble()-observer.x,it.pose.position.y.toDouble()-observer.y)<=policy.sight &&
                     !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,observer,it.pose.position,now,players.values,stocks) }
             }
@@ -141,7 +137,7 @@ internal object NpcTactics {
                 var unit=outfit.activeShips!!.values.single {it.id==id}
                 if(unit.boats==0)continue
                 val before=unit.tactical?.takeIf {it.motion.grid==position.grid}
-                val origin=initial(unit,outfit,position.grid,now,players,stocks,galaxy)
+                val origin=unit.tacticalPose(position.grid,now,players.values,stocks,galaxy)
                 val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
                 var state=before
                 if(state==null || now>=state.nextDecisionAt || state.retreat!=withdrawal) {
@@ -180,7 +176,7 @@ internal object NpcTactics {
                 for(weapon in TacticalWeapon.entries) {
                     outfit=stocks.outfits.getValue(outfitId);unit=outfit.activeShips!!.values.single {it.id==id}
                     if(unit.boats<=unit.damaged)break
-                    val pose=initial(unit,outfit,position.grid,now,players,stocks,galaxy)
+                    val pose=unit.tacticalPose(position.grid,now,players.values,stocks,galaxy)
                     val mount=GuardCombat.mount(TacticalArmaments.mount(spec,weapon),weapon,outfit,unit.id)
                     val cost=TacticalFleetShoot.cost(unit,mount,weapon)
                     if(mount.power==0 || !TacticalReload.canFire(unit,weapon,now,scale) || OutfitSupplies.distribution(outfit).getValue(id)<cost)continue
