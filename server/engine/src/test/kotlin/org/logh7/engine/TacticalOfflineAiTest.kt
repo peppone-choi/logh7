@@ -561,10 +561,24 @@ class TacticalOfflineAiTest {
                 if(it.id==5)it.copy(order=order.copy(issuedByOfflineAi=false)) else it
             }))
         }))
+        val newMission=landed.copy(tacticalCommands=landed.tacticalCommands.copy(
+            missions=mapOf(10000 to TacticalMissionState(10000,5,0,0,now+11,grid=2488))))
+        val alliedBase=landed.bases.mapValues {(_,base)->base.copy(owner=Allegiance.Country(Power.EMPIRE.country))}
+        val allied=landed.copy(bases=alliedBase)
+        val site=galaxy.bases.single()
+        val pilots=players()
+        val camp=TacticalAuthority.camp(pilots.getValue("pilot"),landed)
+        for((stock,slots) in listOf(landed to 1,newMission to 0,allied to 0)) {
+            assertEquals(slots,TacticalGroundOrder.pending(stock,2488,pilots.values,galaxy,emptySet(),now+11).size)
+            assertEquals(slots,TacticalGroundOperations.landingSlotsUsed(site,camp,pilots,stock,galaxy,now+11,
+                offline.copy(gameMillis=(now+11)*1000)))
+        }
         for((session,stocks,cancelled) in listOf(Triple(offline,landed,false),Triple(baseSession,landed,true),
-            Triple(offline,switchedOff,true),Triple(baseSession,manual,false))) {
+            Triple(offline,switchedOff,true),Triple(baseSession,manual,false),Triple(offline,newMission,true),
+            Triple(offline,allied,true),Triple(baseSession,manual.copy(bases=alliedBase),false))) {
             val events=mutableListOf<TacticalGroundResult>()
-            val result=TacticalGroundOperations.advance(session.copy(gameMillis=order.readyAt*1000),galaxy,players(),stocks,events)
+            val seconds=if(cancelled)now+11 else order.readyAt
+            val result=TacticalGroundOperations.advance(session.copy(gameMillis=seconds*1000),galaxy,players(),stocks,events)
             assertEquals(cancelled,events.single().cancelled)
             val troop=result.outfits.getValue(1).activeGround!!.values.single {it.id==5}
             assertNull(troop.order)

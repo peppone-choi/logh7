@@ -71,11 +71,21 @@ class GroundBootstrapTest {
         val pending=snapshot.copy(planetStocks=stocks.copy(outfits=mapOf(1 to reserved)),navigators=mapOf("pilot" to viewer))
         assertEquals(setOf(order),TacticalBootstrap(pending,galaxy,viewer){null}.groundOrders)
         val aiOrder=order.copy(issuedByOfflineAi=true)
-        val delegated=pending.copy(planetStocks=stocks.copy(outfits=mapOf(1 to reserved.copy(
-            activeGround=ActiveGroundUnits(troops.values.map {if(it.id==2)it.copy(order=aiOrder) else it}))),
-            tacticalCommands=TacticalCommandState(aiSwitches=mapOf(viewer.characterId to 16))))
+        val aiTroops=ActiveGroundUnits(troops.values.map {if(it.id==2)it.copy(order=aiOrder) else it})
+        val delegatedStock=stocks.copy(
+            bases=stocks.bases.mapValues {(_,base)->base.copy(owner=Allegiance.Country(Power.ALLIANCE.country))},
+            outfits=mapOf(1 to reserved.copy(activeGround=aiTroops)),
+            tacticalCommands=TacticalCommandState(aiSwitches=mapOf(viewer.characterId to 16),
+                missions=mapOf(viewer.characterId to TacticalMissionState(viewer.characterId,2,1,1049,250,grid=2487))))
+        val delegated=pending.copy(planetStocks=delegatedStock)
         assertTrue(TacticalBootstrap(delegated,galaxy,viewer){null}.groundOrders.isEmpty())
-        assertEquals(setOf(aiOrder),TacticalBootstrap(delegated,galaxy,viewer.copy(characterId=10001)){null}.groundOrders)
+        val witness=viewer.copy(characterId=10001)
+        assertEquals(setOf(aiOrder),TacticalBootstrap(delegated,galaxy,witness){null}.groundOrders)
+        val captured=delegated.copy(planetStocks=delegatedStock.copy(bases=stocks.bases))
+        assertTrue(TacticalBootstrap(captured,galaxy,witness){null}.groundOrders.isEmpty())
+        val replaced=delegated.copy(planetStocks=delegatedStock.copy(
+            tacticalCommands=delegatedStock.tacticalCommands.copy(missions=emptyMap())))
+        assertTrue(TacticalBootstrap(replaced,galaxy,witness){null}.groundOrders.isEmpty())
         val reassigned=pending.copy(planetStocks=pending.planetStocks!!.copy(outfits=mapOf(1 to reserved.copy(commanderId=10001))))
         val resumed=TacticalBootstrap(reassigned,galaxy,viewer){null}
         assertTrue(resumed.groundOrders.isEmpty())

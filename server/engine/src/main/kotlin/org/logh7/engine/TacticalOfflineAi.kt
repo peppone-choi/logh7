@@ -15,10 +15,13 @@ internal object TacticalOfflineAi {
     private fun currentMission(p:Navigator,stocks:PlanetStocks)=stocks.tacticalCommands.missions[p.characterId]
         ?.takeIf {!it.completed && (it.grid==null || it.grid==p.grid)}
 
-    fun canFinishOccupationAnchor(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks,base:Int):Boolean {
+    fun canFinishOccupationOrder(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks,base:Int)=
+        eligible(session,account,p,stocks) && occupationTargetMatches(p,stocks,base)
+
+    fun occupationTargetMatches(p:Navigator,stocks:PlanetStocks,base:Int):Boolean {
         val mission=currentMission(p,stocks)
         val owner=stocks.bases[base] ?: return false
-        return eligible(session,account,p,stocks) && mission?.mission==2 && mission.target==base &&
+        return mission?.mission==2 && mission.target==base &&
             TacticalAuthority.camp(owner)!=TacticalAuthority.camp(p,stocks)
     }
 

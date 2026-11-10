@@ -142,7 +142,7 @@ internal object TacticalPostureOperations {
             val context=session.ended==null && s.outfit.country !in session.eliminated &&
                 p!=null && p.generation==session.generation && p.country !in session.eliminated &&
                 session.participants[commander.key]?.country !in session.eliminated &&
-                (!order.issuedByOfflineAi || TacticalOfflineAi.canFinishOccupationAnchor(session,commander.key,p,stocks,order.base)) &&
+                (!order.issuedByOfflineAi || TacticalOfflineAi.canFinishOccupationOrder(session,commander.key,p,stocks,order.base)) &&
                 order.canBeExecutedBy(p,state.grid,now,stocks) && owned(s,p,galaxy,stocks)
             if(order.readyAt>now && context)continue
             val at=pose(s,state.grid,minOf(now,order.readyAt),players.values,stocks,galaxy)
