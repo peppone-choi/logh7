@@ -300,6 +300,15 @@ class FleetNavigationTest {
         val lefebvre=OriginalStartingOffice.LEFEBVRE_FLEET_3
         assertEquals(listOf(3,135,3,1230,175,5),listOf(lefebvre.country.value,lefebvre.fleetId,lefebvre.fleetNumber,
             lefebvre.baseId,lefebvre.role.card,lefebvre.rank))
+        val fortressOffices=mapOf(
+            OriginalStartingOffice.HILDESHEIM_FLEET_6 to (6 to 1221),
+            OriginalStartingOffice.LANDSBERG_FLEET_8 to (8 to 1100),
+            OriginalStartingOffice.FLEGEL_FLEET_10 to (10 to 1001))
+        for((office,site) in fortressOffices) {
+            val (number,base)=site
+            assertEquals(listOf(2,number,number,base,39,5),
+                listOf(office.country.value,office.fleetId,office.fleetNumber,office.baseId,office.role.card,office.rank))
+        }
         for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
     }
 
@@ -316,6 +325,12 @@ class FleetNavigationTest {
             OriginalStartingOffice.MERKATZ_FLEET_3 -> home.copy(id=1026,grid=3280,name="Neuenrade")
             OriginalStartingOffice.HAWOOD_FLEET_7,OriginalStartingOffice.LEFEBVRE_FLEET_3 ->
                 home.copy(id=1230,grid=3744,model=102,name="Lusiana")
+            OriginalStartingOffice.HILDESHEIM_FLEET_6 ->
+                home.copy(id=1221,grid=3369,model=114,kind=1,name="Rentenberg")
+            OriginalStartingOffice.LANDSBERG_FLEET_8 ->
+                home.copy(id=1100,grid=4472,model=113,kind=1,name="Garmisch")
+            OriginalStartingOffice.FLEGEL_FLEET_10 ->
+                home.copy(id=1001,grid=3757,model=112,kind=1,name="Geiersburg")
         }
         val systems=if(base.grid==start.grid)listOf(start) else
             listOf(start,GalaxySystem(4,base.grid,4,base.name,power.country.value))
