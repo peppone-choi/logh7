@@ -4,6 +4,67 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalFleetShootTest {
+    @Test fun personalAndFleetFireUseTheAnchoredTargetsBerthAtAcceptanceAndFiring() {
+        for (regular in listOf(false, true)) for (staleMotion in listOf(false, true)) {
+            checkBerthShot(regular, TacticalShipMode.ANCHORED, nearBerth = true, staleMotion, expected = null)
+        }
+    }
+
+    @Test fun theOldFormationPositionDoesNotMakeAnAnchoredTargetReachable() {
+        for (regular in listOf(false, true))
+            checkBerthShot(regular, TacticalShipMode.ANCHORED, nearBerth = false, staleMotion = false, NavigationRejection.RANGE)
+    }
+
+    @Test fun stationedShipsRemainExcludedFromPersonalAndFleetTargeting() {
+        for (regular in listOf(false, true))
+            checkBerthShot(regular, TacticalShipMode.STATIONED, nearBerth = true, staleMotion = false, NavigationRejection.TARGET)
+    }
+
+    private fun checkBerthShot(regular: Boolean, mode: TacticalShipMode, nearBerth: Boolean, staleMotion: Boolean,
+        expected: NavigationRejection?) {
+        val base = galaxy.bases.single().copy(grid = 2488, kind = 1, model = 110)
+        val local = Galaxy(galaxy.systems, listOf(base), galaxy.starts)
+        val s = state()
+        val enemy = s.stocks.outfits.getValue(2)
+        val target = enemy.activeShips!!.values.single().copy(
+            tactical = if (staleMotion) ai(2f).let { it.copy(motion = it.motion.copy(grid = 2487)) } else null,
+            posture = TacticalPosture(2488, mode, base.id))
+        val friendly = s.stocks.outfits.getValue(1)
+        val berth = TacticalBasePosition.at(base, now)
+        val oldFormation = TacticalDeployment.initial(target.id, 2488, s.players.values, s.stocks, local).position
+        val aim = if (nearBerth) berth else oldFormation
+        fun motion(x: Float, y: Float): TacticalMotion {
+            val point = TacticalPoint(x, y)
+            return TacticalMotion(2488, now, TacticalPose(point, 0f), 0f, 0f, listOf(point))
+        }
+        val pilot = s.players.getValue("pilot").copy(motion = motion(aim.x + if (regular) 1f else 0f, aim.y - 2f),
+            charge = TacticalCharge(now, 24000))
+        s.players = mapOf("pilot" to pilot)
+        s.stocks = s.stocks.copy(outfits = mapOf(enemy.id to enemy.copy(activeShips = ActiveShipUnits(listOf(target))),
+            friendly.id to friendly.copy(activeShips = ActiveShipUnits(friendly.activeShips!!.values.map { unit ->
+                if (unit.id == 2) unit.copy(tactical = NpcTacticalState(motion(aim.x + if (regular) 0f else 2f, aim.y - 1f), now, now)) else unit
+            }))))
+        val navigation = Navigation(local, s.nav, NavigationPolicy())
+        val production = PlanetProduction(local, s.inventory, rules.startSeconds, PlanetProductionPolicy()).also { it.settle(1, now) }
+        val source = if (regular) 2 else pilot.unitId
+        val shot = request(listOf(source)).copy(tacticalMove = null,
+            tacticalShoot = TacticalShoot(listOf(source), TacticalWeapon.BEAM.wire, 1, target.id))
+        val before = checkNotNull(production.snapshot(1))
+        val result = if (regular) TacticalFleetShoot.accept(shot, session, local, navigation, production, before, s.commit, 24)
+            else TacticalCombat.accept(shot, session, local, navigation, before, s.commit, 24)
+        assertEquals(expected, result.rejection, "regular=$regular, mode=$mode, staleMotion=$staleMotion")
+        if (expected != null) {
+            assertNull(result.player)
+            assertEquals(before, production.snapshot(1))
+            assertEquals(mapOf("pilot" to pilot), navigation.snapshot(1))
+            return
+        }
+        assertNotNull(result.player)
+        val impact = TacticalCombat.settle(session.copy(gameMillis = (now + 120) * 1000), local, navigation, production, s.commit).single()
+        assertEquals(source, impact.source)
+        assertEquals(target.id, impact.hit.target)
+    }
+
     @Test fun firingAfterOrbitalDriftUsesProjectedCommanderShooterAndTargetPoses() {
         val at=now+1000;val timed=session.copy(gameMillis=at*1000)
         val moving=Galaxy(galaxy.systems,galaxy.bases.map {it.copy(grid=2488,radius=20f,cycle=1000)},galaxy.starts)

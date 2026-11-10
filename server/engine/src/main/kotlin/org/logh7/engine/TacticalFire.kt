@@ -166,9 +166,8 @@ internal object TacticalCombat {
         players: Collection<Navigator>, stocks: PlanetStocks, galaxy: Galaxy): Int {
         val source = player.motion?.pose(now,player.posture,galaxy,stocks) ?: TacticalDeployment.initial(player.unitId, player.grid, players, stocks, galaxy)
         val target = victim.pirate?.let {PirateActions.pose(stocks,it)} ?: victim.personal?.second?.let {p -> p.motion?.pose(now,p.posture,galaxy,stocks) ?:
-            TacticalDeployment.initial(p.unitId,p.grid,players,stocks,galaxy)} ?: victim.regular!!.let {
-            it.second.tactical?.takeIf {t->t.motion.grid==player.grid}?.motion?.pose(now,it.second.posture,galaxy,stocks) ?: TacticalDeployment.initial(it.second.id,
-                player.grid,players,stocks,galaxy)}
+            TacticalDeployment.initial(p.unitId,p.grid,players,stocks,galaxy)} ?:
+            checkNotNull(victim.regular).second.tacticalPose(player.grid,now,players,stocks,galaxy)
         if(TacticalTerrain.sharedSensorBlocked(galaxy,player.grid,TacticalAuthority.camp(player,stocks),
             source.position,target.position,now,players,stocks))return 0
         if(TacticalLineOfFire.blocked(player.unitId,player.grid,TacticalAuthority.camp(player,stocks),source.position,target.position,now,players,stocks,galaxy))return 0
