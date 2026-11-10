@@ -555,11 +555,13 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // An imperial vacancy can be resolved on any settlement, before the next monthly personnel changes.
         if(inventory!=null && old!=null && inventory!==old && old.generation==inventory.generation) {
             val monthly=inventory.producedDays/PoliticianLadder.PERIOD_DAYS>old.producedDays/PoliticianLadder.PERIOD_DAYS
+            val priorEmperors by lazy { officePolicy?.all(old).orEmpty().filter {it.card==1}.map {it.character}.toSet() }
             val changedPeople=inventory.strategic.people.keys.filter {id ->
                 val before=old.strategic.people[id]
                 val after=inventory.strategic.people[id]
                 val rankChanged=before?.rank!=after?.rank
-                val throneChanged=rankChanged && (before?.rank==0 || after?.rank==0)
+                val throneChanged=rankChanged && (before?.rank==0 ||
+                    (after?.rank==0 && id !in priorEmperors))
                 throneChanged || monthly && (rankChanged || before?.abilities!=after?.abilities)
             }
             val changed=(if(monthly) {
