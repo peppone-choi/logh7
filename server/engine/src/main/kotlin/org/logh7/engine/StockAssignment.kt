@@ -67,7 +67,7 @@ internal object StockAssignment {
             return reject(LogisticsRejection.ACCESS)
         if (blocked()) return reject(LogisticsRejection.BUSY)
         val next = try {
-            applyTransfer(stocks, outfit, transfer, request.supplies).also { validateReply(it, request) }
+            applyTransfer(stocks, outfit, transfer, request.supplies)
         } catch (_: IllegalArgumentException) {
             return reject(LogisticsRejection.STOCK)
         }
@@ -83,6 +83,10 @@ internal object StockAssignment {
         val base = stocks.bases.getValue(outfit.baseId)
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         val moved = ReplacementBoats.moveStored(base.units, base.spareShips, warehouse.units, warehouse.spareShips, transfer)
+        require(warehouseShipIncreaseFits(base.units.ships, base.spareShips, moved.source.ships, moved.sourceSpare) &&
+            warehouseShipIncreaseFits(warehouse.units.ships, warehouse.spareShips, moved.destination.ships, moved.destinationSpare))
+        validateTroopReply(moved.source)
+        validateTroopReply(moved.destination)
         val remaining = base.supplies.toLong() - supplies
         val received = warehouse.supplies.toLong() + supplies
         require(remaining in 0..Int.MAX_VALUE.toLong() && received in 0..Int.MAX_VALUE.toLong())
@@ -93,24 +97,22 @@ internal object StockAssignment {
         )
     }
 
-    fun validateReply(stocks: PlanetStocks, request: StockAssignmentRequest) {
-        val base = stocks.bases.getValue(request.base)
-        val warehouse = stocks.warehouses.getValue(stocks.outfits.getValue(request.outfit).warehouseId)
-        validateReply(base.units, base.spareShips)
-        validateReply(warehouse.units, warehouse.spareShips)
-    }
-
     /** Until native paging is recovered, never commit a result that its reply cannot represent. */
     fun validateReply(units: UnitInventory, spare: SpareShipBoats = SpareShipBoats()) {
         val kinds=(units.ships.keys+spare.values.keys).map {it.kind}.toSet()
-        require(kinds.size <= 99 && units.troops.size <= 24)
+        require(kinds.size <= 99)
         for (kind in kinds) {
             val number = UnitSpecifications.ships.single { it.kind == kind }.number.toLong()
             val boats=units.ships.filterKeys {it.kind==kind}.values.sumOf {it.toLong()}*number+
                 spare.values.filterKeys {it.kind==kind}.values.sumOf {it.toLong()}
             require((boats+number-1)/number in 1..255 && boats in 1..65535)
         }
-        require(units.troops.all { (stack, count) -> stack.kind in 0..15 && stack.level in 0..3 && count in 1..65535 })
+        validateTroopReply(units)
+    }
+    private fun validateTroopReply(units: UnitInventory) {
+        require(units.troops.size <= 24 && units.troops.all { (stack, count) ->
+            stack.kind in 0..15 && stack.level in 0..3 && count in 1..65535
+        })
     }
     fun transfer(request: StockAssignmentRequest, stocks: PlanetStocks): UnitTransfer {
         val outfit = stocks.outfits.getValue(request.outfit)
@@ -119,14 +121,15 @@ internal object StockAssignment {
             request.troops.map { it.kind to it.grade }.distinct().size == request.troops.size)
         val base=stocks.bases.getValue(request.base)
         val warehouse=stocks.warehouses.getValue(outfit.warehouseId)
-        val source = ReplacementBoats.selectable(base.units,base.spareShips)
-        val destination = ReplacementBoats.selectable(warehouse)
         val ships = linkedMapOf<UnitStack, Int>()
         for (row in request.ships) {
             require(row.units != 0 && row.boats == 0) { "Only selectable-unit assignment is supported" }
             var remaining = kotlin.math.abs(row.units)
-            val available = if (row.units > 0) source.ships else destination.ships
-            for ((stack, count) in available.entries.filter { it.key.kind == row.kind }.sortedBy { it.key.level }) {
+            val stock = if (row.units > 0) base.units else warehouse.units
+            val spare = if (row.units > 0) base.spareShips else warehouse.spareShips
+            val available = (stock.ships.keys + spare.values.keys).filter { it.kind == row.kind }
+                .associateWith { (stock.ships[it] ?: 0) + if (it in spare.values) 1 else 0 }
+            for ((stack, count) in available.entries.sortedBy { it.key.level }) {
                 val moved = minOf(count, remaining)
                 if (moved > 0) ships[stack] = if (row.units > 0) moved else -moved
                 remaining -= moved

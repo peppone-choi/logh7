@@ -87,6 +87,48 @@ class StockAssignmentWireTest {
             assertEquals(1,state.stocks.nextShipId)
         }
     }
+    @Test fun legacyOverflowAllowsSuppliesAndIncrementalDrainButRejectsGrowth() {
+        val state = State()
+        val ship = UnitStack(32,1)
+        val spare = SpareShipBoats(mapOf(ship to 100))
+        state.stocks = state.stocks.copy(bases = state.stocks.bases.mapValues { (_, base) ->
+            base.copy(units = UnitInventory(ships = mapOf(ship to 220)), spareShips = spare)
+        })
+        fun expectLimit(client: SyntheticClient) {
+            val notice = client.expect(0x0f1d)
+            assertTrue(org.logh7.protocol.ChatMessages.spot(notice.copyOfRange(4,notice.size)).text.contains("일부 함선 재고만"))
+        }
+        fixture(state,"overflow-transfer").use { server ->
+            val client = server.join(server.account(0),true,false).client
+            start(client)
+            val supplies = response(client,query(0,0,100),true,840)
+            expectLimit(client)
+            assertEquals(900,supplies.resultBaseSupplies)
+            assertEquals(100,supplies.resultOutfitSupplies)
+            assertEquals(listOf(LogisticsMessages.ShipStock(32,218,65400)),supplies.resultBase.ships)
+            assertEquals(mapOf(ship to 220),state.stocks.bases.getValue(1049).units.ships)
+            assertEquals(spare,state.stocks.bases.getValue(1049).spareShips)
+            response(client,query(1,0,0),true,680)
+            expectLimit(client)
+            assertEquals(mapOf(ship to 219),state.stocks.bases.getValue(1049).units.ships)
+            assertEquals(mapOf(ship to 1),state.stocks.warehouses.getValue(101).units.ships)
+            val before = state.stocks
+            val saves = state.saves
+            response(client,query(-1,0,0),false,680)
+            assertEquals(before,state.stocks)
+            assertEquals(saves,state.saves)
+        }
+        fixture(state,"overflow-reopen").use { server ->
+            val client = server.join(server.account(0),true,false).client
+            start(client)
+            assertEquals(mapOf(ship to 219),state.stocks.bases.getValue(1049).units.ships)
+            assertEquals(spare,state.stocks.bases.getValue(1049).spareShips)
+            val drained = response(client,query(1,0,0),true,520)
+            assertEquals(listOf(LogisticsMessages.ShipStock(32,219,65500)),drained.resultBase.ships)
+            assertEquals(mapOf(ship to 2),state.stocks.warehouses.getValue(101).units.ships)
+        }
+    }
+
     @Test fun assignsAndReturnsRealStocksWithPaymentAndPreservedLevelsAfterServerReopen() {
         val state=State()
         fixture(state,"first").use { server ->

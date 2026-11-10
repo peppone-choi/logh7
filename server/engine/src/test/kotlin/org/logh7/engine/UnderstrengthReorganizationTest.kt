@@ -34,6 +34,15 @@ class UnderstrengthReorganizationTest {
         assertFails {ReplacementBoats.moveStored(UnitInventory(),SpareShipBoats(),UnitInventory(),
             SpareShipBoats(),UnitTransfer(mapOf(ship to 1)))}
     }
+    @Test fun storageTransferCanDrainALegacyMaxStackWithAnExtraRemainder() {
+        val source=UnitInventory(mapOf(ship to 65535))
+        val spare=SpareShipBoats(mapOf(ship to 123))
+        val moved=ReplacementBoats.moveStored(source,spare,UnitInventory(),SpareShipBoats(),
+            UnitTransfer(mapOf(ship to 1)))
+        assertEquals(mapOf(ship to 65534),moved.source.ships)
+        assertEquals(spare,moved.sourceSpare)
+        assertEquals(mapOf(ship to 1),moved.destination.ships)
+    }
     @Test fun fullAndRemainderUnitsKeepActualBoatsAndGradesAcrossReturnAndPreview() {
         val before=initial()
         val after=ReplacementBoats.reorganize(before,1,transfer(before,2))
