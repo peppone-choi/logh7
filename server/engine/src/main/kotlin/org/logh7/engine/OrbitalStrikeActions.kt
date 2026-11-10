@@ -54,8 +54,7 @@ object OrbitalStrikeActions {
         fun inRange(x:Float,y:Float)=kotlin.math.hypot((centre.x-x).toDouble(),(centre.y-y).toDouble())-base.diameter<=RANGE
         val escorts=s.outfits.values.filter {TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) && it.positionIn(g)==OutfitPosition(p.grid)}.sumOf {o->
             o.activeShips?.values.orEmpty().count {u->u.boats>u.damaged && !s.tacticalCommands.confused(u.id) && TacticalAuthority.commander(o,u,s)==p.characterId &&
-                (u.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,u.posture,g,s)?.position ?: TacticalDeployment.initial(u.id,p.grid,players,s,g).position)
-                    .let {inRange(it.x,it.y)}}}
+                u.tacticalPose(p.grid,now,players,s,g).position.let {inRange(it.x,it.y)}}}
         val attackers=minOf(MAX_ATTACKERS,1+escorts)
         if(r.phase==QUOTE_PHASE)return SocialResult(p,s,outcome=attackers,found=base.id)
         if(i.base!=0 && (i.base!=base.id || i.argument!=attackers || i.value!=SUPPLIES))return reject(SocialRejection.QUOTE_CHANGED)
