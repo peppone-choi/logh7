@@ -67,16 +67,17 @@ object AcademyActions {
         val inRoom=base!=null && base.belongsTo(i.country) && base.camp==0 && p.mode in 1..4 && p.spotOwner==0 &&
             g.bases.single {it.id==p.baseId}.grid==p.grid &&
             g.facilitiesAt(p.baseId,s,countries).any {f->f.kind==ACADEMY && f.spots.any {it.id==p.spotId && it.kind==room}}
-        val lecture=if(!inRoom)null else a.lectures.values.filter {it.base==p.baseId && it.spot==p.spotId && it.until>now &&
+        val activeLectures=a.lectures.filterValues {it.until>now}
+        val own=activeLectures[i.characterId]
+        val lecture=if(!inRoom)null else activeLectures.values.filter {it.base==p.baseId && it.spot==p.spotId &&
             it.lecturer!=i.characterId && present(it,p,navigators)}.minByOrNull {it.at}
         val exp=a.experience[i.characterId] ?: List(8) {0}
         val day=now/SocialActions.DAY
         val used=a.wargames[i.characterId]?.takeIf {it.first==day}?.second ?: 0
         val wait=when(i.command) {
             ATTEND->((a.attendedUntil[i.characterId] ?: 0)-now).coerceAtLeast(0)
-            LECTURE->((a.lectures[i.characterId]?.until ?: 0)-now).coerceAtLeast(0)
+            LECTURE->own?.let {it.until-now} ?: 0
             else->if(used>=WARGAMES_PER_DAY)(day+1)*SocialActions.DAY-now else 0}
-        val own=a.lectures[i.characterId]?.takeIf {it.until>now}
         val shown=if(i.command==LECTURE)own else lecture
         val target=if(i.command==ATTEND && lecture!=null)contentAbilities[lecture.content][0] else if(i.command==LECTURE)
             contentAbilities[ability][0] else ability
@@ -97,7 +98,7 @@ object AcademyActions {
         if(wait>0)return reject(SocialRejection.COOLDOWN,view)
         if(now>0xffffffffL-SocialActions.DAY || s.social.nextId==Int.MAX_VALUE ||
             i.characterId !in a.experience && a.experience.size==4096 || i.characterId !in s.strategic.people && s.strategic.people.size==4096 ||
-            i.command==LECTURE && i.characterId !in a.lectures && a.lectures.size==256)return reject(SocialRejection.MAXIMUM,view)
+            i.command==LECTURE && activeLectures.size==256)return reject(SocialRejection.MAXIMUM,view)
         val gains:List<Pair<Int,Int>> = when(i.command) {
             ATTEND->lecture?.let {l->contentAbilities[l.content].map {it to 50}} ?: listOf(ability to 20)
             WARGAME->listOf(ability to 5)
@@ -115,7 +116,7 @@ object AcademyActions {
         val academy=when(i.command) {
             ATTEND->a.copy(attendedUntil=a.attendedUntil+(i.characterId to now+SocialActions.DAY))
             WARGAME->a.copy(wargames=a.wargames+(i.characterId to (day to used+1)))
-            else->a.copy(lectures=a.lectures.filterValues {it.until>now}+(i.characterId to Lecture(i.characterId,p.baseId,p.spotId,ability,now,now+LECTURE_SECONDS)))
+            else->a.copy(lectures=activeLectures+(i.characterId to Lecture(i.characterId,p.baseId,p.spotId,ability,now,now+LECTURE_SECONDS)))
         }.let {if(gains.isEmpty())it else it.copy(experience=it.experience+(i.characterId to points.toList()))}
         val people=if(gains.isEmpty())s.strategic.people else s.strategic.people+(i.characterId to person.copy(abilities=values.toList()))
         val next=s.copy(strategic=s.strategic.copy(people=people),social=s.social.copy(nextId=s.social.nextId+1,academy=academy))
