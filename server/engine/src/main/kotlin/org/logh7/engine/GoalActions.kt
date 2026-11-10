@@ -65,11 +65,15 @@ object GoalActions {
     }
 
     /** One day's lean toward the planet's focus (skipped while production is stopped). */
-    fun lean(day:PlanetStock,before:PlanetStock,focus:Int?,stopped:Boolean):PlanetStock {
+    fun lean(day:PlanetStock,before:PlanetStock,focus:Int?,stopped:Boolean,maximumStock:Int=Int.MAX_VALUE):PlanetStock {
         if(focus==null || stopped)return day
         val e=day.economy
         return when(focus) {
-            PRODUCTION -> day.copy(supplies=Math.addExact(day.supplies,productionBonus(day.supplies-before.supplies)))
+            PRODUCTION -> {
+                val bonus = productionBonus(day.supplies - before.supplies)
+                val ceiling = maxOf(day.supplies, maximumStock).toLong()
+                day.copy(supplies = minOf(ceiling, day.supplies.toLong() + bonus).toInt())
+            }
             APPROVAL -> if(e==null)day else day.copy(economy=e.copy(approval=minOf(100,e.approval+1)))
             else -> if(e==null)day else day.copy(economy=e.copy(peace=minOf(100,e.peace+1)))
         }

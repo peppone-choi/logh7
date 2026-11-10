@@ -39,7 +39,7 @@ internal object TacticalOfflineAi {
     }
 
     fun activeEnemy(target:TacticalCombat.Target,eliminated:Set<CountryId>):Boolean =
-        (target.personal?.second?.country ?: target.regular?.first?.country) !in eliminated
+        target.country !in eliminated
 
     fun advance(session:SessionState,g:Galaxy,players:MutableMap<String,Navigator>,initial:PlanetStocks,scale:Long,
         events:MutableList<TacticalCommandResult>):PlanetStocks {

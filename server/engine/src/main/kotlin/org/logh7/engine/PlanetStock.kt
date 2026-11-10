@@ -170,7 +170,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     bases[id] = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), next,
                         ProductionActions.shipyard(galaxy,initialized,id,dayEnd),countryDefinitions))
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
-                        .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
+                        .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped,policy.maximumStock)}
                 }
                 // Carry projected losses across daily bills; actual ship losses keep their separate backlog cap.
                 if(policy.fleetUpkeepPerShip>0) {

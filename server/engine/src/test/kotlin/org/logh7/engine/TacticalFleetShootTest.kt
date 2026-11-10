@@ -88,6 +88,50 @@ class TacticalFleetShootTest {
         assertSavedFleetOrdersCancelled(deceased=false,detained=true)
     }
 
+    @Test fun fleetFireRejectsDefeatedTargetsAndContinuesAgainstSurvivingEnemies() {
+        for (automatic in listOf(false, true)) {
+            val s = state()
+            val defeated = s.stocks.outfits.getValue(2)
+            val third = CountryId(42)
+            val survivor = defeated.copy(id = 3, country = third, warehouseId = 30,
+                activeShips = ActiveShipUnits(listOf(defeated.activeShips!!.values.single().copy(id = 100, tactical = ai(2.5f)))))
+            val warehouse = s.stocks.warehouses.getValue(20).copy(id = 30, country = third, outfitId = 3)
+            s.stocks = s.stocks.copy(outfits = s.stocks.outfits + (3 to survivor),
+                warehouses = s.stocks.warehouses + (30 to warehouse), nextShipId = 101)
+            val nav = Navigation(galaxy, s.nav, NavigationPolicy())
+            val stock = production(s)
+            val liveSession = session.copy(countries = session.countries + Power.ALLIANCE.country + third)
+            val afterDefeat = liveSession.copy(eliminated = mapOf(Power.ALLIANCE.country to
+                CountryDefeat(EndReason.CAPITAL_CAPTURED, now, Power.EMPIRE.country)))
+            val ids = listOf(2)
+            val manual = request(ids).copy(tacticalMove = null, tacticalShoot = TacticalShoot(ids, TacticalWeapon.BEAM.wire, 1, 99))
+            val auto = request(ids).copy(tacticalMove = null, tacticalAttack = TacticalAttack(ids, 2))
+            val initial = stock.snapshot(1)!!
+            val initialPlayers = nav.snapshot(1)
+            assertEquals(NavigationRejection.TARGET,
+                TacticalFleetShoot.accept(manual, afterDefeat, galaxy, nav, stock, initial, s.commit, 24).rejection)
+            assertEquals(initial, stock.snapshot(1))
+            assertEquals(initialPlayers, nav.snapshot(1))
+
+            val accepted = if (automatic) TacticalFleetAttack.accept(auto, liveSession, galaxy, nav, stock, initial, s.commit, 24)
+                else TacticalFleetShoot.accept(manual, liveSession, galaxy, nav, stock, initial, s.commit, 24)
+            assertNotNull(accepted.player)
+            val ownBefore = s.stocks.outfits.getValue(1).activeShips!!.values.last()
+            val targetBefore = s.stocks.outfits.getValue(2)
+            val tick = afterDefeat.copy(gameMillis = (now + 120) * 1000)
+            val impacts = TacticalCombat.settle(tick, galaxy, nav, stock, s.commit)
+            assertTrue(s.players.getValue("pilot").cpPaused)
+            assertEquals(targetBefore, s.stocks.outfits.getValue(2))
+            if (automatic) {
+                assertTrue(impacts.isNotEmpty())
+                assertTrue(impacts.all { it.source == 2 && it.hit.target == 100 })
+            } else {
+                assertTrue(impacts.isEmpty())
+                assertEquals(ownBefore.copy(shot = null), s.stocks.outfits.getValue(1).activeShips!!.values.last())
+            }
+        }
+    }
+
     private fun assertSavedFleetOrdersCancelled(deceased:Boolean,detained:Boolean=false) {
         for(automatic in listOf(false,true)) {
             val s=state()

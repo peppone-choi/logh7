@@ -48,13 +48,15 @@ internal object TacticalCombat {
     internal data class Target(val regular:Pair<OutfitStock,ActiveShipUnit>?=null,
         val personal:Pair<String,Navigator>?=null,val spec:ShipSpecification,
         /** U-32a pirate unit id: every side's enemy. */
-        val pirate:Int?=null)
+        val pirate:Int?=null) {
+        val country get()=personal?.second?.country ?: regular?.first?.country
+    }
     /** [camp] is the attacker's camp: a rebel camp (U-10) and its side's regular camp are enemies of each other. */
     internal fun target(id:Int,grid:Int,camp:Camp,stocks:PlanetStocks,galaxy:Galaxy,
-        players:Map<String,Navigator>):Target? = unit(id,grid,stocks,galaxy,players)?.takeIf {victim ->
+        players:Map<String,Navigator>,eliminated:Set<CountryId> = emptySet()):Target? = unit(id,grid,stocks,galaxy,players)?.takeIf {victim ->
         val owner=victim.personal?.second?.let {TacticalAuthority.camp(it,stocks)}
             ?: victim.regular?.first?.let {TacticalAuthority.camp(it,stocks)} ?: Camp.PIRATES
-        owner!=camp
+        owner!=camp && victim.country !in eliminated
     }
     /** Eligible physical target; callers decide whether friendly fire is allowed. */
     internal fun unit(id:Int,grid:Int,stocks:PlanetStocks,galaxy:Galaxy,players:Map<String,Navigator>):Target? {
