@@ -46,6 +46,17 @@ class TransportActionsWireTest {
         if(warehouse>0)assertEquals(warehouse,ByteBuffer.wrap(next(client,0x0327)).getInt(6))
     }
     private fun listed(client:SyntheticClient,command:Int):List<Int> = listedRows(client,command).map {it.first}
+    private fun mixed(client:SyntheticClient,value:Int,argument:Int,amount:Int,token:Int,status:Int=0,world:Boolean=false) {
+        val command=ByteBuffer.wrap(request(28)).putShort(12,value.toShort()).putInt(19,argument)
+            .putShort(23,amount.toShort()).putShort(29,token.toShort()).array()
+        client.send(command)
+        val response=ByteBuffer.wrap(next(client,0x1200))
+        assertEquals(35,response.capacity());assertEquals(status,response.getShort(16).toInt())
+        assertEquals(if(status==0)2 else 3,response.get(22).toInt());assertEquals(token,response.getShort(33).toInt() and 65535)
+        next(client,0x1201)
+        if(world)next(client,0x0356)
+        if(world && status==0)assertEquals(1049,ByteBuffer.wrap(next(client,0x0327)).getInt(6))
+    }
 
     @Test fun mixedPlanCommitsAllCargoOnceAndReturnsItAfterReopen() {
         val state=State()
@@ -56,28 +67,38 @@ class TransportActionsWireTest {
             navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {fixture->
             val client=fixture.join(fixture.account(0),true,false).client
             client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
-            fun plan(troops:Int,status:Int,phase:Int) {
-                val command=ByteBuffer.allocate(39).put(request(28))
-                    .putShort(12,0xfffe.toShort()).putInt(19,2).putShort(29,0x1234)
-                    .putShort(hull.kind.toShort()).putShort(2).putShort(1000).putShort(troops.toShort()).array()
-                client.send(command)
-                val response=ByteBuffer.wrap(next(client,0x1200))
-                assertEquals(35,response.capacity());assertEquals(status,response.getShort(16).toInt())
-                assertEquals(phase,response.get(22).toInt());assertEquals(0x1234,response.getShort(33).toInt())
-                next(client,0x1201);next(client,0x0356)
-                if(status==0)assertEquals(1049,ByteBuffer.wrap(next(client,0x0327)).getInt(6))
-            }
             val before=state.stocks
-            plan(4,StrategyActionRejection.RESOURCE.ordinal+1,3)
+            val stale=StrategyActionRejection.QUOTE_CHANGED.ordinal+1
+            val ship=(hull.kind shl 16) or 2
+            fun plan(troops:Int,token:Int,status:Int) {
+                mixed(client,0xfffd,2,1000,token)
+                mixed(client,0xfffc,ship,0,token)
+                mixed(client,0xfffc,(1000 shl 16) or troops,0,token)
+                assertEquals(before,state.stocks)
+                assertEquals(1000,state.players.getValue("load-000").mcp)
+                mixed(client,0xfffe,2,1000,token,status,world=true)
+            }
+            mixed(client,0xfffd,2,1000,1)
+            mixed(client,0xfffc,ship,0,1)
+            mixed(client,0xfffc,ship,0,1,stale)
+            mixed(client,0xfffe,2,1000,1,stale)
+            mixed(client,0xfffd,2,1000,2)
+            mixed(client,0xfffc,ship,0,3,stale)
+            mixed(client,0xfffe,2,1000,2,stale)
+            plan(4,4,StrategyActionRejection.RESOURCE.ordinal+1)
             assertEquals(before,state.stocks)
             assertEquals(1000,state.players.getValue("load-000").mcp)
-            plan(3,0,2)
+            plan(3,5,0)
             assertEquals(920,state.players.getValue("load-000").mcp)
             val pack=state.stocks.strategic.transports.single {it.id==2}
             assertEquals(UnitInventory(mapOf(hull to 2),mapOf(troop to 3)),pack.units)
             assertEquals(1000,pack.supplies)
             assertEquals(4000,state.stocks.bases.getValue(1049).supplies)
             assertEquals(UnitInventory(mapOf(hull to 2)),state.stocks.bases.getValue(1049).units)
+            mixed(client,0xfffe,2,1000,5,stale)
+            mixed(client,0xfffd,2,1000,5,stale)
+            mixed(client,0xfffd,2,1000,6)
+            mixed(client,0xfffc,ship,0,6)
         }
         val savedWorld=directory.resolve("mixed-world")
         FileWorldStateStore(savedWorld).use {it.saveWorld(state.players,state.stocks)}
@@ -88,6 +109,7 @@ class TransportActionsWireTest {
             navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {fixture->
             val client=fixture.join(fixture.account(0),true,false).client
             client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+            mixed(client,0xfffe,2,1000,6,StrategyActionRejection.QUOTE_CHANGED.ordinal+1)
             assertEquals(listOf(2),listed(client,29))
             action(client,29,2,warehouse=1049)
             assertEquals(840,state.players.getValue("load-000").mcp)
