@@ -169,7 +169,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     bases[id] = (if(stopped)previousDay else units.advance(next.nextDay(base, policy), next,
                         ProductionActions.shipyard(galaxy,initialized,id,dayEnd),countryDefinitions))
                         .copy(treasury=Math.addExact(previousDay.treasury,if(lord!=null)0 else revenue.local))
-                        .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped)}
+                        .let {GoalActions.lean(it,previousDay,initialized.social.goals.focus[id],stopped,policy.maximumStock)}
                 }
                 // The day's income first, then that day's upkeep on the ships a settlement at the day's end would
                 // leave after black-hole losses (PR #261 review). Only a preview: the losses themselves stay with
