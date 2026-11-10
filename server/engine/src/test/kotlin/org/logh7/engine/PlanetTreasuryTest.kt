@@ -86,4 +86,32 @@ class PlanetTreasuryTest {
         assertEquals(0L,daily.bases.getValue(1000).treasury);assertEquals(0L,daily.nationalTreasuries[CountryId(2)] ?: 0L)
         assertEquals(daily,production.settle(1,86400),"a day is paid once")
     }
+
+    @Test fun aFiefRevertsToTheNormalSplitAfterTheLordsDeathAndKeepsItsHolding() {
+        val store=Store()
+        val policy=PlanetProductionPolicy()
+        val production=PlanetProduction(galaxy,store,0,policy)
+        val initial=production.settle(1,0)
+        val fief=initial.copy(strategic=StrategicState(fiefs=mapOf(1000 to 10004),
+            people=mapOf(10004 to StrategicPerson(money=7))),
+            budget=BudgetState(remittanceRates=mapOf(1000 to 25)))
+        val day=86400L
+        val deceased=BattleDeath.apply(fief,listOf(10004),day) {_,_->true}
+        production.replace(initial,deceased)
+        val reopened=PlanetProduction(galaxy,store,0,policy)
+        val caughtUp=reopened.settle(1,2*day)
+
+        val daily=PlanetProduction(galaxy,null,0,policy)
+        daily.replace(daily.settle(1,0),deceased)
+        val first=daily.settle(1,day)
+        val condition=galaxy.conditions.getValue(1000)
+        val firstTax=PlanetTaxRevenue.assess(fief.bases.getValue(1000),condition,policy.tax,25)
+        val secondTax=PlanetTaxRevenue.assess(first.bases.getValue(1000),condition,policy.tax,25)
+        assertEquals(7+firstTax.collected,caughtUp.strategic.people.getValue(10004).money)
+        assertEquals(secondTax.central,caughtUp.nationalTreasuries.getValue(CountryId(2)))
+        assertEquals(secondTax.local,caughtUp.bases.getValue(1000).treasury)
+        assertEquals(fief.strategic.fiefs,caughtUp.strategic.fiefs)
+        assertEquals(caughtUp,daily.settle(1,2*day))
+        assertEquals(caughtUp,PlanetProduction(galaxy,store,0,policy).settle(1,2*day))
+    }
 }
