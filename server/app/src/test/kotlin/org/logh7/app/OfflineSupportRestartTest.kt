@@ -58,15 +58,17 @@ class OfflineSupportRestartTest {
             engine.submit(WorldCommand.Join(account,Power.EMPIRE,false,joined,connection))
             assertEquals(Admission.ACCEPTED,withTimeout(5000) {joined.await()})
         }
+        val expectedOrder=TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,ally.unitId,grid,now,now+5*rules.speed,
+            issuedByOfflineAi=true)
         runWorld { engine,store ->
             join(engine,"pilot","pilot-connection")
             engine.submit(WorldCommand.Disconnect("pilot","pilot-connection"))
             step(engine,0)
-            assertEquals(TacticalSupportOrder(TacticalSupportAction.SUPPLY,10000,ally.unitId,grid,now,now+5*rules.speed),order(store))
+            assertEquals(expectedOrder,order(store))
             assertEquals(9500,store.loadNavigation().getValue("ally").supplies)
         }
         runWorld { engine,store ->
-            assertEquals(ally.unitId,order(store)?.target)
+            assertEquals(expectedOrder,order(store))
             join(engine,"ally","ally-after-restart")
             val results=mutableListOf<TacticalSupportResult>()
             engine.observeSupport(results::add).use {
