@@ -40,8 +40,13 @@ internal object TacticalFleetRetreat {
             p=personal.player ?: return personal
         }
         var next=s
-        val destination=p.retreat?.destination ?: RetreatRules.destination(g,p,players.values,s,regular.first().third,session.eliminated.keys)
-            ?: return reject(NavigationRejection.GRID)
+        val destination = p.retreat?.destination ?: run {
+            val movingUnits = regular.sumOf { (outfit, unit) ->
+                1 + outfit.activeGround?.values.orEmpty().count { it.carrier == unit.id }
+            }
+            val entry = GridEntry(TacticalAuthority.camp(p, s), movingUnits, soloShip = false)
+            RetreatRules.destination(g, p, players.values, s, regular.first().third, session.eliminated.keys, entry)
+        } ?: return reject(NavigationRejection.GRID)
         for((o,u,at) in regular) {
             val current=next.outfits.getValue(o.id)
             val m=u.tactical?.motion ?: TacticalMotion(p.grid,now,at,0f,at.direction,listOf(at.position))

@@ -18,7 +18,7 @@ internal object RetreatRules {
 
     /** Provisional destination: prefer the adjacent legal exit in the radial direction. */
     fun destination(galaxy: Galaxy, player: Navigator, players: Collection<Navigator>, stocks: PlanetStocks?, pose: TacticalPose,
-        eliminated: Set<CountryId> = emptySet()): Int? {
+        eliminated: Set<CountryId> = emptySet(), entry: GridEntry = personalEntry(player, stocks)): Int? {
         val forces = GridForces.collect(galaxy, player.generation, players, stocks, eliminated)
         val x = player.grid % 100; val y = player.grid / 100
         return (-1..1).flatMap { dy -> (-1..1).mapNotNull { dx ->
@@ -27,10 +27,12 @@ internal object RetreatRules {
         } }.sortedWith(compareByDescending<Triple<Int, Int, Int>> {
             (it.second * pose.position.x + it.third * pose.position.y) / hypot(it.second.toDouble(), it.third.toDouble())
         }.thenBy { it.first }).firstOrNull {
-            allowed(galaxy, player, it.first, forces, stocks)
+            GridEntryRules.evaluate(GridForces.state(galaxy, it.first, forces), entry) == GridEntryVerdict.ALLOWED
         }?.first
     }
     fun allowed(galaxy: Galaxy, player: Navigator, destination: Int, forces: Map<Int, List<GridForces.Force>>, stocks:PlanetStocks?): Boolean =
-        GridEntryRules.evaluate(GridForces.state(galaxy, destination, forces),
-            GridEntry(stocks?.let {TacticalAuthority.camp(player,it)} ?: Camp.of(player), 1, true)) == GridEntryVerdict.ALLOWED
+        GridEntryRules.evaluate(GridForces.state(galaxy, destination, forces), personalEntry(player, stocks)) == GridEntryVerdict.ALLOWED
+
+    private fun personalEntry(player: Navigator, stocks: PlanetStocks?): GridEntry =
+        GridEntry(stocks?.let { TacticalAuthority.camp(player, it) } ?: Camp.of(player), 1, true)
 }

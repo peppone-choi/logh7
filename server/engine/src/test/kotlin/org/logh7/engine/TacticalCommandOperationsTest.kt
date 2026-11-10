@@ -1085,6 +1085,42 @@ class TacticalCommandOperationsTest {
         assertEquals(10000,TacticalAuthority.commander(moved,moved.activeShips!!.values.single(),s.stocks))
         assertEquals(100,s.stocks.outfits.values.sumOf {it.supplies})
     }
+    @Test fun regularRetreatCanReserveTheNearestExitThatBlocksASoloFlagship() {
+        val s = state()
+        val east = 2489
+        val pilot = s.players.getValue("pilot").copy(motion = motion(260f),
+            energy = TacticalEnergy(List(11) { if (it == 1) TacticalEnergy.WARP_MAX else 0 }))
+        val enemy = Navigator(1, 10002, Power.ALLIANCE, pilot.grid, 100, 100, 1000, cpPaused = true,
+            hull = FlagshipHull(89, now), motion = motion(100f))
+        s.players = s.players + ("pilot" to pilot) + ("enemy" to enemy)
+        val fleet = s.stocks.outfits.getValue(1)
+        val regular = ActiveShipUnits(fleet.activeShips!!.values.map { unit ->
+            if (unit.id == 1) unit.copy(tactical = NpcTacticalState(motion(260f), now, now)) else unit
+        })
+        val troops = ActiveGroundUnits(listOf(ActiveGroundUnit(3, UnitStack(1), carrier = 1)))
+        val hostile = s.stocks.outfits.getValue(2).copy(position = OutfitPosition(east))
+        s.stocks = s.stocks.copy(outfits = mapOf(
+            fleet.id to fleet.copy(activeShips = regular, activeGround = troops,
+                units = UnitInventory(regular.quantities(), troops.quantities())),
+            hostile.id to hostile,
+        ))
+        val r = run(s)
+        val inventory = assertNotNull(r.production.snapshot(1))
+        val command = request(TacticalCommand(0x40d, listOf(1))).copy(tacticalCommand = null, tacticalRetreat = listOf(1))
+        val solo = r.navigation.apply(command.copy(tacticalRetreat = listOf(pilot.unitId)), session, inventory, persist = false)
+        assertNotEquals(east, assertNotNull(assertNotNull(solo.player).retreat).destination)
+
+        val accepted = TacticalFleetRetreat.accept(command, session, galaxy, r.navigation, r.production, inventory, s.commit, 1)
+        assertNull(accepted.rejection)
+        val queued = s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.retreat
+        assertEquals(east, assertNotNull(queued).destination)
+        settle(r, queued.completesAt)
+        val detachment = s.stocks.outfits.values.single { outfit -> outfit.activeShips?.values.orEmpty().any { it.id == 1 } }
+        assertEquals(east, detachment.positionIn(galaxy).grid)
+        assertEquals(troops, detachment.activeGround)
+        assertEquals(pilot.grid, s.players.getValue("pilot").grid)
+    }
+
     @Test fun fleetRetreatCountsEmbarkedTroopsAgainstDestinationCapacity() {
         val s=state()
         val fleet=s.stocks.outfits.getValue(1)
