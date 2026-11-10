@@ -1,5 +1,6 @@
 package org.logh7.gateway
 
+import java.nio.ByteBuffer
 import org.junit.jupiter.api.Test
 import org.logh7.engine.*
 import org.logh7.protocol.*
@@ -58,5 +59,40 @@ class TacticalUnitCampTest {
         for(id in listOf(1_010_006,1_010_007,4,900_002))assertFalse(id in b.unitCamps,"$id")
         // Same IDs and order as before; the wire carries no camp field.
         assertEquals(listOf(1,2,3,900_001,1_010_000,1_010_001,1_010_003,1_010_004,1_010_005),b.units.map {it.id})
+    }
+
+    @Test fun flagshipDefinitionsKeepOnlyOneCurrentCampOutfitAfterDismissal() {
+        val friendly = fleet(4, 42, 100, 0, 5).copy(aideId = viewer.characterId)
+        val secondFriendly = fleet(5, 42, 100, 0, 6).copy(aideId = viewer.characterId)
+        val rival = stocks.outfits.getValue(1).copy(aideId = viewer.characterId)
+        val rebels = stocks.outfits.getValue(2).copy(aideId = viewer.characterId)
+        val distant = fleet(6, 42, 200, 0, 7).copy(aideId = viewer.characterId)
+        fun warehouse(outfit: OutfitStock) = OutfitWarehouse(outfit.warehouseId, outfit.country, outfit.kind,
+            outfit.baseId, outfit.id, shipStyle = empire)
+        val prepared = stocks.copy(bases = stocks.bases + (100 to stocks.bases.getValue(100).copy(owner = Allegiance.Country(CountryId(42)))),
+            outfits = stocks.outfits + listOf(friendly, rival, rebels, distant).associateBy { it.id },
+            warehouses = stocks.warehouses + listOf(friendly, distant).associate { it.warehouseId to warehouse(it) }, nextShipId = 8)
+        fun affiliation(state: PlanetStocks, player: Navigator = viewer): Int {
+            val b = TacticalBootstrap(snapshot.copy(planetStocks = state), galaxy, player, catalog) { person(it) }
+            assertEquals(TacticalAuthority.camp(player, state), b.unitCamps.getValue(player.unitId))
+            val flagship = b.units.single { it.id == player.unitId }
+            val packet = ByteBuffer.wrap(TacticsMessages.definitions(player.grid, listOf(flagship)))
+            assertEquals(0x0325, packet.getShort(4).toInt())
+            return packet.getInt(19)
+        }
+
+        assertEquals(friendly.id, affiliation(prepared))
+        assertEquals(rebels.id, affiliation(prepared, navigators.getValue("rebel")))
+        val ambiguous = prepared.copy(outfits = prepared.outfits + (secondFriendly.id to secondFriendly),
+            warehouses = prepared.warehouses + (secondFriendly.warehouseId to warehouse(secondFriendly)))
+        assertEquals(0, affiliation(ambiguous))
+
+        val office = OrganizationalOfficePolicy(galaxy, catalog)
+        val dismissed = office.set(prepared, OfficeHolding(43, friendly.id, viewer.characterId, CountryId(42)), remove = true)
+        assertEquals(0, dismissed.outfits.getValue(friendly.id).aideId)
+        assertEquals(viewer.characterId, dismissed.outfits.getValue(rebels.id).aideId)
+        assertEquals(0, affiliation(dismissed))
+        assertEquals(0, affiliation(dismissed.copy(outfits = dismissed.outfits + (rival.id to rival.copy(aideId = 0)))))
+        assertEquals(0, affiliation(dismissed.copy(outfits = dismissed.outfits + (rebels.id to rebels.copy(aideId = 0)))))
     }
 }
