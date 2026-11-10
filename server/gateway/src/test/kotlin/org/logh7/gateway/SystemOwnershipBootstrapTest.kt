@@ -43,6 +43,25 @@ class SystemOwnershipBootstrapTest {
             assertEquals(1,message[12].toInt())
         }
     }
+    @Test fun facilityPacketsOmitTheDestroyedShipyardUntilTheReplacementOpens() {
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
+            listOf(GalaxyBase(1000, 2487, 80, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)),
+            Power.entries.associateWith { 2487 })
+        val initial = PlanetStocks(1, 0, mapOf(1000 to PlanetStock(1000, 2, 0, 1, 2, 3)))
+        val destroyed = initial.copy(social = initial.social.copy(production = ProductionState(destroyed = setOf(1000))))
+        val rebuilding = destroyed.copy(social = destroyed.social.copy(
+            production = destroyed.social.production.copy(built = mapOf(1000 to 500L))))
+        val world = WorldBootstrap(galaxy)
+        val ids = listOf(1000)
+        val intact = world.places(ids, initial, 499L)
+        val razed = world.places(ids, destroyed, 499L)
+        assertTrue(razed.size < intact.size)
+        assertContentEquals(razed, world.places(ids, rebuilding, 499L))
+        assertContentEquals(intact, world.places(ids, rebuilding, 500L))
+        assertContentEquals(razed, world.initialize(2487, stocks = rebuilding, seconds = 499L).last())
+        assertContentEquals(intact, world.initialize(2487, stocks = rebuilding, seconds = 500L).last())
+    }
+
     @Test fun loginPublishesEveryCurrentOwnerInNativeFourRecordBatches() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2488,4,"Other",3)),
             (1..7).map { GalaxyBase(it,if(it<=3)2487 else 2488,80,0,"Base$it",0,20f,86400,0,0f,2f) },

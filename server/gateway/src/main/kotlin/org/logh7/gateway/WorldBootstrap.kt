@@ -135,11 +135,12 @@ class WorldBootstrap(val galaxy: Galaxy,
         if(ids.isEmpty())listOf("직접 연결된 직무 명령 없음. 개인·부대 명령은 해당 직무 카드에서 확인하세요.")
         else ids.map(FacilityCommandNames::name)
     }
-    fun facilityGuide(query:OutfitPartyMessages.Query,countryId:Int?,stocks:org.logh7.engine.PlanetStocks,nativePower:Int=0):ByteArray {
+    fun facilityGuide(query:OutfitPartyMessages.Query,countryId:Int?,stocks:org.logh7.engine.PlanetStocks,nativePower:Int=0,
+        seconds: Long? = null):ByteArray {
         val viewerPower=viewerDisplay(countryId,nativePower)
         val base=query.outfit/100
         val snapshot=facilityDefinitions()
-        if(base !in stocks.bases || galaxy.facilitiesAt(base,stocks,countryCatalog).none {it.id==query.outfit})
+        if(base !in stocks.bases || galaxy.facilitiesAt(base, stocks, countryCatalog, seconds).none {it.id==query.outfit})
             return LoginMessages.sessionMessage(0x032f,org.logh7.protocol.FacilityGuideMessages.reply(query,viewerPower,snapshot.revision,
                 "시설 정보 없음","시설 구성이 변경되었습니다. 시설 목록을 새로고침해 주세요.","",""))
         val commands=facilityCommands.commands(org.logh7.engine.FacilityDefinitionSnapshot.kindOf(query.outfit)).joinToString(" · ")
@@ -407,7 +408,8 @@ class WorldBootstrap(val galaxy: Galaxy,
     }
     internal fun baseWire(base: org.logh7.engine.GalaxyBase) = WorldMessages.Base(base.id, base.grid,
         base.model, base.kind, KoreanDisplayNames.base(base.name), base.physicalClass, base.radius, base.cycle, base.direction, base.angle, base.diameter)
-    fun initialize(grid: Int, directory: Boolean = false, stocks: org.logh7.engine.PlanetStocks? = null): List<ByteArray> {
+    fun initialize(grid: Int, directory: Boolean = false, stocks: org.logh7.engine.PlanetStocks? = null,
+        seconds: Long? = null): List<ByteArray> {
         val ids = galaxy.bases.filter { it.grid == grid }.map { it.id }
         // 004b76e0 builds the native standing-outfit cache after initialization
         // completes. A later standalone 032b query only fills its detail slot.
@@ -423,7 +425,7 @@ class WorldBootstrap(val galaxy: Galaxy,
             (if (directory) galaxy.bases.map { it.id }.chunked(4).map { conditions(it,stocks) }
                 else emptyList()) +
             // Restore the native four-record current-grid cache after the map snapshot.
-            listOf(conditions(ids,stocks), places(ids, stocks))
+            listOf(conditions(ids,stocks), places(ids, stocks, seconds))
     }
     fun conditions(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray {
         val countryCatalog=this.countryCatalog
@@ -482,10 +484,10 @@ class WorldBootstrap(val galaxy: Galaxy,
         require(query.mode == BaseAffiliationMessages.MODE && query.outfit == 0 && query.base in 1..65535) { "Invalid affiliation query" }
         return BaseAffiliationMessages.replies(query, baseAffiliationOwners(stocks)).map { LoginMessages.sessionMessage(0x032f, it) }
     }
-    fun places(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null): ByteArray = LoginMessages.sessionMessage(0x0321,
+    fun places(ids: List<Int>, stocks: org.logh7.engine.PlanetStocks? = null, seconds: Long? = null): ByteArray = LoginMessages.sessionMessage(0x0321,
         WorldMessages.institutions(ids.mapNotNull { id -> galaxy.bases.find { it.id == id } }.map { base ->
             val facilities=if(stocks!=null && base.id !in stocks.bases)emptyList()
-                else galaxy.facilitiesAt(base.id, stocks, countryCatalog)
+                else galaxy.facilitiesAt(base.id, stocks, countryCatalog, seconds)
             WorldMessages.BaseInstitutions(base.id, facilities.map { facility ->
                 WorldMessages.Institution(facility.kind, facility.id, facility.spots.map {
                     WorldMessages.Spot(it.kind, it.id, it.image)

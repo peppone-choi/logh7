@@ -1764,7 +1764,7 @@ class GameExchange(
                             return handshake.stageAll(world.countryImageFrames(party),clearHeader=0)
                         }
                         if(party?.mode==6) {
-                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it),character.power))}
+                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party, viewerCountry, checkNotNull(it), character.power, gameSeconds()))}
                             return null
                         }
                         val draft=activeAssignmentDraft()
@@ -1968,7 +1968,7 @@ class GameExchange(
                         val ids = org.logh7.protocol.WorldMessages.baseQuery(body, opcode)
                         if (stock != null) {
                             pendingWorld = stocks().thenApply {
-                                listOf(if (opcode == 0x031e) world.conditions(ids, it) else world.places(ids, it))
+                                listOf(if (opcode == 0x031e) world.conditions(ids, it) else world.places(ids, it, gameSeconds()))
                             }
                             return null
                         }
@@ -2509,7 +2509,7 @@ class GameExchange(
                                             // U-17: the spots of this base's facilities (row id = spot, name = facility/room numbers).
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                             val spots=if(me.baseId !in inventory.bases || me.baseId !in world.galaxy.conditions)emptyList()
-                                                else world.galaxy.facilitiesAt(me.baseId,inventory)
+                                                else world.galaxy.facilitiesAt(me.baseId, inventory, seconds = gameSeconds())
                                                 .flatMap {f->f.spots.map {sp->Triple(sp.id,f.kind,sp.kind)}}.filter {it.first>query.target && it.first!=me.spotId}
                                                 .sortedBy {it.first}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,spots.map {(id,kind,room)->
@@ -3114,7 +3114,8 @@ class GameExchange(
                                     characterMessage(entered, player),
                                     unitMessage(entered, player),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused)) +
-                                    world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = captured?.planetStocks ?: stored).orEmpty() +
+                                    world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = captured?.planetStocks ?: stored,
+                                        seconds = captured?.session?.gameSeconds ?: gameSeconds()).orEmpty() +
                                     tactical?.initialize(::offices).orEmpty() +
                                     listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player) + tactical?.resume().orEmpty()
                             } }.let {initialized ->

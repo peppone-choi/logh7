@@ -159,7 +159,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             val cards=cards(player)
             val member=previous.copy(player=player,offices=cards)
             val updated=update(member,event.seconds)
-            val packets=mutableListOf(world.conditions(listOf(event.base),stocks),world.places(listOf(event.base),stocks))
+            val packets=mutableListOf(world.conditions(listOf(event.base),stocks),world.places(listOf(event.base), stocks, event.seconds))
             if(cards!=previous.offices || player.returnBase!=previous.player.returnBase || player.baseId!=previous.player.baseId) {
                 packets+=BootstrapMessages.changedCharacter(member.character,player.pcp,player.mcp,player.spotId,
                     player.spotOwner,player.returnBase,cards,politicianCardForWire(member.character,player))

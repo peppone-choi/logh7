@@ -75,6 +75,31 @@ class ProductionActionsTest {
         val again=assertNotNull(act(ProductionActions.DESTROY,paused).stocks).social.production
         assertTrue(again.built.isEmpty());assertEquals(setOf(1049),again.destroyed)
     }
+    @Test fun aDestroyedShipyardBlocksEntryUntilItsReplacementOpensButAllowsLeaving() {
+        val facility = galaxy.facilitiesAt(1049, stocks, seconds = now).single { it.kind == ProductionActions.SHIPYARD }
+        val spot = facility.spots.single().id
+        val razed = assertNotNull(act(ProductionActions.DESTROY, stocks).stocks)
+        val rebuilding = assertNotNull(act(ProductionActions.BUILD, razed).stocks)
+        val paused = assertNotNull(act(ProductionActions.PAUSE, rebuilding).stocks)
+        val completion = rebuilding.social.production.built.getValue(1049)
+        fun move(from: Navigator, target: PlaceMove.Spot, inventory: PlanetStocks, at: Long): NavigationResult {
+            val navigation = Navigation(galaxy, object : NavigationStore {
+                override fun load() = mapOf("a" to from)
+                override fun save(players: Map<String, Navigator>) = Unit
+            }, NavigationPolicy())
+            val request = NavigationRequest("a", a.characterId, Power.EMPIRE, "a", 1, place = target)
+            return navigation.apply(request, session.copy(gameMillis = at * 1000), inventory)
+        }
+        val enter = PlaceMove.Spot(spot, 0)
+        assertEquals(NavigationRejection.SPOT, move(a, enter, razed, now).rejection)
+        assertEquals(NavigationRejection.SPOT, move(a, enter, rebuilding, completion - 1).rejection)
+        assertEquals(spot, assertNotNull(move(a, enter, paused, completion).player).spotId)
+        val inside = a.copy(spotId = spot)
+        val left = assertNotNull(move(inside, PlaceMove.Spot(0, a.characterId), razed, now).player)
+        assertEquals(0, left.spotId)
+        assertEquals(1049, left.baseId)
+    }
+
     @Test fun aShipOrderArrivesAfterItsHoursAndRecruitingTurnsAdultsIntoTroops() {
         val withYard=stocks.copy(social=stocks.social.copy(production=ProductionState(built=mapOf(1049 to 0L))))
         val ship=ProductionActions.kinds(2,true).first()

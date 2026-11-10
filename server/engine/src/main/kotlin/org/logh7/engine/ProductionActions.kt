@@ -50,8 +50,11 @@ object ProductionActions {
     fun shipyard(g:Galaxy,s:PlanetStocks,base:Int,seconds:Long):Boolean {
         val p=s.social.production
         if(base in p.paused)return false
-        return original(g,s,base) || (p.built[base] ?: Long.MAX_VALUE)<=seconds
+        return shipyardPresent(g,s,base,seconds)
     }
+    internal fun shipyardPresent(g: Galaxy, s: PlanetStocks, base: Int, seconds: Long?): Boolean =
+        original(g,s,base) || s.social.production.built[base]?.let { seconds != null && it <= seconds } == true
+
     private fun original(g:Galaxy,s:PlanetStocks,base:Int)=base !in s.social.production.destroyed && g.facilities[base].orEmpty().any {it.kind==SHIPYARD}
     fun hasShipyard(g:Galaxy,s:PlanetStocks,base:Int)=original(g,s,base) || base in s.social.production.built
     /** Korean unit names for the order list (localization term list, user decision D-4); the numeral suffix is kept. */
