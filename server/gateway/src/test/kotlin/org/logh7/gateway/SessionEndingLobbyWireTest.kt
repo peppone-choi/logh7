@@ -170,6 +170,9 @@ class SessionEndingLobbyWireTest {
             assertEquals(1L,previous.session!!.generation)
             f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
             f.await("ended before next game") {f.engine.snapshot().result!=null}
+            old.forEach { client ->
+                while(ByteBuffer.wrap(client.receive()).getShort(4).toInt() and 65535!=0x035a) { }
+            }
             f.engine.submit(WorldCommand.AdvanceTo(SessionRules.load().restartDelayRealMillis))
             f.await("fresh generation") {f.engine.snapshot().session!!.generation==2L}
             old.forEach {it.expectClosed()}
