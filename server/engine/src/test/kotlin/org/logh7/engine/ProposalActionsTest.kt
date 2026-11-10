@@ -226,6 +226,56 @@ class ProposalActionsTest {
         }
     }
 
+    @Test fun anEliminatedCountryCannotApproveAnOfficeOrderButCanRefuseOrReceiveTheExpiryRefund() {
+        val opened = act("a", ProposalActions.OPEN, 17, b.characterId, ProposalActions.RESIGNATION, 19, stocks())
+        val pending = assertNotNull(opened.stocks)
+        val sender = assertNotNull(opened.player)
+        val mail = pending.social.proposals.mails.single()
+        assertTrue(mail.order)
+        assertEquals(960, sender.mcp)
+        val active = session.copy(countries = setOf(Power.EMPIRE.country, Power.ALLIANCE.country, CountryId(42)))
+        val defeated = active.copy(eliminated = mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.SYSTEMS_REDUCED, mail.createdAt)))
+        val accounts = mapOf("a" to sender, "b" to b)
+        fun reply(value: Int): SocialResult {
+            val request = SocialRequest(StrategyActionRequest("b", "b", b.characterId, Power.EMPIRE, 1,
+                ProposalActions.REPLY, 0, 9, target = mail.id, value = value))
+            return ProposalActions.evaluate(galaxy, request, defeated, b, pending, accounts)
+        }
+        val approval = reply(Proposals.APPROVE)
+        assertEquals(SocialRejection.SESSION, approval.rejection)
+        assertEquals(b, approval.player)
+        assertEquals(pending, approval.stocks)
+
+        val refusal = reply(Proposals.REFUSE)
+        assertNull(refusal.rejection)
+        assertEquals(b, refusal.player)
+        val refused = assertNotNull(refusal.stocks)
+        assertEquals(Proposals.REFUSE, refused.social.proposals.mails.single().reply)
+        assertTrue(policy.held(refused, b.characterId).any { it.card == 19 })
+
+        val due = active.copy(gameMillis = (mail.createdAt + ProposalActions.ABSENT_ORDER_SECONDS) * 1000,
+            participants = active.participants + ("b" to active.participants.getValue("b").copy(online = false, connection = null)))
+        val players = accounts.toMutableMap()
+        val defeatedDue = due.copy(eliminated = defeated.eliminated)
+        assertEquals(pending, ProposalActions.settle(galaxy, defeatedDue, players, pending))
+        assertEquals(accounts, players)
+
+        val survivor = accounts.toMutableMap()
+        val approved = ProposalActions.settle(galaxy, due, survivor, pending)
+        assertEquals(Proposals.APPROVE, approved.social.proposals.mails.single().reply)
+        assertEquals(960, survivor.getValue("b").mcp)
+        assertTrue(policy.held(approved, b.characterId).none { it.card == 19 })
+
+        val expiry = defeatedDue.copy(gameMillis = mail.expiresAt * 1000)
+        val expired = ProposalActions.settle(galaxy, expiry, players, pending)
+        assertTrue(expired.social.proposals.mails.isEmpty())
+        assertTrue(policy.held(expired, b.characterId).any { it.card == 19 })
+        assertEquals(mapOf("a" to sender.copy(mcp = a.mcp), "b" to b), players)
+        assertEquals(expired, ProposalActions.settle(galaxy, expiry, players, expired))
+        assertEquals(a.mcp, players.getValue("a").mcp)
+    }
+
     @Test fun anAbsentOrderWaitsForTheRecipientToBeReleasedFromDetention() {
         val order=assertNotNull(act("a",ProposalActions.OPEN,17,10001,ProposalActions.RESIGNATION,19,stocks()).stocks)
         val due=session.copy(participants=session.participants+("b" to session.participants.getValue("b").copy(online=false)),
