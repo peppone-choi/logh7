@@ -385,7 +385,7 @@ class GameExchange(
                     publication=Publication(updated,player,false)
                     val name=bootstrap.galaxy.bases.single {it.id==player.baseId}.name
                     val baseIds=listOf(player.baseId)
-                    val packets=listOf(bootstrap.conditions(baseIds,result.stocks),bootstrap.places(baseIds,result.stocks))
+                    val packets=listOf(bootstrap.conditions(baseIds,result.stocks),bootstrap.places(baseIds,result.stocks,gameSeconds()))
                     presence?.refreshBaseOwnership(player.generation,connection,packets)
                     packets+listOf(characterMessage(updated,player,true),unitMessage(updated,player),
                         org.logh7.protocol.PlaceMessages.dockNotification(id,player.baseId,player.mode,gameSeconds()),
@@ -435,9 +435,10 @@ class GameExchange(
                     publication=Publication(updated,player,false)
                     val stocks=checkNotNull(result.stocks)
                     // The new country has no prior holdings; founding transfers every base of the founder.
+                    val seconds=gameSeconds()
                     val packets=stocks.bases.values.filter {it.country==country}.sortedBy {it.baseId}.flatMap {
                         val baseIds=listOf(it.baseId)
-                        listOf(bootstrap.conditions(baseIds,stocks),bootstrap.places(baseIds,stocks))
+                        listOf(bootstrap.conditions(baseIds,stocks),bootstrap.places(baseIds,stocks,seconds))
                     }
                     presence?.refreshBaseOwnership(player.generation,connection,packets)
                     packets+listOf(characterMessage(updated,player,true),unitMessage(updated,player),

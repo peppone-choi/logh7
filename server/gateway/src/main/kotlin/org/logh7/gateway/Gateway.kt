@@ -161,7 +161,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         } }
         coupBaseSubscription=presence?.let {p->stock?.observeCoupBases {stocks,bases->
             val bootstrap=checkNotNull(world)
-            val packets=bases.chunked(4).flatMap {ids->listOf(bootstrap.conditions(ids,stocks),bootstrap.places(ids,stocks))}
+            val seconds=gameSeconds()
+            val packets=bases.chunked(4).flatMap {ids->listOf(bootstrap.conditions(ids,stocks),bootstrap.places(ids,stocks,seconds))}
             p.refreshBaseOwnership(stocks.generation,null,packets)
         }}
         civicSubscription=presence?.let {p->stock?.observeCivic {event->p.civic(event,checkNotNull(world))}}
