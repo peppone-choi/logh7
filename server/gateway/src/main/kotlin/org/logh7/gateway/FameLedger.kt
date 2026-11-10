@@ -44,12 +44,14 @@ class FameLedger private constructor(private val storage:Storage,private val wor
         override val entries get()=fame().entries
         override fun get(key:String):Int?=storage.read {it.getProperty(key)?.toInt()}
     }
-    private fun points(snapshot:WorldSnapshot,profile:CharacterProfile):Pair<Long,Long> {
-        val c=profile.character
-        val person=checkNotNull(snapshot.planetStocks).strategic.people[c.id.toInt()]
-        val rank=person?.rank ?: c.rank
+    private fun points(snapshot:WorldSnapshot,profile:CharacterProfile):Pair<Long,Long> =
+        points(checkNotNull(snapshot.planetStocks).strategic.people[profile.character.id.toInt()],
+            profile.character.rank,profile.country in winners(checkNotNull(snapshot.result)))
+
+    private fun points(person:StrategicPerson?,registeredRank:Int,won:Boolean):Pair<Long,Long> {
+        val rank=person?.rank ?: registeredRank
         val dead=(person?.deceasedAt ?: 0)>0
-        val bonus=if(!dead && profile.country in winners(checkNotNull(snapshot.result)) || dead && rank in 2..7)reward(rank) else 0
+        val bonus=if(!dead && won || dead && rank in 2..7)reward(rank) else 0
         val before=person?.evaluation ?: 0
         return before to Math.addExact(before,bonus)
     }
@@ -77,15 +79,26 @@ class FameLedger private constructor(private val storage:Storage,private val wor
     }
     /** Returns the fame added per account, empty when this generation was already settled. */
     fun settle(snapshot:WorldSnapshot,characters:CharacterCreation):Map<String,Int> {
-        if(snapshot.result==null || snapshot.planetStocks==null)return emptyMap()
+        if(snapshot.result==null)return emptyMap()
+        val people=snapshot.planetStocks?.strategic?.people ?: return emptyMap()
         val generation=snapshot.session?.generation ?: return emptyMap()
         // Character menus read live fame while holding their own lock; never take that lock inside the bank lock.
-        val profiles=WorldCharacters.profiles(characters.profiles(),snapshot)
+        val (registered,casualties)=characters.fameParticipants()
+        val profiles=WorldCharacters.profiles(registered,snapshot)
+        val activeIds=profiles.values.map {it.character.id.toInt()}.toSet()
+        val retiredPoints=casualties.entries.sortedWith(compareBy({people[it.key]?.deceasedAt ?: 0},{it.key}))
+            .mapNotNull { (id,casualty) ->
+                val person=people[id]?.takeIf {it.deceasedAt>0 && id !in activeIds} ?: return@mapNotNull null
+                casualty.account to points(person,casualty.rank,won=false)
+            }.groupBy({it.first},{it.second})
         return storage.read {properties->
         if(properties.getProperty(key("settled",generation))!=null)return@read emptyMap()
         val added=linkedMapOf<String,Int>()
-        for((account,profile) in profiles) {
-            val (before,after)=points(snapshot,profile);val gained=Math.toIntExact(after/POINTS_PER_FAME)
+        for(account in profiles.keys+retiredPoints.keys) {
+            val active=profiles[account]?.let {points(snapshot,it)}
+            val fallen=retiredPoints[account].orEmpty()
+            val (before,after)=active ?: fallen.last()
+            val gained=Math.toIntExact((active?.second ?: 0)/POINTS_PER_FAME+fallen.sumOf {it.second/POINTS_PER_FAME})
             val previousFame=properties.getProperty(account,"0").toInt()
             val finalFame=Math.addExact(previousFame,gained)
             if(gained>0) {
