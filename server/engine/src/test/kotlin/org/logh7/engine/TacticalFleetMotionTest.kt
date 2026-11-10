@@ -295,6 +295,39 @@ class TacticalFleetMotionTest {
             assertEquals(before,denied.stocks)
         }
     }
+    @Test fun stoppingAnAnchoredFlagshipKeepsItsOffsetFromTheMovingFortress() {
+        val s=state()
+        val pilot=s.players.getValue("pilot")
+        val fortress=galaxy.bases.single().copy(grid=pilot.grid,kind=1,mobile=true,radius=80f)
+        val world=Galaxy(galaxy.systems,listOf(fortress),galaxy.starts)
+        val berth=TacticalPosture(pilot.grid,TacticalShipMode.ANCHORED,fortress.id)
+        val anchored=TacticalPose(TacticalPoint(0f,82f),1f)
+        val fortressStart=TacticalPose(TacticalPoint(0f,80f),0f)
+        val fortressMotion=TacticalMotion(pilot.grid,now,fortressStart,TacticalFortressMotion.VELOCITY,0f,
+            listOf(TacticalPoint(40f,80f)),waitSeconds=0)
+        s.players=mapOf("pilot" to pilot.copy(posture=berth,
+            motion=TacticalMotion(pilot.grid,now,anchored,0f,anchored.direction,listOf(anchored.position))))
+        s.stocks=s.stocks.copy(tacticalCommands=s.stocks.tacticalCommands.copy(
+            fortresses=mapOf(fortress.id to TacticalFortressMotion(pilot.grid,fortressMotion))))
+        val nav=Navigation(world,s.nav,NavigationPolicy())
+        val production=PlanetProduction(world,s.inventory,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+        val request=request().copy(tacticalMove=null,tacticalStop=TacticalStop(listOf(pilot.unitId)))
+        val at=session.copy(gameMillis=(now+100)*1000)
+        val stop=TacticalSupportOperations.stop(request,at,world,nav,production,production.snapshot(1)!!,s.commit)
+        val sent=stop.tacticalMotions.getValue(pilot.unitId)
+        assertEquals(10f,sent.origin.position.x,0.001f)
+        assertEquals(82f,sent.origin.position.y,0.001f)
+        assertEquals(0f,sent.velocity)
+
+        val restored=Navigation(world,s.nav,NavigationPolicy()).snapshot(1).getValue("pilot")
+        assertEquals(berth,restored.posture)
+        assertEquals(sent,restored.motion)
+        val later=assertNotNull(restored.motion).pose(now+200,restored.posture,world,s.stocks)
+        assertEquals(20f,later.position.x,0.001f)
+        assertEquals(82f,later.position.y,0.001f)
+        assertEquals(anchored.direction,later.direction)
+    }
+
     @Test fun stoppingTheAnchorAndReplacingAnotherShipKeepsTheRemainingTurn() {
         val s=state()
         var nav=Navigation(galaxy,s.nav,NavigationPolicy())

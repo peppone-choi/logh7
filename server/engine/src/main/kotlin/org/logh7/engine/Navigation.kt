@@ -402,7 +402,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val ship = Flagships.find(before.hull?.kind ?: checkNotNull(request.shipKind)) ?: return reject(NavigationRejection.UNIT)
             if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (now > 0xffffffffL - TacticalMotion.WAIT_SECONDS) return reject(NavigationRejection.CLOCK)
-            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.grid,
+            val pose = before.motion?.pose(now,before.posture,galaxy,stocks) ?: TacticalDeployment.initial(before.unitId, before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy,countries)
             // Retain an authoritative stationary pose; null would restore the initial deployment on reconnect.
             val after = before.copy(motion = TacticalMotion(before.grid, now, pose, 0f, pose.direction, listOf(pose.position)),
