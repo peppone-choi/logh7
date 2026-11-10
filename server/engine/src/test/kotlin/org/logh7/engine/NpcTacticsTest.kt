@@ -443,6 +443,60 @@ class NpcTacticsTest {
         assertEquals(listOf(2487), movements.mapNotNull { it.destination })
     }
 
+    @Test fun npcReplansBlockedRetreatOrReturnsToCombatWhenThereIsNoExit() {
+        for(hasAlternative in listOf(true,false)) {
+            val world=if(hasAlternative)galaxy else Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,defaultCell=2)
+            val state=state(75)
+            val players=state.players.toMutableMap()
+            val moves=mutableListOf<TacticalMovement>()
+            val hits=mutableListOf<TacticalImpact>()
+            fun advance(at:Long,stocks:PlanetStocks)=NpcTactics.advance(session.copy(gameMillis=at*1000),
+                world,players,stocks,NpcTacticalPolicy(),24,hits,moves)
+            val prepared=advance(now,state.stocks)
+            val fleet=prepared.outfits.getValue(1)
+            val ship=fleet.activeShips!!.values.single()
+            val tactical=assertNotNull(ship.tactical)
+            val retreat=assertNotNull(tactical.retreat)
+            assertEquals(2487,retreat.destination)
+
+            val player=players.getValue("pilot")
+            players["other"]=Navigator(1,10001,Power.ALLIANCE,2487,1000,1000,1000)
+            players["third"]=Navigator(1,10002,CountryId(42),2487,1000,1000,1000,shipStyle=ShipStyleId("alliance"))
+            moves.clear()
+            val ready=retreat.completesAt
+            val waiting=advance(ready-1,prepared)
+            assertEquals(retreat,waiting.outfits.getValue(1).activeShips!!.values.single().tactical?.retreat)
+            assertTrue(moves.none {it.destination!=null})
+            if(!hasAlternative) {
+                // The enemy follows the withdrawing fleet so returning fire is observable.
+                val pose=assertNotNull(waiting.outfits.getValue(1).activeShips!!.values.single().tactical).motion.pose(ready)
+                val point=pose.position.copy(x=pose.position.x-2f)
+                players["pilot"]=player.copy(motion=TacticalMotion(2488,ready,TacticalPose(point,0f),0f,0f,listOf(point)))
+            }
+            val retried=advance(ready,waiting)
+            val current=retried.outfits.getValue(1)
+            assertEquals(OutfitPosition(2488),current.position)
+            assertTrue(moves.none {it.destination!=null})
+            val order=current.activeShips!!.values.single().tactical?.retreat
+            if(hasAlternative) {
+                val replacement=assertNotNull(order)
+                assertEquals(2387,replacement.destination)
+                assertEquals(ready,replacement.acceptedAt)
+                assertEquals(ready+(retreat.completesAt-retreat.acceptedAt),replacement.completesAt)
+                assertEquals(fleet.supplies,current.supplies)
+                val finished=advance(replacement.completesAt,retried)
+                assertEquals(OutfitPosition(2387),finished.outfits.getValue(1).position)
+                assertEquals(listOf(2387),moves.mapNotNull {it.destination})
+            } else {
+                assertNull(order)
+                assertTrue(hits.any {it.hit.target==player.unitId})
+                val next=advance(ready+24,retried)
+                assertNull(next.outfits.getValue(1).activeShips!!.values.single().tactical?.retreat)
+                assertTrue(moves.none {it.destination!=null})
+            }
+        }
+    }
+
     @Test fun aSavedNpcRetreatCannotWarpOnItsCompletionTickAfterElimination() {
         val state=state(75)
         val moves=mutableListOf<TacticalMovement>()

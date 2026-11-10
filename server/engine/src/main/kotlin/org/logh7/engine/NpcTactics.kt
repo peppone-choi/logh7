@@ -64,15 +64,17 @@ internal object NpcTactics {
     }
     private fun direction(from:TacticalPoint,to:TacticalPoint)=atan2(to.x-from.x,to.y-from.y)
     private fun stationary(grid:Int,now:Long,pose:TacticalPose)=TacticalMotion(grid,now,pose,0f,pose.direction,listOf(pose.position))
-    private fun exit(galaxy:Galaxy,outfit:OutfitStock,grid:Int,players:Map<String,Navigator>,stocks:PlanetStocks,
-        eliminated:Set<CountryId>):Int? {
-        val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks,eliminated)
-        val home=galaxy.bases.single {it.id==outfit.baseId}.grid
+    private fun canEnter(galaxy:Galaxy,outfit:OutfitStock,grid:Int,forces:Map<Int,List<GridForces.Force>>):Boolean {
         val count=GridForces.mobileUnits(outfit).coerceAtMost(Int.MAX_VALUE.toLong()).toInt().coerceAtLeast(1)
+        return GridEntryRules.evaluate(GridForces.state(galaxy,grid,forces),
+            GridEntry(Camp(outfit.country,false),count,false))==GridEntryVerdict.ALLOWED
+    }
+    private fun exit(galaxy:Galaxy,outfit:OutfitStock,grid:Int,forces:Map<Int,List<GridForces.Force>>):Int? {
+        val home=galaxy.bases.single {it.id==outfit.baseId}.grid
         return (-1..1).flatMap {dy->(-1..1).mapNotNull {dx->
             val x=grid%100+dx;val y=grid/100+dy
             if(dx==0 && dy==0 || x !in 0..99 || y !in 0..49)null else y*100+x
-        }}.filter {g -> GridEntryRules.evaluate(GridForces.state(galaxy,g,forces),GridEntry(Camp(outfit.country,false),count,false))==GridEntryVerdict.ALLOWED}
+        }}.filter {g -> canEnter(galaxy,outfit,g,forces)}
             .sortedWith(compareBy<Int> {g -> if(forces[g].orEmpty().any {it.camp!=Camp(outfit.country,false)})1 else 0}
                 .thenBy {g -> kotlin.math.abs(g%100-home%100)+kotlin.math.abs(g/100-home/100)}.thenBy {it}).firstOrNull()
     }
@@ -126,8 +128,10 @@ internal object NpcTactics {
                 live.all {stocks.tacticalCommands.confused(it.id)} ||
                 (returnJumps!=null && returnJumps>0 && live.any {cargo.getValue(it.id)<it.boats}) ||
                 live.all {u->TacticalWeapon.entries.all {TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},it).power==0}}
-            val withdrawal=retreat ?: if(critical && detectsEnemies) exit(galaxy,outfit,position.grid,players,stocks,session.eliminated.keys)?.let {
-                TacticalRetreat(it,now,5*scale,150*scale)} else null
+            val withdrawal=retreat?.takeIf {now<it.completesAt || canEnter(galaxy,outfit,it.destination,forces())}
+                ?: if(retreat!=null || critical && detectsEnemies) exit(galaxy,outfit,position.grid,forces())?.let {
+                    TacticalRetreat(it,now,5*scale,150*scale)
+                } else null
             for(id in live.map {it.id}) {
                 outfit=stocks.outfits.getValue(outfitId)
                 var unit=outfit.activeShips!!.values.single {it.id==id}
@@ -215,9 +219,7 @@ internal object NpcTactics {
             val current=outfit.activeShips!!.values.filter {it.boats>0}
             if(withdrawal!=null && now>=withdrawal.completesAt && current.all {u->
                     u.tactical?.let {it.retreat==withdrawal && RetreatRules.outside(it.motion.pose(now,u.posture,galaxy))}==true}) {
-                val forces=GridForces.collect(galaxy,stocks.generation,players.values,stocks,session.eliminated.keys)
-                val count=GridForces.mobileUnits(outfit).toInt().coerceAtLeast(1)
-                if(GridEntryRules.evaluate(GridForces.state(galaxy,withdrawal.destination,forces),GridEntry(Camp(outfit.country,false),count,false))==GridEntryVerdict.ALLOWED) {
+                if(canEnter(galaxy,outfit,withdrawal.destination,forces())) {
                     stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),strategy=null,
                         activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null)}))))
                     forceCache=null
