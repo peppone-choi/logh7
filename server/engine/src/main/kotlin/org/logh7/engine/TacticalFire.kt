@@ -359,7 +359,7 @@ internal object TacticalCombat {
             players[account] = next
         }
         if (sweepArrivalsPending) startSweepArrivals()
-        if(session.ended==null)inventory=TacticalFleetShoot.advance(session,galaxy,players,inventory,impacts,scale)
+        if(session.ended==null)inventory=TacticalFleetShoot.advance(session,galaxy,players,inventory,impacts,scale,original,stocks)
         if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
         if(session.ended==null)inventory=PirateActions.counter(session,galaxy,players,inventory,now,impacts)
         if(npcPolicy.enabled && session.ended==null) {

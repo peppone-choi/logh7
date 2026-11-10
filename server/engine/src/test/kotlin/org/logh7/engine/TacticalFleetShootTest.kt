@@ -272,6 +272,48 @@ class TacticalFleetShootTest {
         assertTrue(advance(s,nav,p,now+120).isEmpty());assertTrue(advance(s,nav,p,now+500).isEmpty())
         assertEquals(saved,s.stocks)
     }
+    @Test fun lateSettlementUsesTheScheduledFleetShotPoseAndReloadTime() {
+        val firesAt=now+120
+        for(inRangeAtDeadline in listOf(true,false)) {
+            fun settle(at:Long):Triple<List<TacticalImpact>,ActiveShipUnit,OutfitStock> {
+                val s=state()
+                val shooter=s.stocks.outfits.getValue(1)
+                val enemy=s.stocks.outfits.getValue(2)
+                val target=enemy.activeShips!!.values.single()
+                val motion=target.tactical!!.motion.copy(
+                    waitSeconds=if(inRangeAtDeadline)120 else 100,
+                    velocity=1f,waypoints=if(inRangeAtDeadline)listOf(TacticalPoint(0f,20f))
+                        else listOf(TacticalPoint(0f,20f),TacticalPoint(0f,2f)))
+                s.stocks=s.stocks.copy(outfits=mapOf(
+                    1 to shooter.copy(supplies=15000,activeShips=ActiveShipUnits(
+                        shooter.activeShips!!.values.map {if(it.id==2)it.copy(supplies=5000) else it})),
+                    2 to enemy.copy(activeShips=ActiveShipUnits(listOf(target.copy(
+                        tactical=target.tactical.copy(motion=motion)))))))
+                val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+                val p=production(s)
+                assertNotNull(shoot(s,nav,p,TacticalWeapon.GUN).player)
+                val hits=advance(s,nav,p,at)
+                return Triple(hits,s.stocks.outfits.getValue(1).activeShips!!.values.last(),s.stocks.outfits.getValue(2))
+            }
+            val punctual=settle(firesAt)
+            val late=settle(firesAt+60)
+            assertEquals(punctual.first,late.first)
+            assertEquals(punctual.second.supplies,late.second.supplies)
+            assertEquals(punctual.second.reload,late.second.reload)
+            assertEquals(punctual.third.activeShips!!.values.single().boats,late.third.activeShips!!.values.single().boats)
+            assertNull(late.second.shot)
+            if(inRangeAtDeadline) {
+                assertEquals(firesAt,late.first.single().hit.seconds)
+                assertEquals(firesAt+15*24,late.second.reload!!.gun)
+                assertTrue(late.second.supplies!!<5000)
+            } else {
+                assertTrue(late.first.isEmpty())
+                assertEquals(5000,late.second.supplies)
+                assertNull(late.second.reload)
+            }
+        }
+    }
+
     @Test fun aManualShotCannotTargetStarCoverAndCancelsIfTheEnemyEntersItDuringTheDelay() {
         val world=Galaxy(galaxy.systems.map {if(it.grid==2488)it.copy(star=0) else it},galaxy.bases,galaxy.starts)
         val s=state()
