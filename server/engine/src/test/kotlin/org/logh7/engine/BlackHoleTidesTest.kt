@@ -52,6 +52,47 @@ class BlackHoleTidesTest {
         val untouched = away.copy(tidalHour = 0)
         assertSame(untouched, BlackHoleTides.settle(galaxy, untouched, 104 * 3600L))
     }
+    @Test fun anAdjacentFleetWarpLosesBoatsOnlyWhenGravityPullsItOffCourse() {
+        val base = GalaxyBase(1000, 2487, 80, 0, "Odin", 0, 20f, 86400, 0, 0f, 2f)
+        val world = Galaxy(galaxy.systems, listOf(base), galaxy.starts, terrain = Galaxy.manualTerrain())
+        val rules = SessionRules.load()
+        val session = SessionSimulation(rules).also { it.join("pilot", Power.EMPIRE, false, "c") }.exportState()
+        val origin = 3062
+        val target = 3061
+        // The same 100 ly route drifts on move 0 and lands on target on move 1.
+        for ((moves, pulled) in listOf(0L to true, 1L to false)) {
+            val pilot = Navigator(1, 10000, Power.EMPIRE, origin, 1000, 1000, 1000).copy(moves = moves)
+            val fleet = outfit(1, origin).copy(commanderId = pilot.characterId)
+            val initial = PlanetStocks(1, 0, mapOf(base.id to PlanetStock(base.id, 2, 0, 0, 0, 0)),
+                outfits = mapOf(fleet.id to fleet), warehouses = mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, base.id, fleet.id)),
+                deploymentInitialized = true, nextShipId = 3)
+            val navigation = Navigation(world, object : NavigationStore {
+                override fun load() = mapOf("pilot" to pilot)
+                override fun save(players: Map<String, Navigator>) = error("expected a world save")
+            }, NavigationPolicy())
+            val production = PlanetProduction(world, object : PlanetStockStore {
+                override fun load() = initial
+                override fun save(stocks: PlanetStocks) = error("expected a world save")
+            }, rules.startSeconds, PlanetProductionPolicy())
+            var saved: PlanetStocks? = null
+            val move = NavigationRequest("pilot", pilot.characterId, Power.EMPIRE, "c", 1,
+                destination = target, unitId = pilot.unitId, captainCard = TacticalAuthority.captainCard(pilot))
+            val result = FleetNavigation.apply(move, session, world, navigation, production, assertNotNull(production.snapshot(1)),
+                WorldStateCommitter { _, stocks -> saved = stocks }) { false }
+
+            assertNull(result.rejection)
+            val arrived = assertNotNull(result.player)
+            assertNull(arrived.warpTarget)
+            assertEquals(900, arrived.cruise)
+            assertEquals(960, arrived.mcp)
+            assertEquals(pulled, arrived.grid != target)
+            assertTrue(BlackHoleTides.inGravity(world, arrived.grid))
+            val moved = assertNotNull(saved).outfits.getValue(fleet.id)
+            assertEquals(OutfitPosition(arrived.grid), moved.position)
+            assertEquals(List(2) { if (pulled) 291 else 300 }, boats(moved))
+        }
+    }
+
     @Test fun stillUnitsDriftToTheEdgeFacingTheBlackHoleWhereTidalLossDoubles() {
         val still = TacticalMotion(3061, 100, TacticalPose(TacticalPoint(0f, 0f), 1f), 0f, 1f, listOf(TacticalPoint(0f, 0f)))
         assertEquals(TacticalPoint(-250f, 0f), BlackHoleTides.edge(galaxy, 3061))
