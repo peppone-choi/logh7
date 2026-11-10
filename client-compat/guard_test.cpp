@@ -1496,6 +1496,11 @@ static int tacticalInspectTest() {
         logh::nextInspectRow(5,2,false,[](unsigned row) {return row==2;})!=2)return 1162;
     if(logh::nextInspectRow(5,2,true,[](unsigned) {return false;})!=5 ||
         logh::nextInspectRow(0,0,true,[](unsigned) {return true;})!=0)return 1163;
+    // An open lookup keeps a still-detected target, moves past a lost or vanished one, and empties when none is left.
+    if(logh::keepInspectRow(5,3,oneOrThree)!=3 || logh::keepInspectRow(5,2,oneOrThree)!=3 ||
+        logh::keepInspectRow(5,4,oneOrThree)!=1 || logh::keepInspectRow(5,5,oneOrThree)!=1)return 1164;
+    if(logh::keepInspectRow(5,1,[](unsigned) {return false;})!=5 || logh::keepInspectRow(5,5,[](unsigned) {return false;})!=5 ||
+        logh::keepInspectRow(0,0,[](unsigned) {return true;})!=0)return 1165;
     return 0;
 }
 static int countryEndingTest() {
