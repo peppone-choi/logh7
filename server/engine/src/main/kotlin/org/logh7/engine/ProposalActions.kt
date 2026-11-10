@@ -91,6 +91,15 @@ object ProposalActions {
     }
     private data class Execution(val stocks:PlanetStocks,val navigators:Map<String,Navigator>,
         val rejection: SocialRejection? = null)
+    private fun seatSpecificResignation(policy:OrganizationalOfficePolicy,card:Int,country:CountryId):Boolean =
+        policy.role(card,country)?.scope in setOf(OfficeScope.OUTFIT,OfficeScope.PLANET,OfficeScope.FORTRESS)
+
+    private fun recipientHolders(policy:OrganizationalOfficePolicy,s:PlanetStocks,mail:ProposalMail,country:CountryId):List<OfficeHolding> {
+        val holders=policy.holders(s,mail.card,country)
+        if(mail.command!=RESIGNATION || !seatSpecificResignation(policy,mail.card,country))return holders
+        // Legacy local mail has no exact post to inherit or resign. It can still expire and refund.
+        return holders.filter {it.seat==mail.seat}
+    }
     /** Runs an approved command only while its country, current people and post still permit it. */
     private fun execute(g:Galaxy,mail:ProposalMail,s:PlanetStocks,rank:Int,players:Map<String,Navigator>,
         countries:CountryCatalog,now:Long,assignmentBlocked:(PlanetStocks,StockAssignmentProposal)->Boolean,
@@ -99,7 +108,8 @@ object ProposalActions {
         fun belongs(id:Int)=!BattleDeath.deceased(s,id) && players.values.singleOrNull {it.generation==s.generation && it.characterId==id}?.country==country
         if(!belongs(mail.sender) || !belongs(mail.recipient) || mail.target>0 && !belongs(mail.target))return null
         val policy=OrganizationalOfficePolicy(g,countries)
-        if(policy.holders(s,mail.card,country).none {it.character==mail.recipient})return null
+        val recipients=recipientHolders(policy,s,mail,country)
+        if(recipients.none {it.character==mail.recipient})return null
         var navigators=emptyMap<String,Navigator>()
         val stocks=when(mail.command) {
             ASSIGNMENT -> {
@@ -111,7 +121,7 @@ object ProposalActions {
                 if(rejection!=null)return Execution(s,emptyMap(),rejection)
                 result.stocks
             }
-            RESIGNATION -> policy.holders(s,mail.card,country).filter {it.character==mail.recipient}.singleOrNull()
+            RESIGNATION -> recipients.singleOrNull {it.character==mail.recipient}
                 ?.let {OfficeResignation.clear(policy,s,it)}
             DISMISSAL -> {
                 val dismissal=OfficeDismissalPolicy(g,countries)
@@ -193,16 +203,17 @@ object ProposalActions {
             settled=settled.copy(social=settled.social.copy(proposals=Proposals.withoutExpired(settled.social.proposals,now)))
         val policy=OrganizationalOfficePolicy(g,countries)
         // Office mail belongs to the post (user decision 2026-11-01): a pending row whose recipient no longer holds the
-        // card passes to the card's single current holder; a vacant or shared post keeps it until it expires.
+        // post passes to its single current holder; a vacant or shared post keeps it until it expires.
         val moved=settled.social.proposals.mails.map {mail ->
             val country=mail.originCountry
             // Keep the original recipient when a death invalidates the command, so a successor cannot execute it.
             if(!mail.pending || country==null || BattleDeath.deceased(settled,mail.sender) ||
                 BattleDeath.deceased(settled,mail.recipient) || BattleDeath.deceased(settled,mail.target))return@map mail
             fun currentHolder(id:Int)=!BattleDeath.deceased(settled,id) && (keyOf(id)?.let {players.getValue(it).country==country} ?: true)
+            val holders=recipientHolders(policy,settled,mail,country)
             if(currentHolder(mail.recipient) &&
-                policy.holders(settled,mail.card,country).any {it.character==mail.recipient})mail
-            else policy.holders(settled,mail.card,country).map {it.character}.filter(::currentHolder).distinct().singleOrNull()
+                holders.any {it.character==mail.recipient})mail
+            else holders.map {it.character}.filter(::currentHolder).distinct().singleOrNull()
                 ?.takeIf {it!=mail.sender}?.let {mail.copy(recipient=it)} ?: mail
         }
         if(moved!=settled.social.proposals.mails)
@@ -268,7 +279,7 @@ object ProposalActions {
         if(i.command==REPLY) {
             val mail=proposals.mails.singleOrNull {it.id==i.target} ?: return reject(SocialRejection.STALE)
             if(mail.originCountry!=i.country)return reject(SocialRejection.IDENTITY)
-            if(policy.holders(s,mail.card,i.country).none {it.character==i.characterId})return reject(SocialRejection.CARD)
+            if(recipientHolders(policy,s,mail,i.country).none {it.character==i.characterId})return reject(SocialRejection.CARD)
             val (answered,refused)=Proposals.reply(proposals,i.target,i.characterId,i.value,now)
             if(refused!=null)return reject(if(refused==ProposalRejection.NOT_RECIPIENT)SocialRejection.IDENTITY else SocialRejection.STALE)
             val next=s.copy(social=s.social.copy(proposals=answered))
@@ -294,7 +305,8 @@ object ProposalActions {
             (p.spotId!=0 || recipient.spotId!=0) &&
                 (recipient.baseId!=p.baseId || recipient.spotId!=p.spotId || recipient.spotOwner!=p.spotOwner))
             return reject(SocialRejection.LOCATION)
-        if(policy.holders(s,i.argument,i.country).none {it.character==i.target})return reject(SocialRejection.CARD)
+        val recipientPosts=policy.holders(s,i.argument,i.country).filter {it.character==i.target}
+        if(recipientPosts.isEmpty())return reject(SocialRejection.CARD)
         val emperor=i.card==1
         if(!emperor && policy.role(i.card,i.country)?.institution.let {it==null || it!=policy.role(i.argument,i.country)?.institution})
             return reject(SocialRejection.CARD)
@@ -315,6 +327,8 @@ object ProposalActions {
             APPOINTMENT -> i.base
             DISMISSAL -> OfficeDismissalPolicy(g,countries).available(s,i.target,power,recipientRank)
                 .singleOrNull {it.target==target && it.card==targetCard}?.id ?: return reject(SocialRejection.TARGET)
+            RESIGNATION -> if(!seatSpecificResignation(policy,i.argument,i.country))0
+                else recipientPosts.singleOrNull()?.seat ?: return reject(SocialRejection.CARD)
             else -> 0
         }
         if(i.value==APPOINTMENT && (targetCard to seat) !in vacancies(g,s,i.target,power,recipientRank,i.characterId,senderRank,countries))

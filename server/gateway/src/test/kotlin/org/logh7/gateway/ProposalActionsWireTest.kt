@@ -223,7 +223,7 @@ class ProposalActionsWireTest {
                 ProposalActions.APPOINTMENT, order = false, now = now, pcp = 0, mcp = 80, country = CountryId(2),
                 target = 10000, targetCard = 44, seat = 1).first
         } else Proposals.open(ProposalState(), 1, 10000, 10001, 39, 43, ProposalActions.RESIGNATION,
-            order = true, now = now, pcp = 0, mcp = 40, country = CountryId(2)).first
+            order = true, now = now, pcp = 0, mcp = 40, seat = 1, country = CountryId(2)).first
         state.stocks = ActiveShips.initialize(state.stocks.copy(
             bases = state.stocks.bases + (1177 to PlanetStock(1177, 3, 0, 100, 200, 300)),
             outfits = mapOf(1 to friendly, 2 to hostile),
