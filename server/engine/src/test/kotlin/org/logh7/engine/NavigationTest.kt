@@ -5,6 +5,43 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NavigationTest {
+    @Test fun theImperialGovernorsOfficeRequiresTheCurrentSeatAndChargesNormalSpotMovement() {
+        val local=GalaxyBase(1048,2487,80,0,"First",0,20f,86400,0,0f,2f)
+        val other=local.copy(id=1050,name="Second")
+        val world=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),listOf(local,other),
+            mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2487))
+        val office=OrganizationalOfficePolicy(world)
+        val initial=PlanetStocks(1,0,world.bases.associate {it.id to PlanetStock(it.id,2,0,0,0,0)})
+        val defaults=CountryCatalogLoader.load()
+        val foreignCountry=defaults.countries.getValue(2).copy(id=42,key="office_fixture",name="Office Fixture")
+        val catalog=CountryCatalog(defaults.calendars.values.toList(),defaults.families.values.toList(),
+            defaults.countries.values.toList()+foreignCountry)
+        val holding=OfficeHolding(54,local.id,request.characterId)
+        val appointed=office.set(initial,holding)
+        val dismissed=office.set(appointed,holding,remove=true)
+        val foreign=initial.copy(bases=initial.bases+(local.id to initial.bases.getValue(local.id)
+            .copy(owner=Allegiance.Country(CountryId(42)))),
+            strategic=StrategicState(offices=listOf(holding.copy(country=CountryId(42)))))
+        val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,false,"connection")}.exportState()
+        fun enter(base:GalaxyBase,stocks:PlanetStocks?,fromLobby:Boolean=true,owner:Int=0):NavigationResult {
+            val rooms=world.facilitiesAt(base.id,stocks,catalog).single {it.kind==0}.spots
+            val lobby=rooms.single {it.kind==0}
+            val room=rooms.single {it.kind==63}
+            val player=Navigator(1,request.characterId,Power.EMPIRE,base.grid,1000,1000,1000,baseId=base.id,mode=4,
+                spotId=if(fromLobby)lobby.id else 0,cpRecoveryAt=session.gameMillis/1000)
+            val store=Store().also {it.saved=mapOf("pilot" to player)}
+            return Navigation(world,store,NavigationPolicy(),configuredCountries=catalog).apply(
+                request.copy(place=PlaceMove.Spot(room.id,owner)),session,stocks)
+        }
+        assertEquals(995,assertNotNull(enter(local,appointed).player).pcp)
+        assertEquals(990,assertNotNull(enter(local,appointed,fromLobby=false).player).pcp)
+        for(denied in listOf(enter(local,initial),enter(local,dismissed),enter(other,appointed),enter(local,foreign),
+            enter(local,null),enter(local,appointed,owner=request.characterId))) {
+            assertEquals(NavigationRejection.ACCESS,denied.rejection)
+            assertEquals(1000,denied.previous?.pcp)
+        }
+    }
+
     @Test fun foreignSpyInTheCapitalHoldingRoomDoesNotPreventDocking() {
         val capital = GalaxyBase(1049, 2487, 80, 0, Capital.EMPIRE.baseName, 0, 20f, 86400, 0, 0f, 2f)
         val outpost = capital.copy(id = 1048, grid = 2486, name = "Outpost")
