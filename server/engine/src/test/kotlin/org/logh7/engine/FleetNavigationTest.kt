@@ -653,6 +653,45 @@ class FleetNavigationTest {
         assertEquals(920, state.players.getValue("pilot").mcp)
         assertEquals(200, state.players.getValue("aide").cruise)
     }
+    @Test fun dueWarpCountsTheFleetOnlyOnceWhenReservingTheReturnLeg() {
+        val state = state()
+        addAide(state)
+        apply(state, request.copy(place = PlaceMove.SwitchMode(5)))
+        val fleet = state.stocks.outfits.getValue(1)
+        val remaining = GridEntryRules.MAX_UNITS_PER_CAMP - GridForces.mobileUnits(fleet).toInt() - 2
+        val stationed = OutfitStock(2, 3, OutfitKind.FLEET, 1000, 20,
+            units = UnitInventory(mapOf(UnitStack(89) to remaining)))
+        state.stocks = state.stocks.copy(outfits = state.stocks.outfits + (stationed.id to stationed),
+            warehouses = state.stocks.warehouses + (20 to OutfitWarehouse(20, 3, OutfitKind.FLEET, 1000, 2)))
+
+        val reserved = assertNotNull(apply(state, request.copy(destination = 2588)).single().player)
+        val ready = assertNotNull(reserved.warpReadyAt)
+        val due = session.copy(gameMillis = ready * 1000)
+        val navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+        val production = PlanetProduction(galaxy, state.inventory, 0, PlanetProductionPolicy())
+        val inventory = production.settle(1, ready)
+        val beforePlayers = state.players
+        val beforeStocks = state.stocks
+        val commits = state.commits
+
+        state.fail = true
+        assertFailsWith<java.io.IOException> {
+            FleetNavigation.apply(request.copy(destination = 2487), due, galaxy, navigation, production, inventory, state.commit) { false }
+        }
+        assertEquals(beforePlayers, state.players)
+        assertEquals(beforeStocks, state.stocks)
+        assertEquals(commits, state.commits)
+
+        state.fail = false
+        val result = FleetNavigation.apply(request.copy(destination = 2487), due, galaxy, navigation, production,
+            inventory, state.commit) { false }
+        assertNull(result.rejection)
+        assertTrue(result.completedWarp)
+        assertEquals(2487, assertNotNull(result.player).warpTarget)
+        assertEquals(listOf(2588, 2588), listOf(state.players.getValue("pilot").grid, state.players.getValue("aide").grid))
+        assertEquals(OutfitPosition(2588), state.stocks.outfits.getValue(1).position)
+        assertEquals(commits + 1, state.commits)
+    }
     @Test fun dueWarpStillArrivesWhenFollowersCannotAffordTheNextWarp() {
         for(next in listOf(2589,2689)) {
             val state=state()

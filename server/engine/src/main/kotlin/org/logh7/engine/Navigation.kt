@@ -204,7 +204,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         policy.cruiseCost + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID)
     fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null,
         persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true, initialDock:OutfitPosition?=null,
-        retreatStocks: PlanetStocks? = stocks): NavigationResult {
+        retreatStocks: PlanetStocks? = stocks,
+        warpForcesAfterArrival: ((Navigator) -> Map<Int, List<GridForces.Force>>)? = null): NavigationResult {
         require(stocks == null || stocks.generation == session.generation)
         var current: Navigator? = null
         var completedFuel = false
@@ -328,8 +329,10 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 attack=if(active)player.attack else null,
                 fire=if(active)player.fire else player.fire?.copy(pending=null))
         }
-        fun enterableFrom(player: Navigator, units: Int, solo: Boolean): (Int) -> Boolean {
-            val forces = GridForces.collect(galaxy, session.generation, snapshot(session.generation).values, stocks, session.eliminated.keys)
+        fun enterableFrom(player: Navigator, units: Int, solo: Boolean,
+            projectedForces: Map<Int, List<GridForces.Force>>? = null): (Int) -> Boolean {
+            val forces = projectedForces ?: GridForces.collect(galaxy, session.generation,
+                snapshot(session.generation).values, stocks, session.eliminated.keys)
             return { grid -> GridEntryRules.evaluate(GridForces.state(galaxy, grid, forces),
                 GridEntry(Camp.of(player, stocks?.let { CoupActions.rebel(it, player.characterId,player.country) } == true), units, solo)) == GridEntryVerdict.ALLOWED }
         }
@@ -505,7 +508,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (destination == before.grid) return reject(NavigationRejection.SAME_GRID)
         // Cruise is light-years (CD p.31); policy.cruiseCost is the cost of one 100-ly grid.
         warpObstacle(before, destination)?.let { return reject(it) }
-        val enterable = enterableFrom(before, movingUnits, soloShip)
+        val projectedForces = if (dueWarp != null && warpCancellation == null) warpForcesAfterArrival?.invoke(before) else null
+        val enterable = enterableFrom(before, movingUnits, soloShip, projectedForces)
         if (!enterable(destination)) return reject(NavigationRejection.GRID)
         // W p.68: CP and execution wait grow with distance. 40 per started 100 ly (CD help: x4 at most) and
         // one G-hour per grid beyond the first are revival policy (design 2026-10-30, evidence:guess).
