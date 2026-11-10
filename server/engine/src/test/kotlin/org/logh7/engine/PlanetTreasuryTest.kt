@@ -114,4 +114,25 @@ class PlanetTreasuryTest {
         assertEquals(caughtUp,daily.settle(1,2*day))
         assertEquals(caughtUp,PlanetProduction(galaxy,store,0,policy).settle(1,2*day))
     }
+
+    @Test fun cappedFiefIncomeDoesNotOverflowWhenSeveralDaysAreSettledTogether() {
+        val store=Store()
+        val policy=PlanetProductionPolicy(tax=PlanetTaxRevenuePolicy(Int.MAX_VALUE,50))
+        fun reopen()=PlanetProduction(galaxy,store,0,policy)
+        val production=reopen()
+        val initial=production.settle(1,0)
+        val base=initial.bases.getValue(1000).copy(taxRate=100,
+            economy=PlanetEconomy(Int.MAX_VALUE,Int.MAX_VALUE,70,80))
+        val lord=10004
+        val fief=production.replace(initial,initial.copy(bases=mapOf(1000 to base),
+            strategic=StrategicState(fiefs=mapOf(1000 to lord))))
+
+        for(day in 1..3)reopen().settle(1,day*86400L)
+        val daily=checkNotNull(store.value)
+        assertEquals(0xffffffffL,daily.strategic.people.getValue(lord).money)
+        store.value=fief
+        val caughtUp=reopen().settle(1,3*86400L)
+        assertEquals(daily,caughtUp)
+        assertEquals(caughtUp,reopen().settle(1,3*86400L))
+    }
 }
