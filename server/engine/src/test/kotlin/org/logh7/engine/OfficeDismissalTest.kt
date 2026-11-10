@@ -85,6 +85,35 @@ class OfficeDismissalTest {
         val captured=s.copy(bases=s.bases+(1049 to s.bases.getValue(1049).copy(owner=Allegiance.fromLegacy(3))))
         assertTrue(policy.available(captured,10000,2,5).isEmpty())
     }
+    @Test fun capitalDismissalUsesTheCurrentNationalRankInsteadOfTheDisplayedRank() {
+        val initial=stock()
+        val capital=1049
+        val country=CountryId(2)
+        val card=57
+        val power=Power.EMPIRE
+        val actor=player(power)
+        val base=initial.bases.getValue(capital)
+        val assigned=initial.copy(bases=initial.bases+(capital to base.copy(guardInspectorId=10001)),
+            nationalOffices=mapOf(NationalOffice.MILITARY_MINISTER to 10000))
+        fun militaryRank(rank:Int)=assigned.copy(strategic=assigned.strategic.copy(
+            people=mapOf(10000 to StrategicPerson(rank=1,militaryRank=rank))))
+        val request=OfficeDismissalRequest("actor","c",10000,power,1,10001,card,1,2)
+        val policy=OfficeDismissalPolicy(galaxy)
+
+        val eligible=militaryRank(2)
+        val rank=ProposalActions.rank(eligible,actor.characterId,country,request.actorRank)
+        assertTrue(policy.available(eligible,actor.characterId,country.value,rank).any {it.card==card && it.target==10001})
+        val dismissed=OfficeDismissal.evaluate(galaxy,request,session(power),actor,eligible)
+        assertNull(dismissed.rejection)
+        assertEquals(840,dismissed.player?.mcp)
+        assertEquals(base,assertNotNull(dismissed.stocks).bases.getValue(capital))
+
+        val demoted=militaryRank(4)
+        val rejected=OfficeDismissal.evaluate(galaxy,request.copy(actorRank=2),session(power),actor,demoted)
+        assertEquals(DismissalRejection.AUTHORITY,rejected.rejection)
+        assertEquals(actor,rejected.player)
+        assertEquals(demoted,rejected.stocks)
+    }
     @Test fun removingCapitalOfficeFromGeneralSeatsPreservesDifferentLegacyHolder() {
         val initial=stock()
         val capital=1049
