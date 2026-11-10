@@ -124,7 +124,7 @@ internal object TacticalOfflineAi {
                     distance(pose.position,at.position)<=(p.commandRange?.radius(now) ?: 0f)
                 }.map {it.id}.toSet()
                 if(occupied!=null) {
-                    val landed=occupation(original,occupied,p,now,scale,stocks,g,players.values,commandable)
+                    val landed=occupation(original,occupied,p,now,scale,stocks,g,players,commandable,session)
                     if(landed!==original) {stocks=stocks.copy(outfits=stocks.outfits+(outfitId to landed));commanded=true;continue}
                 }
                 val updated=original.activeShips?.values?.map {unit ->
@@ -171,13 +171,13 @@ internal object TacticalOfflineAi {
      * 10-second 0x041c wait); an anchored carrier's troops get the player's 25-second landing order. Armored troops on
      * special planets/fortresses and the 30-unit box stay aboard, as for a player's 040f. Returns [outfit] when unchanged. */
     private fun occupation(outfit:OutfitStock,base:GalaxyBase,p:Navigator,now:Long,scale:Long,stocks:PlanetStocks,g:Galaxy,
-        players:Collection<Navigator>,commandable:Set<Int>):OutfitStock {
+        players:Map<String,Navigator>,commandable:Set<Int>,session:SessionState):OutfitStock {
         val ships=outfit.activeShips ?: return outfit
         val ground=outfit.activeGround ?: return outfit
         val point=TacticalBasePosition.at(base,now,stocks)
         val reach=maxOf(1.0,base.diameter.toDouble(),if(base.kind==0)5.5 else 0.5)
         var units=ships.values;var troops=ground.values;var changed=false
-        var box=TacticalGroundOperations.landingSlotsUsed(base,TacticalAuthority.camp(outfit,stocks),players,stocks,g,now)
+        var box=TacticalGroundOperations.landingSlotsUsed(base,TacticalAuthority.camp(outfit,stocks),players,stocks,g,now,session)
         for(unit in ships.values) {
             val aboard=troops.filter {it.carrier==unit.id && it.order==null && GroundBattleRules.admitsCrewType(base,
                 UnitSpecifications.crews.single {c->c.kind==it.stack.kind}.type)}
@@ -187,13 +187,13 @@ internal object TacticalOfflineAi {
             if(posture?.mode==TacticalShipMode.ANCHORED && posture.base==base.id) {
                 val landing=aboard.take(maxOf(0,GroundBattleRules.BOX_CAPACITY_PER_FACTION-box))
                 if(landing.isEmpty())continue
-                val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,p.characterId,p.grid,unit.id,base.id,now,now+25*scale)
+                val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,p.characterId,p.grid,unit.id,base.id,now,now+25*scale,issuedByOfflineAi=true)
                 val ids=landing.map {it.id}.toSet()
                 troops=troops.map {if(it.id in ids)it.copy(order=order) else it};box+=landing.size;changed=true
                 continue
             }
             val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
-                ?: TacticalDeployment.initial(unit.id,p.grid,players,stocks,g)
+                ?: TacticalDeployment.initial(unit.id,p.grid,players.values,stocks,g)
             if(hypot((at.position.x-point.x).toDouble(),(at.position.y-point.y).toDouble())>reach)continue
             val current=posture ?: TacticalPosture(p.grid)
             val anchor=current.copy(order=TacticalPostureOrder(p.characterId,TacticalShipMode.ANCHORED,base.id,now,now+10*scale))
