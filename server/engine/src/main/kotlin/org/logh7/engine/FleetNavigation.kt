@@ -37,7 +37,7 @@ internal object FleetNavigation {
             val after=result.player ?: return result
             if(committer==null)return NavigationResult(null,saved ?: after,NavigationRejection.DISABLED)
             val next=players+(request.account to after)
-            val settled=CivicActions.settle(galaxy,stocks,session.gameMillis/1000,next.values)
+            val settled=CivicActions.settle(galaxy,AcademyActions.endDepartedLecture(stocks,saved,after),session.gameMillis/1000,next.values)
             val updated=configured(settled,after)
             val withPerson=if(startingPerson!=null && result.rejection==null)
                 updated.copy(strategic=updated.strategic.copy(people=updated.strategic.people+(after.characterId to startingPerson)))
@@ -50,10 +50,17 @@ internal object FleetNavigation {
             return result
         }
         fun personal(movingUnits:Int=1,soloShip:Boolean=true):NavigationResult {
-            if(startingFleet==null && startingPerson==null && request.offlineDirection==null && (saved==null || stocks.civic.active.none {it.character==saved.characterId}))
+            val needsSharedCommit=startingFleet!=null || startingPerson!=null || request.offlineDirection!=null ||
+                saved!=null && stocks.civic.active.any {it.character==saved.characterId}
+            val hasLecture=request.place!=null && saved?.characterId in stocks.social.academy.lectures
+            if(!needsSharedCommit && !hasLecture)
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
-            return commitPersonal(navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip,
-                initialDock=startingFleet?.positionIn(galaxy)))
+            val preview=navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip,
+                initialDock=startingFleet?.positionIn(galaxy))
+            val after=preview.player
+            if(!needsSharedCommit && (after==null || AcademyActions.endDepartedLecture(stocks,saved,after) === stocks))
+                return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
+            return commitPersonal(preview)
         }
         // Personal flagship retreat must not transport the commander's unimplemented fleet/CRC selection.
         if (request.tacticalRetreat != null || before?.retreat != null)

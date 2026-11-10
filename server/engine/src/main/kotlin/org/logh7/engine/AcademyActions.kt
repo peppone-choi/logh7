@@ -129,7 +129,15 @@ object AcademyActions {
             if(i.command==WARGAME)WARGAMES_PER_DAY-used-1 else 0,gains.sumOf {it.second},paid.spent.toInt(),quote)
         return SocialResult(p.paidWith(paid.balance),next,changed=true,academy=after)
     }
-    /** The lecture ends when its lecturer is no longer in that classroom (offline lecturers keep their saved spot). */
+    internal fun endDepartedLecture(stocks: PlanetStocks, before: Navigator?, after: Navigator): PlanetStocks {
+        val academy = stocks.social.academy
+        val lecture = academy.lectures[after.characterId] ?: return stocks
+        if (before?.characterId != after.characterId || before.baseId != lecture.base || before.spotId != lecture.spot ||
+            after.baseId == lecture.base && after.spotId == lecture.spot) return stocks
+        return stocks.copy(social = stocks.social.copy(academy = academy.copy(lectures = academy.lectures - after.characterId)))
+    }
+
+    /** Offline lecturers keep their saved spot. */
     private fun present(l:Lecture,student:Navigator,navigators:Collection<Navigator>)=
         navigators.any {it.generation==student.generation && it.country==student.country && it.characterId==l.lecturer &&
             it.grid==student.grid && it.baseId==l.base && it.spotId==l.spot && it.mode in 1..4 && it.spotOwner==0}
