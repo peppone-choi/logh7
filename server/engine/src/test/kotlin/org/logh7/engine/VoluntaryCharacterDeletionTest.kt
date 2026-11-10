@@ -41,6 +41,30 @@ class VoluntaryCharacterDeletionTest {
         assertEquals(mapOf("pilot" to setOf(10000)), after.deletedCharacters)
     }
 
+    @Test fun residenceEntryRequiresTheAuthenticatedOwnerAndEnablesDeletion() {
+        val room = galaxy.facilitiesAt(player.baseId, stocks).single { it.kind == 16 }.spots.single { it.kind == 12 }
+        val session = SessionSimulation(SessionRules.load()).also {
+            it.join("pilot", Power.EMPIRE, false, "link")
+        }.exportState()
+        val initial = player.copy(cpRecoveryAt = session.gameMillis / 1000)
+        var saved = mapOf("pilot" to initial)
+        val navigation = Navigation(galaxy, object : NavigationStore {
+            override fun load() = saved
+            override fun save(players: Map<String, Navigator>) { saved = players }
+        }, NavigationPolicy())
+        fun enter(owner: Int) = navigation.apply(
+            NavigationRequest("pilot", player.characterId, Power.EMPIRE, "link", 1, place = PlaceMove.Spot(room.id, owner)),
+            session, stocks)
+        assertEquals(NavigationRejection.ACCESS, enter(10001).rejection)
+        assertEquals(initial, saved["pilot"])
+        val entered = assertNotNull(enter(0).player)
+        assertEquals(room.id, entered.spotId)
+        assertEquals(player.characterId, entered.spotOwner)
+        assertEquals(990, entered.pcp)
+        assertEquals(NavigationRejection.SPOT, enter(0).rejection)
+        assertNull(VoluntaryCharacterDeletion.eligibility(galaxy, stocks, entered, 8, countries))
+    }
+
     @Test fun worldCommitDeletesOnceOrKeepsTheWholeCharacterOnFailure() = runBlocking {
         for (fail in listOf(false, true)) {
             val startingPlayers = mapOf("pilot" to player)
