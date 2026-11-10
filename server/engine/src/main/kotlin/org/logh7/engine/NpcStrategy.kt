@@ -138,10 +138,6 @@ internal object NpcStrategy {
             rows.any {it.camp!=camp && it.camp.country !in eliminated && (it.units>0 || it.base)}
         }.map {it.key}
         val candidates=enemies.filter(::beatable)
-        // Keep a reserved route towards a still-valid enemy when an unrelated enemy appears.
-        val continuing=if(origin in candidates)listOf(origin) else if(preferred==null)candidates else
-            candidates.filter {distance(preferred,it)<distance(origin,it)}.ifEmpty {candidates}
-        val goal=continuing.minWithOrNull(compareBy<Int> {distance(origin,it)}.thenBy {it})
         val home=if(position.baseId==0)home(galaxy,forces,outfit,stocks) else null
         // Turn back before the next ammunition payment could consume the return trip.
         val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
@@ -154,10 +150,17 @@ internal object NpcStrategy {
             val required=maxOf(unit.boats*2,(home?.let {it.jumps*unit.boats+shot} ?: 0))
             balances.getValue(unit.id)<required
         }
-        if(goal!=null && beatable(origin) && !short) {
-            if(goal==origin)return null
-            val next=step(galaxy,forces,outfit,origin,goal,preferred)?.let(::OutfitPosition)
-            if(next!=null) {
+        if(candidates.isNotEmpty() && beatable(origin) && !short) {
+            if(origin in candidates)return null
+            // Revalidate a reserved route first, then try other enemies in distance order.
+            val goals=candidates.sortedWith(compareBy<Int> {
+                if(preferred!=null && distance(preferred,it)<distance(origin,it))0 else 1
+            }.thenBy {distance(origin,it)}.thenBy {it})
+            val checkedSteps=mutableSetOf<Int>()
+            for(goal in goals) {
+                val grid=step(galaxy,forces,outfit,origin,goal,preferred) ?: continue
+                if(!checkedSteps.add(grid))continue
+                val next=OutfitPosition(grid)
                 if(home==null)return next
                 val projected=outfit.copy(position=next)
                 val projectedStocks=stocks.copy(outfits=stocks.outfits+(outfit.id to projected))

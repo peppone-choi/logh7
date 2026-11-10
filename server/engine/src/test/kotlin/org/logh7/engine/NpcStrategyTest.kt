@@ -381,6 +381,32 @@ class NpcStrategyTest {
         assertEquals(2487,events.single().destination)
     }
 
+    @Test fun blockedNearestEnemyDoesNotHideAReachableOffensiveTarget() {
+        val initial=stocks()
+        val fleet=OutfitSupplies.withBalances(initial.outfits.getValue(1).copy(position=OutfitPosition(2488)),mapOf(1 to 2700))
+        val stock=initial.copy(outfits=mapOf(1 to fleet))
+        val pilot=players().getValue("pilot")
+        for(blocked in listOf(false,true)) {
+            val world=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,terrain=List(50) {y->
+                CharArray(100) {x->
+                    if((x==87 || x==89) && y in 23..25 && (y!=24 || blocked && x==89))'~' else '.'
+                }.concatToString()
+            })
+            val pilots=mutableMapOf("pilot" to pilot.copy(grid=2490),"far" to pilot.copy(characterId=10001,grid=2485))
+            val events=mutableListOf<NpcStrategicMovement>()
+            val reserved=NpcStrategy.advance(simulation.copy(gameMillis=0),world,pilots,stock,events)
+            val destination=if(blocked)2487 else 2489
+            assertEquals(destination,reserved.outfits.getValue(1).strategy?.destination)
+            assertEquals(stock.bases,reserved.bases)
+            assertTrue(events.isEmpty())
+            val arrived=NpcStrategy.advance(simulation.copy(gameMillis=3600000),world,pilots,reserved,events)
+            assertEquals(OutfitPosition(destination),arrived.outfits.getValue(1).position)
+            assertEquals(2400,arrived.outfits.getValue(1).supplies)
+            assertEquals(stock.bases,arrived.bases)
+            assertEquals(destination,events.single().destination)
+        }
+    }
+
     @Test fun fleetReservesFuelForEveryJumpAroundAStormAndDocks() {
         val blocked=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,terrain=List(50) {y->
             CharArray(100) {x->if(x==89 && y in 22..26)'~' else '.'}.concatToString()
