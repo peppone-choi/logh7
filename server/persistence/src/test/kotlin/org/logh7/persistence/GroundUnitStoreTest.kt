@@ -79,6 +79,21 @@ class GroundUnitStoreTest {
             FilePlanetStockStore(path).use {assertFails {it.load()}}
         }
     }
+    @Test fun delegatedGroundOrderRoundTripsAndRequiresItsStockVersion() {
+        val initial=ActiveShips.initialize(legacy())
+        val outfit=initial.outfits.getValue(1)
+        val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,1,1000,100,700,issuedByOfflineAi=true)
+        val units=ActiveGroundUnits(listOf(ActiveGroundUnit(2,troop,carrier=1,order=order),ActiveGroundUnit(3,troop)))
+        val expected=initial.copy(outfits=mapOf(1 to outfit.copy(activeGround=units)))
+        val path=directory.resolve("delegated-ground")
+        FilePlanetStockStore(path).use {it.save(expected)}
+        val text=Files.readString(path)
+        assertTrue(text.startsWith("LOGH7-STOCK-51\t"))
+        FilePlanetStockStore(path).use {assertEquals(expected,it.load())}
+        Files.writeString(path,text.replace("LOGH7-STOCK-51","LOGH7-STOCK-50"))
+        FilePlanetStockStore(path).use {assertFails {it.load()}}
+    }
+
     @Test fun partialGroundStrengthAndBattleClockRoundTripAndOldVersionsCannotSilentlyHeal() {
         val initial=ActiveShips.initialize(legacy());val old=initial.outfits.getValue(1)
         val path=directory.resolve("ground-combat")

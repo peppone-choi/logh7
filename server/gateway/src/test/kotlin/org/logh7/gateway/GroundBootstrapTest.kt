@@ -70,6 +70,12 @@ class GroundBootstrapTest {
             activeGround=ActiveGroundUnits(troops.values.map {if(it.id==2)it.copy(order=order) else it}))
         val pending=snapshot.copy(planetStocks=stocks.copy(outfits=mapOf(1 to reserved)),navigators=mapOf("pilot" to viewer))
         assertEquals(setOf(order),TacticalBootstrap(pending,galaxy,viewer){null}.groundOrders)
+        val aiOrder=order.copy(issuedByOfflineAi=true)
+        val delegated=pending.copy(planetStocks=stocks.copy(outfits=mapOf(1 to reserved.copy(
+            activeGround=ActiveGroundUnits(troops.values.map {if(it.id==2)it.copy(order=aiOrder) else it}))),
+            tacticalCommands=TacticalCommandState(aiSwitches=mapOf(viewer.characterId to 16))))
+        assertTrue(TacticalBootstrap(delegated,galaxy,viewer){null}.groundOrders.isEmpty())
+        assertEquals(setOf(aiOrder),TacticalBootstrap(delegated,galaxy,viewer.copy(characterId=10001)){null}.groundOrders)
         val reassigned=pending.copy(planetStocks=pending.planetStocks!!.copy(outfits=mapOf(1 to reserved.copy(commanderId=10001))))
         val resumed=TacticalBootstrap(reassigned,galaxy,viewer){null}
         assertTrue(resumed.groundOrders.isEmpty())
