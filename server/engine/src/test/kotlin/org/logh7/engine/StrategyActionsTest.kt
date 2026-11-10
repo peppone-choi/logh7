@@ -37,6 +37,31 @@ class StrategyActionsTest {
         val maximum=act(48,current)
         assertEquals(StrategyActionRejection.MAXIMUM,maximum.rejection);assertEquals(player(),maximum.player)
     }
+    @Test fun militaryTrainingAndDisciplineRequireTheCommandersCurrentCamp() {
+        val original = stocks()
+        val actor = player()
+        val clock = session().let { it.copy(gameMillis = it.gameMillis + 1000) }
+        val now = clock.gameMillis / 1000
+        val plot = Plot(actor.characterId, Power.EMPIRE.country, now - 1, revolt = now)
+        val opposing = original.copy(social = original.social.copy(coup = CoupState(
+            plots = mapOf(actor.characterId to plot), loyalty = mapOf(200 to CoupActions.LOYAL - 1))))
+
+        for (command in 46..51) {
+            val denied = StrategyActions.evaluate(galaxy, request(command), clock, actor, opposing)
+            assertEquals(StrategyActionRejection.AUTHORITY, denied.rejection, "command $command")
+            assertEquals(actor, denied.player)
+            assertSame(opposing, denied.stocks)
+        }
+
+        val sameCamp = opposing.copy(social = opposing.social.copy(coup = opposing.social.coup.copy(
+            loyalty = mapOf(200 to CoupActions.LOYAL))))
+        val trained = StrategyActions.evaluate(galaxy, request(48), clock, actor, sameCamp)
+        assertNull(trained.rejection)
+        assertEquals(920, trained.player?.mcp)
+        val troops = assertNotNull(trained.stocks).outfits.getValue(200).activeGround
+        assertEquals(1, assertNotNull(troops).values.single().stack.level)
+    }
+
     @Test fun shipTrainingRaisesEveryActiveShipUnitAndItsInventoryTogether() {
         val kind=UnitSpecifications.ships.first().kind
         val ships=ActiveShipUnits(listOf(ActiveShipUnit(2,UnitStack(kind)),ActiveShipUnit(3,UnitStack(kind,2))))

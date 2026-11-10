@@ -138,6 +138,8 @@ internal object StrategyActions {
                 if(rank !in 2..20)return reject(StrategyActionRejection.RANK)
                 val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
                 if(o.commanderId!=r.characterId || o.country!=country)return reject(StrategyActionRejection.AUTHORITY)
+                if (r.command != 53 && TacticalAuthority.camp(p, stocks) != TacticalAuthority.camp(o, stocks))
+                    return reject(StrategyActionRejection.AUTHORITY)
                 val position=o.positionIn(galaxy)
                 if(position.grid!=p.grid || position.baseId!=p.baseId)return reject(StrategyActionRejection.LOCATION)
                 if(r.command in setOf(46,47) && o.activeShips?.values.orEmpty().none {it.boats>0} ||
