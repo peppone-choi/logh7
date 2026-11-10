@@ -1306,6 +1306,53 @@ class TacticalCommandOperationsTest {
         val ranked=state();ranked.stocks=ranked.stocks.copy(strategic=StrategicState(people=mapOf(10001 to StrategicPerson(rank=5,merit=100))))
         assertEquals(NavigationRejection.CARD,accept(run(ranked),command.tacticalCommand!!).rejection)
     }
+
+    @Test fun missionsRequireCurrentRosterMembershipAtSelectionAndBroadcast() {
+        val ally = session.participants.getValue("ally")
+        val absent = session.copy(participants = session.participants - "ally")
+        val otherCountry = session.copy(participants = session.participants +
+            ("ally" to ally.copy(country = Power.ALLIANCE.country)))
+        val offline = session.copy(participants = session.participants +
+            ("ally" to ally.copy(online = false, connection = null)))
+        val toAlly = TacticalCommand(0x421, listOf(1010001), kind = 1, target = 1000)
+        val broadcast = toAlly.copy(units = listOf(1010000))
+
+        fun issue(run: Run, command: TacticalCommand, current: SessionState) = TacticalCommandOperations.accept(
+            request(command), current, galaxy, run.navigation, run.production, checkNotNull(run.production.snapshot(1)),
+            run.state.commit, 1)
+        fun finish(run: Run, current: SessionState): List<TacticalCommandResult> {
+            val events = mutableListOf<TacticalCommandResult>()
+            TacticalCombat.settle(current.copy(gameMillis = (now + 5) * 1000), galaxy, run.navigation,
+                run.production, run.state.commit, scale = 1, onCommand = events::add)
+            return events
+        }
+
+        for (current in listOf(absent, otherCountry)) {
+            val missing = state()
+            missing.stocks = missing.stocks.copy(
+                tacticalCommands = TacticalCommandState(aiSwitches = mapOf(10001 to 16)),
+                strategic = missing.stocks.strategic.copy(people = mapOf(10001 to StrategicPerson(rank = 5)))
+            )
+            val run = run(missing)
+            assertEquals(NavigationRejection.ACCESS, issue(run, toAlly, current).rejection)
+            assertNotNull(issue(run, broadcast, current).player)
+            assertFalse(finish(run, current).single().cancelled)
+            assertEquals(setOf(10000), missing.stocks.tacticalCommands.missions.keys)
+
+            val pending = run()
+            assertNotNull(issue(pending, toAlly, session).player)
+            assertTrue(finish(pending, current).single().cancelled)
+            assertTrue(pending.state.stocks.tacticalCommands.missions.values.all { it.defaultDefense })
+            assertNull(pending.state.stocks.tacticalCommands.missions[10001])
+        }
+
+        val aiEnabled = state()
+        aiEnabled.stocks = aiEnabled.stocks.copy(tacticalCommands = TacticalCommandState(aiSwitches = mapOf(10001 to 16)))
+        val valid = run(aiEnabled)
+        assertNotNull(issue(valid, toAlly, offline).player)
+        assertFalse(finish(valid, offline).single().cancelled)
+        assertEquals(setOf(10000, 10001), aiEnabled.stocks.tacticalCommands.missions.keys)
+    }
     @Test fun confusionBlocksRegularCommandsAndEncouragementActuallyRecoversMorale() {
         val s=state();s.stocks=s.stocks.copy(tacticalCommands=TacticalCommandState(morale=mapOf(1 to 15)))
         val r=run(s);val order=request(TacticalCommand(0x40d,listOf(1),kind=0))

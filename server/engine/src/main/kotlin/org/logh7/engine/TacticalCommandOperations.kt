@@ -82,19 +82,26 @@ internal object TacticalCommandOperations {
             return NavigationResult(null,p,NavigationRejection.BUSY)
         return null
     }
-    private fun supreme(p:Navigator,players:Map<String,Navigator>,s:PlanetStocks):Boolean {
+    private fun missionRecipient(person: Navigator, member: Participant?, stocks: PlanetStocks): Boolean =
+        member != null && member.country == person.country &&
+            (member.online || stocks.tacticalCommands.tacticalAi(person.characterId))
+
+    private fun supreme(p:Navigator,players:Map<String,Navigator>,s:PlanetStocks,participants:Map<String,Participant>):Boolean {
         // Native rank numbers decrease with rank. Merit breaks equal ranks (update04).
-        val candidates=players.values.filter {
-            it.grid==p.grid && TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) &&
-                (it.cpPaused || it.baseId>0) && !s.social.justice.detained(it.characterId) &&
-                !BattleDeath.deceased(s,it.characterId)
+        val candidates=players.mapNotNull { (account, person) ->
+            val member = participants[account] ?: return@mapNotNull null
+            person.takeIf {
+                member.country==it.country && it.grid==p.grid && TacticalAuthority.camp(it,s)==TacticalAuthority.camp(p,s) &&
+                    (it.cpPaused || it.baseId>0) && !s.social.justice.detained(it.characterId) &&
+                    !BattleDeath.deceased(s,it.characterId)
+            }
         }
         val best=candidates.maxWithOrNull(compareBy<Navigator> {-TacticalPersonnel.rank(s,it.characterId)}
             .thenBy {TacticalPersonnel.merit(s,it.characterId)}.thenByDescending {it.characterId}) ?: return false
         return p.characterId==best.characterId
     }
     private fun validate(c:TacticalCommand,p:Navigator,now:Long,players:Map<String,Navigator>,s:PlanetStocks,g:Galaxy,
-        checkRange:Boolean,eliminated:Set<CountryId>,sessionOnline:Map<String,Boolean> = emptyMap(),fortressStartAt:Long=now):NavigationRejection? {
+        checkRange:Boolean,eliminated:Set<CountryId>,participants:Map<String,Participant>,fortressStartAt:Long=now):NavigationRejection? {
         if(BattleDeath.deceased(s,p.characterId))return NavigationRejection.IDENTITY
         if(s.social.justice.detained(p.characterId))return NavigationRejection.BUSY
         if(p.hull?.woundedUntil?.let {it>now}==true)return NavigationRejection.WOUNDED
@@ -237,12 +244,15 @@ internal object TacticalCommandOperations {
                 if(TacticalTerrain.pathBlocked(g,p.grid,basePoint(base,fortressStartAt,s),c.points))return NavigationRejection.RANGE
             }
             0x408,0x421 -> {
+                if(players.none { (account, person) ->
+                    person.characterId == p.characterId && participants[account]?.let { it.country == p.country } == true
+                }) return NavigationRejection.ACCESS
                 if(c.kind !in 0..5)return NavigationRejection.TARGET
-                val chief=supreme(p,players,s)
+                val chief=supreme(p,players,s,participants)
                 if(c.opcode==0x408 && chief)return NavigationRejection.CARD
                 if(chief && c.units.any {id->players.values.none {it.unitId==id}})return NavigationRejection.UNIT
                 if(chief && c.units.any {id->players.entries.single {it.value.unitId==id}.let {(account,person)->
-                    sessionOnline[account]==false && !s.tacticalCommands.tacticalAi(person.characterId)}})return NavigationRejection.ACCESS
+                    !missionRecipient(person,participants[account],s)}})return NavigationRejection.ACCESS
                 if(!chief && c.units!=listOf(p.unitId))return NavigationRejection.CARD
                 if(c.kind in 1..2) {
                     val b=g.bases.singleOrNull {it.id==c.target && it.grid==p.grid} ?: return NavigationRejection.TARGET
@@ -258,7 +268,7 @@ internal object TacticalCommandOperations {
                 }
             }
             0x422 -> {
-                if(!supreme(p,players,s))return NavigationRejection.CARD
+                if(!supreme(p,players,s,participants))return NavigationRejection.CARD
                 if(c.base==0 || c.units.isNotEmpty())return NavigationRejection.BASE
                 if(s.tacticalCommands.emergencySupplies[c.base]==p.country?.value)return NavigationRejection.BUSY
             }
@@ -280,7 +290,7 @@ internal object TacticalCommandOperations {
         if(c.base==0 && !n.captainCard(r,p))return reject(NavigationRejection.CARD)
         if(c.base==0 && p.hull?.kind!=r.shipKind)return reject(NavigationRejection.UNIT)
         var next=s.copy(tacticalCommands=s.tacticalCommands.copy(ranks=s.tacticalCommands.ranks+r.tacticalRanks+(p.characterId to r.rank)))
-        validate(c,p,now,players,next,g,true,session.eliminated.keys,session.participants.mapValues {it.value.online})?.let {return reject(it)}
+        validate(c,p,now,players,next,g,true,session.eliminated.keys,session.participants)?.let {return reject(it)}
         val duration=when(c.opcode){0x41e->0L;0x419->35L;else->5L}*scale
         if(now>0xffffffffL-duration)return reject(NavigationRejection.CLOCK)
         // Personal abilities and supreme emergency supply spend PCP; squadron commands use CRC.
@@ -318,7 +328,7 @@ internal object TacticalCommandOperations {
         var stocks=s;val events=mutableListOf<TacticalCommandResult>()
         for(base in bases) {
             val c=TacticalCommand(0x41e,base=base)
-            if(validate(c,p,now,players,s,g,false,session.eliminated.keys)!=null)return null
+            if(validate(c,p,now,players,s,g,false,session.eliminated.keys,session.participants)!=null)return null
             stocks=rebaseBerths(base,now,players,stocks,g)
             val cancelled=stocks.tacticalCommands.orders.filter {it.command.base==base}
             val moved=stocks.tacticalCommands.fortresses[base]?.let {f->val at=f.motion.pose(now)
@@ -443,7 +453,7 @@ internal object TacticalCommandOperations {
                 }
                 0x408,0x421 -> {
                     val mission=TacticalMissionState(p.characterId,c.kind,c.targetKind,c.target,now,grid=p.grid)
-                    if(!supreme(p,players,stocks)) stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(
+                    if(!supreme(p,players,stocks,session.participants)) stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(
                         proposals=stocks.tacticalCommands.proposals+(p.characterId to mission)))
                     else {
                         // update04: a supreme-commander mission reaches every own-side participant of this grid.
@@ -451,7 +461,7 @@ internal object TacticalCommandOperations {
                         // Offline people receive it only with tactical AI ON, matching the selection check above.
                         val recipients=players.entries.filter {(account,q)->q.grid==p.grid && TacticalAuthority.camp(q,stocks)==TacticalAuthority.camp(p,stocks) &&
                             (q.cpPaused || q.characterId==p.characterId) &&
-                            (session.participants[account]?.online!=false || stocks.tacticalCommands.tacticalAi(q.characterId))}
+                            missionRecipient(q,session.participants[account],stocks)}
                             .map {it.value.characterId}
                         val assignments=(recipients+c.units.map {id->players.values.single {it.unitId==id}.characterId})
                             .distinct().associateWith {mission.copy(character=it)}
@@ -708,7 +718,7 @@ internal object TacticalCommandOperations {
             val country=commander?.key?.let {session.participants[it]?.country} ?: p?.country
             val valid=session.ended==null && country !in session.eliminated && p!=null &&
                 validate(o.command,p,battle.now,players,battle.stocks,g,false,session.eliminated.keys,
-                session.participants.mapValues {it.value.online},fortressStartAt=minOf(o.readyAt,battle.now))==null
+                session.participants,fortressStartAt=minOf(o.readyAt,battle.now))==null
             if(valid && o.readyAt>battle.now)continue
             battle.stocks=battle.stocks.copy(tacticalCommands=battle.stocks.tacticalCommands.copy(orders=battle.stocks.tacticalCommands.orders-o))
             val before=impacts.size
