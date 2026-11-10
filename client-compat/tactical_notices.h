@@ -11,7 +11,8 @@ static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x5
     0x50f812, 0x50f83c, 0x50f87f, 0x50f896, 0x50f8ad,
     // Stance (004b4490): pick the base for 4 STATIONED 118/26 or 5 ANCHORED 118/27, then the request 118/32..35.
     0x50f9cd, 0x50fa06, 0x50fc01, 0x50fc1c, 0x50fc37, 0x50fc52,
-    // 7 BATTLE refused for a selected unit the native unit table does not hold (118/28).
+    // 7 BATTLE (button 0x37, third icon) drops every selected flagship: 004c7cd0(table,id,1,0,0xff,0xff) matches
+    // unit +9 type 0 (flagship), then 118/28. No retreat state is read, so it is a native rule, not a retreat guard.
     0x50fa98,
     // 所属変更 target prompt (118/12) and the 鼓舞 request (118/43).
     0x50f2b2, 0x5100f4,
