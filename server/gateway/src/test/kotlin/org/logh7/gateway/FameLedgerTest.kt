@@ -94,4 +94,31 @@ class FameLedgerTest {
             reloaded.fame.evaluation(next,reloaded.get(1),"winner"),"latest legacy result derives the unchanged award without regranting")
         assertEquals(18,reloaded.fame.fame().getValue("winner"))
     }
+
+    @Test fun reopenedSettlementEncodesEvaluationAboveTheResultFieldLimit() {
+        val file=Files.createTempDirectory("fame-evaluation-limit").resolve("characters.properties")
+        val stores=CharacterStores(file)
+        assertTrue(stores.get(1).carry("winner",character(10000,2,2)))
+
+        val end=SessionEnd(EndReason.CAPITAL_CAPTURED,setOf(Power.ALLIANCE),123)
+        val result=SessionResults.assess(end,SessionStatistics(population=10),mapOf(
+            Power.EMPIRE to SessionStatistics(population=6),Power.ALLIANCE to SessionStatistics(population=4)),
+            VictoryConditions(true,true))
+        val maxEvaluation=0xffffffffL
+        val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(
+            10000 to StrategicPerson(evaluation=maxEvaluation))))
+        val world=WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot().copy(ended=end),planetStocks=stocks,result=result)
+        val gained=((maxEvaluation+FameLedger.reward(2))/FameLedger.POINTS_PER_FAME).toInt()
+        assertEquals(mapOf("winner" to gained),stores.fame.settle(world,stores.get(1)))
+
+        val reopened=CharacterStores(file)
+        val restored=assertNotNull(reopened.fame.evaluation(world,reopened.get(1),"winner"))
+        val encoded=java.nio.ByteBuffer.wrap(SessionEndingMessages.evaluation(restored))
+        assertEquals(maxEvaluation,encoded.int.toLong() and maxEvaluation)
+        assertEquals(maxEvaluation,encoded.int.toLong() and maxEvaluation)
+        assertEquals(0,encoded.int)
+        assertEquals(gained,encoded.int)
+        assertEquals(gained,reopened.get(2).fame("winner"))
+        assertTrue(reopened.fame.settle(world,reopened.get(1)).isEmpty())
+    }
 }
