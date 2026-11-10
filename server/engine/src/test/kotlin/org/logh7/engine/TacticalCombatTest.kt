@@ -142,6 +142,61 @@ class TacticalCombatTest {
     private fun production(state:State) = PlanetProduction(galaxy,state.inventory,rules.startSeconds,PlanetProductionPolicy()).also {
         it.settle(1,now)
     }
+
+    @Test fun flagshipRefusesNewAndSavedShotsAtAnEliminatedEnemyWhileAnotherRemains() {
+        val (state,war)=stateWithSecondEnemy()
+        val nav=Navigation(galaxy,state.nav,NavigationPolicy())
+        val stock=production(state)
+        val before=stock.snapshot(1)!!
+        val defeated=war.copy(eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        assertEquals(NavigationRejection.TARGET,TacticalCombat.accept(request,defeated,galaxy,nav,before,state.commit,24).rejection)
+        val accepted=assertNotNull(TacticalCombat.accept(request,war,galaxy,nav,before,state.commit,24).player)
+        val due=assertNotNull(accepted.fire?.pending).firesAt
+        val reopened=Navigation(galaxy,state.nav,NavigationPolicy())
+        val hits=TacticalCombat.settle(defeated.copy(gameMillis=due*1000),galaxy,reopened,stock,state.commit)
+        val settled=state.players.getValue("pilot")
+        assertTrue(hits.isEmpty());assertTrue(settled.cpPaused)
+        assertEquals(accepted.fire.copy(pending=null),settled.fire)
+        assertEquals(accepted.charge,settled.charge);assertEquals(accepted.supplies,settled.supplies)
+        assertEquals(before.outfits,state.stocks.outfits)
+    }
+
+    @Test fun manualAndDelegatedAutomaticFlagshipFireSkipEliminatedEnemy() {
+        for(delegated in listOf(false,true)) {
+            val (state,war)=stateWithSecondEnemy()
+            val due=now+120
+            val pilot=state.players.getValue("pilot")
+            state.players=mapOf("pilot" to pilot.copy(hull=FlagshipHull(89,now),
+                attack=TacticalAttackOrder(2,now,if(delegated)now else due,due)))
+            val participants=if(delegated)war.participants.mapValues {(_,member)->member.copy(online=false,connection=null)} else war.participants
+            if(delegated)state.stocks=state.stocks.copy(tacticalCommands=TacticalCommandState(
+                aiSwitches=mapOf(pilot.characterId to 16),aiNextAt=mapOf(pilot.characterId to due+5)))
+            val defeated=war.copy(gameMillis=due*1000,participants=participants,
+                eliminated=mapOf(Power.EMPIRE.country to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+            val nav=Navigation(galaxy,state.nav,NavigationPolicy())
+            val stock=production(state)
+            val before=stock.snapshot(1)!!.outfits.getValue(1)
+            val hits=TacticalCombat.settle(defeated,galaxy,nav,stock,state.commit)
+            assertTrue(hits.isNotEmpty());assertTrue(hits.all {it.hit.target==2})
+            assertEquals(before,state.stocks.outfits.getValue(1))
+        }
+    }
+
+    private fun stateWithSecondEnemy():Pair<State,SessionState> {
+        val state=state()
+        val third=CountryId(42)
+        val first=state.stocks.outfits.getValue(1)
+        fun positioned(id:Int,y:Float):ActiveShipUnits {
+            val at=TacticalPoint(180f,y)
+            return ActiveShipUnits(listOf(ActiveShipUnit(id,UnitStack(32),tactical=NpcTacticalState(
+                TacticalMotion(2488,now,TacticalPose(at,0f),0f,0f,listOf(at)),now,now))))
+        }
+        val second=first.copy(id=2,country=third,warehouseId=20,activeShips=positioned(2,-94f))
+        state.stocks=state.stocks.copy(outfits=mapOf(1 to first.copy(activeShips=positioned(1,-95f)),2 to second),
+            warehouses=state.stocks.warehouses+(20 to state.stocks.warehouses.getValue(10).copy(id=20,country=third,outfitId=2)),nextShipId=3)
+        return state to session.copy(countries=session.countries+third)
+    }
+
     @Test fun flagshipBeamIsRejectedInStarCoverAndCancelledWithoutChargeLossWhenCoverReturns() {
         val world=Galaxy(galaxy.systems.map {if(it.grid==2488)it.copy(star=0) else it},galaxy.bases,galaxy.starts)
         val state=state()
