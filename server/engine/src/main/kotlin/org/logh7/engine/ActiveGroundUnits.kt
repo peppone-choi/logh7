@@ -66,15 +66,28 @@ object GroundUnits {
         return ActiveGroundUnits(roster) to cursor
     }
 
-    /** Landed troops stay ashore when the last carrier is sunk; survivors aboard a lost carrier
-     * retain outfit membership until an explicit carrier allocation is available. */
+    /** W p.52: transfer survivors to other ships. Without a free berth, retain outfit membership
+     * until another carrier allocation is available. Landed troops stay ashore. */
     internal fun afterLoss(outfit:OutfitStock,ships:ActiveShipUnits):Pair<Map<UnitStack,Int>,ActiveGroundUnits?> {
-        val old=outfit.activeGround ?: return (if(ships.values.any {it.boats>0})outfit.units.troops else emptyMap()) to null
-        val alive=ships.values.filter {it.boats>0}.map {it.id}.toSet()
-        val retained=old.values.filter {alive.isNotEmpty() || it.base>0}.map {
-            if(it.carrier!=0 && it.carrier !in alive)it.copy(carrier=0,order=null) else it
+        val survivors=ships.values.filter {it.boats>0}
+        val old=outfit.activeGround ?: return (if(survivors.isNotEmpty())outfit.units.troops else emptyMap()) to null
+        val alive=survivors.map {it.id}.toSet()
+        val retained=old.values.filter {alive.isNotEmpty() || it.base>0}
+        val displaced=retained.filter {it.carrier!=0 && it.carrier !in alive}
+        val transfers=if(displaced.isEmpty())emptyMap() else {
+            val occupied=retained.map {unit->
+                if(unit.carrier!=0)unit.carrier else unit.order?.takeIf {it.action==TacticalGroundAction.WITHDRAW}?.carrier ?: 0
+            }.groupingBy {it}.eachCount()
+            val available=survivors.sortedBy {it.id}
+            val free=available.associate {it.id to (GroundTransfer.capacity(it.stack.kind)-occupied.getOrDefault(it.id,0))}.toMutableMap()
+            val grids=ships.values.associate {it.id to (it.posture?.grid ?: it.tactical?.motion?.grid ?: outfit.position?.grid)}
+            displaced.sortedBy {it.id}.associate {unit->
+                val carrier=available.firstOrNull {grids[it.id]==grids[unit.carrier] && free.getValue(it.id)>0}
+                if(carrier!=null)free[carrier.id]=free.getValue(carrier.id)-1
+                unit.id to unit.copy(carrier=carrier?.id ?: 0,order=null)
+            }
         }
-        val roster=ActiveGroundUnits(retained)
+        val roster=ActiveGroundUnits(retained.map {transfers[it.id] ?: it})
         val crew=if(alive.isEmpty())emptyMap() else outfit.units.troops.filterKeys {!isGround(it.kind)}
         return (crew+roster.quantities()) to roster
     }
