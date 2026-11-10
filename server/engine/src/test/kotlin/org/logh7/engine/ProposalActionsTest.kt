@@ -37,6 +37,28 @@ class ProposalActionsTest {
         assertNull(approved.rejection);assertEquals(960,approved.player?.mcp,"the recipient pays the other half")
         assertTrue(policy.held(assertNotNull(approved.stocks),10001).none {it.card==19},"card 19 was resigned")
     }
+    @Test fun aRegularPoliticianCanOrderSeniorOfficersAcrossInstitutions() {
+        val base=policy.set(stocks(),OfficeHolding(17,1049,a.characterId),remove=true)
+        val politician=base.copy(strategic=base.strategic.copy(people=base.strategic.people+
+            (a.characterId to StrategicPerson(rank=1,militaryRank=10,influence=10))))
+        val opened=act("a",ProposalActions.OPEN,67,b.characterId,ProposalActions.RESIGNATION,19,politician)
+        assertNull(opened.rejection)
+        val pending=assertNotNull(opened.stocks)
+        val mail=pending.social.proposals.mails.single()
+        assertTrue(mail.order,"the politician card can order a senior officer")
+        assertEquals(960,opened.player?.mcp)
+        assertEquals(9,pending.strategic.people.getValue(a.characterId).influence)
+        val approved=act("b",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,pending)
+        assertNull(approved.rejection)
+        assertEquals(960,approved.player?.mcp)
+        assertTrue(policy.held(assertNotNull(approved.stocks),b.characterId).none {it.card==19})
+
+        assertEquals(SocialRejection.CARD,act("a",ProposalActions.OPEN,67,b.characterId,ProposalActions.RESIGNATION,19,base).rejection)
+        assertEquals(SocialRejection.CARD,act("a",ProposalActions.OPEN,196,b.characterId,ProposalActions.RESIGNATION,19,politician).rejection)
+        assertEquals(196,ProposalActions.politicianSenderCard(politician,a.copy(country=CountryId(3)),9))
+        assertNull(ProposalActions.politicianSenderCard(politician,a.copy(country=CountryId(42)),1))
+    }
+
     @Test fun absentDemotionOrdersRecheckTheTargetAndChargeOnlyOnce() = absentRankChange(ProposalActions.DEMOTION)
     @Test fun absentSpecialPromotionUpdatesTheTargetFlagshipAndChargesOnlyOnce() = absentRankChange(ProposalActions.SPECIAL_PROMOTION)
 

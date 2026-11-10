@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import org.logh7.engine.Navigator
+import org.logh7.engine.ProposalActions
 import org.logh7.engine.TacticalWeapon
 import org.logh7.engine.NpcFleetDialogue
 import org.logh7.engine.PublishedNpcFleetDialogue
@@ -11,6 +12,9 @@ import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.LoginMessages
 import java.nio.ByteBuffer
+
+internal fun politicianCardForWire(character:CharacterMessages.Generate,player:Navigator):Int? =
+    player.country?.takeIf {it.value==character.power}?.let {ProposalActions.politicianCard(it,character.rank)}
 
 /** Friendly grid presence plus people physically sharing a non-ship room. */
 class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
@@ -157,7 +161,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             val packets=mutableListOf(world.conditions(listOf(event.base),stocks),world.places(listOf(event.base),stocks))
             if(cards!=previous.offices || player.returnBase!=previous.player.returnBase || player.baseId!=previous.player.baseId) {
                 packets+=BootstrapMessages.changedCharacter(member.character,player.pcp,player.mcp,player.spotId,
-                    player.spotOwner,player.returnBase,cards)
+                    player.spotOwner,player.returnBase,cards,politicianCardForWire(member.character,player))
             }
             val expelled=previous.player.baseId==event.base && player.grid==event.grid &&
                 player.cpPaused && player.baseId==0 && event.expelled.values.any {it.characterId==player.characterId}
@@ -182,7 +186,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                         it.generation==event.generation && it.grid==event.grid && it.cpPaused && it.baseId==0}
                         ?: return@mapNotNull null
                     characterById(current.characterId)?.let {c->BootstrapMessages.character(
-                        c,current.pcp,current.mcp,current.spotId,current.spotOwner,current.returnBase,cards(current))}
+                        c,current.pcp,current.mcp,current.spotId,current.spotOwner,current.returnBase,cards(current),
+                        politicianCardForWire(c,current))}
                 }
                 packets+=org.logh7.protocol.TacticsMessages.definitions(event.grid,tactical.units,tactical.groundDefinitions)
                 packets+=org.logh7.protocol.TacticsMessages.corps(tactical.corps)
@@ -421,7 +426,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 val character=characterById(id)?.let {WorldCharacters.view(it,snapshot)}?.copy(merit=merit) ?: continue
                 val cards=members.values.singleOrNull {it.character.id==id.toLong()}?.offices.orEmpty()
                 packets+=BootstrapMessages.changedCharacter(character,person.pcp,person.mcp,person.spotId,
-                    person.spotOwner,person.returnBase,cards)
+                    person.spotOwner,person.returnBase,cards,politicianCardForWire(character,person))
             }
             // Completion publishes committed definitions/state, never an unconditional success ACK.
             if(!event.cancelled)for((id,value) in event.morale) {
@@ -603,7 +608,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                     // U-24: the sinking also lowered ability experience/values; refresh the victim's status panel.
                     val changed=snapshot?.let {s->WorldCharacters.view(viewer.character,s)}?.let {c->
                         BootstrapMessages.changedCharacter(c,departed.pcp,departed.mcp,departed.spotId,departed.spotOwner,
-                            departed.returnBase,viewer.offices)}
+                            departed.returnBase,viewer.offices,politicianCardForWire(c,departed))}
                     send(viewer,listOfNotNull(org.logh7.protocol.TacticsMessages.notify(impact.hit.grid,false),changed))
                 } else {
                     val location=if(snapshot==null)viewer.player else current ?: return@forEach
@@ -742,7 +747,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             shipKind = org.logh7.engine.Flagships.forType(power, member.character.shipType).kind) } ?: member.character
     fun character(member: Member) = shown(member).let { c -> BootstrapMessages.character(c, member.player.pcp,
         member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase,
-        if (c === member.character) member.offices else emptyList()) }
+        if (c === member.character) member.offices else emptyList(),
+        if (c === member.character) politicianCardForWire(c,member.player) else null) }
     fun unit(member: Member) = BootstrapMessages.unit(shown(member).let { c -> if (c === member.character) c.copy(shipKind=member.player.hull?.kind ?: c.shipKind) else c },member.player.grid,member.player.cruise,
         member.player.baseId,member.player.mode,member.outfit,member.player.supplies,if(member.player.hull?.hp?.let {it<100}==true)1 else 0)
     private fun location(previous: Member?, member: Member, seconds: Long) {
@@ -788,7 +794,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 val shownCharacter = shown(member)
                 val changed = BootstrapMessages.changedCharacter(shownCharacter, member.player.pcp,
                     member.player.mcp, member.player.spotId, member.player.spotOwner, member.player.returnBase,
-                    if (shownCharacter === member.character) member.offices else emptyList())
+                    if (shownCharacter === member.character) member.offices else emptyList(),
+                    if (shownCharacter === member.character) politicianCardForWire(shownCharacter,member.player) else null)
                 members.values.filter { visible(it, member) }.forEach { send(it, listOf(changed)) }
             }
             location(previous, member, seconds)
@@ -829,7 +836,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         val exit = if (changesGrid || previous.player.cpPaused || previous.pendingTacticalEnd && previous.player == departed)
             listOf(org.logh7.protocol.TacticsMessages.notify(previous.player.grid,false)) else emptyList()
         send(member,exit+listOf(BootstrapMessages.changedCharacter(character,departed.pcp,departed.mcp,departed.spotId,
-            departed.spotOwner,departed.returnBase,offices),unit(member)))
+            departed.spotOwner,departed.returnBase,offices,
+            politicianCardForWire(character,departed)),unit(member)))
         // During tactical exit the exchange suppresses strategy cache rebuilds, not the return itself.
         if(updated.refresh.isNotEmpty())send(member,updated.refresh)
     }
@@ -839,7 +847,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         val member=previous.copy(character=character,player=player,offices=offices,outfit=outfit)
         val updated=update(member,seconds)
         send(member,listOf(BootstrapMessages.changedCharacter(character,player.pcp,player.mcp,player.spotId,
-            player.spotOwner,player.returnBase,offices),unit(member))+updated.refresh)
+            player.spotOwner,player.returnBase,offices,
+            politicianCardForWire(character,player)),unit(member))+updated.refresh)
     }
     @Synchronized fun refreshOffices(characterId: Int,generation: Long,offices: List<BootstrapMessages.OfficeCard>,seconds: Long,outfit: Int?=null) {
         val previous=members.values.singleOrNull { it.character.id.toInt()==characterId && it.player.generation==generation } ?: return
@@ -847,7 +856,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         val player=next.player
         val updated=update(next,seconds)
         send(next,listOf(BootstrapMessages.changedCharacter(next.character,player.pcp,player.mcp,player.spotId,
-            player.spotOwner,player.returnBase,offices))+
+            player.spotOwner,player.returnBase,offices,
+            politicianCardForWire(next.character,player)))+
             (if(next.outfit!=previous.outfit) listOf(BootstrapMessages.unit(next.character.copy(shipKind=player.hull?.kind ?: next.character.shipKind),player.grid,player.cruise,
                 player.baseId,player.mode,next.outfit,player.supplies,if(player.hull?.hp?.let {it<100}==true)1 else 0)) else emptyList())+updated.refresh)
     }

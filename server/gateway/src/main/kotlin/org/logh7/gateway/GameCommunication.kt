@@ -125,9 +125,10 @@ class GameCommunication(private val presence:GamePresence,private val generation
             (ProposalActions.costs.getValue(mail.command)/2).toInt(),true)
     }
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
-    private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean,offices:Collection<OfficeCard>):List<ByteArray> {
-        // Only office cards own proposal rows; a peerage or fief card row crashed the CD's row builder (0053c933).
-        if(!officePost(post))return emptyList()
+    private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean,offices:Collection<OfficeCard>,
+        politicianPost:Boolean):List<ByteArray> {
+        // Peerage and fiefs are ordinary mail only. A politician's address owns sent proposals and replies.
+        if(!officePost(post) && !politicianPost)return emptyList()
         val state=proposals(expected) ?: return emptyList()
         val membership=owner.country ?: return emptyList()
         fun ranked(p:MailIdentity)=rank(p.character)?.let {p.copy(rank=it)} ?: p
@@ -218,10 +219,13 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 // Opening the CD mailbox queries the personal inbox/outbox and then every held card
                 // address (+120 = card number). A card that is no longer held simply lists nothing.
                 val post=post(query.owner)
+                val politicianPost=post==ProposalActions.politicianCard(owner.country,rank(owner.character) ?: owner.rank)
+                if(politicianPost)return listOf(Wire.begin(query))+
+                    proposalRows(expected,owner,post,query.inbox,actor.offices,true)+Wire.end()
                 if(!holds(actor,post))return listOf(Wire.begin(query),Wire.end())
                 if(post==0)views[connection]=query.inbox
                 val listed=inbox(engine,owner,query.inbox,query.all,post)
-                listed.dropLast(1)+proposalRows(expected,owner,post,query.inbox,actor.offices)+listed.last()
+                listed.dropLast(1)+proposalRows(expected,owner,post,query.inbox,actor.offices,false)+listed.last()
             }
             0x0f0b -> {
                 val command=Wire.exchange(body)

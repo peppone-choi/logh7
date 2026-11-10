@@ -260,7 +260,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
         emergencySupply(base.id)?.let {TacticalBaseMessages.emergency(base.id,0,it.supplies,0)}
     }
     fun initialize(offices:(CharacterMessages.Generate,Navigator)->List<BootstrapMessages.OfficeCard> = {_,_->emptyList()}): List<ByteArray> = people.mapNotNull {p->characterById(p.characterId)?.let {c->
-        BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,offices(c,p))
+        BootstrapMessages.character(c,p.pcp,p.mcp,p.spotId,p.spotOwner,p.returnBase,offices(c,p),
+            politicianCardForWire(c,p))
     }} + listOf(TacticsMessages.baseInformation(baseInformation),
         TacticsMessages.definitions(viewer.grid,units,groundDefinitions),
         TacticsMessages.characters(viewer.grid,people.map {it.characterId}),TacticsMessages.corps(corps),TacticsMessages.states(units))+emergencySupplies()

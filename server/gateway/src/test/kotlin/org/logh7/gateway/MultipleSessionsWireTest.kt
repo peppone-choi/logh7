@@ -62,6 +62,9 @@ class MultipleSessionsWireTest {
                 val start = profile.limit() - 1 - 6 * cards.size
                 assertEquals(cards.toList(), cards.indices.map { profile.getShort(start + 6 * it).toInt() })
                 assertEquals(cards.size + 1, profile.get(start - 7).toInt())
+                assertEquals(0, profile.getShort(start - 6).toInt())
+                assertEquals(0, profile.getInt(start - 4))
+                assertEquals(0, profile.getInt(profile.limit() - 5), "The politician card is seatless")
                 next(client, 0x0f01)
             }
         }
@@ -134,7 +137,7 @@ class MultipleSessionsWireTest {
         }
         var quote = 0
         world(1) { alpha, _ -> world(2) { beta, _ -> lobby(alpha).use { lobby ->
-            enter(lobby, alpha, 1, 59, 8, 54).use { player ->
+            enter(lobby, alpha, 1, 59, 8, 54, 67).use { player ->
                 fundsView(player, 1000, governed = true)
                 invest(player, balance = 850)
                 assertEquals(listOf(4000L, 100L, 0L), budget(player).map(::amount))
@@ -143,18 +146,18 @@ class MultipleSessionsWireTest {
                 quote = prepared.getInt(29)
                 assertTrue(quote > 0)
             }
-            enter(lobby, beta, 2, 59).use { player ->
+            enter(lobby, beta, 2, 59, 67).use { player ->
                 fundsView(player, 2000, governed = false)
                 invest(player)
                 assertEquals(listOf(0L, 0L, 0L), budget(player, 2, quote, BudgetRejection.AUTHORITY).map(::amount))
             }
         } } }
         world(1) { alpha, a -> world(2) { beta, b -> lobby(alpha).use { lobby ->
-            enter(lobby, beta, 2, 59).use { player ->
+            enter(lobby, beta, 2, 59, 67).use { player ->
                 fundsView(player, 2000, governed = false)
                 assertEquals(listOf(0L, 0L, 0L), budget(player, rejection = BudgetRejection.AUTHORITY).map(::amount))
             }
-            enter(lobby, alpha, 1, 59, 8, 54).use { player ->
+            enter(lobby, alpha, 1, 59, 8, 54, 67).use { player ->
                 fundsView(player, 850, governed = true)
                 assertEquals(quote, budget(player).last().getInt(29))
                 repeat(2) { assertEquals(listOf(3000L, 1100L, 1000L), budget(player, 2, quote).map(::amount)) }

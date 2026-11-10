@@ -18,11 +18,11 @@ class RetirementWireTest {
         error("Missing opcode $opcode")
     }
     /** Card rows close the record: count, (kind u16, target u32)*, together u8. */
-    private fun cards(record:ByteArray):List<Int> {
+    private fun cards(record:ByteArray):List<Pair<Int,Int>> {
         for(count in 2..16) {
             val start=record.size-1-6*count
             if(record[start-1].toInt()==count && ByteBuffer.wrap(record).getShort(start).toInt()==0)
-                return List(count) {ByteBuffer.wrap(record).getShort(start+6*it).toInt()}
+                return ByteBuffer.wrap(record,start,6*count).let {tail->List(count) {tail.short.toInt() to tail.int}}
         }
         error("No card rows")
     }
@@ -51,7 +51,7 @@ class RetirementWireTest {
                 .putInt(0).put(0).putInt(0).putShort(0).putInt(0).putShort(41).array())
             next(actor,0x1200)
             val updated=next(actor,0x0356)
-            assertEquals(listOf(0,59),cards(updated))
+            assertEquals(listOf(0 to 0,59 to 1_010_000,67 to 0),cards(updated))
             assertEquals(0,stocks.outfits.getValue(200).commanderId)
             assertEquals(1,stocks.strategic.people.getValue(10000).rank)
         }

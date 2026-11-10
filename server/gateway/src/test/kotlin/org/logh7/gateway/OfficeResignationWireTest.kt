@@ -64,7 +64,8 @@ class OfficeResignationWireTest {
                 }
                 var status=next(clients[i],0x0356)
                 while(ByteBuffer.wrap(status).getInt(7)!=player.characterId)status=next(clients[i],0x0356)
-                assertContentEquals(BootstrapMessages.changedCharacter(character,player.pcp,player.mcp,offices=cards),
+                assertContentEquals(BootstrapMessages.changedCharacter(character,player.pcp,player.mcp,
+                    offices=cards,politicianCard=if(i==0)67 else null),
                     status)
             }
         }
@@ -98,7 +99,8 @@ class OfficeResignationWireTest {
             repeat(2) {attempt->
                 actor.send(query);val ack=ByteBuffer.wrap(next(actor,0x709))
                 assertEquals(if(attempt==0)0 else 1,ack.int);assertEquals(1000,ack.getInt(14));assertEquals(920,ack.getInt(18))
-                assertContentEquals(BootstrapMessages.changedCharacter(people[0],1000,920),next(actor,0x0356))
+                assertContentEquals(BootstrapMessages.changedCharacter(people[0],1000,920,
+                    politicianCard=if(rank==1)196 else null),next(actor,0x0356))
                 roster();assertEquals(0,next(observer,0x034f)[8].toInt())
             }
             if(card==17) {

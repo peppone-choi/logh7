@@ -43,12 +43,20 @@ class CapitalAppointmentWireTest {
         val navStore=object:NavigationStore {override fun load()=players;override fun save(value:Map<String,Navigator>){players=value}}
         val stockStore=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
         val commit=WorldStateCommitter {nav,inventory ->players=nav;stocks=checkNotNull(inventory)}
+        fun assertCards(record:ByteArray,id:Int,rank:Int,office:Int,seat:Int) {
+            val expected=listOf(0 to 0,(if(rule.power==2)59 else 195) to id+1_000_000,office to seat)+
+                if(rank==1)listOf((if(rule.power==2)67 else 196) to 0) else emptyList()
+            val size=2+6*expected.size
+            val tail=ByteBuffer.wrap(record,record.size-size,size)
+            assertEquals(expected.size,tail.get().toInt())
+            assertEquals(expected,List(expected.size) {tail.short.toInt() to tail.int})
+            assertEquals(0,tail.get().toInt())
+        }
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,stockStore=stockStore,navigationStore=navStore,
             worldStateCommitter=commit).use {fixture ->
             val actor=fixture.join(fixture.account(0),false,false).client
             actor.send(SyntheticClient.opcode(0x0f00));val initial=next(actor,0x0323);next(actor,0x0f01)
-            assertEquals(rule.authority.card,ByteBuffer.wrap(initial).getShort(initial.size-7).toInt())
-            assertEquals(rule.authority.seat(galaxy),ByteBuffer.wrap(initial).getInt(initial.size-5))
+            assertCards(initial,10000,actorRank,rule.authority.card,checkNotNull(rule.authority.seat(galaxy)))
             actor.send(ByteBuffer.allocate(4).putShort(0x034e).putShort(rule.authority.card.toShort()).array())
             val nationalRoster=next(actor,0x034f)
             assertEquals(1,nationalRoster[8].toInt());assertEquals(10000,ByteBuffer.wrap(nationalRoster).getInt(9))
@@ -81,8 +89,7 @@ class CapitalAppointmentWireTest {
                 next(actor,0x0356)
                 if(attempt==0) {
                     val updated=next(target,0x0356)
-                    assertEquals(card,ByteBuffer.wrap(updated).getShort(updated.size-7).toInt())
-                    assertEquals(base,ByteBuffer.wrap(updated).getInt(updated.size-5))
+                    assertCards(updated,10001,targetRank,card,base)
                 }
                 actor.send(ByteBuffer.allocate(4).putShort(0x034e).putShort(card.toShort()).array())
                 val roster=next(actor,0x034f);assertEquals(1,roster[8].toInt());assertEquals(10001,ByteBuffer.wrap(roster).getInt(9))

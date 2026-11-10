@@ -131,7 +131,8 @@ class NationalOfficeDismissalWireTest {
                 assertEquals(1000,ack.getInt(14));assertEquals(840,ack.getInt(18))
                 assertEquals(if(attempt==0)10001 else 0,ack.getInt(22));assertEquals(role.card,ack.getInt(26))
                 assertContentEquals(BootstrapMessages.changedCharacter(characters[0],1000,840,
-                    offices=listOf(BootstrapMessages.OfficeCard(authority.card,checkNotNull(authority.seat(galaxy))))),
+                    offices=listOf(BootstrapMessages.OfficeCard(authority.card,checkNotNull(authority.seat(galaxy)))),
+                    politicianCard=if(characters[0].rank==1)196 else null),
                     changedCharacter(actor,10000))
                 if(attempt==0) {
                     assertContentEquals(BootstrapMessages.changedCharacter(characters[1],1000,1000),changedCharacter(target,10001))
