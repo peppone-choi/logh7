@@ -433,8 +433,8 @@ class NpcStrategyTest {
                 outfits = mapOf(1 to OutfitSupplies.withBalances(fleet, mapOf(1 to fuel))),
             )
             val events = mutableListOf<NpcStrategicMovement>()
-            fun advanceWorld(at: Long, stocks: PlanetStocks) =
-                NpcStrategy.advance(simulation.copy(gameMillis = at * 1000), world, mutableMapOf(), stocks, events)
+            fun advanceWorld(at: Long, stocks: PlanetStocks, pilots: MutableMap<String,Navigator> = mutableMapOf()) =
+                NpcStrategy.advance(simulation.copy(gameMillis = at * 1000), world, pilots, stocks, events)
 
             val reserved = advanceWorld(0, initial)
             assertEquals(2488, reserved.outfits.getValue(1).strategy?.destination)
@@ -457,6 +457,42 @@ class NpcStrategyTest {
                 assertEquals(OutfitPosition(2487, 1000), fallback.outfits.getValue(1).position)
                 assertEquals(depleted.bases, fallback.bases)
                 assertTrue(events.isEmpty())
+
+                val parked=fallback.outfits.getValue(1)
+                val nextCheck=assertNotNull(parked.strategy).nextDecisionAt
+                val restored=fallback.copy(bases=fallback.bases+(1001 to remote))
+                val enemy=players().getValue("pilot").copy(grid=2487)
+                val contested=advanceWorld(nextCheck,restored,mutableMapOf("pilot" to enemy))
+                assertNull(contested.outfits.getValue(1).strategy?.destination)
+                assertEquals(restored.bases,contested.bases)
+
+                val locallyRestored=restored.copy(bases=restored.bases+(1000 to depot))
+                val normal=advanceWorld(nextCheck,locallyRestored,mutableMapOf("pilot" to enemy.copy(grid=2486)))
+                assertEquals(2486,normal.outfits.getValue(1).strategy?.destination)
+                assertEquals(locallyRestored.bases,normal.bases)
+
+                val retry=advanceWorld(nextCheck,restored)
+                val rescue=assertNotNull(retry.outfits.getValue(1).strategy)
+                assertEquals(2488,rescue.destination)
+                assertEquals(parked,retry.outfits.getValue(1).copy(strategy=parked.strategy))
+                assertEquals(restored.bases,retry.bases)
+                assertTrue(events.isEmpty())
+
+                val arrival=assertNotNull(rescue.arrivesAt)
+                val emptyAgain=retry.copy(bases=depleted.bases)
+                val cancelled=advanceWorld(arrival,emptyAgain)
+                assertEquals(parked,cancelled.outfits.getValue(1).copy(strategy=parked.strategy))
+                assertEquals(emptyAgain.bases,cancelled.bases)
+                assertTrue(events.isEmpty())
+
+                val recovered=advanceWorld(arrival,retry)
+                assertEquals(OutfitPosition(2488,1001),recovered.outfits.getValue(1).position)
+                assertEquals(3000,recovered.outfits.getValue(1).supplies)
+                assertEquals(0,recovered.bases.getValue(1000).supplies)
+                assertEquals(remote.supplies-3300,recovered.bases.getValue(1001).supplies)
+                assertEquals(2488,events.single().destination)
+                assertEquals(recovered,advanceWorld(arrival,recovered))
+                assertEquals(1,events.size)
             }
         }
     }
