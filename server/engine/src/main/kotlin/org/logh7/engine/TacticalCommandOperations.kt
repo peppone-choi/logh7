@@ -222,6 +222,12 @@ internal object TacticalCommandOperations {
                     val at=supportPoint(id,base!!,now,players,s,g) ?: return NavigationRejection.TARGET
                     if(hypot((at.x-centre.x).toDouble(),(at.y-centre.y).toDouble())>maxOf(1f,base.diameter))return NavigationRejection.RANGE
                 }
+                if(c.opcode==0x41c && c.units.all {id ->
+                    ship(id,s)?.let { target ->
+                        target.outfit.kind==OutfitKind.TRANSPORT && TacticalSupportOperations.externalSupplyRoom(
+                            target.outfit,target.unit,OutfitSupplies.distribution(target.outfit).getValue(id),s)==0
+                    }==true
+                })return NavigationRejection.SUPPLY
             }
             0x41f -> {
                 if(base?.kind!=1 || !base.mobile || c.points.isEmpty() || !FortressArmor.propulsion(s,base.id))
@@ -352,9 +358,9 @@ internal object TacticalCommandOperations {
                 if(u!=null)replace(id){it.copy(damaged=it.damaged-count)} else personal(id){it.copy(hull=it.hull!!.copy(hp=100))}
                 stocks=stocks.copy(bases=stocks.bases+(base to stock.copy(supplies=available-count*cost)))
             } else {
-                val capacity=u?.unit?.let {OutfitSupplies.unitCapacity(it)} ?: 10000
                 val balance=u?.let {OutfitSupplies.distribution(it.outfit).getValue(id)} ?: p?.supplies ?: return false
-                val count=minOf(available,capacity-balance);if(count<=0)return false
+                val room=u?.let {TacticalSupportOperations.externalSupplyRoom(it.outfit,it.unit,balance,stocks)} ?: 10000-balance
+                val count=minOf(available,room);if(count<=0)return false
                 if(u==null)personal(id){it.copy(supplies=it.supplies+count)} else spend(id,-count)
                 stocks=stocks.copy(bases=stocks.bases+(base to stock.copy(supplies=available-count)))
             }
