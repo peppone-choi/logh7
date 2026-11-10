@@ -48,7 +48,7 @@ internal object NpcTactics {
 
     private fun contacts(outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,
         galaxy:Galaxy,eliminated:Set<CountryId>):List<Contact> = players.values.filter {it.country !in eliminated &&
-        it.grid==grid && it.baseId==0 && it.cpPaused &&
+        !BattleDeath.deceased(stocks,it.characterId) && it.grid==grid && it.baseId==0 && it.cpPaused &&
         TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now,p.posture,galaxy) ?:
             TacticalDeployment.initial(p.unitId,grid,players.values,stocks,galaxy))} +
         stocks.outfits.values.filter {it.country !in eliminated && TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) &&
