@@ -357,6 +357,24 @@ class NpcStrategyTest {
         assertTrue(events.isEmpty())
     }
 
+    @Test fun losingTheLastReachableDepotStopsAnOffensiveJumpBeforeItSpendsFuel() {
+        val original=stocks()
+        val fleet=OutfitSupplies.withBalances(original.outfits.getValue(1).copy(position=OutfitPosition(2489)),mapOf(1 to 600))
+        val captured=original.copy(
+            bases=original.bases.mapValues {(_,base)->base.copy(owner=Allegiance.fromLegacy(3))},
+            outfits=mapOf(1 to fleet))
+        val observers=players().also {it["pilot"]=it.getValue("pilot").copy(grid=2490)}
+        val events=mutableListOf<NpcStrategicMovement>()
+        val holding=advance(0,captured,observers,events)
+        assertEquals(fleet.copy(strategy=NpcStrategicState(21600)),holding.outfits.getValue(1))
+
+        val pending=fleet.copy(strategy=NpcStrategicState(21600,2490,3600))
+        val cancelled=advance(3600,captured.copy(outfits=mapOf(1 to pending)),observers,events)
+        assertEquals(fleet.copy(strategy=NpcStrategicState(25200)),cancelled.outfits.getValue(1))
+        assertEquals(captured.bases,cancelled.bases)
+        assertTrue(events.isEmpty())
+    }
+
     @Test fun changedThreatCancelsTheOldAdvanceBeforeItSpendsFuel() {
         val players=players().also {it["pilot"]=it.getValue("pilot").copy(grid=2688)}
         val events=mutableListOf<NpcStrategicMovement>()
