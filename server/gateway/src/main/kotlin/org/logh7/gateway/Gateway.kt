@@ -205,8 +205,10 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                 val snapshot=navigation?.snapshot();val characters=currentCharacters()
                 val generation=snapshot?.session?.generation
                 if(!started || closed.get() || generation!=null && generation!=(admission?.generation ?: 1L))null else {
-                    characters.character(account)?.takeIf {org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}
-                        ?.let {characters.retire(account,it.id)}
+                    if (snapshot?.session?.ended == null && admission?.running != false) {
+                        characters.character(account)?.takeIf {org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}
+                            ?.let {characters.retire(account,it.id)}
+                    }
                     characters.character(account)?.takeIf {admission?.running!=false || snapshot?.result!=null}?.let {character->
                         val info=information(snapshot,characters.registeredCharacters())
                         val evaluation=if(snapshot?.result==null)null else characterStores.fame.evaluation(snapshot,characters,account)

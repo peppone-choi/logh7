@@ -110,6 +110,50 @@ class SessionEndingLobbyWireTest {
             }
         }
     }
+    @Test fun endedLobbyKeepsAFallenPlayersRegistrationAndSettlementInBothLobbyModes() = runBlocking {
+        for (shared in listOf(false, true)) {
+            val root = directory.resolve(if (shared) "shared" else "single")
+            java.nio.file.Files.createDirectories(root)
+            val file = root.resolve("characters.properties")
+            val casualty = org.logh7.protocol.CharacterMessages.Generate(4,10000,2,0,0,"Fallen","Pilot",30,
+                1,1,1,List(8){50},0,0,0,7,0,0,"Ship",1)
+            val characters = CharacterCreation(file)
+            assertTrue(characters.carry("load-000", casualty))
+            assertTrue(characters.carry("load-001", casualty.copy(id=10001,surname="Other",shipName="OtherShip")))
+            val state = object : PlanetStockStore {
+                var saved = PlanetStocks(1,0, mapOf(1000 to PlanetStock(1000,2,0,0,0,0),
+                    1001 to PlanetStock(1001,3,0,0,0,0)), strategic = StrategicState(people =
+                    (10000..10001).associateWith { StrategicPerson(rank=7,evaluation=1200,deceasedAt=1) }))
+                override fun load() = saved
+                override fun save(stocks: PlanetStocks) { saved = stocks }
+            }
+            val registry = if (shared) GameSessionDirectory() else null
+            LoadFixture(root,2,LoadMetrics(),galaxy,ticking=false,stockStore=state,sessionDirectory=registry).use { f ->
+                f.engine.submit(WorldCommand.Probe)
+                f.await("loaded casualties") { f.engine.snapshot().planetStocks != null }
+                lobby(f,1).use { client ->
+                    client.send(SyntheticClient.opcode(0x2003)); client.expect(0x2004)
+                }
+                assertNull(CharacterCreation(file).character(f.account(1)))
+                f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4, Power.ALLIANCE to 4), setOf(Power.ALLIANCE)))
+                f.await("settled casualties") { f.engine.snapshot().result != null &&
+                    FameLedger(file.resolveSibling("${file.fileName}.fame")).fame().containsKey(f.account(0)) }
+                val before = java.nio.file.Files.readAllBytes(file)
+                lobby(f,0).use { client ->
+                    repeat(2) {
+                        client.send(SyntheticClient.opcode(0x2003))
+                        val reply = client.expect(0x2004)
+                        assertEquals(10000 to 2, charged(reply))
+                        val expected = org.logh7.protocol.SessionEndingMessages.evaluation(
+                            org.logh7.protocol.SessionEndingMessages.Evaluation(1200,1936,0,19,0))
+                        assertContentEquals(expected, reply.takeLast(expected.size).toByteArray())
+                    }
+                }
+                assertContentEquals(before, java.nio.file.Files.readAllBytes(file))
+            }
+        }
+    }
+
     @Test fun automaticNextGenerationRecreatesBothAccountsAndRestoresInitialWorldWithoutOldLocationsOrCosts()=runBlocking {
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,powerByIndex={if(it==1)3 else 2}).use {f->
             val old=(0..1).map {f.join(f.account(it),true,false).client.also {client->

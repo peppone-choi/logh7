@@ -3060,9 +3060,12 @@ class GameExchange(
                     }
                     val snapshot=navigation?.snapshot()
                     val current=characterProvider()
-                    // U-11: a character killed in battle is removed here; the lobby then offers creation.
-                    characters.character(identity.account)?.takeIf {characters===current && snapshot?.session?.generation==admission?.generation &&
-                        org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}?.let {characters.retire(identity.account,it.id)}
+                    // During play, a fallen character retires so the lobby can offer creation again.
+                    if (characters===current && snapshot?.session?.generation==admission?.generation &&
+                        snapshot?.session?.ended==null && admission?.running!=false) {
+                        characters.character(identity.account)?.takeIf {org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}
+                            ?.let {characters.retire(identity.account,it.id)}
+                    }
                     val character=characters.character(identity.account)
                     // Lobby accounts may inspect their own ended character without joining,
                     // changing CP/navigation, or obtaining a playable ended-session ticket.
