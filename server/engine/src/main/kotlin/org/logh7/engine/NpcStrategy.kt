@@ -5,7 +5,8 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /** Replacement strategic policy for uncommanded fleets; not offline character delegation. */
-data class NpcStrategicState(val nextDecisionAt:Long,val destination:Int?=null,val arrivesAt:Long?=null) {
+data class NpcStrategicState(val nextDecisionAt:Long,val destination:Int?=null,val arrivesAt:Long?=null,
+    val awaitingDockSupply:Boolean=false) {
     init {
         require(nextDecisionAt in 0..0xffffffffL && (destination==null)==(arrivesAt==null))
         require(destination==null || destination in 0..4999 && arrivesAt!! in 0..nextDecisionAt)
@@ -276,8 +277,9 @@ internal object NpcStrategy {
         }
         fun dockLocally(outfit:OutfitStock,destination:OutfitPosition) {
             val repaired=repairAtDepot(outfit.copy(position=destination))
+            val awaitingSupply = outfit.guard == null && depot(stocks, repaired, galaxy)?.supplies == 0
             val (inventory,replenished)=checkNotNull(supplied(stocks,repaired,galaxy,departing=false))
-            val docked=replenished.copy(strategy=NpcStrategicState(now+21600),
+            val docked=replenished.copy(strategy=NpcStrategicState(now+21600, awaitingDockSupply=awaitingSupply),
                 activeShips=ActiveShipUnits(replenished.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,posture=null)}))
             stocks=inventory.copy(outfits=inventory.outfits+(outfit.id to docked))
             forceCache=null
@@ -296,6 +298,7 @@ internal object NpcStrategy {
                 unit.boats>0 && unit.posture?.let {it.grid==position.grid && it.mode.requiresBase}==true
             }
             val pending=outfit.strategy
+            var awaitingSupply = position.baseId != 0 && pending?.awaitingDockSupply == true
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
                 val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys,destination)
@@ -320,8 +323,8 @@ internal object NpcStrategy {
                     else null
                     val next=if(canDepart(stocks,outfit,galaxy))reroute?.next
                         else reliefRoute(galaxy,forces(),outfit,stocks)?.next
-                    val strategy=if(next==null)NpcStrategicState(now+21600)
-                        else NpcStrategicState(now+21600,next,now+3600)
+                    val strategy=if(next==null)NpcStrategicState(now+21600, awaitingDockSupply=awaitingSupply)
+                        else NpcStrategicState(now+21600,next,now+3600,awaitingSupply)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=strategy)))
                     continue
                 }
@@ -336,7 +339,8 @@ internal object NpcStrategy {
                         OutfitSupplies.withBalances(outfit,cargo)
                 }
                 if(provision==null) {
-                    stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=NpcStrategicState(now+21600))))
+                    stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(
+                        strategy=NpcStrategicState(now+21600, awaitingDockSupply=awaitingSupply))))
                     continue
                 }
                 stocks=provision.first;outfit=provision.second
@@ -345,8 +349,9 @@ internal object NpcStrategy {
                         posture=null,attack=null,shot=null)}))
                 if(planned.baseId!=0) {
                     moved=repairAtDepot(moved)
+                    val dry = moved.guard == null && depot(stocks, moved, galaxy)?.supplies == 0
                     val replenished=checkNotNull(supplied(stocks,moved,galaxy,departing=false))
-                    stocks=replenished.first;moved=replenished.second
+                    stocks=replenished.first;moved=replenished.second.copy(strategy=NpcStrategicState(now+21600, awaitingDockSupply=dry))
                 }
                 stocks=stocks.copy(outfits=stocks.outfits+(id to moved))
                 forceCache=null // Later arrivals must see this move when checking the 300-unit cap.
@@ -370,7 +375,15 @@ internal object NpcStrategy {
                     dockLocally(outfit,destination)
                 } else {
                     val grid=if(hasTacticalBerth)null else relief?.next ?: destination?.grid?.takeIf {canDepart(stocks,outfit,galaxy)}
-                    val next=if(grid==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,grid,now+3600)
+                    if (grid == null && awaitingSupply && (depot(stocks, outfit, galaxy)?.supplies ?: 0) > 0 &&
+                        !TacticalContact.contested(forces()[position.grid].orEmpty()) && !warehouseBlocked(stocks, id)) {
+                        val (inventory, replenished) = checkNotNull(supplied(stocks, outfit, galaxy, departing = false))
+                        stocks = inventory
+                        outfit = replenished
+                        awaitingSupply = false
+                    }
+                    val next=if(grid==null)NpcStrategicState(now+21600, awaitingDockSupply=awaitingSupply)
+                        else NpcStrategicState(now+21600,grid,now+3600,awaitingSupply)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
                 }
             }
