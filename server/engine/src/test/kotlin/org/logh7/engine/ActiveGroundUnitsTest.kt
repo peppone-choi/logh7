@@ -40,15 +40,35 @@ class ActiveGroundUnitsTest {
         assertTrue(next.outfits.getValue(2).activeGround!!.values.all {it.base==1000 && it.carrier==0})
         assertEquals(7,next.nextShipId)
     }
-    @Test fun survivingFleetKeepsTroopIdentityWithoutInventingAnEvacuationCarrier() {
+    @Test fun survivingFleetTransfersAboardTroopsAndCancelsTheirOldOrders() {
         val old=stocks().outfits.getValue(1)
+        val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,10000,2487,1,1000,10,35)
+        val aboard=ActiveGroundUnit(2,troop,carrier=1,order=order,strength=700)
+        val landed=ActiveGroundUnit(3,troop,base=1000,origin=1)
         val outfit=old.copy(units=UnitInventory(mapOf(ship to 2),old.units.troops),
             activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,ship),ActiveShipUnit(4,ship))),
-            activeGround=ActiveGroundUnits(listOf(ActiveGroundUnit(2,troop,carrier=1),ActiveGroundUnit(3,troop,base=1000))))
+            activeGround=ActiveGroundUnits(listOf(aboard,landed)))
+        assertEquals(listOf(aboard,landed),TacticalLosses.apply(outfit,1,1).activeGround!!.values)
         val after=TacticalLosses.apply(outfit,1,300)
         assertEquals(outfit.units.troops,after.units.troops)
-        assertEquals(listOf(ActiveGroundUnit(2,troop),ActiveGroundUnit(3,troop,base=1000)),after.activeGround!!.values)
+        assertEquals(listOf(aboard.copy(carrier=4,order=null),landed),after.activeGround!!.values)
         assertEquals(2,GridForces.mobileUnits(after))
+    }
+
+    @Test fun evacuationUsesOnlyFreeBerthsInTheSameGrid() {
+        val old=stocks().outfits.getValue(1)
+        val withdrawal=TacticalGroundOrder(TacticalGroundAction.WITHDRAW,10000,2487,5,1000,10,35)
+        val roster=ActiveGroundUnits(listOf(ActiveGroundUnit(3,troop,carrier=1),ActiveGroundUnit(2,troop,carrier=1),
+            ActiveGroundUnit(7,troop,carrier=5),ActiveGroundUnit(8,troop,base=1000,origin=5,order=withdrawal),
+            ActiveGroundUnit(9,troop,carrier=6)))
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(6,ship),ActiveShipUnit(4,ship,posture=TacticalPosture(2488)),
+            ActiveShipUnit(1,ship),ActiveShipUnit(5,ship)))
+        val outfit=old.copy(position=OutfitPosition(2487),units=UnitInventory(ships.quantities(),roster.quantities()),
+            activeShips=ships,activeGround=roster)
+        val after=TacticalLosses.apply(outfit,1,300)
+        assertEquals(mapOf(3 to 0,2 to 6,7 to 5,8 to 0,9 to 6),after.activeGround!!.values.associate {it.id to it.carrier})
+        assertEquals(withdrawal,after.activeGround!!.values.single {it.id==8}.order)
+        assertEquals(roster.quantities(),after.units.troops)
     }
     @Test fun loadedCarrierAndDeployedTroopsCannotBeReturnedThroughReorganization() {
         val initial=ActiveShips.initialize(stocks());val old=initial.outfits.getValue(1)
