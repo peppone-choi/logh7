@@ -121,6 +121,48 @@ static int transportPlanTest() {
     if(plan.staged() || stage.begin(plan,11,11,22,0))return 1201;           // A duplicate code is never staged.
     return 0;
 }
+#include "home_report_data.h"
+// The native 1200 field order (u32,u16,u16,u16,u16,u32,u8,u32,u16,u32,u16 at the decoded offsets), each swapped whole.
+static const unsigned homeReportFields[][2]={{0,4},{4,2},{6,2},{8,2},{10,2},{12,4},{16,1},{20,4},{24,2},{28,4},{32,2}};
+static void homeReportToWire(const unsigned char (&record)[36],unsigned char (&wire)[29]) {
+    unsigned next=0;
+    for(const auto& field:homeReportFields)for(unsigned i=0;i<field[1];++i)wire[next++]=record[field[0]+field[1]-1-i];
+}
+static void homeReportFromWire(const unsigned char (&wire)[29],unsigned char (&record)[36]) {
+    memset(record,0xcc,sizeof(record));unsigned next=0; // Padding is never read.
+    for(const auto& field:homeReportFields)for(unsigned i=0;i<field[1];++i)record[field[0]+field[1]-1-i]=wire[next++];
+}
+// 7f14 home intelligence report: server wire layout through the native field codec (codes 1210+).
+static int homeReportTest() {
+    unsigned char record[36],wire[29];
+    if(!logh::homeReportQuery(record,105038,3021,0x01020304u))return 1210;
+    homeReportToWire(record,wire);
+    const unsigned char query[29]={0,1,0x9a,0x4e,0x7f,0x14,0x0b,0xcd,1,2,3,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1};
+    if(memcmp(wire,query,sizeof(wire)))return 1211;                  // All report fields zero, constant 1 at 27.
+    if(logh::homeReportQuery(record,0,3021,1) || logh::homeReportQuery(record,1,0,1) || logh::homeReportQuery(record,1,65536,1) ||
+        logh::homeReportQuery(record,1,1,0) || logh::homeReportQuery(record,1,1,0x80000000u))return 1212;
+    const unsigned char reply[29]={0,1,0x9a,0x4e,0x7f,0x14,0x0b,0xcd,1,2,3,4, 1, 0x0a,0x0b,0x0c,0x0d,
+        0x11,0x22,0x33,0x44,0x55,0x66,0x77,0x08, 73,41, 0,1};
+    homeReportFromWire(reply,record);logh::HomeReport report;
+    if(!logh::readHomeReport(record,report) || report.character!=105038 || report.base!=3021 || report.ticket!=0x01020304u ||
+        report.status!=1 || report.observedAt!=0x0a0b0c0du || report.treasury!=0x1122334455667708ULL ||
+        report.approval!=73 || report.peace!=41)return 1213;
+    homeReportFromWire(query,record);                                 // The empty reply has the request's shape.
+    if(!logh::readHomeReport(record,report) || report.status || report.treasury || report.observedAt)return 1214;
+    auto rejects=[&](const unsigned char (&base)[29],unsigned offset,unsigned char value,unsigned count=1) {
+        unsigned char changed[29];memcpy(changed,base,sizeof(changed));
+        for(unsigned i=0;i<count;++i)changed[offset+i]=value;
+        homeReportFromWire(changed,record);return !logh::readHomeReport(record,report);
+    };
+    if(!rejects(reply,28,2) || !rejects(reply,27,1))return 1215;      // The trailing constant must be exactly 1.
+    if(!rejects(reply,12,2) || !rejects(reply,25,101) || !rejects(reply,26,101) || !rejects(reply,17,0x80))return 1216;
+    if(!rejects(query,20,1) || !rejects(query,16,1) || !rejects(query,26,1))return 1217; // Empty carries no values.
+    if(!rejects(reply,5,0x13) || !rejects(reply,6,0,2))return 1218;   // Other subtype; base 0.
+    if(!rejects(reply,8,0,4) || !rejects(reply,8,0x80) || !rejects(reply,0,0,4) || !rejects(reply,0,0x80))return 1219;
+    unsigned char other[36]={};other[4]=0x13;other[5]=0x7f;
+    if(logh::isHomeReport(other))return 1220;                         // Other 7fxx families pass through.
+    return 0;
+}
 // HD texture pack rules: data-relative path, skipped files, header sizes and the reported size (codes 901+).
 static int checkHdTextureRules() {
     char rel[MAX_PATH];
@@ -1303,6 +1345,13 @@ static int lobbyCountryDataTest() {
     if(!logh::readCountryIdentity(record,sizeof(record),10000,43,identity) || !identity.wounded)return 1025;
     record[10]=0x1f;
     if(!logh::readCountryIdentity(record,sizeof(record),10000,43,identity) || identity.wounded)return 1026;
+    // 7f14 support bit 0x40 is independent of the portrait (0x04), spot portrait (0x08) and wounded (0x20) bits.
+    static_assert(logh::homeReportFlag==0x40 && !(logh::homeReportFlag&(0x04|0x08|0x20|logh::ownWoundedFlag)),"7f14 bit overlaps");
+    if(identity.homeReports)return 1027;                              // 0x1f above leaves 0x40 clear.
+    record[10]=logh::homeReportFlag;
+    if(!logh::readCountryIdentity(record,sizeof(record),10000,43,identity) || !identity.homeReports || identity.wounded)return 1028;
+    record[10]=static_cast<unsigned char>(~logh::homeReportFlag);
+    if(!logh::readCountryIdentity(record,sizeof(record),10000,43,identity) || identity.homeReports || !identity.wounded)return 1029;
     record[10]=0;
     auto identityWorld=reinterpret_cast<void*>(0x1234);
     publishCountryMetadata(identity.country);publishOwnCountryIdentity(identityWorld,identity);
@@ -1597,6 +1646,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(int result=facilityGuideTest())return result;
     if(int result=lobbyCountryDataTest())return result;
     if(int result=transportPlanTest())return result;
+    if(int result=homeReportTest())return result;
     if(logh::groundMeter(0,1000,70)!=0 || logh::groundMeter(500,1000,70)!=35 ||
         logh::groundMeter(1000,1000,70)!=70 || logh::groundMeter(1001,1000,70)!=70 ||
         logh::groundMeter(~0u,1000,70)!=70 || logh::groundMeter(500,0,70)!=0 ||

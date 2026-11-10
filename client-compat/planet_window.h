@@ -173,7 +173,9 @@ static bool createPlanetWindow(void* manager,bool directory=true) {
     planetControl(26, 720, 477, 100, 42, L"닫기", true);
     planetControl(27, 182, 385, 92, 30, L"< 성계", true);
     planetControl(28, 282, 385, 92, 30, L"성계 >", true);
-    planetControl(29, 182, 420, 192, 32, L"현재 위치", true);
+    planetControl(29, 182, 420, 92, 32, L"현재 위치", true);
+    // Explicit entry to the stored intelligence report of the selected base (home_report.h).
+    planetControl(33, 282, 420, 92, 32, L"첩보 보고", true);
     planetControl(30, 182, 460, 192, 42, L"행성 목록", true);
     for (int row = 0; row < 8; ++row) for (int col = 0; col < 4; ++col)
         planetControl(40 + row * 4 + col, 352 + col * 110, 234 + row * 26, 105, 24, L"", false);
@@ -231,6 +233,7 @@ static void planetName(unsigned id, wchar_t (&name)[13]) {
     if (base) memcpy(name, base + 0x48, 12 * sizeof(wchar_t));
     name[12] = 0;
 }
+#include "home_report.h"
 #include "planet_directory.h"
 static unsigned planetStockPages() {
     auto& info = planetInformation;
@@ -409,9 +412,11 @@ static void renderPlanetWindow() {
     auto& info = planetInformation;
     planetDirectoryLayout(info.directoryVisible);
     if (info.directoryVisible) { renderPlanetDirectory(); return; }
-    bool stock = planetWindowTab == 2;
-    bool units = planetWindowTab == 4;
-    bool places = planetWindowTab == 3;
+    // The report view always runs on tab 0 (togglePlanetReport), so no tab-specific table is active.
+    const bool report = planetReportView;
+    bool stock = !report && planetWindowTab == 2;
+    bool units = !report && planetWindowTab == 4;
+    bool places = !report && planetWindowTab == 3;
     for(int i=85;i<=88;++i) {
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(planetWindowRoot,planetWidget(i),0);
         planetEnabled(i,false);
@@ -438,8 +443,12 @@ static void renderPlanetWindow() {
         wchar_t label[24];
         _snwprintf_s(label, _countof(label), _TRUNCATE, L"%ls", tabs[tab]);
         planetCell(tab>=3 ? 28+tab : 20+tab, label);
-        planetSelected(tab>=3 ? 28+tab : 20+tab, tab == planetWindowTab);
+        planetSelected(tab>=3 ? 28+tab : 20+tab, !report && tab == planetWindowTab);
     }
+    planetCell(33, report ? L"공개 현황" : L"첩보 보고");
+    planetSelected(33, report);
+    // Entering needs the confirmed 7f14 capability; leaving the report view is always allowed.
+    planetEnabled(33, info.count > 0 && (report || homeReportAvailable(info.world, info.character)));
     wchar_t text[160], name[13] = {};
     for (unsigned i = 0; i < 4; ++i) {
         if (i < info.count) {
@@ -461,8 +470,9 @@ static void renderPlanetWindow() {
     planetIcon(0, info.count ? planetBase(info.ids[info.index]) : nullptr);
     if (!info.count) { planetCell(0, L"행성·요새"); planetCell(1, L"거점 없음 · 다른 성계를 선택해 주세요."); return; }
     planetName(info.ids[info.index], name);
-    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls  ·  %ls", name, units ? L"아군 배치" : places ? L"시설·스폿" : stock ? L"거점 창고" : planetWindowTab ? L"환경·내정" : L"개요");
+    _snwprintf_s(text, _countof(text), _TRUNCATE, L"%ls  ·  %ls", name, report ? L"첩보 보고" : units ? L"아군 배치" : places ? L"시설·스폿" : stock ? L"거점 창고" : planetWindowTab ? L"환경·내정" : L"개요");
     planetCell(0, text);
+    if (report) {renderHomeReport();return;}
     if (units) {renderPlanetUnits();return;}
     if (places) { renderPlanetPlaces(); return; }
     if (!(stock ? info.warehouseReady : info.conditionsReady)) {
