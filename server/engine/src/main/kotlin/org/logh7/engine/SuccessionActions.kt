@@ -56,9 +56,16 @@ object SuccessionActions {
                 }
                 3 -> {
                     fun chairmen(s:PlanetStocks)=s.strategic.offices.filter {it.country==country && it.card==PoliticianLadder.CHAIRMAN_CARD}.map {it.character}.toSet()
+                    val former=chairmen(old)
+                    val current=chairmen(new)
+                    val incoming=current-former
+                    val coupSuccess=incoming.any {leader->old.social.coup.plots[leader]?.let {
+                        it.country==country && it.revolt>0 && leader !in new.social.coup.plots
+                    }==true}
                     val (yes,no)=old.social.funds.confidence[id] ?: (0L to 0L)
-                    if(no>yes && id !in new.social.funds.confidence)(chairmen(old)-chairmen(new)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_DISMISSED)}
-                    (chairmen(new)-chairmen(old)).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_ELECTED)}
+                    if(!coupSuccess && no>yes && id !in new.social.funds.confidence)
+                        (former-current).forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_DISMISSED)}
+                    incoming.forEach {add(it,SuccessionNotice.Kind.CHAIRMAN_ELECTED)}
                 }
             }
         }
