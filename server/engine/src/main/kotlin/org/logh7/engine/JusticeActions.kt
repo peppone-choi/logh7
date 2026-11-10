@@ -53,7 +53,8 @@ object JusticeActions {
             merit=if(halveMerit)person.merit/2 else person.merit))))
     }
     /** Periodic world settlement: expired permits/rights drop, 14 days without a verdict mean 寛容, 厳罰 ends. */
-    fun settle(g:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks):PlanetStocks {
+    fun settle(g:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks,
+        identities:()->List<StrategicIdentity> = {emptyList()}):PlanetStocks {
         val now=session.gameMillis/1000;val j=s.social.justice
         var next=s
         if(j.permits.any {it.value.until<=now} || j.rights.any {it.value.until<=now})
@@ -62,10 +63,10 @@ object JusticeActions {
         // Watches: one detection roll per watch and game day; a noticed watch ends.
         val due=next.social.justice.watches.values.filter {it.checkAt<=now}
         if(due.isNotEmpty()) {
-            val none=emptyList<StrategicIdentity>()
+            val roster=identities()
             val watches=LinkedHashMap(next.social.justice.watches)
             for(w in due.sortedBy {it.watcher}) {
-                val chance=Justice.detection(intelligence(next,none,w.watcher),intelligence(next,none,w.target))
+                val chance=Justice.detection(intelligence(next,roster,w.watcher),intelligence(next,roster,w.target))
                 if(roll(w.target,w.watcher,w.checkAt)<chance)watches.remove(w.watcher)
                 else watches[w.watcher]=w.copy(checkAt=w.checkAt+Justice.DAY)
             }

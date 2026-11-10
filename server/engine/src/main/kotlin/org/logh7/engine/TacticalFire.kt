@@ -264,6 +264,7 @@ internal object TacticalCombat {
         val players = original.toMutableMap()
         val now=session.gameMillis/1000
         val stocks = checkNotNull(production.snapshot(session.generation))
+        val registeredIdentities by lazy { production.identities?.invoke().orEmpty() }
         if(committer!=null && session.ended==null)players.replaceAll {_,player->
             navigation.clearInvalidReturnBase(player,stocks)
         }
@@ -381,13 +382,13 @@ internal object TacticalCombat {
                 morale=inventory.tacticalCommands.morale-sunkFlagships.map {it.unitId}.toSet()))
             val sunkCharacters=sunkFlagships.map {it.characterId}.distinct()
             inventory=BattleDeath.apply(inventory,sunkCharacters,now)
-            inventory=SinkingExperience.apply(inventory,sunkCharacters,production.identities?.invoke().orEmpty())
+            inventory=SinkingExperience.apply(inventory,sunkCharacters,registeredIdentities)
         }
         if (session.ended == null) {
             inventory = ProposalActions.settle(galaxy, session, players, inventory, assignmentBlocked = assignmentBlocked) {
-                production.identities?.invoke().orEmpty()
+                registeredIdentities
             }
-            inventory = JusticeActions.settle(galaxy, session, players, inventory)
+            inventory = JusticeActions.settle(galaxy, session, players, inventory) { registeredIdentities }
             inventory = EspionageActions.settle(galaxy, session, players, inventory)
             inventory = economy(galaxy, session, players, inventory)
         }
@@ -418,7 +419,7 @@ internal object TacticalCombat {
             }
         }
         if (committer!=null) inventory=TacticalEntryAssignment.settle(session,galaxy,original,players,inventory) {
-            production.identities?.invoke().orEmpty()
+            registeredIdentities
         }
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory,cargoBaseline)
