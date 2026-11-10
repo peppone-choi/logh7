@@ -95,7 +95,16 @@ internal object FleetNavigation {
                 })
         }
         val units = (GridForces.mobileUnits(outfit) + 1 + followers.size).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-        val preview = navigation.apply(request, session, stocks, persist = false, movingUnits = units, soloShip = false)
+        val preview = navigation.apply(request, session, stocks, persist = false, movingUnits = units, soloShip = false,
+            warpForcesAfterArrival = { arrived ->
+                // The previous leg has moved these units in the preview, but they are still at the origin in storage.
+                val arrivedOutfit = outfit.copy(position = OutfitPosition(arrived.grid, arrived.baseId))
+                val arrivedPlayers = players + followers.mapValues { (_, follower) ->
+                    follower.copy(grid = arrived.grid, baseId = arrived.baseId, mode = arrived.mode)
+                } + (request.account to arrived)
+                val arrivedStocks = stocks.copy(outfits = stocks.outfits + (outfit.id to arrivedOutfit))
+                GridForces.collect(galaxy, session.generation, arrivedPlayers.values, arrivedStocks, session.eliminated.keys)
+            })
         val after = preview.player ?: preview.previous ?: return preview
         val position = OutfitPosition(after.grid, after.baseId)
         val starting = preview.rejection == null && (request.destination != null || request.place is PlaceMove.Dock ||
@@ -117,7 +126,8 @@ internal object FleetNavigation {
             val reservedCruise = navigation.warpCruise(after.grid, request.destination)
             if (followers.values.any { it.cruise - cruiseCost < reservedCruise }) return refuseWarp()
         }
-        if (position == outfit.positionIn(galaxy))
+        val arrivedFromWarp = preview.completedWarp && preview.warpCancellation == null
+        if (position == outfit.positionIn(galaxy) && !arrivedFromWarp)
             return personal(units,false)
         if (committer == null) return NavigationResult(null, before, NavigationRejection.DISABLED)
         val departing = request.place == PlaceMove.SwitchMode(5) || request.place == PlaceMove.Dock(0, 5)
@@ -132,9 +142,9 @@ internal object FleetNavigation {
             mode = after.mode, spotId = 0, spotOwner = 0, cruise = player.cruise - cruiseCost,
             cpPaused = after.cpPaused, cpRecoveryAt = if (player.cpPaused != after.cpPaused) now else player.cpRecoveryAt,
             commandRange = if (after.cpPaused) TacticalCommandRange(now, command = player.commandRange?.command ?: 50) else null,
-            moves = Math.addExact(player.moves, 1),
+            moves = Math.addExact(player.moves, after.moves - before.moves),
             motion = departureBase?.let { TacticalDeployment.departure(it, now, stocks, slot++) },
-            posture = player.posture.takeIf { departureBase == null && player.grid == after.grid }) }
+            posture = player.posture.takeIf { departureBase == null && !arrivedFromWarp && player.grid == after.grid }) }
         val next = players + moved + (request.account to after)
         fun pulled(target: Int?, arrival: Int) = target != null && target != arrival &&
             BlackHoleTides.inGravity(galaxy, target) && BlackHoleTides.inGravity(galaxy, arrival)
