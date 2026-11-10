@@ -36,6 +36,7 @@ internal object BaseOccupationOperations {
             val previous=stocks.bases.getValue(base.id)
             val loser=previous.country
             val losingSide=TacticalAuthority.camp(previous)
+            stocks=StrategicOperations.recordDefenseOccupation(galaxy,stocks,players.values,base,losingSide,winningSide,now)
             val coups=stocks.social.coup
             val winningPlot=if(winningSide.insurgent)coups.plots.values.filter {plot->
                 plot.revolt>0 && plot.country==winner && plot.rebels.any {it in commanders}

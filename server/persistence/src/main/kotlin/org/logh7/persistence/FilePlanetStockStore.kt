@@ -39,7 +39,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         if (!Files.exists(path)) return null
         require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
-        val header = lines.firstOrNull()?.split('\t').orEmpty()
+        val encodedHeader = lines.firstOrNull()?.split('\t').orEmpty()
+        val defenseBreaches = encodedHeader.firstOrNull() == "LOGH7-STOCK-56"
+        val header = if (defenseBreaches) encodedHeader.drop(1) else encodedHeader
         val currentVersions = setOf("LOGH7-STOCK-4","LOGH7-STOCK-5","LOGH7-STOCK-6","LOGH7-STOCK-7","LOGH7-STOCK-8","LOGH7-STOCK-9","LOGH7-STOCK-10","LOGH7-STOCK-11","LOGH7-STOCK-12","LOGH7-STOCK-13","LOGH7-STOCK-14","LOGH7-STOCK-15","LOGH7-STOCK-16","LOGH7-STOCK-17","LOGH7-STOCK-18","LOGH7-STOCK-19","LOGH7-STOCK-20","LOGH7-STOCK-21","LOGH7-STOCK-22","LOGH7-STOCK-23","LOGH7-STOCK-24","LOGH7-STOCK-25","LOGH7-STOCK-26","LOGH7-STOCK-27","LOGH7-STOCK-28","LOGH7-STOCK-29","LOGH7-STOCK-30","LOGH7-STOCK-31","LOGH7-STOCK-32","LOGH7-STOCK-33","LOGH7-STOCK-34","LOGH7-STOCK-35","LOGH7-STOCK-36","LOGH7-STOCK-37","LOGH7-STOCK-38","LOGH7-STOCK-39","LOGH7-STOCK-40","LOGH7-STOCK-41","LOGH7-STOCK-42","LOGH7-STOCK-43","LOGH7-STOCK-44","LOGH7-STOCK-45","LOGH7-STOCK-46","LOGH7-STOCK-47","LOGH7-STOCK-48","LOGH7-STOCK-49","LOGH7-STOCK-50","LOGH7-STOCK-51","LOGH7-STOCK-52","LOGH7-STOCK-53","LOGH7-STOCK-54")
         if (header.firstOrNull() == "LOGH7-STOCK-55") {
             val receipt = lines.last().split('\t')
@@ -53,10 +55,11 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     "Invalid character deletion receipt"
                 }
             }
-            return loadCurrent(header.drop(1), lines.subList(1, lines.lastIndex)).copy(deletedCharacters = deleted)
+            return loadCurrent(header.drop(1), lines.subList(1, lines.lastIndex), defenseBreaches)
+                .copy(deletedCharacters = deleted)
         }
-        if (header.firstOrNull() in currentVersions) return loadCurrent(header, lines.drop(1))
-        require(header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
+        if (header.firstOrNull() in currentVersions) return loadCurrent(header, lines.drop(1), defenseBreaches)
+        require(!defenseBreaches && header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
         val columns = when (header[0]) { "LOGH7-STOCK-1" -> 6; "LOGH7-STOCK-2" -> 10; else -> 11 }
         val rows = linkedMapOf<Int, PlanetStock>()
         for (line in lines.drop(1)) {
@@ -71,7 +74,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         }
         return PlanetStocks(header[1].toLong(), header[2].toLong(), rows)
     }
-    private fun loadCurrent(header: List<String>, lines: List<String>): PlanetStocks {
+    private fun loadCurrent(header: List<String>, lines: List<String>, defenseBreaches: Boolean): PlanetStocks {
         val garrisonReports=header[0]=="LOGH7-STOCK-54"
         val homeReports=garrisonReports || header[0]=="LOGH7-STOCK-53"
         val entryAuthority=header[0]=="LOGH7-STOCK-52"
@@ -205,7 +208,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                 "S" -> {
                     require(actions && f.size==2 && strategicState==null)
                     // Formats 44+ can contain extended records without explicit country offices.
-                    strategicState=StrategicStateCodec.decode(f[1],countryOffices && (!countrySuccession || f[1].count {it=='|'}==6),countrySuppression)
+                    strategicState=StrategicStateCodec.decode(f[1],countryOffices && (!countrySuccession || f[1].count {it=='|'}==6),
+                        countrySuppression, defenseBreaches)
                 }
                 "P" -> {
                     require(f.size == if(productionCountries)21 else if(fiscal)20 else if(baseReplacements)19 else if (capitals) 18 else if (garrison) 15 else if (administration) 14 else 12)
@@ -295,6 +299,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         require(garrisonReports == (socialState?.justice?.homeReports?.values?.any {it.garrisonStrength!=null} == true)) {
             "Garrison intelligence reports require stock format 54"
         }
+        require(defenseBreaches == (strategicState?.operations?.any { it.defenseBreached } == true)) {
+            "Defense operation breaches require stock format 56"
+        }
         require(homeReports || entryAuthority == (commandState?.entryAuthority?.isNotEmpty() == true)) {
             "Tactical entry authority requires stock format 52"
         }
@@ -356,7 +363,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val tactics = cargo || stocks.outfits.values.any {it.activeShips?.values?.any {u->u.tactical!=null}==true}
         val positions = tactics || stocks.outfits.values.any { it.position != null }
         val bytes = buildString {
-            // Keep all existing conditional feature layouts inside the deletion wrapper.
+            // Preserve existing conditional feature layouts beneath both optional prefixes.
+            if (stocks.strategic.operations.any { it.defenseBreached }) append("LOGH7-STOCK-56\t")
             if (stocks.deletedCharacters.isNotEmpty()) append("LOGH7-STOCK-55\t")
             append((listOf(if(garrisonReports)"LOGH7-STOCK-54" else if(homeReports)"LOGH7-STOCK-53" else if(entryAuthority)"LOGH7-STOCK-52" else if(aiGround)"LOGH7-STOCK-51" else if(aiSupport)"LOGH7-STOCK-50" else if(aiRetreats)"LOGH7-STOCK-49" else if(independentOwners)"LOGH7-STOCK-48" else if(countrySuppression)"LOGH7-STOCK-47" else if(countryDiplomacy)"LOGH7-STOCK-46" else if(countryTrade)"LOGH7-STOCK-45" else if(countrySuccession)"LOGH7-STOCK-44" else if(countryOffices)"LOGH7-STOCK-43" else if(productionCountries)"LOGH7-STOCK-42" else if(outfitCountries)"LOGH7-STOCK-41" else if(countryOwners)"LOGH7-STOCK-40" else if(countryAccounts)"LOGH7-STOCK-39" else if(aired)"LOGH7-STOCK-38" else if(tidal)"LOGH7-STOCK-37" else if(disciplined)"LOGH7-STOCK-36" else if(social)"LOGH7-STOCK-35" else if(budget)"LOGH7-STOCK-34" else if(civic)"LOGH7-STOCK-33" else if(sequence)"LOGH7-STOCK-32" else if(market)"LOGH7-STOCK-31" else if(commands)"LOGH7-STOCK-30" else if(actions)"LOGH7-STOCK-29" else if(fiscal)"LOGH7-STOCK-28" else if(strategic)"LOGH7-STOCK-27" else if(combat)"LOGH7-STOCK-26" else if(deployments)"LOGH7-STOCK-25" else if(grounds)"LOGH7-STOCK-24" else if(postures)"LOGH7-STOCK-23" else if(reloads)"LOGH7-STOCK-22" else if(shots)"LOGH7-STOCK-21" else if(attacks)"LOGH7-STOCK-20" else if(commanded)"LOGH7-STOCK-19" else if(support)"LOGH7-STOCK-18" else if(cargo)"LOGH7-STOCK-17" else if(tactics)"LOGH7-STOCK-16" else if(positions)"LOGH7-STOCK-15" else "LOGH7-STOCK-14", stocks.generation, stocks.producedDays, stocks.bases.size,
                 stocks.outfits.size, stocks.warehouses.size, stocks.logisticsOfficers.size,

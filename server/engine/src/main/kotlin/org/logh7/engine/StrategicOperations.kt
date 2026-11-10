@@ -13,7 +13,7 @@ data class StrategicOperation(val id:Int,val planner:Int,val card:Int,val countr
     val force:StrategicForce,val purpose:StrategicPurpose,val units:Int,val activatesAt:Long,
     val state:StrategicPlanState=StrategicPlanState.PLANNED,val issuedAt:Long?=null,
     val outfits:Set<Int> = emptySet(),val characters:Set<Int> = emptySet(),val defended:Set<Int> = emptySet(),
-    val outcome:OperationOutcome?=null,val issuer:Int=0) {
+    val outcome:OperationOutcome?=null,val issuer:Int=0,val defenseBreached:Boolean=false) {
     val live get()=state in setOf(StrategicPlanState.PLANNED,StrategicPlanState.ISSUED,StrategicPlanState.STARTED)
     init {
         require(id>0 && planner>0 && card in 1..260 && grid in 0..4999 && units in 1..65535 &&
@@ -25,6 +25,8 @@ data class StrategicOperation(val id:Int,val planner:Int,val card:Int,val countr
         require(outcome==null || state==StrategicPlanState.ENDED)
         require(state!=StrategicPlanState.ENDED || purpose==StrategicPurpose.SWEEP || outcome!=null)
         require(issuedAt==null || issuer>0)
+        require(!defenseBreached || purpose==StrategicPurpose.DEFEND && issuedAt!=null &&
+            state in setOf(StrategicPlanState.STARTED,StrategicPlanState.WITHDRAWN,StrategicPlanState.ENDED))
     }
 }
 
@@ -161,6 +163,32 @@ internal object StrategicOperations {
         return stocks.copy(strategic=stocks.strategic.copy(people=people+(shooter.characterId to person.copy(merit=merit))))
     }
 
+    private fun reached(plan:StrategicOperation,galaxy:Galaxy,stocks:PlanetStocks,navigators:Collection<Navigator>?):Boolean {
+        val regular=Camp(plan.country)
+        return plan.outfits.any {stocks.outfits[it]?.let {o->TacticalAuthority.camp(o,stocks)==regular &&
+            o.positionIn(galaxy).grid==plan.grid && shipUnits(o)>0}==true} ||
+            (plan.force==StrategicForce.SOLO && navigators.orEmpty().any {it.generation==stocks.generation && TacticalAuthority.camp(it,stocks)==regular &&
+                it.characterId in plan.characters && it.grid==plan.grid && hasLiveFlagship(it,stocks)})
+    }
+
+    fun recordDefenseOccupation(galaxy: Galaxy, stocks: PlanetStocks, navigators: Collection<Navigator>,
+        base: GalaxyBase, loser: Camp?, winner: Camp, now: Long): PlanetStocks {
+        val plans = stocks.strategic.operations
+        val updated = plans.map { plan ->
+            val issued = plan.issuedAt
+            if (plan.defenseBreached || plan.purpose != StrategicPurpose.DEFEND || issued == null ||
+                now !in issued..OperationPlanRules.endGameSeconds(issued) ||
+                loser != Camp(plan.country) || winner == loser || base.grid != plan.grid || base.id !in plan.defended ||
+                (plan.state != StrategicPlanState.STARTED &&
+                    !(plan.state == StrategicPlanState.ISSUED && reached(plan, galaxy, stocks, navigators)))) {
+                plan
+            } else {
+                plan.copy(state = StrategicPlanState.STARTED, defenseBreached = true)
+            }
+        }
+        return if (updated == plans) stocks else stocks.copy(strategic = stocks.strategic.copy(operations = updated))
+    }
+
     fun settle(galaxy:Galaxy,stocks:PlanetStocks,seconds:Long,navigators:Collection<Navigator>?=null,
         eliminated: Set<CountryId> = emptySet()):PlanetStocks {
         if(stocks.strategic.operations.none {it.live})return stocks
@@ -182,16 +210,13 @@ internal object StrategicOperations {
             val issued=plan.issuedAt ?: return@map plan
             // Startup may restore stock before navigation; missing arrival context must not erase a solo reward.
             if(plan.force==StrategicForce.SOLO && plan.state!=StrategicPlanState.STARTED && navigators==null)return@map plan
-            val regular=Camp(plan.country)
-            val reached=plan.outfits.any {stocks.outfits[it]?.let {o->TacticalAuthority.camp(o,stocks)==regular &&
-                o.positionIn(galaxy).grid==plan.grid && shipUnits(o)>0}==true} ||
-                (plan.force==StrategicForce.SOLO && navigators.orEmpty().any {it.generation==stocks.generation && TacticalAuthority.camp(it,stocks)==regular &&
-                    it.characterId in plan.characters && it.grid==plan.grid && hasLiveFlagship(it,stocks)})
+            val reached=reached(plan,galaxy,stocks,navigators)
             if(seconds<issued+OperationPlanRules.DURATION_GAME_SECONDS)
                 return@map if(reached && plan.state==StrategicPlanState.ISSUED)plan.copy(state=StrategicPlanState.STARTED) else plan
             val outcome=when(plan.purpose) {
                 StrategicPurpose.OCCUPY->when {ownership.size==ids.size->OperationOutcome.FULL_SUCCESS;ownership.isEmpty()->OperationOutcome.FAILURE;else->OperationOutcome.PARTIAL_SUCCESS}
-                StrategicPurpose.DEFEND->if(ownership.containsAll(plan.defended))OperationOutcome.FULL_SUCCESS else OperationOutcome.PARTIAL_SUCCESS
+                StrategicPurpose.DEFEND->if(!plan.defenseBreached && ownership.containsAll(plan.defended))
+                    OperationOutcome.FULL_SUCCESS else OperationOutcome.PARTIAL_SUCCESS
                 StrategicPurpose.SWEEP->null // Actual ship losses pay individually at the time of the hit.
             }
             val bonus=if(plan.state==StrategicPlanState.STARTED || reached)when(outcome) {

@@ -35,6 +35,36 @@ class StrategicStateStoreTest {
         for(bad in listOf(encoded.replace(":0,127:2",":0,127:0"),encoded.replace(":0,127:2",":0,127:4")))
             assertFailsWith<IllegalArgumentException>{StrategicStateCodec.decode(bad)}
     }
+
+    @Test fun defenseBreachSurvivesWorldReopenAndOldOperationRowsDefaultToIntact() {
+        val old = StrategicStateCodec.encode(state)
+        assertFalse(StrategicStateCodec.decode(old).operations.single().defenseBreached)
+        assertEquals(16, old.substringAfterLast('|').split(':').size)
+        val plan = state.operations.single().copy(state = StrategicPlanState.STARTED,
+            issuedAt = 3_000_000, issuer = 10000, defenseBreached = true)
+        val breached = state.copy(operations = listOf(plan))
+        val encoded = StrategicStateCodec.encode(breached)
+        assertTrue(encoded.endsWith(":10000:1"))
+        assertFailsWith<IllegalArgumentException> { StrategicStateCodec.decode(encoded) }
+        assertFailsWith<IllegalArgumentException> {
+            StrategicStateCodec.decode(encoded.dropLast(1) + "0", defenseBreaches = true)
+        }
+        val path = directory.resolve("breached.tsv")
+        for (deleted in listOf(emptyMap(), mapOf("deleted" to setOf(10003)))) {
+            val expected = stocks.copy(strategic = breached, deletedCharacters = deleted)
+            FilePlanetStockStore(path).use { it.save(expected) }
+            val bytes = Files.readString(path)
+            val innerPrefix = if (deleted.isEmpty()) "" else "LOGH7-STOCK-55\t"
+            assertTrue(bytes.startsWith("LOGH7-STOCK-56\t${innerPrefix}LOGH7-STOCK-29\t"))
+            FilePlanetStockStore(path).use { assertEquals(expected, it.load()) }
+            Files.writeString(path, bytes.removePrefix("LOGH7-STOCK-56\t"))
+            FilePlanetStockStore(path).use { assertFailsWith<IllegalArgumentException> { it.load() } }
+        }
+        FilePlanetStockStore(path).use { it.save(stocks) }
+        val legacy = Files.readString(path)
+        Files.writeString(path, "LOGH7-STOCK-56\t$legacy")
+        FilePlanetStockStore(path).use { assertFailsWith<IllegalArgumentException> { it.load() } }
+    }
     @Test fun deathIsAnOptionalThirteenthPersonFieldAfterAnExplicitAirTactics() {
         val dead=state.copy(people=mapOf(10000 to state.people.getValue(10000).copy(deceasedAt=777)))
         val encoded=StrategicStateCodec.encode(dead);assertEquals(dead,StrategicStateCodec.decode(encoded))

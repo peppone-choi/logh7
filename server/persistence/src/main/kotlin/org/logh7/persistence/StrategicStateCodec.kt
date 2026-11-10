@@ -20,7 +20,8 @@ internal object StrategicStateCodec {
         state.operations.joinToString(";") {p->listOf(p.id,p.planner,p.card,p.country.value,p.grid,p.force.ordinal,
             p.purpose.ordinal,p.units,p.activatesAt,p.state.ordinal,p.issuedAt ?: "-",
             p.outfits.sorted().joinToString(",").ifEmpty {"-"},p.characters.sorted().joinToString(",").ifEmpty {"-"},
-            p.defended.sorted().joinToString(",").ifEmpty {"-"},p.outcome?.ordinal ?: "-",p.issuer).joinToString(":")}.ifEmpty {"-"}
+            p.defended.sorted().joinToString(",").ifEmpty {"-"},p.outcome?.ordinal ?: "-",p.issuer)
+            .plus(if(p.defenseBreached)listOf(1) else emptyList()).joinToString(":")}.ifEmpty {"-"}
     ).plus(if(state.transports.isEmpty() && state.lastTransportId==0 && !countryOffices)emptyList() else listOf(
         (if(state.lastTransportId>0)"@${state.lastTransportId};" else "")+state.transports.joinToString(";") {t->
         fun stacks(m:Map<UnitStack,Int>)=m.entries.joinToString(",") {"${it.key.kind}.${it.key.level}.${it.value}"}.ifEmpty {"-"}
@@ -29,7 +30,8 @@ internal object StrategicStateCodec {
     .plus(if(countryOffices)listOf(state.capitals.entries.sortedBy {it.key.value}.joinToString(";") {"${it.key.value}:${it.value}"}.ifEmpty {"-"}) else emptyList())
     .joinToString("|").also {require(it.length<=2_000_000) {"Strategic state is too large"}}
     }
-    fun decode(text:String,countryOffices:Boolean=false,countrySuppression:Boolean=false):StrategicState {
+    fun decode(text:String,countryOffices:Boolean=false,countrySuppression:Boolean=false,
+        defenseBreaches:Boolean=false):StrategicState {
         require(text.length<=2_000_000)
         val sections=text.split('|');require(if(countryOffices)sections.size==7 else sections.size==5 || sections.size==6 && sections[5].isNotEmpty())
         val people=linkedMapOf<Int,StrategicPerson>()
@@ -57,11 +59,11 @@ internal object StrategicStateCodec {
         }
         fun ids(value:String)=if(value=="-")emptySet() else value.split(',').map(String::toInt).toSet()
         val operations=if(sections[4]=="-")emptyList() else sections[4].split(';').map {row->
-            val f=row.split(':');require(f.size==16)
+            val f=row.split(':');require(f.size==16 || defenseBreaches && f.size==17 && f[16]=="1")
             StrategicOperation(f[0].toInt(),f[1].toInt(),f[2].toInt(),CountryId(f[3].toInt()),f[4].toInt(),
                 StrategicForce.entries[f[5].toInt()],StrategicPurpose.entries[f[6].toInt()],f[7].toInt(),f[8].toLong(),
                 StrategicPlanState.entries[f[9].toInt()],f[10].takeUnless {it=="-"}?.toLong(),ids(f[11]),ids(f[12]),ids(f[13]),
-                f[14].takeUnless {it=="-"}?.toInt()?.let {OperationOutcome.entries[it]},f[15].toInt())
+                f[14].takeUnless {it=="-"}?.toInt()?.let {OperationOutcome.entries[it]},f[15].toInt(),defenseBreached=f.size==17)
         }
         fun stacks(value:String)=if(value=="-")emptyMap() else value.split(',').associate {s->
             val f=s.split('.');require(f.size==3);UnitStack(f[0].toInt(),f[1].toInt()) to f[2].toInt()}

@@ -34,6 +34,47 @@ class BaseOccupationTest {
         outfits=s.outfits.mapValues {(_,o)->o.copy(country=CountryId(if(o.country==CountryId(2))42 else 43))},
         warehouses=s.warehouses.mapValues {(_,w)->w.copy(country=CountryId(if(w.country==CountryId(2))42 else 43))})}
 
+    @Test fun recapturingADefendedBaseDoesNotRestoreTheFullOperationBonus() {
+        val defender = Power.ALLIANCE.country
+        val otherBase = base.copy(id = 1001)
+        val world = Galaxy(galaxy.systems, listOf(base, otherBase), Power.entries.associateWith { base.grid })
+        val plan = StrategicOperation(1, 10001, 147, defender, base.grid, StrategicForce.FLEET, StrategicPurpose.DEFEND,
+            1, now, StrategicPlanState.STARTED, now, characters = setOf(10002), defended = setOf(base.id, otherBase.id),
+            issuer = 10003)
+        val original = stocks().let {
+            it.copy(bases = it.bases + (otherBase.id to it.bases.getValue(base.id).copy(baseId = otherBase.id)),
+                strategic = it.strategic.copy(operations = listOf(plan)))
+        }
+        val deadline = OperationPlanRules.endGameSeconds(now)
+        fun at(seconds: Long) = session.copy(gameMillis = seconds * 1000)
+
+        val captured = advance(original, state = at(now + 1), world = world)
+        assertEquals(Power.EMPIRE.country, captured.bases.getValue(base.id).country)
+        assertTrue(captured.strategic.operations.single().defenseBreached)
+        val held = StrategicOperations.settle(world, captured, now + 1)
+        assertEquals(StrategicPlanState.STARTED, held.strategic.operations.single().state)
+
+        val attackers = held.outfits.getValue(1)
+        val relief = held.outfits.getValue(2)
+        val empty = ActiveGroundUnits(emptyList())
+        val relieved = ActiveGroundUnits(listOf(ActiveGroundUnit(4, UnitStack(4), base = base.id)))
+        val retaking = held.copy(outfits = held.outfits + mapOf(
+            1 to attackers.copy(activeGround = empty, units = UnitInventory(attackers.units.ships, empty.quantities())),
+            2 to relief.copy(activeGround = relieved, units = UnitInventory(relief.units.ships, relieved.quantities()))
+        ))
+        val restored = advance(retaking, state = at(now + 2), world = world)
+        assertEquals(defender, restored.bases.getValue(base.id).country)
+        val result = StrategicOperations.settle(world, restored, deadline)
+        assertEquals(OperationOutcome.PARTIAL_SUCCESS, result.strategic.operations.single().outcome)
+        assertEquals(50L, result.strategic.people.getValue(10002).merit)
+        assertEquals(result, StrategicOperations.settle(world, result, deadline + 1))
+
+        val capturedOnDeadline = advance(original, state = at(deadline), world = world)
+        assertTrue(capturedOnDeadline.strategic.operations.single().defenseBreached)
+        assertEquals(OperationOutcome.PARTIAL_SUCCESS,
+            StrategicOperations.settle(world, capturedOnDeadline, deadline).strategic.operations.single().outcome)
+    }
+
     @Test fun troopsFromAnEliminatedCountryCannotCaptureABaseInAContinuingSession() {
         val original=additionalCountries()
         val defeated=session.copy(eliminated=mapOf(CountryId(42) to
