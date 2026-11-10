@@ -598,6 +598,45 @@ class TacticalCommandOperationsTest {
             }
         }
     }
+    @Test fun fortressSupplyCountsCarriedTransportCargoAtAdmissionAndSettlement() {
+        val s=state()
+        val transport=s.stocks.outfits.getValue(1).copy(kind=OutfitKind.TRANSPORT)
+        val warehouse=s.stocks.warehouses.getValue(10).copy(kind=OutfitKind.TRANSPORT)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to transport),warehouses=s.stocks.warehouses+(10 to warehouse))
+        fun loadCargo(room:Int) {
+            val outfit=s.stocks.outfits.getValue(1)
+            val cargo=TransportPackage(1,outfit.country,1000,1001,OutfitSupplies.capacity(outfit)-outfit.supplies-room,
+                carrier=1,carrierBoats=2)
+            s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(transports=listOf(cargo)))
+        }
+        val command=TacticalCommand(0x41c,listOf(1,2),base=1000)
+        val before=s.stocks.bases.getValue(1000).supplies
+        loadCargo(0)
+        assertEquals(NavigationRejection.SUPPLY,accept(run(s),command).rejection)
+        assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+
+        loadCargo(5)
+        val ready=assertNotNull(accept(run(s),command).commandReadyAt)
+        val cargo=s.stocks.strategic.transports
+        val events=mutableListOf<TacticalCommandResult>()
+        settle(run(s),ready,events)
+        assertFalse(events.single().cancelled)
+        assertEquals(before-5,s.stocks.bases.getValue(1000).supplies)
+        assertEquals(transport.supplies+5,s.stocks.outfits.getValue(1).supplies)
+        assertEquals(cargo,s.stocks.strategic.transports)
+
+        loadCargo(5)
+        val nextReady=assertNotNull(accept(run(s),command).commandReadyAt)
+        loadCargo(0)
+        events.clear()
+        val loaded=s.stocks.strategic.transports
+        settle(run(s),nextReady,events)
+        assertTrue(events.single().cancelled)
+        assertEquals(before-5,s.stocks.bases.getValue(1000).supplies)
+        assertEquals(transport.supplies+5,s.stocks.outfits.getValue(1).supplies)
+        assertEquals(loaded,s.stocks.strategic.transports)
+    }
+
     @Test fun fortressCannotRepairAGuardShipFromANewOrSavedOrder() {
         val s=state()
         val option=checkNotNull(GuardShips.option(0))

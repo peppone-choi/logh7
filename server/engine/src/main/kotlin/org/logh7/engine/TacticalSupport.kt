@@ -211,10 +211,15 @@ internal object TacticalSupportOperations {
     }
 
     private fun supplyRoom(source:Ship,target:Ship,targetSupplies:Int,stocks:PlanetStocks):Int {
-        val unitRoom=OutfitSupplies.unitCapacity(target.unit)-targetSupplies
-        if(source.outfit.id==target.outfit.id || target.outfit.kind!=OutfitKind.TRANSPORT)return unitRoom
-        val cargo=TransportActions.carriedCargo(target.outfit,stocks.strategic.transports).sumOf {it.first.toLong()}
-        val outfitRoom=OutfitSupplies.capacity(target.outfit)-target.outfit.supplies-cargo
+        if(source.outfit.id==target.outfit.id)return OutfitSupplies.unitCapacity(target.unit)-targetSupplies
+        return externalSupplyRoom(target.outfit,target.unit,targetSupplies,stocks)
+    }
+
+    internal fun externalSupplyRoom(outfit:OutfitStock,unit:ActiveShipUnit,unitSupplies:Int,stocks:PlanetStocks):Int {
+        val unitRoom=OutfitSupplies.unitCapacity(unit)-unitSupplies
+        if(outfit.kind!=OutfitKind.TRANSPORT)return unitRoom
+        val cargo=TransportActions.carriedCargo(outfit,stocks.strategic.transports).sumOf {it.first.toLong()}
+        val outfitRoom=OutfitSupplies.capacity(outfit)-outfit.supplies-cargo
         return minOf(unitRoom.toLong(),outfitRoom).coerceAtLeast(0).toInt()
     }
 
