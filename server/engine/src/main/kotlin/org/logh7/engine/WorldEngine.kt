@@ -8,6 +8,8 @@ data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val ses
     val navigators: Map<String, Navigator> = emptyMap(), val planetStocks: PlanetStocks? = null, val result:SessionResult?=null)
 sealed interface WorldCommand {
     data object Probe : WorldCommand
+    data class ReadHomeIntelligence(val account:String,val connection:String,val generation:Long,
+        val character:Int,val base:Int,val result:CompletableDeferred<HomeIntelligenceReport?>) : WorldCommand
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
     data class Join(val account: String, val country: CountryId?, val original: Boolean, val result: CompletableDeferred<Admission>, val connection: String? = null, val generation: Long? = null,
         /** The character store's current profile; seeds the strategic record when CP experience first raises an ability. */
@@ -754,6 +756,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 maxOf(durableState?.elapsed ?: elapsed,if(ticking)Math.addExact(initialElapsed,monotonicMillis()-origin)
                     else durableState?.elapsed ?: elapsed)) else queued.command
             if(command is WorldCommand.AdvanceTo && awaitIdentities && production!=null && production.identities==null)continue
+            if(command is WorldCommand.ReadHomeIntelligence) {
+                val session=durableState?.session ?: simulation.exportState()
+                val viewer=navigation?.snapshot(session.generation)?.get(command.account)
+                val inventory=production?.snapshot(session.generation)
+                command.result.complete(if(storageFailed || session.generation!=command.generation ||
+                    viewer?.characterId!=command.character || inventory==null)null
+                else EspionageActions.homeReport(inventory,session,command.account,command.connection,viewer,command.base))
+                continue
+            }
             if(command is WorldCommand.Quiesce<*>) {
                 @Suppress("UNCHECKED_CAST") val quiesce=command as WorldCommand.Quiesce<Any?>
                 try {quiesce.result.complete(quiesce.action())} catch(failure:Exception) {quiesce.result.completeExceptionally(failure)}
@@ -1539,6 +1550,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.ResignOffice -> error("Resignation is handled before session commands")
                 is WorldCommand.Tax -> error("Tax is handled before session commands")
                 is WorldCommand.Budget -> error("Budget is handled before session commands")
+                is WorldCommand.ReadHomeIntelligence -> error("Intelligence is handled before session commands")
                 is WorldCommand.Social -> error("Social is handled before session commands")
                 is WorldCommand.SupplyOutfit -> error("Supply is handled before session commands")
                 is WorldCommand.TransferGround -> error("Ground transfer is handled before session commands")

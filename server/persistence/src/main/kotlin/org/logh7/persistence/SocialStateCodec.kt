@@ -24,18 +24,20 @@ internal object SocialStateCodec {
             j.rights.toSortedMap().values.joinToString(",") {(listOf(it.holder,it.target,it.issuer,it.until)+listOfNotNull(it.country?.value)).joinToString(":")}.ifEmpty {"-"},
             j.detentions.toSortedMap().values.joinToString(",") {(listOf(it.character,it.country.value,it.since,it.releaseAt,if(it.severe)1 else 0)+
                 if(it.base>0)listOf(it.base) else emptyList()).joinToString(":")}.ifEmpty {"-"},
-            // Optional parts 4..7: watches, infiltrations, bombs, disabled bases (written up to the last non-empty one).
+            // Optional parts are written up to the last non-empty one.
             j.watches.toSortedMap().values.joinToString(",") {(listOf(it.watcher,it.target,it.since,it.checkAt)+listOfNotNull(it.country?.value)).joinToString(":")}.ifEmpty {"-"},
             j.infiltrations.toSortedMap().values.joinToString(",") {(listOf(it.character,it.base,it.spot,it.until)+
                 it.country?.let {country->listOf(country.value,it.targetCountry?.value ?: 0)}.orEmpty()).joinToString(":")}.ifEmpty {"-"},
             j.bombs.toSortedMap().values.joinToString(",") {listOf(it.character,it.base,it.spot,it.explodesAt).joinToString(":")}.ifEmpty {"-"},
             times(j.disabled),
-            j.disguises.toSortedMap().values.joinToString(",") {(listOf(it.character,it.alias,it.country.value,it.since,it.checkAt)+listOfNotNull(it.originCountry?.value)).joinToString(":")}.ifEmpty {"-"})
+            j.disguises.toSortedMap().values.joinToString(",") {(listOf(it.character,it.alias,it.country.value,it.since,it.checkAt)+listOfNotNull(it.originCountry?.value)).joinToString(":")}.ifEmpty {"-"},
+            j.homeReports.values.sortedWith(compareBy({it.country.value},{it.base})).joinToString(",") {
+                listOf(it.country.value,it.base,it.observedAt,it.treasury,it.approval,it.peace).joinToString(":")}.ifEmpty {"-"})
         val last=maxOf(2,parts.indexOfLast {it!="-"})
         return parts.take(last+1).joinToString("/")
     }
     private fun justice(text:String):JusticeState {
-        val f=text.split('/');require(f.size in 3..8)
+        val f=text.split('/');require(f.size in 3..9)
         val permits=linkedMapOf<Int,ArrestPermit>();for(v in rows(f[0])) {require(v.size==5)
             val x=ArrestPermit(v[0].toInt(),v[1].toInt(),CountryId(v[2].toInt()),v[3].toInt(),v[4].toLong());require(permits.put(x.target,x)==null)}
         val rights=linkedMapOf<Int,ArrestRight>();for(v in rows(f[1])) {require(v.size in 4..5)
@@ -50,10 +52,14 @@ internal object SocialStateCodec {
                 if(v.size==6)v[5].toInt().takeUnless {it==0}?.let(::CountryId) else null);require(infiltrations.put(x.character,x)==null)}
         val bombs=linkedMapOf<Int,Bomb>();if(f.size>=6)for(v in rows(f[5])) {require(v.size==4)
             val x=Bomb(v[0].toInt(),v[1].toInt(),v[2].toInt(),v[3].toLong());require(bombs.put(x.character,x)==null)}
-        val disguises=linkedMapOf<Int,Disguise>();if(f.size==8)for(v in rows(f[7])) {require(v.size in 5..6)
+        val disguises=linkedMapOf<Int,Disguise>();if(f.size>=8)for(v in rows(f[7])) {require(v.size in 5..6)
             val x=Disguise(v[0].toInt(),v[1].toInt(),CountryId(v[2].toInt()),v[3].toLong(),v[4].toLong(),
                 if(v.size==6)CountryId(v[5].toInt()) else null);require(disguises.put(x.character,x)==null)}
-        return JusticeState(permits,rights,detentions,watches,infiltrations,bombs,if(f.size>=7)times(f[6]) else emptyMap(),disguises)
+        val reports=linkedMapOf<Pair<CountryId,Int>,HomeIntelligenceReport>()
+        if(f.size==9)for(v in rows(f[8])) {require(v.size==6 && reports.size<JusticeState.MAX_HOME_REPORTS)
+            val x=HomeIntelligenceReport(CountryId(v[0].toInt()),v[1].toInt(),v[2].toLong(),v[3].toLong(),v[4].toInt(),v[5].toInt())
+            require(reports.put(x.country to x.base,x)==null)}
+        return JusticeState(permits,rights,detentions,watches,infiltrations,bombs,if(f.size>=7)times(f[6]) else emptyMap(),disguises,reports)
     }
     /** Optional eighth field (命令/提案, 2026-11-01): mails "id:sender:recipient:senderCard:card:command:order:created:expires:reply:pcp:mcp"
      * / refusal blocks "sender:recipient:command:until". */

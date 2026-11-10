@@ -196,6 +196,55 @@ class SocialStoreTest {
         FileWorldStateStore(path).use {it.saveWorld(mapOf("actor" to player),saved)}
         FileWorldStateStore(path).use {assertEquals(saved,it.loadStocks());assertEquals(player,it.loadNavigation()["actor"])}
     }
+    @Test fun homeIntelligenceReportsSurviveWorldReopenWithoutChangingTheLegacyGrammar() {
+        val a=CountryId(42);val b=CountryId(43)
+        val first=HomeIntelligenceReport(a,1049,now,3_000_000_000,75,90)
+        val second=first.copy(country=b,treasury=20)
+        val legacy=JusticeState(disguises=mapOf(10000 to Disguise(10000,2,b,1,1000,a)))
+        val legacySocial=SocialState(justice=legacy)
+        val legacyText=SocialStateCodec.encode(legacySocial)
+        val justice=legacy.copy(homeReports=mapOf((b to 1049) to second,(a to 1049) to first))
+        val social=SocialState(justice=justice)
+        val text=SocialStateCodec.encode(social)
+        assertEquals(legacySocial,SocialStateCodec.decode(legacyText))
+        assertEquals(legacyText,text.substringBeforeLast('/'))
+        assertEquals(social,SocialStateCodec.decode(text))
+        assertFailsWith<IllegalArgumentException>{SocialStateCodec.decode(text+","+text.substringAfterLast('/').substringBefore(','))}
+        val saved=stocks.copy(social=social)
+        val path=directory.resolve("home-intelligence-reports")
+        FileWorldStateStore(path).use {it.saveWorld(emptyMap(),saved)}
+        FileWorldStateStore(path).use {assertEquals(saved,it.loadStocks())}
+    }
+
+    @Test fun stock53MatchesReportPresenceAndKeepsTacticalEntryAuthorityOptional() {
+        val country=CountryId(2)
+        val report=HomeIntelligenceReport(country,1049,now,200,75,90)
+        val withoutReports=stocks.copy(social=SocialState())
+        val withReports=withoutReports.copy(social=SocialState(justice=JusticeState(homeReports=mapOf((country to 1049) to report))))
+        val commands=TacticalCommandState(entryAuthority=mapOf(1 to 10000))
+        val withBoth=withReports.copy(tacticalCommands=commands)
+        val path=directory.resolve("home-reports-format.tsv")
+        FilePlanetStockStore(path).use {store->
+            store.save(withReports)
+            assertEquals(withReports,store.load())
+            assertTrue(Files.readAllLines(path).first().startsWith("LOGH7-STOCK-53\t"))
+            store.save(withBoth)
+            assertEquals(withBoth,store.load())
+            val lines=Files.readAllLines(path)
+            assertTrue(lines.first().startsWith("LOGH7-STOCK-53\t"))
+            Files.write(path,listOf(lines.first().replaceFirst("LOGH7-STOCK-53","LOGH7-STOCK-52"))+lines.drop(1))
+            assertContains(assertFailsWith<IllegalArgumentException>{store.load()}.message.orEmpty(),"stock format 53")
+
+            val onlyEntry=withoutReports.copy(tacticalCommands=commands)
+            store.save(onlyEntry)
+            assertEquals(onlyEntry,store.load())
+            val earlier=Files.readAllLines(path)
+            assertTrue(earlier.first().startsWith("LOGH7-STOCK-52\t"))
+            Files.write(path,listOf(earlier.first().replaceFirst("LOGH7-STOCK-52","LOGH7-STOCK-53"))+earlier.drop(1))
+            assertContains(assertFailsWith<IllegalArgumentException>{store.load()}.message.orEmpty(),"stock format 53")
+        }
+    }
+
     @Test fun justiceCountriesCustodyAndSpyOriginsRoundTripWithLegacyRowsUnchanged() {
         val a=CountryId(42);val b=CountryId(43)
         val state=SocialState(justice=JusticeState(
