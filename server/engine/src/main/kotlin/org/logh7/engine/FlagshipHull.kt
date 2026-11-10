@@ -2,7 +2,8 @@ package org.logh7.engine
 
 /** Server-designed hull points, six shield work pools and injury delay. Author: Peppone Choi. */
 data class FlagshipHull(val kind: Int, val at: Long, val hp: Int = 100, val woundedUntil: Long = 0,
-    val clockScale: Long = 24, val shields: List<Long> = List(6) { capacity(kind) * 100L * clockScale }) {
+    val clockScale: Long = 24, val shields: List<Long> = List(6) { capacity(kind) * 100L * clockScale },
+    val marketAcquired: Boolean = false) {
     init {
         require(Flagships.find(kind) != null && at in 0..0xffffffffL && hp in 1..100 &&
             woundedUntil in 0..0xffffffffL && clockScale in 1..1000 && shields.size == 6 &&

@@ -80,7 +80,7 @@ internal object FlagshipMarketActions {
             if(person.evaluation<choice.price)return reject(StrategyActionRejection.POINTS)
             next=stocks.copy(strategic=stocks.strategic.copy(people=stocks.strategic.people+
                 (r.characterId to person.copy(evaluation=person.evaluation-choice.price))))
-            after=p.copy(hull=FlagshipHull(choice.kind,now,clockScale=hull.clockScale),energy=null,
+            after=p.copy(hull=FlagshipHull(choice.kind,now,clockScale=hull.clockScale,marketAcquired=true),energy=null,
                 motion=null,retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null)
             cost=80
         } else {
