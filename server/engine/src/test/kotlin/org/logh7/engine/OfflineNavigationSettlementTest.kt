@@ -181,8 +181,8 @@ class OfflineNavigationSettlementTest {
         world.players = mapOf("pilot" to reserved.copy(hull = FlagshipHull(93, now, woundedUntil = recovery)))
         val engine = WorldEngine(this, ticking = false, galaxy = fleetGalaxy, navigationStore = world.nav,
             stockStore = world.inventory, worldStateCommitter = world.commit, npcPolicy = NpcTacticalPolicy(enabled = false))
-        val arrivals = java.util.concurrent.CopyOnWriteArrayList<NpcStrategicMovement>()
-        engine.observeStrategicMovements { arrivals += it }
+        val arrivals = java.util.concurrent.CopyOnWriteArrayList<Pair<NpcStrategicMovement, WorldSnapshot>>()
+        engine.observeStrategicMovements { arrivals += it to engine.snapshot() }
         try {
             val joined = CompletableDeferred<Admission>()
             engine.submit(WorldCommand.Join("pilot", Power.ALLIANCE, false, joined, "c", 1, profile)); assertEquals(Admission.ACCEPTED, joined.await())
@@ -202,7 +202,9 @@ class OfflineNavigationSettlementTest {
             assertTrue(arrived.mcp >= reserved.mcp && arrived.pcp >= reserved.pcp, "recovery is settled before arrival, never lost")
             assertEquals(arrived.grid, engine.snapshot().navigators.getValue("pilot").grid, "the snapshot shows the arrival")
             // Viewers get the NPC-arrival delivery (force report / tactical rebuild), exactly once.
-            val arrival = arrivals.single()
+            val (arrival, delivered) = arrivals.single()
+            assertEquals(arrived, delivered.navigators.getValue("pilot"))
+            assertEquals(world.stocks.outfits.getValue(1).position, delivered.planetStocks?.outfits?.get(1)?.position)
             assertEquals(1, arrival.outfit); assertEquals(2487, arrival.source); assertEquals(arrived.grid, arrival.destination)
             assertTrue(arrival.units.isNotEmpty()); assertTrue(arrival.recipients.isEmpty(), "the offline captain gets no packets")
         } finally { engine.drainAndClose() }
