@@ -91,6 +91,45 @@ class TransportActionsTest {
         assertEquals(1100,after.bases.getValue(1050).supplies)
         assertEquals(2,after.bases.getValue(1050).units.ships[cargo])
     }
+    @Test fun aStaleTransportCommanderCardCannotLoadOrUnloadAfterTheDepotChangesHands() {
+        val depot = galaxy.bases.last().copy(id = 1051, model = 82, name = "Depot")
+        val world = Galaxy(galaxy.systems, galaxy.bases + depot, galaxy.starts)
+        val original = stocks()
+        val outfit = original.outfits.getValue(200).copy(baseId = depot.id)
+        val depotStock = PlanetStock(depot.id, 2, 0, 0, 0, 0)
+        val inventory = original.copy(bases = original.bases + (depot.id to depotStock),
+            outfits = original.outfits + (outfit.id to outfit),
+            warehouses = original.warehouses + (outfit.warehouseId to original.warehouses.getValue(outfit.warehouseId).copy(baseId = depot.id)))
+        val planned = assertNotNull(StrategyActions.evaluate(world, plan(), session, officer, inventory).stocks)
+        val pack = planned.strategic.transports.single()
+        fun execute(state: PlanetStocks, pilot: Navigator, intent: Int, card: Int = 44): StrategyActionResult =
+            StrategyActions.evaluate(world, load(pack.id).copy(value = intent, card = card), session, pilot, state)
+
+        val accepted = execute(planned, captain, 1)
+        assertEquals(840, accepted.player?.mcp)
+        val loaded = assertNotNull(accepted.stocks)
+        assertEquals(outfit.id, loaded.strategic.transports.single().carrier)
+        val arrived = captain.copy(grid = 2488, baseId = 1050)
+        val moved = loaded.copy(outfits = loaded.outfits +
+            (outfit.id to loaded.outfits.getValue(outfit.id).copy(position = OutfitPosition(arrived.grid, arrived.baseId))))
+        assertTrue(execute(moved, arrived, 2).changed)
+        val rebelCard = assertNotNull(CoupActions.alias(44))
+        assertEquals(StrategyActionRejection.CARD, execute(planned, captain, 1, card = rebelCard).rejection)
+
+        for (lost in listOf(depotStock.copy(owner = Allegiance.fromLegacy(3)), depotStock.copy(camp = 1))) {
+            for ((before, pilot, intent) in listOf(Triple(planned, captain, 1), Triple(moved, arrived, 2))) {
+                val stale = before.copy(bases = before.bases + (depot.id to lost))
+                assertTrue(OrganizationalOfficePolicy(world).holders(stale, 44, Power.EMPIRE.country).isEmpty())
+                assertEquals(captain.characterId, stale.outfits.getValue(outfit.id).commanderId)
+                val denied = execute(stale, pilot, intent)
+                assertEquals(StrategyActionRejection.AUTHORITY, denied.rejection)
+                assertSame(pilot, denied.player)
+                assertSame(stale, denied.stocks)
+                assertFalse(denied.changed)
+            }
+        }
+    }
+
     @Test fun destinationLostBeforeLoadingLeavesThePackageAvailableForCancellation() {
         val initial=stocks()
         val planned=assertNotNull(act(plan(),initial).stocks)
