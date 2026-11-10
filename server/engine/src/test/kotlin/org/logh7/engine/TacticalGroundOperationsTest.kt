@@ -104,6 +104,34 @@ class TacticalGroundOperationsTest {
             assertTrue(troops.all {it.order==null})
         }
     }
+    @Test fun onlyEligibleLandedTroopsUseTheLandingCapacityOnASpecialPlanet() {
+        galaxy=galaxy(30)
+        for(allowed in listOf(false,true)) {
+            val s=state(30)
+            val outfit=s.stocks.outfits.getValue(1)
+            val troops=ActiveGroundUnits(outfit.activeGround!!.values.map {
+                if(it.base==1000 && !allowed)it.copy(stack=UnitStack(2)) else it
+            })
+            s.stocks=s.stocks.copy(outfits=mapOf(1 to outfit.copy(activeGround=troops,
+                units=UnitInventory(outfit.units.ships,troops.quantities()))))
+            val n=Navigation(galaxy,s.nav,NavigationPolicy())
+            val p=production(s)
+            val before=s.stocks
+            val landing=accept(s,n,p,request(ids=listOf(4)))
+            if(allowed) {
+                assertEquals(NavigationRejection.GRID,landing.rejection)
+                assertEquals(before,s.stocks)
+                continue
+            }
+            assertNotNull(landing.player)
+            val events=mutableListOf<TacticalGroundResult>()
+            settle(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),now+600,events)
+            assertFalse(events.single().cancelled)
+            val landed=s.stocks.outfits.getValue(1).activeGround!!.values
+            assertEquals(1000,landed.single {it.id==5}.base)
+            assertEquals(troops.values.filter {it.base==1000},landed.filter {it.id>=100})
+        }
+    }
     @Test fun capacityIncludesOtherAcceptedLandingsAndMixedInvalidSelectionDoesNotPartiallySave() {
         val s=state(28);val n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val before=s.stocks
