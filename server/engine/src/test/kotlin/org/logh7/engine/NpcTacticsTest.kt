@@ -213,6 +213,31 @@ class NpcTacticsTest {
         assertTrue(hits.isEmpty())
     }
 
+    @Test fun autonomousRouteKeepsActiveAirSlowdownAndRestoresItsNewNormalSpeed() {
+        val state=state()
+        fun route(stocks:PlanetStocks)=stocks.outfits.getValue(1).activeShips!!.values.single().tactical!!.motion
+        val baseline=route(NpcTactics.advance(session,galaxy,state.players.toMutableMap(),state.stocks,
+            NpcTacticalPolicy(),24,mutableListOf(),mutableListOf())).velocity
+        assertTrue(baseline>0f)
+        for((mode,speed,grid) in listOf(Triple(1,.1f,2488),Triple(1,null,2488),Triple(0,null,2488),Triple(1,.1f,2487))) {
+            val wing=TacticalAirWing(10000,grid,99,1,mode,now+100,speed)
+            val before=state.stocks.copy(tacticalCommands=TacticalCommandState(air=mapOf(99 to wing)))
+            val players=state.players.toMutableMap()
+            val moves=mutableListOf<TacticalMovement>()
+            val after=NpcTactics.advance(session,galaxy,players,before,NpcTacticalPolicy(),24,mutableListOf(),moves)
+            val slowed=speed!=null && grid==2488
+            assertEquals(if(slowed)baseline*.5f else baseline,route(after).velocity)
+            assertEquals(route(after),moves.single().motion)
+            assertEquals(if(slowed)baseline else speed,after.tacticalCommands.air.getValue(99).slowVelocity)
+            if(slowed) {
+                val restored=TacticalCommandOperations.advance(session.copy(gameMillis=(now+1)*1000),galaxy,players,after,24,
+                    mutableListOf(),mutableListOf())
+                assertTrue(restored.tacticalCommands.air.isEmpty())
+                assertEquals(baseline,route(restored).velocity)
+            }
+        }
+    }
+
     @Test fun anEliminatedFleetStopsItsAutonomousRetreatAndDoesNotResume() {
         val state=state(150)
         val players=state.players.toMutableMap()
