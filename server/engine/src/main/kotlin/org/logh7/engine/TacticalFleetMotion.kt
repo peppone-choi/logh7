@@ -103,14 +103,16 @@ internal object TacticalFleetMotion {
 
     fun withAirSlowdown(baseMotions:Map<Int,TacticalMotion>,commands:TacticalCommandState):
         Pair<Map<Int,TacticalMotion>,TacticalCommandState> {
-        val slowed=commands.air.values.filter {it.mode==1 && it.slowVelocity!=null && it.target in baseMotions}
+        fun applies(wing:TacticalAirWing)=wing.mode==1 && wing.slowVelocity!=null &&
+            baseMotions[wing.target]?.grid==wing.grid
+        val slowed=commands.air.values.filter(::applies)
             .map {it.target}.toSet()
         if(slowed.isEmpty())return baseMotions to commands
         val motions=baseMotions.mapValues {(id,motion)->
             if(id in slowed)motion.copy(velocity=motion.velocity*.5f) else motion
         }
         val wings=commands.air.mapValues {(_,wing)->
-            if(wing.mode==1 && wing.slowVelocity!=null && wing.target in slowed)
+            if(applies(wing))
                 wing.copy(slowVelocity=baseMotions.getValue(wing.target).velocity)
             else wing
         }
