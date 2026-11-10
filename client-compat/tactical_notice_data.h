@@ -23,14 +23,16 @@ inline const TacticalNotice* tacticalNotices(size_t& count) {
         {10, 0, "LOGH7_TACTICAL_DESTINATION", L"이동할 위치를 지정하세요.\n"},
         {11, 0, "LOGH7_TACTICAL_WAYPOINT", L"경유지를 추가하거나 이동 경로를 확정하세요.\n"},
         {13, 0, "LOGH7_TACTICAL_TARGET", L"공격할 대상을 선택하세요.\n"},
-        {14, 0, "LOGH7_TACTICAL_MISSION_SKIRMISH", L"유격 임무: 대상 적 유닛을 선택하세요.\n"},
+        {14, 0, "LOGH7_TACTICAL_MISSION_SKIRMISH", L"유격 임무를 지시했습니다.\n"},
         {15, 0, "LOGH7_TACTICAL_MISSION_DEFEND", L"방위 임무: 지킬 아군 행성·요새를 선택하세요.\n"},
         {16, 0, "LOGH7_TACTICAL_MISSION_OCCUPY", L"점령 임무: 점령할 적 행성·요새를 선택하세요.\n"},
         {17, 0, "LOGH7_TACTICAL_MISSION_INTERCEPT", L"요격 임무: 격파할 적 유닛을 선택하세요.\n"},
         {18, 0, "LOGH7_TACTICAL_MISSION_RECON", L"정찰 임무: 정찰할 적 유닛을 선택하세요.\n"},
         {19, 0, "LOGH7_TACTICAL_MISSION_RETREAT", L"철수 임무를 지시했습니다.\n"},
-        // Not a group-118 index: a non-chief's 0421 is a 具申 (the server keeps it as a proposal).
+        // Not a group-118 index: a non-chief's 0421 skirmish/retreat is a 具申 (the server keeps it as a proposal).
         {1019, 0, "LOGH7_TACTICAL_MISSION_PROPOSED", L"철수 임무를 구신했습니다.\n"},
+        // Not "..._MISSION_SKIRMISH_*": tacticalNoticeFragment matches by strstr, so a marker must not extend another.
+        {1014, 0, "LOGH7_TACTICAL_SKIRMISH_PROPOSED", L"유격 임무를 구신했습니다.\n"},
         {20, 0, "LOGH7_TACTICAL_FIRE_STOP", L"공격 중지 명령을 요청했습니다.\n"},
         {21, 0, "LOGH7_TACTICAL_ATTACK_REQUEST", L"공격 명령을 요청했습니다.\n"},
         {22, 0, "LOGH7_TACTICAL_ATTACK_AUTO", L"사정 안의 적을 자동으로 공격합니다.\n"},
@@ -79,7 +81,10 @@ inline bool tacticalWindowNoticeCall(unsigned call) {
     return false;
 }
 inline const char* tacticalMissionNotice(const char* marker, bool chief) {
-    return !chief && marker && !strcmp(marker, "LOGH7_TACTICAL_MISSION_RETREAT") ? "LOGH7_TACTICAL_MISSION_PROPOSED" : marker;
+    if (chief || !marker) return marker;
+    if (!strcmp(marker, "LOGH7_TACTICAL_MISSION_RETREAT")) return "LOGH7_TACTICAL_MISSION_PROPOSED";
+    if (!strcmp(marker, "LOGH7_TACTICAL_MISSION_SKIRMISH")) return "LOGH7_TACTICAL_SKIRMISH_PROPOSED";
+    return marker;
 }
 inline const char* tacticalNoticeFallback(unsigned group, unsigned index, const char* original, unsigned motion = 0) {
     if (group != 118 || !missingTacticalText(original)) return original;

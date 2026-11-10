@@ -33,6 +33,15 @@ inline void commanderMenu(bool chief,BYTE enabled[24]) {
     if(chief)enabled[20]=enabled[23]=1;
     enabled[orbitalStrikeSlot]=1;
 }
+// Mission-kind switch (0050f074, state 0x1a). Kind 0 (skirmish) loads 118/14 at 0050f096,
+// prepares ECX/stack at 0050f09b..0050f09e like kind 5 (0050f15c..0050f15f), then 0050f0a2
+// jumps to the shared recon target selection at 0050f134 (mask 0x1181), so no target ever
+// passes and no 0421 is sent. Skirmish needs no target: take kind 5's native no-target tail at
+// 0050f163, which calls 004b4850 with the stored kind [esp+0x24], zero target and the selection.
+constexpr unsigned skirmishMissionJump=0x50f0a2,skirmishMissionNoTarget=0x50f163;
+constexpr BYTE skirmishMissionReconJump[5]={0xe9,0x8d,0,0,0};     // -> 0050f134
+constexpr BYTE skirmishMissionNoTargetJump[5]={0xe9,0xbc,0,0,0};  // -> 0050f163
+constexpr BYTE skirmishMissionNoTargetTail[11]={0x50,0xe8,0xdb,0xcf,0x13,0,0xe8,0x82,0x8a,0,0};
 // The 0x7f00 strategy record (ordinal 0x46) that asks the server for one orbital ground attack.
 inline void orbitalStrikeRecord(BYTE record[36],unsigned character,unsigned short token,bool preview,
     unsigned base=0,unsigned attackers=0,unsigned short supplies=0) {

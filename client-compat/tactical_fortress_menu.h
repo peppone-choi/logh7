@@ -392,6 +392,11 @@ static bool installFortressCommandMenu() {
     // 0x40000 inverts that preview check; the server still validates the launch.
     const BYTE airMask[5]={0x68,0x81,0x11,0,0},airEnemyMask[5]={0x68,0x81,0x11,0x04,0};
     if(!patchBytes(reinterpret_cast<void*>(0x510ec3),airMask,airEnemyMask,5))return false;
+    // Skirmish (mission kind 0) uses kind 5's native no-target path; see tactical_fortress_menu_data.h.
+    if(memcmp(reinterpret_cast<void*>(logh::skirmishMissionNoTarget),logh::skirmishMissionNoTargetTail,
+        sizeof(logh::skirmishMissionNoTargetTail)) ||
+       !patchBytes(reinterpret_cast<void*>(logh::skirmishMissionJump),logh::skirmishMissionReconJump,
+        logh::skirmishMissionNoTargetJump,sizeof(logh::skirmishMissionNoTargetJump)))return false;
     const unsigned corpsDecoder=0x422d80,corpsReplacement=static_cast<unsigned>(reinterpret_cast<uintptr_t>(&decodedCommandCorps));
     if(memcmp(reinterpret_cast<void*>(0x66c400),&corpsDecoder,4) ||
        !patchBytes(reinterpret_cast<void*>(0x66c400),&corpsDecoder,&corpsReplacement,4))return false;

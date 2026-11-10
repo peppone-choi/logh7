@@ -306,6 +306,15 @@ static bool commanderMenuTest() {
     logh::orbitalStrikeRecord(strike,10000,8,false,1177,3,100);
     if(strike[16] || *reinterpret_cast<unsigned short*>(strike+10)!=100 ||
         *reinterpret_cast<unsigned*>(strike+20)!=3 || *reinterpret_cast<unsigned*>(strike+28)!=1177)return false;
+    const auto jumpTarget=[](const BYTE* jump) {
+        LONG relative;memcpy(&relative,jump+1,4);
+        return static_cast<unsigned>(logh::skirmishMissionJump+5+relative);
+    };
+    if(logh::skirmishMissionReconJump[0]!=0xe9 || logh::skirmishMissionNoTargetJump[0]!=0xe9 ||
+        jumpTarget(logh::skirmishMissionReconJump)!=0x50f134 ||
+        jumpTarget(logh::skirmishMissionNoTargetJump)!=logh::skirmishMissionNoTarget ||
+        logh::skirmishMissionNoTargetTail[0]!=0x50 || logh::skirmishMissionNoTargetTail[1]!=0xe8 ||
+        logh::skirmishMissionNoTargetTail[6]!=0xe8)return false;
     return true;
 }
 static bool fortressMenuAuthorityTest() {
@@ -966,6 +975,9 @@ static bool tacticalNoticesTest() {
     }
     if (strcmp(logh::tacticalMissionNotice("LOGH7_TACTICAL_MISSION_RETREAT", false), "LOGH7_TACTICAL_MISSION_PROPOSED") ||
         strcmp(logh::tacticalMissionNotice("LOGH7_TACTICAL_MISSION_RETREAT", true), "LOGH7_TACTICAL_MISSION_RETREAT") ||
+        strcmp(logh::tacticalMissionNotice("LOGH7_TACTICAL_MISSION_SKIRMISH", false), "LOGH7_TACTICAL_SKIRMISH_PROPOSED") ||
+        strcmp(logh::tacticalMissionNotice("LOGH7_TACTICAL_MISSION_SKIRMISH", true), "LOGH7_TACTICAL_MISSION_SKIRMISH") ||
+        strcmp(logh::tacticalMissionNotice("LOGH7_TACTICAL_MISSION_DEFEND", false), "LOGH7_TACTICAL_MISSION_DEFEND") ||
         logh::tacticalMissionNotice(missing, false) != missing) return false;
     {
         std::string encoded;std::wstring back;
