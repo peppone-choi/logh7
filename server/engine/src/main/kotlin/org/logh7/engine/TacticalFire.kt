@@ -242,12 +242,12 @@ internal object TacticalCombat {
     }
 
     private fun clearFinishedOrders(players:MutableMap<String,Navigator>,galaxy:Galaxy,stocks:PlanetStocks,now:Long,
-        eliminated:Set<CountryId>) {
+        eliminated:Set<CountryId>,ordersSettled:Boolean=true) {
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)
         // Hostile bases/ground troops can retain tactical contact but are never auto-fire targets.
         for((account,p) in players.toMap()) if(p.attack!=null &&
             ids.none {target(it,p.grid,TacticalAuthority.camp(p,stocks),stocks,galaxy,players)!=null})players[account]=p.copy(attack=null)
-        TacticalContact.endUncontested(galaxy,players,stocks,now,eliminated)
+        TacticalContact.endUncontested(galaxy,players,stocks,now,eliminated,ordersSettled)
     }
 
     fun settle(session: SessionState, galaxy: Galaxy, navigation: Navigation, production: PlanetProduction,
@@ -274,7 +274,7 @@ internal object TacticalCombat {
                     (player.hull?.woundedUntil ?: 0)>now))
                 players[account]=players.getValue(account).copy(attack=null,fire=player.fire?.copy(pending=null))
         }
-        clearFinishedOrders(players,galaxy,stocks,now,session.eliminated.keys)
+        clearFinishedOrders(players,galaxy,stocks,now,session.eliminated.keys,ordersSettled=false)
         val movements=mutableListOf<TacticalMovement>()
         val strategicMovements=mutableListOf<NpcStrategicMovement>()
         var inventory=if(session.ended==null)TacticalMotionProgress.advance(session,galaxy,players,stocks,movements) else stocks

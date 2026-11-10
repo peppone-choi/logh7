@@ -51,6 +51,26 @@ class TacticalContactTest {
         assertEquals(enemy,players.getValue("enemy"))
     }
 
+    @Test fun excludedFlagshipsLeaveTacticsWhileTheOtherCountriesKeepFighting() {
+        val pilotInBattle=pilot.copy(cpPaused=true,commandRange=TacticalCommandRange(90))
+        val enemy=pilot.copy(characterId=10001,country=Power.EMPIRE.country,
+            shipStyle=ShipStyleId.fromLegacy(Power.EMPIRE),cpPaused=true)
+        val third=enemy.copy(characterId=10002,country=CountryId(4))
+        val dead=BattleDeath.apply(stocks,listOf(pilot.characterId),100) {_,_->true}
+        val detention=Detention(pilot.characterId,Power.ALLIANCE.country,100,100+Justice.DAY,base=1000)
+        val held=stocks.copy(social=stocks.social.copy(justice=JusticeState(detentions=mapOf(pilot.characterId to detention))))
+        assertTrue(TacticalContact.active(galaxy,pilotInBattle,listOf(enemy,third),stocks))
+
+        for ((inventory,eliminated) in listOf(stocks to setOf(Power.ALLIANCE.country),dead to emptySet(),held to emptySet())) {
+            val players=mutableMapOf("pilot" to pilotInBattle,"enemy" to enemy,"third" to third)
+            assertFalse(TacticalContact.active(galaxy,pilotInBattle,players.values,inventory,eliminated))
+            TacticalContact.endUncontested(galaxy,players,inventory,101,eliminated)
+            assertEquals(pilotInBattle.copy(cpPaused=false,cpRecoveryAt=101,commandRange=null),players.getValue("pilot"))
+            assertEquals(enemy,players.getValue("enemy"))
+            assertEquals(third,players.getValue("third"))
+        }
+    }
+
     @Test fun survivingHostileGroundUnitsRetainBattleAndZeroInventoryEndsIt() {
         val battle=pilot.copy(grid=2017,cpPaused=true)
         val crew=UnitSpecifications.crews.first {it.category!=19}

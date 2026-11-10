@@ -203,11 +203,11 @@ class TacticalFleetMotionTest {
         val detention=Detention(10000,Power.EMPIRE.country,now,now+Justice.DAY)
         s.stocks=s.stocks.copy(social=s.stocks.social.copy(justice=JusticeState(detentions=mapOf(10000 to detention))))
     }
-    @Test fun woundedCommandersSavedRotationStopsAtTheOriginalPose() = assertSavedRotationStopsAtTheOriginalPose { s ->
+    @Test fun woundedCommandersSavedRotationStopsAtTheOriginalPose() = assertSavedRotationStopsAtTheOriginalPose(exitsTactics=false) { s ->
         val pilot=s.players.getValue("pilot")
         s.players=s.players+("pilot" to pilot.copy(hull=pilot.hull!!.copy(woundedUntil=now+30)))
     }
-    private fun assertSavedRotationStopsAtTheOriginalPose(invalidate:(State)->Unit) {
+    private fun assertSavedRotationStopsAtTheOriginalPose(exitsTactics:Boolean=true,invalidate:(State)->Unit) {
         for(kind in TacticalManeuver.entries) {
             val s=state()
             val request=request().copy(tacticalMove=TacticalMove(listOf(1,2,1010000),0f,1f,
@@ -224,7 +224,9 @@ class TacticalFleetMotionTest {
                 assertNull(stopped.rotation);assertNull(event.reverseTarget)
                 assertEquals(accepted.tacticalMotions.getValue(event.unit).origin,stopped.pose(now+20))
             }
-            assertNull(s.players.getValue("pilot").motion!!.rotation)
+            val pilot=s.players.getValue("pilot")
+            assertEquals(!exitsTactics,pilot.cpPaused)
+            if(exitsTactics)assertNull(pilot.motion) else assertNull(assertNotNull(pilot.motion).rotation)
             assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.tactical!!.motion.rotation==null})
         }
     }

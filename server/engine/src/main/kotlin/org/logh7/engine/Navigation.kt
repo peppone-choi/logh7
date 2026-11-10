@@ -277,7 +277,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             initial=initial.copy(hull=FlagshipHull(ship.kind,now,clockScale=clockScale))
         }
         val wounded=initial.hull?.woundedUntil?.let {now<it} == true
-        val tactical = if(wounded) false else request.tactical ?: if(stocks == null) initial.cpPaused else
+        val detained=stocks?.social?.justice?.detained(request.characterId)==true
+        // Combat settlement still needs a detainee's last pose to cancel saved movement.
+        val tactical = if(wounded) false else if(detained) initial.cpPaused else request.tactical ?: if(stocks == null) initial.cpPaused else
             TacticalContact.active(galaxy,initial,snapshot(session.generation).values,stocks,session.eliminated.keys)
         val ready = (if(initial.cpPaused == tactical) initial else initial.copy(cpPaused=tactical,cpRecoveryAt=now,
             commandRange=if(tactical)TacticalCommandRange(now,command=request.commandAbility ?: 50) else null,
@@ -363,7 +365,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             request.energy != null || request.tacticalMove != null || request.tacticalStop != null ||
             request.tacticalRetreat != null || request.tacticalShoot != null || request.tacticalAttack != null)) return reject(NavigationRejection.WOUNDED)
         // U-25: a detainee stays in the holding room until released (warp, docking, spot moves and supply refused).
-        if (stocks?.social?.justice?.detained(request.characterId) == true &&
+        if (detained &&
             (request.destination != null || request.place != null || request.supplyFuel ||
                 request.tacticalMove != null || request.tacticalRetreat != null)) return reject(NavigationRejection.BUSY)
         if (request.shipKind!=null && before.hull!=null && request.shipKind!=before.hull.kind &&
@@ -428,7 +430,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             return NavigationResult(after, before)
         }
         request.energy?.let { energy ->
-            if (stocks?.social?.justice?.detained(before.characterId) == true) return reject(NavigationRejection.BUSY)
+            if (detained) return reject(NavigationRejection.BUSY)
             if (!before.cpPaused) return reject(NavigationRejection.TACTICAL)
             if (request.unitId != before.unitId) return reject(NavigationRejection.UNIT)
             if (!captainCard(request,before,countries)) return reject(NavigationRejection.CARD)
