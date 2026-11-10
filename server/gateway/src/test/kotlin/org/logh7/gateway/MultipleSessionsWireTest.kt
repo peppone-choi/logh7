@@ -209,6 +209,42 @@ class MultipleSessionsWireTest {
             }
         }
     }
+    @Test fun restartingAMaintainedWorldKeepsItClosedUntilAnExplicitReopen() {
+        val registry = GameSessionDirectory()
+        val betaDirectory = directory.resolve("beta")
+        val betaState = betaDirectory.resolve("session.maintenance")
+        fun beta() = LoadFixture(betaDirectory, 2, LoadMetrics(), sessionDirectory = registry,
+            sessionId = 2, sessionName = "Beta", accountSource = accounts, maintenanceStateFile = betaState)
+        LoadFixture(directory.resolve("alpha"), 2, LoadMetrics(), sessionDirectory = registry,
+            sessionId = 1, sessionName = "Alpha", accountSource = accounts).use { alpha ->
+            alpha.join(alpha.account(0), create = true).client.use { active ->
+                lobby(alpha).use { lobby ->
+                    beta().use { before ->
+                        assertFalse(before.gateway.maintenance.closed())
+                        assertTrue(before.gateway.maintenance.setClosed(true))
+                    }
+                    beta().use { restarted ->
+                        assertTrue(restarted.gateway.maintenance.closed())
+                        SyntheticClient(restarted.loginPort, LoadMetrics()).use { login ->
+                            login.send(SyntheticClient.login(restarted.account(0), "fixture"))
+                            assertEquals(0x7002, ByteBuffer.wrap(login.receive(false)).short.toInt())
+                        }
+                        lobby.send(byteArrayOf(0x20, 0x09, 0, 2))
+                        lobby.expect(0x200b)
+                        alpha.clock(active)
+                        assertTrue(restarted.gateway.maintenance.setClosed(false))
+                        val token = ByteBuffer.wrap(selected(lobby, 2)).getInt(12).toLong() and 0xffffffffL
+                        SyntheticClient(restarted.sessionPort, LoadMetrics()).use { game ->
+                            game.send(SyntheticClient.token(token), SyntheticClient.opcode(0x0200))
+                            game.expect(0x0201)
+                        }
+                    }
+                    beta().use { reopened -> assertFalse(reopened.gateway.maintenance.closed()) }
+                }
+            }
+        }
+    }
+
     @Test fun operatorDisconnectIsScopedToOneWorldEvenWithTheSameAccountInBoth() {
         val registry = GameSessionDirectory()
         LoadFixture(directory.resolve("alpha"), 2, LoadMetrics(), sessionDirectory = registry,

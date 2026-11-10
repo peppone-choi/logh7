@@ -19,6 +19,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     private val sessionName:String=LobbyMessages.LOCAL_SESSION_NAME,accountSource:Map<String,String>?=null,
     private val accountFame:FameLedger?=null,sessionDurability:SessionDurability?=null,
     awaitIdentities:Boolean=false,private val originalCandidates:PublishedOriginalCandidates=PublishedOriginalCandidates(),
+    private val maintenanceStateFile:Path?=null,
     prepare:(WorldEngine)->Unit = {}) : AutoCloseable {
     val accounts = accountSource ?: (0 until capacity + 3).associate { "load-%03d".format(it) to "fixture" }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -96,7 +97,7 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
                 world = galaxy?.let(::WorldBootstrap), navigation = galaxy?.let { navigationDecorator(EngineGameNavigation(engine, scope)) },
                 stock = galaxy?.let { EngineGameStock(engine, scope) }, administration = galaxy?.let { EngineGameAdministration(engine, scope, it) },
                 sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,accountFame=accountFame,
-                originalCandidates=originalCandidates)
+                originalCandidates=originalCandidates,maintenanceStateFile=maintenanceStateFile)
             try {
                 candidate.start(gamePort = ports[0], updatePort = ports[1], sessionPort = ports[2])
                 metrics.observe("bindRetries", attempt.toLong()); return candidate to ports

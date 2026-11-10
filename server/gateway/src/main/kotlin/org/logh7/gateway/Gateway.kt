@@ -77,7 +77,10 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private val accountFame:FameLedger?=null,
     private val npcDialogue:NpcCombatDialogue?=null,
     private val npcProfiles:org.logh7.engine.PublishedNpcFleetDialogue=org.logh7.engine.PublishedNpcFleetDialogue(),
-    private val originalCandidates:org.logh7.engine.PublishedOriginalCandidates=org.logh7.engine.PublishedOriginalCandidates()) : AutoCloseable {
+    private val originalCandidates:org.logh7.engine.PublishedOriginalCandidates=org.logh7.engine.PublishedOriginalCandidates(),
+    maintenanceStateFile: Path? = null) : AutoCloseable {
+    /** Read the maintenance state before allocating listener resources. */
+    val maintenance = MaintenanceGate(maintenanceStateFile)
     private val boss = MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory())
     private val workers = MultiThreadIoEventLoopGroup(2, NioIoHandler.newFactory())
     private val channels = mutableListOf<Channel>()
@@ -88,8 +91,6 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     @Volatile private var started=false
     /** Login/ticket/update/connection outcomes for the ops metrics (repeated-failure alerts). */
     val counters = GatewayCounters()
-    /** Maintenance admission switch shared by every login listener of this gateway. */
-    val maintenance = MaintenanceGate()
     @Volatile private var livePresence: GamePresence? = null
     /** Operator notice to every online player as a "[운영]" spot chat line; returns the recipients (0 without a world). */
     fun operatorNotice(text: String): Int = livePresence?.operatorNotice(text, gameSeconds()) ?: 0

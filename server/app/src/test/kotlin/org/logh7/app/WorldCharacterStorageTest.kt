@@ -36,6 +36,16 @@ class WorldCharacterStorageTest {
             "LOGH7_NAVIGATION_FILE" to navigation, "LOGH7_WORLD_STATE_DIR" to world), hasWorld = true))
     }
 
+    @Test fun maintenanceUsesAnIndependentSiblingOfThePersistentSessionOrLegacyState() {
+        val session = directory.resolve("alpha/session")
+        val world = directory.resolve("alpha/world")
+        val characterFile = directory.resolve("legacy/characters.properties")
+        assertEquals(directory.resolve("alpha/session.maintenance"), maintenanceStateFile(session, world, characterFile))
+        assertEquals(directory.resolve("alpha/world.maintenance"), maintenanceStateFile(null, world, characterFile))
+        assertEquals(directory.resolve("legacy/characters.properties-maintenance"), maintenanceStateFile(null, null, characterFile))
+        assertNull(maintenanceStateFile(null, null, null))
+    }
+
     @Test fun reopenedWorldRequiresItsCurrentRegistrationWhenAPlayerRemains() {
         val world = directory.resolve("world")
         val file = assertNotNull(worldCharacterFile(RuntimeEnvironment.load(

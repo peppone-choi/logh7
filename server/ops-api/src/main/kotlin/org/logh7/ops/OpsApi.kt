@@ -178,8 +178,13 @@ fun startOpsApi(commands: CommandSink, snapshots: SnapshotSource, port: Int = 47
                 val control = maintenance ?: return respondText("maintenance control unavailable", status = HttpStatusCode.ServiceUnavailable)
                 val recorded = mode?.takeIf { Regex("[a-z]{1,8}").matches(it) } ?: "invalid"
                 if (mode != "on" && mode != "off") return audited(audit, OpsAction.MAINTENANCE, operator, details = recorded) { OpsOutcome.INVALID }
-                audited(audit, OpsAction.MAINTENANCE, operator, details = recorded) {
-                    if (control.setClosed(mode == "on")) OpsOutcome.CHANGED else OpsOutcome.UNCHANGED
+                audited(audit, OpsAction.MAINTENANCE, operator, details = recorded,
+                    messages = mapOf(OpsOutcome.UNAVAILABLE to "점검 상태를 저장하지 못했습니다. 기존 상태가 유지됩니다.")) {
+                    try {
+                        if (control.setClosed(mode == "on")) OpsOutcome.CHANGED else OpsOutcome.UNCHANGED
+                    } catch (_: IOException) {
+                        OpsOutcome.UNAVAILABLE
+                    }
                 }
             }
             suspend fun io.ktor.server.application.ApplicationCall.sendNotice(operator: String?, text: String?) {
@@ -334,7 +339,7 @@ internal suspend fun ApplicationCall.audited(audit: OpsAudit?, action: OpsAction
         OpsOutcome.NOT_FOUND -> respondText(messages[outcome] ?: "no such account", status = HttpStatusCode.NotFound)
         OpsOutcome.INVALID -> respondText(messages[outcome] ?: "account 1-30 of [A-Za-z0-9._-], password 1-10 printable ASCII", status = HttpStatusCode.BadRequest)
         OpsOutcome.UNCHANGED -> respondText("unchanged")
-        OpsOutcome.UNAVAILABLE -> respondText("world editing unavailable",status=HttpStatusCode.ServiceUnavailable)
+        OpsOutcome.UNAVAILABLE -> respondText(messages[outcome] ?: "world editing unavailable",status=HttpStatusCode.ServiceUnavailable)
     }
 }
 
