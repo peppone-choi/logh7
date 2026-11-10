@@ -22,8 +22,7 @@ internal object TacticalLineOfFire {
         }
         for(o in stocks.outfits.values.filter {TacticalAuthority.camp(it,stocks)==camp && it.positionIn(galaxy)==OutfitPosition(grid)})
             for(u in o.activeShips?.values.orEmpty().filter {it.id!=source && it.boats>0 && it.posture?.takeIf {p->p.grid==grid}?.mode!=TacticalShipMode.STATIONED}) {
-                val at=u.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,u.posture,galaxy,stocks)?.position ?:
-                    TacticalDeployment.initial(u.id,grid,players,stocks,galaxy).position
+                val at=u.tacticalPose(grid,now,players,stocks,galaxy).position
                 if(intersects(at,.25))return true
             }
         return galaxy.bases.filter {it.grid==grid && it.kind==1 && stocks.bases[it.id]?.let {b->TacticalAuthority.camp(b)==camp}==true}

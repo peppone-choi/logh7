@@ -41,6 +41,29 @@ class TacticalLineOfFireTest {
         assertFalse(blocked(stocksWith(ship.copy(posture=staleBerth.copy(grid=2487)))))
     }
 
+    @Test fun anAnchoredAllyWithoutSavedMotionBlocksOnlyWhileItsBerthCrossesTheLine() {
+        val mobileGalaxy = Galaxy(galaxy.systems, listOf(base.copy(mobile = true)), galaxy.starts)
+        val initial = state(2)
+        val outfit = initial.outfits.getValue(1)
+        val ship = outfit.activeShips!!.values.single().copy(tactical = null,
+            posture = TacticalPosture(2487, TacticalShipMode.ANCHORED, base.id))
+        val from = TacticalPoint(0f, 78f)
+        val to = TacticalPoint(0f, 82f)
+        val start = TacticalPoint(-1f, 80f)
+        val course = TacticalMotion(2487, 100, TacticalPose(start, 0f), TacticalFortressMotion.VELOCITY, 0f,
+            listOf(TacticalPoint(1f, 80f)), waitSeconds = 0)
+        val stocks = initial.copy(
+            bases = mapOf(base.id to initial.bases.getValue(base.id).copy(owner = Allegiance.Country(CountryId(3)))),
+            outfits = mapOf(outfit.id to outfit.copy(activeShips = ActiveShipUnits(listOf(ship)))),
+            tacticalCommands = TacticalCommandState(fortresses = mapOf(base.id to TacticalFortressMotion(2487, course))))
+        fun blocked(at: Long) = TacticalLineOfFire.blocked(1, 2487, Camp(Power.EMPIRE, false), from, to, at,
+            emptyList(), stocks, mobileGalaxy)
+
+        assertFalse(blocked(100))
+        assertTrue(blocked(110))
+        assertFalse(blocked(120))
+    }
+
     @Test fun mobileFortressUsesItsSavedPositionForBlocking() {
         val before=state(3);val point=TacticalPoint(0f,3f)
         val motion=TacticalMotion(2487,100,TacticalPose(point,0f),0f,0f,listOf(point))
