@@ -430,6 +430,29 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun anAffordableFirstHopToTheSameEnemyKeepsEnoughFuelToReturn() {
+        val depot=galaxy.bases.single().copy(grid=2588)
+        val world=Galaxy(galaxy.systems+GalaxySystem(5,2588,4,"Depot",2),listOf(depot),galaxy.starts)
+        val initial=stocks()
+        val outfit=initial.outfits.getValue(1)
+        val ship=outfit.activeShips!!.values.single().copy(damaged=299)
+        val fleet=OutfitSupplies.withBalances(outfit.copy(position=OutfitPosition(2488),
+            activeShips=ActiveShipUnits(listOf(ship))),mapOf(ship.id to 600))
+        val inventory=initial.copy(outfits=mapOf(fleet.id to fleet))
+        val pilots=players().apply {this["pilot"]=getValue("pilot").copy(grid=2490)}
+        val events=mutableListOf<NpcStrategicMovement>()
+        val reserved=NpcStrategy.advance(simulation.copy(gameMillis=0),world,pilots,inventory,events)
+        // 2389 is first by ID but needs two jumps back; 2489 needs only one.
+        assertEquals(2489,reserved.outfits.getValue(fleet.id).strategy?.destination)
+        assertEquals(600,reserved.outfits.getValue(fleet.id).supplies)
+        assertTrue(events.isEmpty())
+        val arrived=NpcStrategy.advance(simulation.copy(gameMillis=3600000),world,pilots,reserved,events)
+        assertEquals(OutfitPosition(2489),arrived.outfits.getValue(fleet.id).position)
+        assertEquals(300,arrived.outfits.getValue(fleet.id).supplies)
+        assertEquals(inventory.bases,arrived.bases)
+        assertEquals(2489,events.single().destination)
+    }
+
     @Test fun fleetReservesFuelForEveryJumpAroundAStormAndDocks() {
         val blocked=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,terrain=List(50) {y->
             CharArray(100) {x->if(x==89 && y in 22..26)'~' else '.'}.concatToString()

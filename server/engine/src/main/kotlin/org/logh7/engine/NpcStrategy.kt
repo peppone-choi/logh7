@@ -41,10 +41,10 @@ internal object NpcStrategy {
             if(dx==0 && dy==0 || x+dx !in 0..99 || y+dy !in 0..49)null else (y+dy)*100+x+dx
         }}
     }
-    private fun step(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,origin:Int,goal:Int,preferred:Int?=null):Int? {
+    private fun steps(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,origin:Int,goal:Int,preferred:Int?):List<Int> {
         val camp=Camp(outfit.country,false);val strength=GridForces.mobileUnits(outfit)
         return neighbors(origin).filter {distance(it,goal)<distance(origin,goal) && hostile(forces,it,camp)<=strength*2 && allowed(galaxy,forces,outfit,it)}
-            .minWithOrNull(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {distance(it,goal)}.thenBy {it})
+            .sortedWith(compareBy<Int> {if(it==preferred)0 else 1}.thenBy {distance(it,goal)}.thenBy {it})
     }
     /** Hostile mobile units on [grid] against [camp]. */
     private fun hostile(forces:Map<Int,List<GridForces.Force>>,grid:Int,camp:Camp)=
@@ -156,10 +156,8 @@ internal object NpcStrategy {
             val goals=candidates.sortedWith(compareBy<Int> {
                 if(preferred!=null && distance(preferred,it)<distance(origin,it))0 else 1
             }.thenBy {distance(origin,it)}.thenBy {it})
-            val checkedSteps=mutableSetOf<Int>()
-            for(goal in goals) {
-                val grid=step(galaxy,forces,outfit,origin,goal,preferred) ?: continue
-                if(!checkedSteps.add(grid))continue
+            val firstHops=goals.asSequence().flatMap {steps(galaxy,forces,outfit,origin,it,preferred)}.distinct()
+            for(grid in firstHops) {
                 val next=OutfitPosition(grid)
                 if(home==null)return next
                 val projected=outfit.copy(position=next)
