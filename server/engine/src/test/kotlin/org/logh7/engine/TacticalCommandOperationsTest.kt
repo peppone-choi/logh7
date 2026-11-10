@@ -1174,6 +1174,40 @@ class TacticalCommandOperationsTest {
         assertNotNull(s.stocks.outfits.getValue(1).activeShips!!.values.first().tactical!!.retreat)
     }
 
+    @Test fun aFleetRetreatAlreadyPreparingIsCancelledWhenTheBattleEnds() {
+        val s = state()
+        val pilot = s.players.getValue("pilot")
+        s.players = s.players + ("pilot" to pilot.copy(motion = motion(260f)))
+        val fleet = s.stocks.outfits.getValue(1)
+        val ships = ActiveShipUnits(fleet.activeShips!!.values.map {
+            it.copy(tactical = NpcTacticalState(motion(260f, it.id * .4f), now, now))
+        })
+        s.stocks = s.stocks.copy(outfits = s.stocks.outfits + (1 to fleet.copy(activeShips = ships)))
+        val r = run(s)
+        val command = request(TacticalCommand(0x40d, listOf(1))).copy(tacticalCommand = null, tacticalRetreat = listOf(1))
+        assertNotNull(TacticalFleetRetreat.accept(command, session, galaxy, r.navigation, r.production,
+            assertNotNull(r.production.snapshot(1)), s.commit, 1).player)
+        settle(r, now + 5)
+        val before = assertNotNull(r.production.snapshot(1))
+        val preparing = before.outfits.getValue(1)
+        assertTrue(assertNotNull(preparing.activeShips!!.values.first().tactical!!.retreat).membershipChecked)
+
+        val enemy = before.outfits.getValue(2)
+        val departed = enemy.copy(position = OutfitPosition(2490))
+        r.production.replace(before, before.copy(outfits = before.outfits + (2 to departed)))
+        val movements = mutableListOf<TacticalMovement>()
+        TacticalCombat.settle(session.copy(gameMillis = (now + 155) * 1000), galaxy, r.navigation,
+            r.production, s.commit, scale = 1, onMovement = movements::add)
+
+        val after = s.stocks.outfits.getValue(1)
+        assertEquals(preparing.position, after.position)
+        assertEquals(preparing.supplies, after.supplies)
+        assertEquals(preparing.activeShips.values.map { it.id }, after.activeShips!!.values.map { it.id })
+        assertTrue(after.activeShips.values.all { it.tactical?.retreat == null })
+        assertTrue(movements.none { it.destination != null })
+        assertFalse(s.players.getValue("pilot").cpPaused)
+    }
+
     @Test fun admittedFleetRetreatCannotWarpAfterTheOutfitDocksChangesGridOrLosesItsCountry() {
         for (position in listOf(OutfitPosition(2488,1000),OutfitPosition(2487),OutfitPosition(2488))) {
             val s=state()
@@ -1331,9 +1365,10 @@ class TacticalCommandOperationsTest {
             if(it.id==1)it.copy(motionCommander=10000,tactical=NpcTacticalState(motion(260f),now,now,retreat=retreat)) else it
         })
         val pirates=PirateFleet(1,2489,now,listOf(PirateUnit(900001,1)))
+        val sourcePirates=PirateFleet(2,2488,now,listOf(PirateUnit(900002,1)))
         val blocker=s.stocks.outfits.getValue(2).copy(position=OutfitPosition(2489))
         val before=s.stocks.copy(outfits=s.stocks.outfits+(1 to fleet.copy(activeShips=ships))+(2 to blocker),
-            social=s.stocks.social.copy(pirates=PirateState(mapOf(1 to pirates),2)))
+            social=s.stocks.social.copy(pirates=PirateState(mapOf(1 to pirates,2 to sourcePirates),3)))
         val due=session.copy(gameMillis=(now+155)*1000)
         val events=mutableListOf<TacticalMovement>()
         assertEquals(before,TacticalFleetRetreat.advance(due,galaxy,s.players.toMutableMap(),before,events))
