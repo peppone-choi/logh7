@@ -66,7 +66,7 @@ internal object TacticalGroundOperations {
 
     private fun delegated(order:TacticalGroundOrder,session:SessionState,players:Map<String,Navigator>,stocks:PlanetStocks)=
         !order.issuedByOfflineAi || players.entries.singleOrNull {it.value.characterId==order.character}?.let {
-            TacticalOfflineAi.eligible(session,it.key,it.value,stocks)
+            TacticalOfflineAi.canFinishOccupationOrder(session,it.key,it.value,stocks,order.base)
         }==true
 
     fun pending(stocks:PlanetStocks?,grid:Int,players:Collection<Navigator>,galaxy:Galaxy,
@@ -79,7 +79,11 @@ internal object TacticalGroundOperations {
                 val reserved=outfit.activeGround?.values.orEmpty().filter {it.order?.grid==grid}.groupBy {checkNotNull(it.order)}
                 for((order,units) in reserved) {
                     val base=bases[order.base] ?: continue
-                    if(order.issuedByOfflineAi && (order.character==onlineViewer || !stocks.tacticalCommands.tacticalAi(order.character)))continue
+                    if(order.issuedByOfflineAi) {
+                        if(order.character==onlineViewer || !stocks.tacticalCommands.tacticalAi(order.character))continue
+                        val commander=players.singleOrNull {it.characterId==order.character} ?: continue
+                        if(!TacticalOfflineAi.occupationTargetMatches(commander,stocks,order.base))continue
+                    }
                     if(validOrder(outfit,order,units,base,players,stocks,galaxy,now))add(order)
                 }
             }
