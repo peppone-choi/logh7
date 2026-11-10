@@ -1862,6 +1862,31 @@ static int runGuard(int argc, wchar_t** argv) {
             if(!refresh.take(excluded))return 1149;
         }
     }
+    {
+        // Navigation.returnBaseRejection, limited to received facts. Country 42 shares native power 2
+        // with country 2, so only the stable ID decides; camp and unknown data stay with the server.
+        const logh::BaseAffiliation::Owner own42{1,42,2,0},own2{2,2,2,0},rebel42{3,42,2,1},neutral{4,0,0,0};
+        const unsigned country42=42,countryless=0,power2=2;
+        if(!logh::returnBaseCandidate(&own42,&country42,1) || logh::returnBaseCandidate(&own2,&country42,1) ||
+            logh::returnBaseCandidate(&own42,&power2,-1) || !logh::returnBaseCandidate(&rebel42,&country42,-1) ||
+            logh::returnBaseCandidate(&neutral,&country42,1))return 1240;
+        if(!logh::returnBaseCandidate(nullptr,&country42,-1) || !logh::returnBaseCandidate(&own2,nullptr,-1) ||
+            !logh::returnBaseCandidate(nullptr,nullptr,2) || logh::returnBaseCandidate(nullptr,nullptr,0) ||
+            logh::returnBaseCandidate(&own42,&country42,0))return 1241;
+        if(logh::returnBaseCandidate(&own42,&countryless,1) || !logh::returnBaseCandidate(&neutral,&countryless,1))return 1242;
+        // Captured 1049 (index 1) is refused: the cycle skips it in both directions and never returns to it.
+        const unsigned ids[]={1048,1049,1050,1051};
+        bool allowed[]={true,false,true,false};
+        if(logh::returnBaseStep(ids,allowed,4,1048,true)!=1050 || logh::returnBaseStep(ids,allowed,4,1050,true)!=1048 ||
+            logh::returnBaseStep(ids,allowed,4,1048,false)!=1050 || logh::returnBaseStep(ids,allowed,4,1050,false)!=1048)return 1243;
+        // A choice that became refused, or one no longer in the catalogue, moves to an allowed base.
+        if(logh::returnBaseStep(ids,allowed,4,1049,true)!=1050 || logh::returnBaseStep(ids,allowed,4,1049,false)!=1048 ||
+            logh::returnBaseStep(ids,allowed,4,0,true)!=1048 || logh::returnBaseStep(ids,allowed,4,0,false)!=1050)return 1244;
+        allowed[0]=false;
+        if(logh::returnBaseStep(ids,allowed,4,1050,true)!=1050 || logh::returnBaseStep(ids,allowed,4,1050,false)!=1050)return 1245;
+        allowed[2]=false;
+        if(logh::returnBaseStep(ids,allowed,4,1050,true) || logh::returnBaseStep(ids,allowed,0,0,true))return 1246;
+    }
     std::string calendarPrefix;
     std::wstring calendarDecoded;
     for(bool imperial:{true,false}) {

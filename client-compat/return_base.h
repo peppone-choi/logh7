@@ -7,7 +7,7 @@ static struct ReturnBaseSettings {
     void* manager;
     void* root;
     void* world;
-    unsigned character, selected, requested, previous;
+    unsigned character, selected, requested, previous, sequence;
     bool visible, pending;
     ULONGLONG sentAt;
     const wchar_t* message;
@@ -99,20 +99,52 @@ static void returnSettingsCharacterUpdated(void* world, unsigned before, unsigne
     auto& state = returnBaseSettings;
     state.refresh.updated(before, after, state.pending, state.visible && state.world == world);
 }
+// Filters use only received server data (see logh::returnBaseCandidate); unknown data never refuses.
+struct ReturnBaseFilter {
+    void* world; bool countryKnown; unsigned country;
+    ReturnBaseFilter(void* current, void* own) : world(current), countryKnown(false), country(0) {
+        // runtimeOwnCountry falls back to the shared native power byte; that is not a country ID.
+        AcquireSRWLockShared(&countryMetadataLock);
+        const auto& identity = ownCountryIdentity;
+        if (identity.world == world && identity.value.character == at<unsigned>(own, 0x24) &&
+            identity.value.power == static_cast<unsigned>(at<BYTE>(own, 0x28))) { countryKnown = true; country = identity.value.country.id; }
+        ReleaseSRWLockShared(&countryMetadataLock);
+    }
+    // 031f +0x175 from the native condition buffer or the planet list. Base habitability is static.
+    int habitable(unsigned id, const BYTE* base) const {
+        auto condition = logh::findPlanetCondition(static_cast<BYTE*>(world) + 0x3facf4, id, logh::infoShort(base, 0x10));
+        if (condition) return condition[0x175] <= 1 ? condition[0x175] : -1;
+        const auto& info = planetInformation;
+        if (info.world == world)
+            for (unsigned i = 0; i < info.directory.count; ++i) {
+                const auto& row = info.directory.rows[i];
+                if (row.id == id && row.state == 2) return row.habitable <= 1 ? row.habitable : -1;
+            }
+        return -1;
+    }
+    bool allowed(unsigned id) const {
+        auto base = pickerBase(id);
+        if (!base) return false;
+        logh::BaseAffiliation::Owner owner;
+        const bool known = runtimeBaseOwner(world, id, owner);
+        return logh::returnBaseCandidate(known ? &owner : nullptr, countryKnown ? &country : nullptr, habitable(id, base));
+    }
+};
 // The cleared base may still look selectable until newer base data arrives, so a refresh skips it.
 static void selectReturnCandidate(void* world, void* own, unsigned excluded) {
     auto& state = returnBaseSettings;
-    state.selected = at<unsigned>(own, 0x3c);
-    if (pickerBase(state.selected)) return;
+    const ReturnBaseFilter filter(world, own);
+    const unsigned saved = at<unsigned>(own, 0x3c);
+    state.selected = saved != excluded && filter.allowed(saved) ? saved : 0;
+    if (state.selected) return;
     unsigned first = 0;
     for (unsigned slot = 0; slot < 350; ++slot) {
         unsigned id = at<unsigned>(world, 0x2eb288 + slot * 4);
-        auto base = pickerBase(id);
-        if (!base || id == excluded) continue;
+        if (!id || id == excluded || !filter.allowed(id)) continue;
         if (!first) first = id;
-        if (logh::infoShort(base, 0x10) == at<unsigned>(own, 0x320)) { state.selected = id; break; }
+        if (logh::infoShort(pickerBase(id), 0x10) == at<unsigned>(own, 0x320)) { state.selected = id; return; }
     }
-    if (!pickerBase(state.selected)) state.selected = first;
+    state.selected = first;
 }
 static void __cdecl updateReturnSettings(void* manager) {
     reinterpret_cast<void(__cdecl*)(void*)>(0x54ef40)(manager);
@@ -129,26 +161,42 @@ static void __cdecl updateReturnSettings(void* manager) {
         if (state.world != world || state.character != at<unsigned>(own, 0x24)) { state.pending = false; state.refresh = {}; }
         state.world = world; state.character = at<unsigned>(own, 0x24); state.visible = true;
         selectReturnCandidate(world, own, 0);
-        state.message = L"아군 거주 행성만 설정할 수 있습니다.";
+        state.message = state.selected ? L"아군 거주 행성만 설정할 수 있습니다." : L"귀환 행성으로 고를 수 있는 아군 거주 행성이 없습니다.";
         state.refresh.due = false;
     } else if (state.refresh.take(excluded)) {
         selectReturnCandidate(world, own, excluded);
         state.message = L"서버에서 귀환 설정이 변경됐습니다.";
     }
+    // Ownership, identity and habitability can arrive or change while the tab is open (for
+    // example a capture). Recheck the choice; with none, retry only when country data changes.
+    const unsigned sequence = countryNameSequence.load();
+    if (!state.pending && (state.selected ? !ReturnBaseFilter(world, own).allowed(state.selected) : sequence != state.sequence)) {
+        const unsigned refused = state.selected;
+        selectReturnCandidate(world, own, refused);
+        if (refused) state.message = state.selected ? L"선택한 행성은 귀환 대상이 아니어서 다른 후보로 바꿨습니다." :
+            L"귀환 행성으로 고를 수 있는 아군 거주 행성이 없습니다.";
+        else if (state.selected) state.message = L"아군 거주 행성만 설정할 수 있습니다.";
+    }
+    state.sequence = sequence;
     BYTE event[52] = {};
     for (int index = 3; index <= 6; ++index) {
         auto widget = returnWidget(state.root, 1, index);
         if (!reinterpret_cast<BYTE(__thiscall*)(void*, int, void*, void*, int)>(0x5015f0)
             (state.root, 2, widget, event, 0) || state.pending) continue;
         if (index <= 4) {
-            unsigned slots[350] = {}, count = 0, current = 0;
+            const ReturnBaseFilter filter(world, own);
+            unsigned slots[350] = {}, count = 0;
+            bool allowed[350] = {};
             for (unsigned slot = 0; slot < 350; ++slot) {
                 unsigned id = at<unsigned>(world, 0x2eb288 + slot * 4);
                 if (!pickerBase(id)) continue;
-                if (id == state.selected) current = count;
+                allowed[count] = filter.allowed(id);
                 slots[count++] = id;
             }
-            if (count) state.selected = slots[(current + (index == 3 ? count - 1 : 1)) % count];
+            state.selected = logh::returnBaseStep(slots, allowed, count, state.selected, index == 4);
+            if (!state.selected) state.message = L"귀환 행성으로 고를 수 있는 아군 거주 행성이 없습니다.";
+        } else if (index == 5 && !state.selected) {
+            state.message = L"귀환 행성으로 고를 수 있는 아군 거주 행성이 없습니다.";
         } else {
             auto clock = *reinterpret_cast<void**>(0x7cd028);
             if (!clock) continue;
