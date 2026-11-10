@@ -294,6 +294,12 @@ class FleetNavigationTest {
         val merkatz=OriginalStartingOffice.MERKATZ_FLEET_3
         assertEquals(listOf(2,3,3,1026,39,4),listOf(merkatz.country.value,merkatz.fleetId,merkatz.fleetNumber,
             merkatz.baseId,merkatz.role.card,merkatz.rank))
+        val hawood=OriginalStartingOffice.HAWOOD_FLEET_7
+        assertEquals(listOf(3,139,7,1230,175,5),listOf(hawood.country.value,hawood.fleetId,hawood.fleetNumber,
+            hawood.baseId,hawood.role.card,hawood.rank))
+        val lefebvre=OriginalStartingOffice.LEFEBVRE_FLEET_3
+        assertEquals(listOf(3,135,3,1230,175,5),listOf(lefebvre.country.value,lefebvre.fleetId,lefebvre.fleetNumber,
+            lefebvre.baseId,lefebvre.role.card,lefebvre.rank))
         for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
     }
 
@@ -308,6 +314,8 @@ class FleetNavigationTest {
                 home.copy(id=1015,grid=1260,model=51,name="Hafen")
             OriginalStartingOffice.PAETTA_FLEET_2 -> home.copy(id=1177,grid=2015,model=61,name=Capital.ALLIANCE.baseName)
             OriginalStartingOffice.MERKATZ_FLEET_3 -> home.copy(id=1026,grid=3280,name="Neuenrade")
+            OriginalStartingOffice.HAWOOD_FLEET_7,OriginalStartingOffice.LEFEBVRE_FLEET_3 ->
+                home.copy(id=1230,grid=3744,model=102,name="Lusiana")
         }
         val systems=if(base.grid==start.grid)listOf(start) else
             listOf(start,GalaxySystem(4,base.grid,4,base.name,power.country.value))
@@ -319,9 +327,19 @@ class FleetNavigationTest {
         val request=NavigationRequest("pilot",1003,office.country,"c",1,rank=office.rank,
             shipKind=if(power==Power.EMPIRE)3 else 93,initializeOriginal=true,startingOffice=office)
         val fleet=OutfitStock(office.fleetId,office.country,OutfitKind.FLEET,base.id,1002,number=office.fleetNumber,aideId=1005)
+        val neighboringOffice=when(office) {
+            OriginalStartingOffice.HAWOOD_FLEET_7 -> OriginalStartingOffice.LEFEBVRE_FLEET_3
+            OriginalStartingOffice.LEFEBVRE_FLEET_3 -> OriginalStartingOffice.HAWOOD_FLEET_7
+            else -> null
+        }
+        val neighbor=neighboringOffice?.let {
+            fleet.copy(id=it.fleetId,number=it.fleetNumber,warehouseId=1003,commanderId=10006,aideId=0)
+        }
+        val dockedFleets=listOfNotNull(fleet,neighbor)
         val initial=PlanetStocks(1,0,mapOf(base.id to PlanetStock(base.id,office.country.value,0,100,100,100)),
-            outfits=mapOf(fleet.id to fleet),warehouses=mapOf(1002 to OutfitWarehouse(1002,office.country,OutfitKind.FLEET,base.id,fleet.id)),
-            deploymentInitialized=true)
+            outfits=dockedFleets.associateBy {it.id},warehouses=dockedFleets.associate {
+                it.warehouseId to OutfitWarehouse(it.warehouseId,office.country,OutfitKind.FLEET,base.id,it.id)
+            },deploymentInitialized=true)
         val state=State(initial,Navigator(1,1003,power,2487,1000,1000,1000)).also {it.players=emptyMap()}
         fun enter(entry:NavigationRequest=request,admission:SessionState=session):NavigationResult {
             val navigation=Navigation(world,state.nav,NavigationPolicy())
@@ -337,7 +355,7 @@ class FleetNavigationTest {
             state.players=emptyMap()
         }
         val occupied=fleet.copy(commanderId=10004)
-        state.stocks=initial.copy(outfits=mapOf(fleet.id to occupied))
+        state.stocks=initial.copy(outfits=initial.outfits+(fleet.id to occupied))
         assertEquals(0,assertNotNull(enter().player).baseId)
         assertEquals(occupied,state.stocks.outfits.getValue(fleet.id))
         state.players=emptyMap()
@@ -352,6 +370,7 @@ class FleetNavigationTest {
         assertEquals(base.grid,docked.grid)
         assertEquals(docked,state.players.getValue("pilot"))
         assertEquals(fleet.copy(commanderId=1003),state.stocks.outfits.getValue(fleet.id))
+        neighbor?.let {assertEquals(it,state.stocks.outfits.getValue(it.id))}
         assertEquals(1,state.commits)
         val resigned=OfficeResignation.evaluate(world,OfficeResignationRequest("pilot","c",1003,power,1,office.role.card),
             session,docked,state.stocks)

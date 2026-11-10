@@ -23,6 +23,8 @@ private fun OriginalStartingOffice.label()=when(this) {
     OriginalStartingOffice.PAETTA_FLEET_2 -> "파에타 · 제2함대 사령관 (하이네센)"
     OriginalStartingOffice.FOGEL_FLEET_5 -> "포겔 · 제5함대 사령관 (하펜)"
     OriginalStartingOffice.MERKATZ_FLEET_3 -> "메르카츠 · 제3함대 사령관 (노이엔라데)"
+    OriginalStartingOffice.HAWOOD_FLEET_7 -> "호우드 · 제7함대 사령관 (루지아나)"
+    OriginalStartingOffice.LEFEBVRE_FLEET_3 -> "르페브르 · 제3함대 사령관 (루지아나)"
 }
 
 /** The definition DB migrations still missing before [office] can be stored, or null when the store accepts it. */
@@ -35,6 +37,8 @@ private fun missingOfficeMigration(store:OriginalCandidateStore?,office:Original
         OriginalStartingOffice.PAETTA_FLEET_2 -> "V19" to (store?.supportsPaettaStartingOffice==true)
         OriginalStartingOffice.FOGEL_FLEET_5 -> "V20" to (store?.supportsFogelStartingOffice==true)
         OriginalStartingOffice.MERKATZ_FLEET_3 -> "V21" to (store?.supportsMerkatzStartingOffice==true)
+        OriginalStartingOffice.HAWOOD_FLEET_7,OriginalStartingOffice.LEFEBVRE_FLEET_3 ->
+            "V22" to (store?.supportsLusianaStartingOffices==true)
     }
     return when {
         store?.supportsStartingOffice!=true -> listOfNotNull("V16",migration).joinToString("·")

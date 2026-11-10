@@ -7,7 +7,9 @@ enum class OriginalStartingOffice(val key:String,val country:CountryId,val fleet
     STADEN_FLEET_4("staden-fleet-4",CountryId(2),4,4,1015,FleetOffice.EMPIRE_COMMANDER),
     PAETTA_FLEET_2("paetta-fleet-2",CountryId(3),134,2,1177,FleetOffice.ALLIANCE_COMMANDER),
     FOGEL_FLEET_5("fogel-fleet-5",CountryId(2),5,5,1015,FleetOffice.EMPIRE_COMMANDER),
-    MERKATZ_FLEET_3("merkatz-fleet-3",CountryId(2),3,3,1026,FleetOffice.EMPIRE_COMMANDER,rank=4);
+    MERKATZ_FLEET_3("merkatz-fleet-3",CountryId(2),3,3,1026,FleetOffice.EMPIRE_COMMANDER,rank=4),
+    HAWOOD_FLEET_7("hawood-fleet-7",CountryId(3),139,7,1230,FleetOffice.ALLIANCE_COMMANDER),
+    LEFEBVRE_FLEET_3("lefebvre-fleet-3",CountryId(3),135,3,1230,FleetOffice.ALLIANCE_COMMANDER);
 
     fun accepts(id:Long,country:CountryId?,rank:Int):Boolean =
         id in PublishedOriginalCandidates.NEW_IDS && country==this.country && rank==this.rank
@@ -89,6 +91,7 @@ interface OriginalCandidateStore {
     val supportsPaettaStartingOffice:Boolean get()=false
     val supportsFogelStartingOffice:Boolean get()=false
     val supportsMerkatzStartingOffice:Boolean get()=false
+    val supportsLusianaStartingOffices:Boolean get()=false
     fun load():List<OriginalCandidateEdit>
     fun loadPortraits():Map<String,CandidatePortrait> = emptyMap()
     fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?=null):OriginalCandidateEdit?
