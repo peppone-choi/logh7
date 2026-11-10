@@ -7,7 +7,7 @@ import org.logh7.engine.strategy.*
  * accession, the runner-up may refuse and rise). The CD manual p.38 only names the politician ladder; this order, the
  * 後継指名 233 / 継承拒否 234 commands, their costs and the [CONTEST_DAYS] window are evidence:guess.
  * Order: the designated heir if alive, then peerage (公爵 first, none last), influence, merit and the lowest ID, among
- * living empire characters outside a revolt. A refusal turns the runner-up into the 盟主 of a revolt (CoupActions):
+ * living, free empire characters outside a revolt. A refusal turns the runner-up into the 盟主 of a revolt (CoupActions):
  * holding the capital for CoupActions.CAPITAL_DAYS then crowns the claimant.
  * Author: Peppone Choi.
  */
@@ -80,11 +80,14 @@ object SuccessionActions {
     private const val EMPEROR=1
 
     fun alive(s:PlanetStocks,id:Int)=(s.strategic.people[id]?.deceasedAt ?: 0)==0L
+    private fun eligible(s:PlanetStocks,identity:StrategicIdentity,country:CountryId)=identity.country==country &&
+        alive(s,identity.id) && !s.social.justice.detained(identity.id) && !CoupActions.rebel(s,identity.id,country)
+
     /** Line of succession (see the class comment). */
     fun order(s:PlanetStocks,identities:List<StrategicIdentity>,country:CountryId=CountryId(2),catalog:CountryCatalog=CountryCatalogLoader.current()):List<Int> {
         if(OrganizationOffices.system(country,catalog)!=2)return emptyList()
         val people=s.strategic.people;val heir=s.social.succession.of(country).heir
-        return identities.filter {it.country==country && alive(s,it.id) && !CoupActions.rebel(s,it.id,it.country)}
+        return identities.filter {eligible(s,it,country)}
             .sortedWith(compareBy<StrategicIdentity> {if(it.id==heir)0 else 1}
                 .thenBy {people[it.id]?.peerage?.ordinal ?: Peerage.entries.size}
                 .thenByDescending {people[it.id]?.influence ?: 0}
@@ -152,7 +155,7 @@ object SuccessionActions {
             DESIGNATE -> {
                 if(i.card!=EMPEROR || policy.holders(s,EMPEROR,own).none {it.character==i.characterId})return reject(SocialRejection.CARD)
                 val target=i.identities.singleOrNull {it.id==i.target}
-                if(target==null || target.country!=own || target.id==i.characterId || !alive(s,target.id) || CoupActions.rebel(s,target.id,target.country))
+                if(target==null || target.id==i.characterId || !eligible(s,target,own))
                     return reject(SocialRejection.TARGET)
             }
             CONTEST -> {

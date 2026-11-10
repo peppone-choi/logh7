@@ -44,6 +44,34 @@ class SuccessionActionsTest {
         val r=act(SuccessionActions.DESIGNATE,1,20,reigning)
         assertNull(r.rejection,"${r.rejection}");assertEquals(20,r.stocks?.social?.succession?.heir)
     }
+    @Test fun aDetainedHeirIsTemporarilyIneligibleWithoutLosingTheNomination() {
+        val reigning = policy.set(stocks, OfficeHolding(1, 1049, a.characterId))
+        val appointed = act(SuccessionActions.DESIGNATE, 1, 22, reigning)
+        assertNull(appointed.rejection)
+        val players = mutableMapOf("heir" to a.copy(characterId = 22))
+        val detained = assertNotNull(JusticeActions.detain(galaxy, assertNotNull(appointed.stocks), players, 22, CountryId(2), now))
+        assertEquals(22, detained.social.succession.heir)
+        assertFalse(22 in SuccessionActions.order(detained, ids))
+
+        val repeated = act(SuccessionActions.DESIGNATE, 1, 22, detained)
+        assertEquals(SocialRejection.TARGET, repeated.rejection)
+        assertEquals(a, repeated.player)
+        assertEquals(detained, repeated.stocks)
+
+        val vacated = StrategyActions.clearOffices(detained, a.characterId)
+        val restricted = ids.filter { it.id == a.characterId || it.id == 22 }
+        assertEquals(vacated, SuccessionActions.accede(galaxy, vacated, restricted, now))
+        val successor = SuccessionActions.accede(galaxy, vacated, ids, now)
+        assertEquals(listOf(21), policy.holders(successor, 1).map { it.character })
+        assertEquals(20, successor.social.succession.rival)
+
+        val until = detained.social.justice.detentions.getValue(22).releaseAt
+        val released = JusticeActions.settle(galaxy, session.copy(gameMillis = until * 1000), players, vacated)
+        assertFalse(released.social.justice.detained(22))
+        assertEquals(22, released.social.succession.heir)
+        assertEquals(22, SuccessionActions.order(released, ids).first())
+        assertEquals(listOf(22), policy.holders(SuccessionActions.accede(galaxy, released, ids, until), 1).map { it.character })
+    }
     @Test fun theRunnerUpRefusesAndRisesInRevolt() {
         val crowned=SuccessionActions.accede(galaxy,StrategyActions.clearOffices(policy.set(stocks,OfficeHolding(1,1049,10000)),10000),ids,now)
         val rival=a.copy(characterId=21)
