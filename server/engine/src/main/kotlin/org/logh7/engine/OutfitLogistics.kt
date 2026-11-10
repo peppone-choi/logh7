@@ -91,7 +91,7 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
             val allowed=offices?.permits(stocks,request.characterId,country,outfit.kind)==true
             if (!allowed) return reject(LogisticsRejection.ACCESS)
         } else {
-            if (outfit.commanderId != request.characterId) return reject(LogisticsRejection.ACCESS)
+            if (outfit.guard != null || outfit.commanderId != request.characterId) return reject(LogisticsRejection.ACCESS)
             if (player.baseId != outfit.baseId || (outfit.position?.baseId ?: outfit.baseId) != outfit.baseId ||
                 player.navigationPending || player.cpPaused)
                 return reject(LogisticsRejection.LOCATION)
