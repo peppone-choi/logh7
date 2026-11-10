@@ -31,6 +31,19 @@ class GridForceReportTest {
         assertEquals(mapOf(2487 to 2), counts(state.copy(navigators=state.navigators+("offline" to offline.copy(grid=2487)))))
         assertNull(GridForceReport.message(state.copy(session=session.copy(generation=2)), galaxy, viewer, 1))
     }
+    @Test fun aCasualtyDisappearsFromTheMapWhileWoundedAndOtherOfflineFlagshipsRemain() {
+        val casualty=viewer.copy(characterId=10001,grid=2488)
+        val wounded=viewer.copy(characterId=10002,grid=2489,hull=FlagshipHull(0,0,woundedUntil=100))
+        val offline=viewer.copy(characterId=10003,grid=2490)
+        val stock=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)))
+        val before=WorldSnapshot(0,0,session,navigators=mapOf("self" to viewer,"casualty" to casualty,
+            "wounded" to wounded,"offline" to offline),planetStocks=stock)
+        assertEquals(mapOf(2487 to 1,2488 to 1,2489 to 1,2490 to 1),counts(before))
+
+        val after=before.copy(planetStocks=BattleDeath.apply(stock,listOf(casualty.characterId),1) { _, _ -> true })
+        assertEquals(mapOf(2487 to 1,2489 to 1,2490 to 1),counts(after))
+    }
+
     @Test fun countsDeployedShipBoatsButNotGroundTroopsCrewOrWarehouses() {
         val stock = PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
             mapOf(1 to OutfitStock(1,2,OutfitKind.PATROL,1049,10,
