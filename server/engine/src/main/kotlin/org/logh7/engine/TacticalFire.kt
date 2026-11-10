@@ -78,7 +78,7 @@ internal object TacticalCombat {
         val now=session.gameMillis/1000
         var s=CoupActions.settle(galaxy,start,now);s=TradeActions.settle(galaxy,s,now,eliminated=session.eliminated.keys);s=PirateActions.settle(galaxy,s,now)
         s=ProductionActions.settle(s,now)
-        val engaged=s.social.pirates.grids().filter {PirateActions.engaged(galaxy,s,players.values,it)}.toSet()
+        val engaged=s.social.pirates.grids().filter {PirateActions.engaged(galaxy,s,players.values,it,session.eliminated.keys)}.toSet()
         return PirateActions.move(galaxy,s,now,engaged)
     }
     fun accept(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
@@ -303,7 +303,7 @@ internal object TacticalCombat {
             }
         }
         val groundTargetsPending=committer!=null && session.ended==null && stocks.tacticalCommands.groundTargets.isNotEmpty()
-        if(!groundTargetsPending && stocks.tacticalCommands.emergencySupplies.isEmpty() && stocks.tacticalCommands.fortresses.values.none {it.motion.velocity>0} && stocks.tacticalCommands.orders.isEmpty() && stocks.tacticalCommands.air.isEmpty() && stocks.tacticalCommands.missions.isEmpty() && !BaseOccupationOperations.pending(stocks,galaxy,session.eliminated.keys) && !FortressArmor.pending(stocks,galaxy,players.values) && stocks.groundBattles.isEmpty() && galaxy.bases.none {GroundBattleOperations.contested(stocks,it,session.eliminated.keys)} && due.isEmpty() && players.values.none {it.posture?.order!=null} && players==original && inventory==stocks && !npcPolicy.enabled && (session.ended!=null || committer==null || economy(galaxy,session,players,stocks)==stocks) && stocks.social.pirates.grids().none {PirateActions.engaged(galaxy,stocks,players.values,it)} && stocks.outfits.values.none {
+        if(!groundTargetsPending && stocks.tacticalCommands.emergencySupplies.isEmpty() && stocks.tacticalCommands.fortresses.values.none {it.motion.velocity>0} && stocks.tacticalCommands.orders.isEmpty() && stocks.tacticalCommands.air.isEmpty() && stocks.tacticalCommands.missions.isEmpty() && !BaseOccupationOperations.pending(stocks,galaxy,session.eliminated.keys) && !FortressArmor.pending(stocks,galaxy,players.values) && stocks.groundBattles.isEmpty() && galaxy.bases.none {GroundBattleOperations.contested(stocks,it,session.eliminated.keys)} && due.isEmpty() && players.values.none {it.posture?.order!=null} && players==original && inventory==stocks && !npcPolicy.enabled && (session.ended!=null || committer==null || economy(galaxy,session,players,stocks)==stocks) && stocks.social.pirates.grids().none {PirateActions.engaged(galaxy,stocks,players.values,it,session.eliminated.keys)} && stocks.outfits.values.none {
             it.activeShips?.values?.any {u->u.support!=null || u.attack!=null || u.shot!=null || u.posture?.order!=null}==true || it.activeGround?.values?.any {u->u.order!=null}==true} &&
             (session.ended!=null || committer==null || stocks.social.proposals.mails.none {it.pending} &&
                 stocks.social.justice.deadlines().none {it<=now}))return emptyList()

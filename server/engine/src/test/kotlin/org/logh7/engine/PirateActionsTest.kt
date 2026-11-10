@@ -81,14 +81,49 @@ class PirateActionsTest {
         val start=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
             warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1049,1)),
             social=stocks.social.copy(pirates=PirateState(mapOf(1 to fleet),2)))
-        assertTrue(PirateActions.engaged(galaxy,start,emptyList(),2490))
+        assertTrue(PirateActions.engaged(galaxy,start,emptyList(),2490,emptySet()))
         assertSame(start,PirateActions.move(galaxy,start,now,setOf(2490)))
         val impacts=mutableListOf<TacticalImpact>()
         PirateActions.counter(session,galaxy,mutableMapOf(),start,now,impacts)
         assertEquals(900_001,impacts.single().source)
         val docked=start.copy(outfits=mapOf(1 to outfit.copy(position=OutfitPosition(2490,1050))))
-        assertFalse(PirateActions.engaged(galaxy,docked,emptyList(),2490))
+        assertFalse(PirateActions.engaged(galaxy,docked,emptyList(),2490,emptySet()))
     }
+    @Test fun defeatedShipsAndDeceasedFlagshipsDoNotStopPiratesOrDrawCounterattack() {
+        val now=7*Justice.DAY
+        val defeated=Power.EMPIRE.country
+        val session=SessionSimulation(SessionRules.load()).exportState().copy(
+            eliminated=mapOf(defeated to CountryDefeat(EndReason.SYSTEMS_REDUCED,now)))
+        fun motion(y:Float)=TacticalPoint(0f,y).let {TacticalMotion(2490,now,TacticalPose(it,0f),0f,0f,listOf(it))}
+        val flagship=Navigator(1,10000,Power.ALLIANCE,2490,1000,1000,1000,
+            cpPaused=true,hull=FlagshipHull(93,now),motion=motion(-8f))
+        val stack=UnitStack(32)
+        val ship=ActiveShipUnit(1,stack,tactical=NpcTacticalState(motion(-9f),now,now))
+        val outfit=OutfitStock(1,defeated,OutfitKind.FLEET,1049,10,units=UnitInventory(mapOf(stack to 1)),
+            activeShips=ActiveShipUnits(listOf(ship)),position=OutfitPosition(2490))
+        val pirates=PirateState(mapOf(1 to PirateFleet(1,2490,0,listOf(PirateUnit(900_001,300)))),2)
+        val start=stocks.copy(outfits=mapOf(1 to outfit),nextShipId=2,
+            warehouses=mapOf(10 to OutfitWarehouse(10,defeated,OutfitKind.FLEET,1049,1)),
+            social=stocks.social.copy(pirates=pirates),
+            strategic=StrategicState(people=mapOf(flagship.characterId to StrategicPerson(deceasedAt=1))))
+        val players=mutableMapOf("deceased" to flagship)
+        fun engaged(inventory:PlanetStocks)=inventory.social.pirates.grids()
+            .filter {PirateActions.engaged(galaxy,inventory,players.values,it,session.eliminated.keys)}.toSet()
+        assertTrue(engaged(start).isEmpty())
+        val impacts=mutableListOf<TacticalImpact>()
+        assertSame(start,PirateActions.counter(session,galaxy,players,start,now,impacts))
+        assertTrue(impacts.isEmpty())
+        val moved=PirateActions.move(galaxy,start,now,engaged(start))
+        assertNotEquals(2490,moved.social.pirates.fleets.getValue(1).grid)
+
+        val living=flagship.copy(characterId=10001,motion=motion(-13f))
+        players["living"]=living
+        assertEquals(setOf(2490),engaged(start))
+        assertSame(start,PirateActions.move(galaxy,start,now,engaged(start)))
+        PirateActions.counter(session,galaxy,players,start,now,impacts)
+        assertEquals(living.unitId,impacts.single().hit.target)
+    }
+
     @Test fun counterattackCannotFireThroughAStar() {
         assertTrue(counterattack(star=0,TacticalPoint(5f,-8f)).isEmpty())
         assertEquals(1,counterattack(star=0,TacticalPoint(5f,-12f)).size)
