@@ -156,18 +156,20 @@ internal object NpcTactics {
                     val pose=origin.copy(direction=facing)
                     val waypoints=goal?.let {TacticalTerrain.route(galaxy,position.grid,origin.position,it)} ?: listOf(origin.position)
                     val moving=waypoints.size>1 || waypoints.single()!=origin.position
-                    val motion=if(!moving)stationary(position.grid,now,pose) else TacticalMotion(position.grid,now,origin,
+                    val route=if(!moving)stationary(position.grid,now,pose) else TacticalMotion(position.grid,now,origin,
                         (spec.number("最高速度（km/1G秒）:最高速度（km/1G秒）")/20000f).coerceIn(0.1f,1f),facing,waypoints,
                         turnRate=TacticalMotion.NATIVE_TURN_RATE)
                     // No idle write loop: retain an already stationary guard or firing pose.
                     if(before==null && target==null && withdrawal==null)continue
+                    val (adjusted,commands)=TacticalFleetMotion.withAirSlowdown(mapOf(id to route),stocks.tacticalCommands)
+                    val motion=adjusted.getValue(id)
                     val changed=before==null || before.target!=(target?.first?.id ?: 0) || before.retreat!=withdrawal ||
                         before.motion.velocity!=motion.velocity || before.motion.waypoints!=motion.waypoints ||
                         kotlin.math.abs(before.motion.direction-facing)>0.01f
                     if(changed) {
                         state=NpcTacticalState(motion,now+scale,before?.nextFireAt ?: now+5*scale,before?.sequence ?: 0,
                             target?.first?.id ?: 0,withdrawal)
-                        unit=unit.copy(tactical=state);stocks=replace(stocks,outfit,unit)
+                        unit=unit.copy(tactical=state);stocks=replace(stocks,outfit,unit).copy(tacticalCommands=commands)
                         movements+=TacticalMovement(session.generation,id,position.grid,now,motion,audience(session,position.grid,players))
                     }
                 }
