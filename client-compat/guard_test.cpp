@@ -68,6 +68,59 @@
 #include "tactical_inspect_data.h"
 #include "hd_texture_data.h"
 #include "hud_system_label_data.h"
+#include "transport_plan_data.h"
+// Multi-item 輸送計画: single-item header kept, staged fixed 31-byte frames under one token, reply-gated flow (codes 1180+).
+static int transportPlanTest() {
+    logh::TransportPlan plan={};unsigned value=0,argument=0,amount=0;
+    if(!logh::transportPlanHeader(plan,logh::transportNoUnit,7,value,argument) || value!=0xffff || argument)return 1180; // Supplies only.
+    if(!logh::transportPlanHeader(plan,1003,4,value,argument) || value!=1003 || argument!=4)return 1181; // Editor's single item.
+    if(plan.put(200,1) || plan.put(999,1) || plan.put(1016,1) || plan.put(5,0) || plan.put(5,65536) || plan.count)return 1182;
+    if(!plan.put(32,3))return 1183;
+    if(!logh::transportPlanHeader(plan,1003,4,value,argument) || value!=32 || argument!=3)return 1184; // One row: single form.
+    if(plan.staged() || logh::transportStagedFrame(plan,10,0,value,argument,amount))return 1185; // Staging needs two rows.
+    if(!plan.put(1015,0x1234) || !plan.put(32,0x0102) || plan.count!=2 || plan.selected!=0 || plan.amounts[0]!=0x0102)return 1186;
+    if(logh::transportPlanHeader(plan,logh::transportNoUnit,0,value,argument) || !plan.staged())return 1187;
+    // Frames: start (count, supplies), rows ((code<<16)|quantity, 0), commit (count, supplies); nothing past the commit.
+    const unsigned frames[4][3]={{0xfffd,2,1500},{0xfffc,0x00200102,0},{0xfffc,0x03f71234,0},{0xfffe,2,1500}};
+    for(unsigned i=0;i<4;++i)
+        if(!logh::transportStagedFrame(plan,1500,i,value,argument,amount) ||
+            value!=frames[i][0] || argument!=frames[i][1] || amount!=frames[i][2])return 1188;
+    if(logh::transportStagedFrame(plan,1500,4,value,argument,amount) || logh::transportStagedFrame(plan,65536,0,value,argument,amount))
+        return 1188;
+    // The record selector 0x46 packs: character, 7f00, 28, card, value, destination, phase 0, argument, amount, source, token.
+    unsigned char record[36];memset(record,0xcc,sizeof(record));
+    logh::transportStagedFrame(plan,1500,2,value,argument,amount);
+    logh::transportPlanRecord(record,0x01020304,150,value,0x0a0b,argument,amount,0x0c0d,0xbeef);
+    const unsigned char expected[36]={0x04,0x03,0x02,0x01,0x00,0x7f,0x1c,0x00,0x96,0x00,0xfc,0xff,0x0b,0x0a,0,0,0,0,0,0,
+        0x34,0x12,0xf7,0x03,0x00,0x00,0,0,0x0d,0x0c,0,0,0xef,0xbe,0,0};
+    if(memcmp(record,expected,sizeof(expected)))return 1189;
+    plan.step(1);if(plan.selected!=1)return 1190;plan.step(1);if(plan.selected!=0)return 1190;
+    plan.step(-1);if(plan.selected!=1)return 1190;
+    // Flow: begin needs a stageable plan and a 16-bit nonzero token; one frame in flight; replies only mark, the GUI sends.
+    logh::TransportStaging stage={};
+    if(stage.begin(plan,0,1,2,1500) || stage.begin(plan,65536,1,2,1500) || stage.begin(plan,7,1,2,65536) || stage.active())return 1191;
+    if(!stage.begin(plan,7,11,22,1500) || stage.frames!=4 || stage.next || stage.token!=7 || stage.source!=11 ||
+        stage.destination!=22 || stage.supplies!=1500 || stage.begin(plan,8,11,22,1500))return 1191;
+    if(stage.ready(false))return 1192;                                     // Nothing before the start's reply.
+    for(unsigned frame=0;frame<3;++frame) {
+        if(stage.receive(0)!=logh::TransportStaging::Advance || stage.receive(0)!=logh::TransportStaging::Ignored)return 1193;
+        if(stage.ready(true) || stage.next!=frame)return 1194;              // The native 1200/1201 transaction is still open.
+        if(!stage.ready(false) || stage.next!=frame+1 || stage.ready(false))return 1195;
+    }
+    if(stage.receive(0)!=logh::TransportStaging::Done || stage.active() || stage.ready(false))return 1196; // Commit's reply.
+    if(stage.receive(0)!=logh::TransportStaging::Ignored)return 1196;
+    if(!stage.begin(plan,9,11,22,1500) || stage.receive(0)!=logh::TransportStaging::Advance || !stage.ready(false))return 1197;
+    if(stage.receive(17)!=logh::TransportStaging::Rejected || stage.active() || stage.ready(false) || plan.count!=2)return 1197;
+    if(!stage.begin(plan,10,11,22,1500))return 1198;stage.stop();          // Closing the window stops the next frame.
+    if(stage.active() || stage.receive(0)!=logh::TransportStaging::Ignored || stage.ready(false))return 1198;
+    if(!plan.remove(1) || plan.count!=1 || plan.selected!=0 || plan.codes[0]!=32 || plan.remove(1))return 1199;
+    for(unsigned code=0;code<=199;++code)if(!plan.put(code,1))break;
+    if(plan.count!=logh::transportPlanRowLimit || plan.put(1000,1) || !plan.put(32,9))return 1200; // Full, replace still works.
+    if(!logh::transportStagedFrame(plan,0,124,value,argument,amount) || value!=0xfffe || argument!=123 || amount)return 1200;
+    plan.codes[1]=plan.codes[0];
+    if(plan.staged() || stage.begin(plan,11,11,22,0))return 1201;           // A duplicate code is never staged.
+    return 0;
+}
 // HD texture pack rules: data-relative path, skipped files, header sizes and the reported size (codes 901+).
 static int checkHdTextureRules() {
     char rel[MAX_PATH];
@@ -1543,6 +1596,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(int result=baseAffiliationTest())return result;
     if(int result=facilityGuideTest())return result;
     if(int result=lobbyCountryDataTest())return result;
+    if(int result=transportPlanTest())return result;
     if(logh::groundMeter(0,1000,70)!=0 || logh::groundMeter(500,1000,70)!=35 ||
         logh::groundMeter(1000,1000,70)!=70 || logh::groundMeter(1001,1000,70)!=70 ||
         logh::groundMeter(~0u,1000,70)!=70 || logh::groundMeter(500,0,70)!=0 ||

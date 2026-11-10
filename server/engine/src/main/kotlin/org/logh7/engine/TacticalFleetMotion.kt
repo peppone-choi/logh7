@@ -81,18 +81,8 @@ internal object TacticalFleetMotion {
             val guard=ships.singleOrNull {it.second.id==id}?.first
             if(motion.velocity>0f)motion.copy(velocity=GuardCombat.speed(motion.velocity,guard,id)) else motion
         }
-        val slowed=stocks.tacticalCommands.air.values.filter {
-            it.mode==1 && it.slowVelocity!=null && it.target in baseMotions
-        }.map {it.target}.toSet()
-        val motions=baseMotions.mapValues {(id,motion)->
-            if(id in slowed)motion.copy(velocity=motion.velocity*.5f) else motion
-        }
-        var next=if(slowed.isEmpty())stocks else stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(air=
-            stocks.tacticalCommands.air.mapValues {(_,wing)->
-                if(wing.mode==1 && wing.slowVelocity!=null && wing.target in slowed)
-                    wing.copy(slowVelocity=baseMotions.getValue(wing.target).velocity)
-                else wing
-            }))
+        val (motions, commands)=withAirSlowdown(baseMotions,stocks.tacticalCommands)
+        var next=stocks.copy(tacticalCommands=commands)
         for((outfit,unit) in ships) {
             val current=next.outfits.getValue(outfit.id)
             val motion=motions.getValue(unit.id)
@@ -109,5 +99,21 @@ internal object TacticalFleetMotion {
         navigation.publishCommitted(players,players+(request.account to player),session.generation)
         production.publishCommitted(stocks,prepared)
         return NavigationResult(player,preview.previous,tacticalMotions=motions)
+    }
+
+    fun withAirSlowdown(baseMotions:Map<Int,TacticalMotion>,commands:TacticalCommandState):
+        Pair<Map<Int,TacticalMotion>,TacticalCommandState> {
+        val slowed=commands.air.values.filter {it.mode==1 && it.slowVelocity!=null && it.target in baseMotions}
+            .map {it.target}.toSet()
+        if(slowed.isEmpty())return baseMotions to commands
+        val motions=baseMotions.mapValues {(id,motion)->
+            if(id in slowed)motion.copy(velocity=motion.velocity*.5f) else motion
+        }
+        val wings=commands.air.mapValues {(_,wing)->
+            if(wing.mode==1 && wing.slowVelocity!=null && wing.target in slowed)
+                wing.copy(slowVelocity=baseMotions.getValue(wing.target).velocity)
+            else wing
+        }
+        return motions to commands.copy(air=wings)
     }
 }

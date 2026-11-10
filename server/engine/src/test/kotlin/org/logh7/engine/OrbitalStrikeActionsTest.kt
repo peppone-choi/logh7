@@ -105,6 +105,40 @@ class OrbitalStrikeActionsTest {
         }
     }
 
+    @Test fun escortsWithoutRoutesUseTheirMobileFortressBerthForQuotesAndDamage() {
+        val fortress=base.copy(kind=1,mobile=true)
+        val berth=fortress.copy(id=1001,name="Berth")
+        val world=Galaxy(galaxy.systems,listOf(fortress,berth),galaxy.starts)
+        fun at(point:TacticalPoint)=TacticalMotion(base.grid,now,TacticalPose(point,0f),0f,0f,listOf(point))
+        for(mode in listOf(TacticalShipMode.ANCHORED,TacticalShipMode.STATIONED))for(berthInRange in listOf(true,false)) {
+            val initial=stocks()
+            val escort=ActiveShipUnit(3,UnitStack(32),posture=TacticalPosture(base.grid,mode,berth.id))
+            val fleet=OutfitStock(2,2,OutfitKind.FLEET,berth.id,102,commanderId=10000,
+                units=UnitInventory(mapOf(escort.stack to 1)),activeShips=ActiveShipUnits(listOf(escort)),position=OutfitPosition(base.grid))
+            val deployed=initial.copy(bases=initial.bases+(berth.id to PlanetStock(berth.id,2,0,100,200,300)),
+                outfits=initial.outfits+(fleet.id to fleet),warehouses=initial.warehouses+(102 to
+                    OutfitWarehouse(102,2,OutfitKind.FLEET,berth.id,fleet.id)),nextShipId=4)
+            val p=player(10f)
+            val fallback=TacticalDeployment.initial(escort.id,base.grid,listOf(p),deployed,world).position
+            val target=if(berthInRange)TacticalPoint(0f,40f) else fallback
+            val docked=TacticalPoint(target.x+if(berthInRange)4f else 60f,target.y)
+            val pilot=p.copy(motion=at(TacticalPoint(target.x+10f,target.y)))
+            val s=deployed.copy(tacticalCommands=TacticalCommandState(fortresses=mapOf(
+                fortress.id to TacticalFortressMotion(base.grid,at(target)), berth.id to TacticalFortressMotion(base.grid,at(docked)))))
+
+            val quote=act(pilot,s,phase=OrbitalStrikeActions.QUOTE_PHASE,world=world)
+            val attackers=if(berthInRange)2 else 1
+            assertNull(quote.rejection);assertEquals(attackers,quote.outcome)
+            assertSame(s,quote.stocks)
+            val hit=act(pilot,s,base=quote.found,attackers=quote.outcome,supplies=OrbitalStrikeActions.SUPPLIES,world=world)
+            assertNull(hit.rejection);assertEquals(attackers,hit.outcome)
+            assertEquals(pilot.supplies-OrbitalStrikeActions.SUPPLIES,hit.player?.supplies)
+            assertTrue(assertNotNull(hit.stocks).outfits.getValue(1).activeGround!!.values.all {
+                it.strength==1000-attackers*OrbitalStrikeActions.DAMAGE
+            })
+        }
+    }
+
     @Test fun aFlagshipInRangeBombardsTheEnemyGarrisonAndOrder() {
         val initial=stocks(strength=100).copy(tacticalCommands=TacticalCommandState(
             morale=mapOf(1 to 70,2 to 80),groundTargets=mapOf(1 to 2,2 to 1,3 to 2)))

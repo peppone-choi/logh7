@@ -17,7 +17,8 @@ data class TransportPackage(val id:Int,val country:CountryId,val source:Int,val 
  * Package flow, cards, the per-base limit of 20 and the proportional loss of a sunk carrier are the design
  * approved 2026-10-31 (design-strategic-transport.md, evidence:guess).
  * Request fields: 28 base=source, target=destination, amount=supplies, value=ship kind or 1000+troop kind
- * (0xffff none), argument=unit count; 29 and 65 target=package id, 65 outfit=the transport outfit.
+ * (0xffff none), argument=unit count; 0xfffe opts into a list of distinct kinds and counts.
+ * 29 and 65 target=package id, 65 outfit=the transport outfit.
  * Author: Peppone Choi.
  */
 object TransportActions {
@@ -27,6 +28,7 @@ object TransportActions {
     val supported=setOf(PLAN,CANCEL,LOAD)
     const val PER_BASE=20
     const val NO_UNIT=0xffff
+    const val MIXED_UNITS=0xfffe
     private val commanders=setOf(44,180)
 
     /** Package unit slots per live ship unit: cargo and troop hulls 10, others 2, the approved carrying split (evidence:guess). */
@@ -120,21 +122,29 @@ object TransportActions {
                 val destination=stocks.bases[r.target] ?: return reject(StrategyActionRejection.TARGET)
                 if(source.baseId==destination.baseId || !source.belongsTo(country) || !destination.belongsTo(country) ||
                     source.camp!=0 || destination.camp!=0)return reject(StrategyActionRejection.TARGET)
-                if(r.amount !in 0..source.supplies.toLong() || r.argument<0 || r.value!=NO_UNIT && r.argument==0 ||
-                    r.value==NO_UNIT && r.argument!=0)return reject(StrategyActionRejection.RESOURCE)
+                if(r.amount !in 0..source.supplies.toLong())return reject(StrategyActionRejection.RESOURCE)
+                val requested=if(r.value==MIXED_UNITS) {
+                    if(r.argument !in 2..123 || r.transportUnits.size!=r.argument || r.transportUnits.any {(kind,count)->
+                        kind !in 0..199 && kind !in 1000..1015 || count !in 1..65535})return reject(StrategyActionRejection.RESOURCE)
+                    r.transportUnits
+                } else {
+                    if(r.transportUnits.isNotEmpty() || r.argument<0 || (r.value==NO_UNIT)!=(r.argument==0))
+                        return reject(StrategyActionRejection.RESOURCE)
+                    if(r.value==NO_UNIT)emptyMap() else mapOf(r.value to r.argument)
+                }
                 if(packages.count {it.source==source.baseId && it.country==country}>=PER_BASE || packages.size>=4096)
                     return reject(StrategyActionRejection.MAXIMUM)
-                var remaining=r.argument
                 val ships=linkedMapOf<UnitStack,Int>();val troops=linkedMapOf<UnitStack,Int>()
-                if(r.value!=NO_UNIT) {
-                    val troop=r.value>=1000
-                    val kind=if(troop)r.value-1000 else r.value
+                for((code,count) in requested) {
+                    var remaining=count
+                    val troop=code>=1000
+                    val kind=if(troop)code-1000 else code
                     val pool=if(troop)source.units.troops else source.units.ships
-                    for((stack,count) in pool.entries.filter {it.key.kind==kind}.sortedBy {it.key.level}) {
-                        val moved=minOf(count,remaining);if(moved>0)(if(troop)troops else ships)[stack]=moved;remaining-=moved
+                    for((stack,available) in pool.entries.filter {it.key.kind==kind}.sortedBy {it.key.level}) {
+                        val moved=minOf(available,remaining);if(moved>0)(if(troop)troops else ships)[stack]=moved;remaining-=moved
                     }
+                    if(remaining!=0)return reject(StrategyActionRejection.RESOURCE)
                 }
-                if(remaining!=0)return reject(StrategyActionRejection.RESOURCE)
                 val units=UnitInventory(ships,troops)
                 if(r.amount==0L && unitCount(units)==0)return reject(StrategyActionRejection.RESOURCE)
                 if(lastId==Int.MAX_VALUE)return reject(StrategyActionRejection.MAXIMUM)
