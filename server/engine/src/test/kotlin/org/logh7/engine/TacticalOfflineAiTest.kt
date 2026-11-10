@@ -572,6 +572,39 @@ class TacticalOfflineAiTest {
             assertEquals(if(cancelled)0 else 1000,troop.base)
         }
     }
+    @Test fun occupationUsesTheCurrentFortressBerthForCommandAndAnchoringRange() {
+        val berth=galaxy.bases.single().copy(mobile=true)
+        val targetBase=berth.copy(id=1001,name="Target")
+        val world=Galaxy(galaxy.systems,listOf(berth,targetBase),galaxy.starts)
+        val at=now+400
+        val current=TacticalPoint(0f,30f)
+        val moving=TacticalMotion(2488,now,TacticalPose(TacticalPoint(0f,0f),0f),.1f,0f,listOf(current),waitSeconds=0)
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(5,UnitStack(0),carrier=1)))
+        val plain=stocks(2)
+        val outfit=plain.outfits.getValue(1)
+        val carrier=outfit.activeShips!!.values.single().copy(tactical=null,
+            posture=TacticalPosture(2488,TacticalShipMode.ANCHORED,berth.id))
+        val equipped=outfit.copy(activeShips=ActiveShipUnits(listOf(carrier)),activeGround=troops,
+            units=UnitInventory(outfit.units.ships,troops.quantities()))
+        for(target in listOf(berth,targetBase))for(inRange in listOf(false,true)) {
+            val initial=plain.copy(
+                bases=world.bases.associate {it.id to PlanetStock(it.id,3,0,100,0,0)},
+                outfits=plain.outfits+(1 to equipped),
+                tacticalCommands=plain.tacticalCommands.copy(
+                    missions=mapOf(10000 to TacticalMissionState(10000,2,1,target.id,now,grid=2488)),
+                    fortresses=mapOf(berth.id to TacticalFortressMotion(2488,moving),
+                        targetBase.id to TacticalFortressMotion(2488,motion(0f,31f)))))
+            val pilots=players()
+            pilots["pilot"]=pilots.getValue("pilot").copy(motion=if(inRange)motion(0f,30f) else motion(),
+                commandRange=TacticalCommandRange(at,TacticalCommandRange.MAXIMUM))
+            val next=TacticalOfflineAi.advance(offline.copy(gameMillis=at*1000),world,pilots,initial,1,mutableListOf())
+            val updated=next.outfits.getValue(1)
+            if(!inRange)assertEquals(equipped,updated)
+            else if(target.id==berth.id)assertEquals(berth.id,updated.activeGround!!.values.single().order?.base)
+            else assertEquals(target.id,updated.activeShips!!.values.single().posture?.order?.base)
+        }
+    }
+
     @Test fun occupationRespectsRangeConfusionAndExistingOrdersBeforeAnchoringOrLanding() {
         for(anchored in listOf(false,true))for(block in listOf("range","confusion","order","shot","ground")) {
             val plain=stocks(2)

@@ -126,8 +126,7 @@ internal object TacticalOfflineAi {
                         stocks.tacticalCommands.orders.none {unit.id in it.command.units} &&
                         original.activeGround?.values.orEmpty().none {it.order?.carrier==unit.id}
                 }.filter {unit->
-                    val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
-                        ?: TacticalDeployment.initial(unit.id,p.grid,players.values,stocks,g)
+                    val at=unit.tacticalPose(p.grid,now,players.values,stocks,g)
                     distance(pose.position,at.position)<=(p.commandRange?.radius(now) ?: 0f)
                 }.map {it.id}.toSet()
                 if(occupied!=null) {
@@ -200,8 +199,7 @@ internal object TacticalOfflineAi {
                 troops=troops.map {if(it.id in ids)it.copy(order=order) else it};box+=landing.size;changed=true
                 continue
             }
-            val at=unit.tactical?.motion?.takeIf {it.grid==p.grid}?.pose(now,unit.posture,g,stocks)
-                ?: TacticalDeployment.initial(unit.id,p.grid,players.values,stocks,g)
+            val at=unit.tacticalPose(p.grid,now,players.values,stocks,g)
             if(hypot((at.position.x-point.x).toDouble(),(at.position.y-point.y).toDouble())>reach)continue
             val current=posture ?: TacticalPosture(p.grid)
             val anchor=current.copy(order=TacticalPostureOrder(p.characterId,TacticalShipMode.ANCHORED,base.id,now,now+10*scale,
