@@ -5,6 +5,25 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class StrategyActionMessagesTest {
+    @Test fun mixedTransportRequiresFixedStageFramesAndARequestToken() {
+        fun stage(value:Int,argument:Int,amount:Int)=transport(28,25,1050,value,argument,amount,1049)
+            .also {ByteBuffer.wrap(it).putShort(29,0x1234)}
+        val row=stage(0xfffc,(1000 shl 16) or 3,0)
+        val start=stage(0xfffd,2,1000)
+        val commit=stage(0xfffe,2,1000)
+        for(packet in listOf(row,start,commit)) {
+            val query=StrategyActionMessages.query(packet)
+            assertTrue(query.transportDraft)
+            assertEquals(29,query.raw.size)
+        }
+        for(invalid in listOf(commit.copyOf(30),commit.copyOf(39),stage(0xfffd,124,0),stage(0xfffe,1,0),
+            stage(0xfffc,1000 shl 16,0),stage(0xfffc,(500 shl 16) or 3,0),stage(0xfffc,3,1),
+            row.clone().also {ByteBuffer.wrap(it).putShort(29,0)})) {
+            assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(invalid)}
+        }
+        assertFalse(StrategyActionMessages.query(transport(28,25,1050,32,2,1000,1049)).transportDraft)
+    }
+
     @Test fun approvalRequiresAMailIdAndTokenAndKeepsBothOnRejection() {
         val body=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(99)
             .putShort(0).putShort(3).putInt(42).put(0).putInt(0).putShort(0).putInt(0).putShort(0xffff.toShort()).array()

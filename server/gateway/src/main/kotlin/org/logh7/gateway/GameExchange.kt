@@ -95,6 +95,12 @@ class GameExchange(
     private var gameStarted = false
     private data class AssignmentDraft(val recipient: Int,val token: Int,val card: Int,val expiresAt: Long)
     private var assignmentDraft: AssignmentDraft? = null
+    private data class TransportDraftKey(val character:Int,val generation:Long,val country:org.logh7.engine.CountryId,
+        val token:Int,val card:Int,val source:Int,val destination:Int)
+    private data class TransportDraft(val key:TransportDraftKey,val rows:Int,val supplies:Int,val expiresAt:Long,
+        val units:MutableMap<Int,Int> = linkedMapOf())
+    private var transportDraft:TransportDraft?=null
+    private var consumedTransportDraft:TransportDraftKey?=null
     private var lastPortraitReply:Long?=null
     private var lastSpotPortraitReply:Long?=null
     internal fun joinedAccount(): String? = ticket?.account?.takeIf { gameStarted && state == State.AUTHENTICATED }
@@ -224,6 +230,40 @@ class GameExchange(
         if(System.nanoTime()-draft.expiresAt<0)return draft
         assignmentDraft=null
         return null
+    }
+    /** Null rejects, an empty map acknowledges a stage, and a complete map can reach the world actor. */
+    private fun stageTransport(q:org.logh7.protocol.StrategyActionMessages.Query,account:String):Map<Int,Int>? {
+        val snapshot=navigation?.snapshot()
+        val session=snapshot?.session
+        val player=snapshot?.navigators?.get(account)
+        val country=player?.country
+        val draft=transportDraft
+        transportDraft=null
+        if(!worldInitialized || joinedAccount()!=account || generation==null || admission?.generation!=generation ||
+            session?.generation!=generation || session.ended!=null || player?.generation!=generation ||
+            player.characterId!=q.character || country==null || country in session.eliminated)return null
+        val token=java.nio.ByteBuffer.wrap(q.raw).getShort(27).toInt() and 65535
+        val key=TransportDraftKey(q.character,generation,country,token,q.card,q.base,q.target)
+        val now=System.nanoTime()
+        return when(q.value) {
+            org.logh7.protocol.StrategyActionMessages.TRANSPORT_START -> {
+                if(draft?.key==key || consumedTransportDraft==key)return null
+                transportDraft=TransportDraft(key,q.argument,q.amount,now+java.util.concurrent.TimeUnit.SECONDS.toNanos(120))
+                emptyMap()
+            }
+            org.logh7.protocol.StrategyActionMessages.TRANSPORT_ROW -> {
+                if(draft?.key!=key || now-draft.expiresAt>=0 || draft.units.size>=draft.rows)return null
+                if(draft.units.put(q.argument ushr 16,q.argument and 65535)!=null)return null
+                transportDraft=draft
+                emptyMap()
+            }
+            else -> {
+                if(draft?.key!=key || now-draft.expiresAt>=0 || draft.rows!=q.argument ||
+                    draft.supplies!=q.amount || draft.units.size!=draft.rows)return null
+                consumedTransportDraft=key
+                draft.units.toMap()
+            }
+        }
     }
     private fun assignmentDraftCard(recipientId:Int,requiredCard:Int?=null): Pair<org.logh7.engine.Navigator,Int>? {
         val snapshot=navigation?.snapshot() ?: return null
@@ -2265,6 +2305,13 @@ class GameExchange(
                                 val query=org.logh7.protocol.StrategyActionMessages.query(body)
                                 val character=checkNotNull(currentCharacter(identity.account))
                                 require(query.character==character.id.toInt())
+                                val transportUnits=if(query.transportDraft) {
+                                    val units=stageTransport(query,identity.account)
+                                    if(units.isNullOrEmpty())return handshake.stageAll(org.logh7.protocol.StrategyActionMessages.response(
+                                        query,if(units==null)org.logh7.engine.StrategyActionRejection.QUOTE_CHANGED.ordinal+1 else 0,
+                                        changed=units!=null),clearHeader=0)
+                                    units
+                                } else emptyMap()
                                 if(query.isAssignmentDraft) {
                                     if(query.preview) {
                                         if(assignmentDraft?.let {it.recipient==query.target && it.token==query.argument}==true)
@@ -2740,7 +2787,7 @@ class GameExchange(
                                     character.abilities[1],character.abilities[2],query.target,query.base,query.value,
                                     identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot()),amount=query.amount.toLong(),argument=query.argument,
                                     requestToken=java.nio.ByteBuffer.wrap(query.raw).getShort(27).toInt() and 65535,
-                                    repairPreview=query.isRepairQuote)).thenApply {result ->
+                                    repairPreview=query.isRepairQuote,transportUnits=transportUnits)).thenApply {result ->
                                     if(query.isRepairQuote) {
                                         val quote=result.repairQuote
                                         val payment=when(quote?.cp) {

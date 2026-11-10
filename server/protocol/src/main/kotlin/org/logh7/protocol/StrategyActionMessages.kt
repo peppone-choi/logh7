@@ -9,8 +9,12 @@ import java.nio.ByteBuffer
  * Author: Peppone Choi. */
 object StrategyActionMessages {
     const val SEARCH=0x7f00
+    const val TRANSPORT_ROW=0xfffc
+    const val TRANSPORT_START=0xfffd
+    const val TRANSPORT_COMMIT=0xfffe
     data class Query(val character:Int,val command:Int,val card:Int,val outfit:Int,val raw:ByteArray,
         val target:Int=0,val base:Int=0,val value:Int=0,val preview:Boolean=false,val amount:Int=0,val argument:Int=0) {
+        val transportDraft get()=command==28 && value in TRANSPORT_ROW..TRANSPORT_COMMIT
         val hasTradeQuote get()=command==40 || command==39 || command==20 && value==2
         val isTradeQuote get()=preview && hasTradeQuote && (if(command==40)amount>0 else argument==-1)
         val isProductionQuote get()=preview && command in 31..36 && argument==-1
@@ -27,6 +31,7 @@ object StrategyActionMessages {
         val card=b.getShort(10).toInt() and 65535;val target=b.getInt(14)
         val value=b.getShort(12).toInt() and 65535;val base=b.getInt(25)
         val preview=message[18]==1.toByte()
+        val mixedTransport=command==28 && value in TRANSPORT_ROW..TRANSPORT_COMMIT
         val personnel=command in setOf(0,1,2,3,4,8,9)
         val operation=command in 22..24
         val market=command==96
@@ -62,6 +67,10 @@ object StrategyActionMessages {
         // Imperial succession: 233 後継指名 on the emperor card (target = heir; previews list empire people), 234 継承拒否 on the personal card.
         val succession=command in setOf(233,234)
         val argument=b.getInt(19);val amount=b.getShort(23).toInt() and 65535
+        if(mixedTransport)require(b.getShort(29).toInt()!=0 && if(value==TRANSPORT_ROW) {
+            val kind=argument ushr 16
+            amount==0 && (kind in 0..199 || kind in 1000..1015) && (argument and 65535)>0
+        } else argument in 2..123)
         require(character>0 && command in setOf(0,1,2,3,4,8,9,10,11,12,13,15,17,19,20,21,31,32,33,34,35,36,39,40,230,233,234,22,23,24,28,29,65,68,69,70,71,73,74,72,75,76,77,78,79,80,81,86,88,89,90,91,92,95,98,99,46,47,48,49,50,51,52,53,54,55,56,61,84,85,87,96) && card in 0..260 && target>=0 &&
             message[18] in byteArrayOf(0,1))
         require(!preview || personnel || command==24 || market || production || repair || strike || command in setOf(233,10,11,12,13,19,20,29,40,65,68,69,70,71,73,74,75,80,81,87,89,95,98,15,21,39))
@@ -131,7 +140,8 @@ object StrategyActionMessages {
         else if(transport)require(if(command==65)card in setOf(44,180) && argument>0 && (if(preview)value==0 else value in 0..2) && base==0 && amount==0 &&
                 (preview || target>0)
             else card in setOf(24,25,150) && (if(command==28)!preview && base in 1..65535 && target in 1..65535 &&
-                (value==0xffff) == (argument==0) && argument in 0..65535 && (value==0xffff || value in 0..199 || value in 1000..1015)
+                (mixedTransport || (value==0xffff) == (argument==0) && argument in 0..65535 &&
+                    (value==0xffff || value in 0..199 || value in 1000..1015))
                 else value==0 && base==0 && argument==0 && amount==0 && (preview || target>0)))
         else if(repair)require(value==0 && amount==0 && card in setOf(39,44,47,50,59,175,180,183,186,195) &&
             (base==0 && argument==0 || !preview && base>0 && argument in 1..2) &&
