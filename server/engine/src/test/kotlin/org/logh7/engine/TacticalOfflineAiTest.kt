@@ -527,6 +527,26 @@ class TacticalOfflineAiTest {
         val orders=landed.outfits.getValue(1).activeGround!!.values.associate {it.id to it.order}
         assertEquals(TacticalGroundAction.DEPLOY,orders.getValue(5)!!.action);assertEquals(1000,orders.getValue(5)!!.base)
         assertNull(orders.getValue(6),"armored troops stay aboard at a fortress (W p.51)")
+        val order=assertNotNull(orders.getValue(5))
+        assertTrue(order.issuedByOfflineAi)
+        assertEquals(setOf(order),TacticalGroundOrder.pending(landed,2488,players().values,galaxy,emptySet(),now+10))
+        assertTrue(TacticalGroundOrder.pending(landed,2488,players().values,galaxy,emptySet(),now+10,onlineViewer=10000).isEmpty())
+        val switchedOff=landed.copy(tacticalCommands=landed.tacticalCommands.copy(aiSwitches=emptyMap()))
+        val manual=landed.copy(outfits=landed.outfits+(1 to landed.outfits.getValue(1).let {current->
+            current.copy(activeGround=ActiveGroundUnits(current.activeGround!!.values.map {
+                if(it.id==5)it.copy(order=order.copy(issuedByOfflineAi=false)) else it
+            }))
+        }))
+        for((session,stocks,cancelled) in listOf(Triple(offline,landed,false),Triple(baseSession,landed,true),
+            Triple(offline,switchedOff,true),Triple(baseSession,manual,false))) {
+            val events=mutableListOf<TacticalGroundResult>()
+            val result=TacticalGroundOperations.advance(session.copy(gameMillis=order.readyAt*1000),galaxy,players(),stocks,events)
+            assertEquals(cancelled,events.single().cancelled)
+            val troop=result.outfits.getValue(1).activeGround!!.values.single {it.id==5}
+            assertNull(troop.order)
+            assertEquals(if(cancelled)1 else 0,troop.carrier)
+            assertEquals(if(cancelled)0 else 1000,troop.base)
+        }
     }
     @Test fun occupationRespectsRangeConfusionAndExistingOrdersBeforeAnchoringOrLanding() {
         for(anchored in listOf(false,true))for(block in listOf("range","confusion","order","shot","ground")) {

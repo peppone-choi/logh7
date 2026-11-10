@@ -202,7 +202,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     fun warpCruise(origin: Int, target: Int) = Math.toIntExact((WarpCourse.cruiseCost(origin, target).toLong() *
         policy.cruiseCost + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID)
     fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null,
-        persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true, initialDock:OutfitPosition?=null): NavigationResult {
+        persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true, initialDock:OutfitPosition?=null,
+        retreatStocks: PlanetStocks? = stocks): NavigationResult {
         require(stocks == null || stocks.generation == session.generation)
         var current: Navigator? = null
         var completedFuel = false
@@ -217,7 +218,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             return reject(NavigationRejection.SESSION)
         if (member.country != request.country) return reject(NavigationRejection.IDENTITY)
         val deceased = BattleDeath.deceased(stocks,request.characterId)
-        if (persist && !deceased) settleRetreats(session, stocks)
+        if (persist && !deceased) settleRetreats(session, retreatStocks)
         // U-11: a dead character's navigator gives way to the account's next character.
         val existing = players[request.account]?.takeIf { it.blocksFirstEntry(request,stocks) }
         if (existing != null && (existing.characterId != request.characterId || existing.country != request.country))

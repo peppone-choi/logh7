@@ -81,7 +81,7 @@ class SessionEndingLobbyWireTest {
             }
             f.await("no ended players online") {f.engine.snapshot().session!!.online==0 && f.access.trackedConnections()==0}
             val before=f.engine.snapshot()
-            val registered=CharacterStores(directory.resolve("characters.properties")).get(1).registeredCharacters()
+            val registered=CharacterStores(directory.resolve("characters.properties")).get(1).profiles()
             val sessionBytes=org.logh7.protocol.SessionEndingMessages.information(SessionEndingReport.session(before,registered)).size
             for(index in 0..1)lobby(f,index).use {client->
                 client.send(SyntheticClient.opcode(0x2003));val reply=client.expect(0x2004)
@@ -103,7 +103,7 @@ class SessionEndingLobbyWireTest {
             lobby(f,0).use {client->
                 f.engine.submit(WorldCommand.Restart);f.await("next generation") {f.engine.snapshot().session!!.generation==2L}
                 client.send(SyntheticClient.opcode(0x2003))
-                val information=SessionEndingReport.information(f.engine.snapshot(),emptyList(),generation=2)
+                val information=SessionEndingReport.information(f.engine.snapshot(),emptyMap(),generation=2)
                 empty(client.expect(0x2004),1,org.logh7.protocol.SessionEndingMessages.information(information).size)
                 client.send(SyntheticClient.opcode(0x2005)+byteArrayOf(0))
                 val sessions=client.expect(0x2006);assertEquals(1,sessions[7].toInt());assertEquals(1,sessions[10].toInt())
@@ -170,6 +170,9 @@ class SessionEndingLobbyWireTest {
             assertEquals(1L,previous.session!!.generation)
             f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4,Power.ALLIANCE to 4),setOf(Power.ALLIANCE)))
             f.await("ended before next game") {f.engine.snapshot().result!=null}
+            old.forEach { client ->
+                while(ByteBuffer.wrap(client.receive()).getShort(4).toInt() and 65535!=0x035a) { }
+            }
             f.engine.submit(WorldCommand.AdvanceTo(SessionRules.load().restartDelayRealMillis))
             f.await("fresh generation") {f.engine.snapshot().session!!.generation==2L}
             old.forEach {it.expectClosed()}

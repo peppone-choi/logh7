@@ -2,6 +2,7 @@ package org.logh7.gateway
 
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import kotlinx.coroutines.runBlocking
 import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import org.logh7.protocol.*
@@ -19,6 +20,56 @@ class OfficeResignationWireTest {
     @Test fun capitalMilitaryResignationUpdatesSelfObserverRosterAndRejectsReplay()=exercise(57,2,3)
     @Test fun capitalCivilResignationRevokesTaxAuthority()=exercise(192,3,1)
     @Test fun nationalResignationRevokesCapitalAppointmentAuthority()=exercise(17,2,2)
+
+    @Test fun anOffMonthAccessionRefreshesTheRanksAndCardsOnBothExistingConnections() {
+        val grid=2487
+        val base=1049
+        val now=SessionRules.load().startSeconds
+        val galaxy=Galaxy(listOf(GalaxySystem(3,grid,4,"Home",2)),listOf(
+            GalaxyBase(base,grid,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),Power.entries.associateWith {grid})
+        val policy=OrganizationalOfficePolicy(galaxy)
+        val registry=CharacterCreation(directory.resolve("characters.properties"))
+        val people=(0..1).map {i->CharacterMessages.Generate(4,10000L+i,2,0,0,"Pilot$i","Test",30,1,1,
+            1000001,List(8){50},0,0,0,i,3,3,"Ship$i",1)}
+        people.forEachIndexed {i,c->assertTrue(registry.carry("load-00$i",CharacterProfile(c,CountryId(2),ShipStyleId("empire"))))}
+        var players=(0..1).associate {i->"load-00$i" to Navigator(1,10000+i,Power.EMPIRE,grid,1000,1000,1000,
+            baseId=base,mode=4,cpRecoveryAt=now)}
+        var stocks=PlanetStocks(1,0,mapOf(base to PlanetStock(base,2,0,100,200,300)),deploymentInitialized=true,
+            strategic=StrategicState(people=mapOf(10000 to StrategicPerson(rank=0),10001 to StrategicPerson(rank=1)),
+                offices=listOf(OfficeHolding(1,base,10000))),social=SocialState(succession=SuccessionState(heir=10001,emperor=10000,at=now)))
+        val nav=object:NavigationStore {override fun load()=players;override fun save(value:Map<String,Navigator>){players=value}}
+        val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
+        LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=nav,stockStore=inventory,
+            worldStateCommitter=WorldStateCommitter {p,s->players=p;stocks=checkNotNull(s)}).use {fixture->
+            val clients=(0..1).map {i->fixture.join(fixture.account(i),false,false).client.also {client->
+                client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+                client.send(SyntheticClient.opcode(0x0f02));next(client,0x0f03)
+            }}
+            val command=ByteBuffer.allocate(27).putShort(0x0709).putInt(-1).putInt(10000).putInt(-1).putInt(-1)
+                .putInt(1).putInt(0).put(0).array()
+            clients[0].send(command)
+            assertEquals(0,ByteBuffer.wrap(next(clients[0],0x0709)).int)
+            next(clients[0],0x0356)
+            assertTrue(stocks.social.succession.vacant)
+            runBlocking {fixture.engine.submit(WorldCommand.AdvanceTo(1000));fixture.engine.synchronizeTime()}
+            assertEquals(0L,stocks.producedDays)
+            assertEquals(listOf(10001),policy.holders(stocks,1).map {it.character})
+            assertEquals(1,stocks.strategic.people.getValue(10000).rank)
+            assertEquals(0,stocks.strategic.people.getValue(10001).rank)
+            for(i in listOf(1,0)) {
+                val player=players.getValue("load-00$i")
+                val character=WorldCharacters.view(people[i],fixture.engine.snapshot())
+                val cards=policy.held(stocks,player.characterId).map {
+                    BootstrapMessages.OfficeCard(it.card,policy.target(checkNotNull(policy.role(it.card,it.country)),it.seat,stocks))
+                }
+                var status=next(clients[i],0x0356)
+                while(ByteBuffer.wrap(status).getInt(7)!=player.characterId)status=next(clients[i],0x0356)
+                assertContentEquals(BootstrapMessages.changedCharacter(character,player.pcp,player.mcp,offices=cards),
+                    status)
+            }
+        }
+    }
+
     private fun exercise(card:Int,power:Int,rank:Int) {
         val faction=if(power==2)Power.EMPIRE else Power.ALLIANCE
         val base=if(power==2)1049 else 1177;val grid=if(power==2)2487 else 2015

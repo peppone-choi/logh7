@@ -1,5 +1,9 @@
 package org.logh7.engine
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -144,6 +148,47 @@ class TacticalRetreatTest {
         assertFalse(moved.cpPaused)
         assertNull(moved.retreat)
         assertEquals(pilot.moves+1,moved.moves)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test fun strategicCommandRecoveryCannotFinishRetreatThroughAHostileFleet() = runTest {
+        val retreat = TacticalRetreat(2486, rules.startSeconds, 1, 1)
+        val waiting = pilot.copy(motion = pilot.motion!!.copy(acceptedAt = rules.startSeconds), retreat = retreat)
+        val saved = store(waiting)
+        val blocker = OutfitStock(500, 2, OutfitKind.FLEET, 1000, 500, 500,
+            UnitInventory(mapOf(UnitStack(32) to 1)), position = OutfitPosition(retreat.destination))
+        var inventory = stocks.copy(outfits = mapOf(500 to blocker),
+            warehouses = mapOf(500 to OutfitWarehouse(500, 2, OutfitKind.FLEET, 1000, 500)),
+            deploymentInitialized = true)
+        val engine = WorldEngine(this, rules, ticking = false, galaxy = galaxy, navigationStore = saved,
+            stockStore = object : PlanetStockStore {
+                override fun load() = inventory
+                override fun save(stocks: PlanetStocks) { inventory = stocks }
+            },
+            worldStateCommitter = WorldStateCommitter { players, updated ->
+                saved.save(players)
+                inventory = checkNotNull(updated)
+            }, npcPolicy = NpcTacticalPolicy(enabled = false))
+        try {
+            val joined = CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot", Power.ALLIANCE, false, joined, "c", 1))
+            assertEquals(Admission.ACCEPTED, joined.await())
+            engine.submit(WorldCommand.AdvanceTo(2_000))
+            runCurrent()
+            val before = engine.snapshot().navigators.getValue("pilot")
+            assertEquals(retreat, before.retreat)
+            assertTrue(before.cpPaused)
+
+            val command = StrategyActionRequest("pilot", "c", pilot.characterId, Power.ALLIANCE, 1, Justice.PERMIT, 0, 20)
+            val reply = CompletableDeferred<SocialResult>()
+            engine.submit(WorldCommand.Social(SocialRequest(command), reply))
+            assertEquals(SocialRejection.BUSY, reply.await().rejection)
+            val after = engine.snapshot().navigators.getValue("pilot")
+            assertEquals(before.copy(cpRecoveryAt = after.cpRecoveryAt, commandRange = after.commandRange), after)
+            assertEquals(after, saved.players.getValue("pilot"))
+        } finally {
+            engine.drainAndClose()
+        }
     }
 
     @Test fun completedPreparationWaitsForLegalExitAndBattleEndCancelsItWithoutWarping() {

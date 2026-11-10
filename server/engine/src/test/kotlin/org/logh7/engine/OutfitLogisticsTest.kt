@@ -471,6 +471,71 @@ class OutfitLogisticsTest {
         assertFailsWith<UnsupportedOperationException> { (snapshot.warehouses as MutableMap).clear() }
         assertFailsWith<UnsupportedOperationException> { (snapshot.logisticsOfficers as MutableMap).clear() }
     }
+    @Test fun losingAnAllocationOfficeReleasesTheGlobalLock() {
+        val f = Fixture()
+        f.prepare(f.request(10, mode=LogisticsMode.ALLOCATION))
+        val before = f.store.saved
+        val revoked = before.copy(logisticsOfficers=before.logisticsOfficers-10)
+        assertTrue(f.logistics.blocksSupply(f.session,before,setOf(4)))
+        assertFalse(f.logistics.blocksSupply(f.session,revoked,setOf(4)))
+        assertNotNull(f.act(f.request(14,4)).reservation)
+        assertEquals(0,f.store.writes)
+    }
+
+    @Test fun allocationReappointmentDoesNotReviveAnOldWorldActorReservation() = runBlocking {
+        val f = Fixture()
+        val card = LogisticsOffice.EMPIRE_FIRST.card
+        val role = OrganizationOffices.all.getValue(card)
+        val authority = OrganizationOffices.all.getValue(checkNotNull(role.authority))
+        val actorRank = if(authority.canonical==2)0 else authority.ranks.min()
+        val targetRank = role.ranks.filter {role.eligible(actorRank,it)}.max()
+        val policy = OrganizationalOfficePolicy(f.galaxy)
+        f.store.saved = policy.set(f.store.saved,OfficeHolding(authority.card,1000,11))
+        val navigation = object : NavigationStore {
+            override fun load() = mapOf("p10" to f.player(10), "p11" to f.player(11))
+            override fun save(players: Map<String, Navigator>) = Unit
+        }
+        val engine = WorldEngine(this,rules=f.rules,ticking=false,galaxy=f.galaxy,
+            navigationStore=navigation,stockStore=f.store,worldStateCommitter=WorldStateCommitter { _, stocks ->
+                f.store.save(checkNotNull(stocks))
+            })
+        try {
+            for(id in 10..11) {
+                val joined = CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join("p$id",Power.EMPIRE,false,joined,"c$id",1))
+                assertEquals(Admission.ACCEPTED,withTimeout(5000) {joined.await()})
+            }
+            suspend fun act(request:LogisticsRequest):LogisticsResult {
+                val result = CompletableDeferred<LogisticsResult>()
+                engine.submit(WorldCommand.Logistics(request,result))
+                return withTimeout(5000) {result.await()}
+            }
+            val request = f.request(10,mode=LogisticsMode.ALLOCATION)
+            val old = assertNotNull(act(request).reservation)
+            val resigned = CompletableDeferred<OfficeResignationResult>()
+            engine.submit(WorldCommand.ResignOffice(OfficeResignationRequest("p10","c10",10,Power.EMPIRE,1,card),resigned))
+            val resignation = withTimeout(5000) {resigned.await()}
+            assertTrue(resignation.changed,resignation.rejection.toString())
+
+            val appointed = CompletableDeferred<GarrisonAppointmentResult>()
+            engine.submit(WorldCommand.AppointGarrison(GarrisonAppointmentRequest("p11","c11",11,Power.EMPIRE,1,1000,
+                10,card,actorRank,targetRank,2),appointed))
+            val appointment = withTimeout(5000) {appointed.await()}
+            assertTrue(appointment.changed,appointment.rejection.toString())
+
+            val before = engine.snapshot()
+            val stale = request.copy(phase=LogisticsPhase.COMMIT,reservation=old,supplies=500)
+            assertEquals(LogisticsRejection.PREPARATION,act(stale).rejection)
+            assertEquals(before.planetStocks,engine.snapshot().planetStocks)
+            assertEquals(before.navigators,engine.snapshot().navigators)
+            val fresh = assertNotNull(act(request).reservation)
+            assertNotEquals(old,fresh)
+            assertNull(act(stale.copy(reservation=fresh)).rejection)
+        } finally {
+            engine.drainAndClose()
+        }
+    }
+
     @Test fun commanderReappointmentDoesNotReviveAnOldWorldActorReservation() = runBlocking {
         val f = Fixture()
         f.store.saved = f.store.saved.copy(nationalOffices = mapOf(NationalOffice.MILITARY_MINISTER to 10))

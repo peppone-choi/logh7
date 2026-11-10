@@ -132,6 +132,38 @@ class TacticalFleetShootTest {
         }
     }
 
+    @Test fun aSunkTargetClearsTheManualFleetShotBeforeTheFiringDeadline() {
+        val s = state()
+        val enemy = s.stocks.outfits.getValue(2)
+        val target = enemy.activeShips!!.values.single()
+        val survivor = target.copy(id = 100, tactical = ai(2.5f))
+        val twoEnemies = enemy.copy(units = UnitInventory(mapOf(target.stack to 2)),
+            activeShips = ActiveShipUnits(listOf(target, survivor)))
+        s.stocks = s.stocks.copy(outfits = s.stocks.outfits + (enemy.id to twoEnemies), nextShipId = 101)
+        val navigation = Navigation(galaxy, s.nav, NavigationPolicy())
+        val production = production(s)
+        fun shooter() = s.stocks.outfits.getValue(1).activeShips!!.values.single { it.id == 2 }
+        assertNotNull(shoot(s, navigation, production).player)
+        val pending = shooter()
+        val deadline = assertNotNull(pending.shot).firesAt
+        assertTrue(advance(s, navigation, production, deadline - 61).isEmpty())
+        assertEquals(pending, shooter())
+
+        val beforeLoss = assertNotNull(production.snapshot(1))
+        val sunk = TacticalLosses.apply(beforeLoss.outfits.getValue(enemy.id), target.id, target.boats)
+        val afterLoss = production.replace(beforeLoss, beforeLoss.copy(outfits = beforeLoss.outfits + (enemy.id to sunk)))
+        assertTrue(advance(s, navigation, production, deadline - 60).isEmpty())
+        assertEquals(pending.copy(shot = null), shooter())
+        assertEquals(afterLoss.outfits.getValue(enemy.id), s.stocks.outfits.getValue(enemy.id))
+
+        val newShot = request(listOf(2)).copy(tacticalMove = null,
+            tacticalShoot = TacticalShoot(listOf(2), TacticalWeapon.BEAM.wire, 1, survivor.id))
+        val accepted = TacticalFleetShoot.accept(newShot, session.copy(gameMillis = (deadline - 1) * 1000),
+            galaxy, navigation, production, assertNotNull(production.snapshot(1)), s.commit, 24)
+        assertNotNull(accepted.player, accepted.rejection?.name)
+        assertEquals(survivor.id, shooter().shot?.target)
+    }
+
     private fun assertSavedFleetOrdersCancelled(deceased:Boolean,detained:Boolean=false) {
         for(automatic in listOf(false,true)) {
             val s=state()

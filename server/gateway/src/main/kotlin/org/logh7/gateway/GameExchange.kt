@@ -162,12 +162,13 @@ class GameExchange(
                 else fame.evaluation(snapshot,characters,account) ?: return@prepared null
             val countries=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()
             val total=CountryEndingReport.count(snapshot,countries)
+            val profiles=characters.profiles()
             val messages=(0..maxOf(0,total-1) step org.logh7.protocol.CountryEndingMessages.PAGE).flatMap {offset->
                 CountryEndingReport.reply(org.logh7.protocol.CountryEndingMessages.Request(
-                    org.logh7.protocol.OutfitPartyMessages.Query(sessionId,127*512+offset,14)),snapshot,characters.profiles(),
+                    org.logh7.protocol.OutfitPartyMessages.Query(sessionId,127*512+offset,14)),snapshot,profiles,
                     countries,world?.publishedCountryAppearances().orEmpty(),player.country?.value ?: 0,world?.galaxy)
             }+if(snapshot.result==null)emptyList() else listOf(SessionEndingReport.message(snapshot,character,player,
-                characters.registeredCharacters(),offices(character,player),evaluation,sessionId,sessionName,countries))
+                profiles,offices(character,player),evaluation,sessionId,sessionName,countries))
             endingPrepared=phase
             handshake.stageAll(messages,clearHeader=0)
         }
@@ -588,7 +589,7 @@ class GameExchange(
                 val speed = navigation?.clockSpeed
                 val text = if (player.cpPaused && now != null && speed != null && world != null) TacticalGroundNotices.resumed(
                     restored.intersect(TacticalGroundOrder.pending(snapshot.planetStocks,player.grid,snapshot.navigators.values,
-                        world.galaxy,snapshot.session?.eliminated.orEmpty().keys,now)), now, speed) else null
+                        world.galaxy,snapshot.session?.eliminated.orEmpty().keys,now,onlineViewer=player.characterId)), now, speed) else null
                 text?.let { ChatMessages.spot(ChatMessages.Spot(player.characterId, it), gameSeconds()) }
             } else null
             // A screen change clears chat. Release the ground result on the clock after the new grid is ready.
@@ -3079,20 +3080,20 @@ class GameExchange(
                     // Lobby accounts may inspect their own ended character without joining,
                     // changing CP/navigation, or obtaining a playable ended-session ticket.
                     if(characters!==current)LobbyMessages.characters(null,
-                        SessionEndingReport.information(snapshot,current.registeredCharacters(),sessionId,sessionName,
+                        SessionEndingReport.information(snapshot,current.profiles(),sessionId,sessionName,
                             admission?.generation ?: 1L))
                     else if(character!=null && snapshot?.result!=null && snapshot.session?.generation==admission?.generation)
-                        LobbyMessages.characters(character,SessionEndingReport.session(snapshot,characters.registeredCharacters()),
+                        LobbyMessages.characters(character,SessionEndingReport.session(snapshot,characters.profiles()),
                             if(fame==null)org.logh7.protocol.SessionEndingMessages.Evaluation(0,0,0,0,0)
                             else fame.evaluation(snapshot,characters,identity.account))
                     else LobbyMessages.characters(if(admission?.running==false)null else character,
-                        SessionEndingReport.information(snapshot,characters.registeredCharacters(),sessionId,sessionName,
+                        SessionEndingReport.information(snapshot,characters.profiles(),sessionId,sessionName,
                             admission?.generation ?: 1L))
                 }
                 0x2005 -> { check(lobbyLoggedIn && body.size == 3 && body[2].toInt() in 0..2)
                     sessionDirectory?.let {LobbyMessages.sessions(it.sessions())} ?: LobbyMessages.sessions(
                         admission?.running != false,
-                        SessionEndingReport.information(navigation?.snapshot(),characterProvider().registeredCharacters(),
+                        SessionEndingReport.information(navigation?.snapshot(),characterProvider().profiles(),
                             sessionId,sessionName,admission?.generation ?: 1L)) }
                 0x032e -> {
                     if(body.size==11 && (body[10].toInt() and 255)==org.logh7.protocol.CountryEndingMessages.MODE) {

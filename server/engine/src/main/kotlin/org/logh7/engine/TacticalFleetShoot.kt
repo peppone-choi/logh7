@@ -104,10 +104,11 @@ internal object TacticalFleetShoot {
                 TacticalAuthority.camp(commander,stocks)!=TacticalAuthority.camp(outfit,stocks)) {
                 stocks=replace(stocks,outfit,unit.copy(shot=null));continue
             }
-            if(now<shot.firesAt)continue
-            // Clear even a missed/cancelled shot; retries cannot turn a one-shot command into auto fire.
+            val victim=TacticalCombat.target(shot.target,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players,session.eliminated.keys)
+            if(victim!=null && now<shot.firesAt)continue
+            // A vanished or ineligible target frees the unit immediately, even before the firing deadline.
             stocks=replace(stocks,outfit,unit.copy(shot=null))
-            val victim=TacticalCombat.target(shot.target,position.grid,TacticalAuthority.camp(outfit,stocks),stocks,galaxy,players,session.eliminated.keys) ?: continue
+            if(victim==null)continue
             val spec=UnitSpecifications.ships.single {it.kind==unit.stack.kind}
             val mount=GuardCombat.mount(TacticalArmaments.mount(spec,shot.weapon),shot.weapon,outfit,unit.id)
             val origin=state.motion.pose(now,unit.posture,galaxy,stocks)

@@ -59,7 +59,7 @@ internal object PersonnelActions {
                 val top=people.top.getOrPut(rank) {
                     val entries=eligible.filter {ladder(it)==rank}.map {id->
                         val progress=stocks.strategic.people[id.id] ?: StrategicPerson()
-                        LadderEntry(id.id.toString(),progress.merit,if(ranks==Power.EMPIRE && family.peerage=="empire")progress.peerage else null,
+                        LadderEntry(id.id.toString(),TacticalPersonnel.merit(stocks,id.id),if(ranks==Power.EMPIRE && family.peerage=="empire")progress.peerage else null,
                             progress.influence.toLong(),(progress.abilities ?: id.abilities).sumOf(Int::toLong),
                             progress.decorations.maxOrNull() ?: -1)
                     }
@@ -74,9 +74,14 @@ internal object PersonnelActions {
                     if(count>=capacity)return reject(StrategyActionRejection.MAXIMUM)
                 }
                 if(directory!=null)return StrategyActionResult(p,stocks,changed=true)
-                next=StrategyActions.clearOffices(stocks,r.target).let {cleared ->cleared.copy(strategic=cleared.strategic.copy(
-                    people=cleared.strategic.people+(r.target to (if(person.militaryRank>0)person.copy(militaryRank=changedRank)
-                        else person.copy(rank=changedRank)).copy(merit=if(r.command==2)100 else 0))))}
+                val cleared=StrategyActions.clearOffices(stocks,r.target)
+                val ranked=if(person.militaryRank>0)person.copy(militaryRank=changedRank) else person.copy(rank=changedRank)
+                val ledger=cleared.tacticalCommands
+                // A rank change replaces all prior merit, including pending tactical rewards in older saves.
+                val credits=ledger.merits[r.target]?.let {ledger.creditedMerits+(r.target to it)} ?: ledger.creditedMerits
+                next=cleared.copy(strategic=cleared.strategic.copy(
+                    people=cleared.strategic.people+(r.target to ranked.copy(merit=if(r.command==2)100 else 0))),
+                    tacticalCommands=ledger.copy(creditedMerits=credits))
                 // U-24: a promoted character outside battle receives the new rank's default flagship.
                 if(r.command!=2)r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}?.let {(key,other)->
                     val hull=other.hull
@@ -100,7 +105,8 @@ internal object PersonnelActions {
             4 -> {
                 val authority=if(offices==2)17 else 135
                 if(!holds(authority))return reject(StrategyActionRejection.AUTHORITY)
-                if(r.value !in 0..127 || rank !in 2..7 || person.merit<100L*(r.value+1))return reject(StrategyActionRejection.RANK)
+                if(r.value !in 0..127 || rank !in 2..7 || TacticalPersonnel.merit(stocks,r.target)<100L*(r.value+1))
+                    return reject(StrategyActionRejection.RANK)
                 if(r.value in person.decorations)return reject(StrategyActionRejection.MAXIMUM)
                 next=stocks.copy(strategic=stocks.strategic.copy(people=stocks.strategic.people+
                     (r.target to person.copy(decorations=person.decorations+r.value))))
