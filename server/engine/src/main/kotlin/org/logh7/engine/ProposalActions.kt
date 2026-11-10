@@ -138,25 +138,40 @@ object ProposalActions {
         // Legacy local mail has no exact post to inherit or resign. It can still expire and refund.
         return holders.filter {it.seat==mail.seat}
     }
+
+    private fun senderStillAuthorized(policy:OrganizationalOfficePolicy,s:PlanetStocks,mail:ProposalMail,country:CountryId,
+        camp:Int,sender:Navigator?,identities:()->List<StrategicIdentity>):Boolean {
+        if(sender==null || sender.country!=country || BattleDeath.deceased(s,mail.sender) || CoupActions.camp(s,mail.sender,country)!=camp)
+            return false
+        if(mail.senderCard in rebelLeaderCards)
+            return rebelLeaderCard(policy,s,mail.sender,country)==mail.senderCard
+        if(mail.command!=ASSIGNMENT && mail.senderCard==politicianCard(country,1)) {
+            val rank=s.strategic.people[mail.sender]?.rank
+                ?: identities().singleOrNull {it.id==mail.sender && it.country==country}?.rank ?: 0
+            if(politicianSenderCard(s,sender,rank)==mail.senderCard)return true
+        }
+        return policy.holders(s,mail.senderCard,country).any {it.character==mail.sender}
+    }
+
     /** Runs an approved command only while its country, current people and post still permit it. */
     private fun execute(g:Galaxy,mail:ProposalMail,s:PlanetStocks,rank:Int,players:Map<String,Navigator>,
         countries:CountryCatalog,now:Long,assignmentBlocked:(PlanetStocks,StockAssignmentProposal)->Boolean,
         identities:()->List<StrategicIdentity>):Execution? {
         val country=mail.originCountry?.takeIf {it.value in countries.countries} ?: return null
-        fun belongs(id:Int)=!BattleDeath.deceased(s,id) && players.values.singleOrNull {it.generation==s.generation && it.characterId==id}?.country==country
-        if(!belongs(mail.sender) || !belongs(mail.recipient) || mail.target>0 && !belongs(mail.target))return null
+        fun player(id:Int)=players.values.singleOrNull {it.generation==s.generation && it.characterId==id}
+        fun belongs(id:Int)=!BattleDeath.deceased(s,id) && player(id)?.country==country
+        if(!belongs(mail.recipient) || mail.target>0 && !belongs(mail.target))return null
         val policy=OrganizationalOfficePolicy(g,countries)
         val camp=policy.role(mail.card,country)?.camp ?: return null
-        if(CoupActions.camp(s,mail.sender,country)!=camp || CoupActions.camp(s,mail.recipient,country)!=camp ||
+        if(CoupActions.camp(s,mail.recipient,country)!=camp ||
             mail.target>0 && CoupActions.camp(s,mail.target,country)!=camp)return null
-        if(mail.senderCard in rebelLeaderCards && rebelLeaderCard(policy,s,mail.sender,country)!=mail.senderCard)return null
+        if(!senderStillAuthorized(policy,s,mail,country,camp,player(mail.sender),identities))return null
         if(mail.targetCard>0 && policy.role(mail.targetCard,country)?.camp!=camp)return null
         val recipients=recipientHolders(policy,s,mail,country)
         if(recipients.none {it.character==mail.recipient})return null
         var navigators=emptyMap<String,Navigator>()
         val stocks=when(mail.command) {
             ASSIGNMENT -> {
-                if (policy.holders(s, mail.senderCard, country).none { it.character == mail.sender }) return null
                 val executor=players.values.single {it.characterId==mail.recipient && it.generation==s.generation}
                 val payload=checkNotNull(mail.assignment)
                 val result=assignmentPreview(g,s,executor,mail.card,payload,countries,assignmentBlocked)
@@ -253,7 +268,7 @@ object ProposalActions {
             if(!mail.pending || country==null || BattleDeath.deceased(settled,mail.sender) ||
                 BattleDeath.deceased(settled,mail.recipient) || BattleDeath.deceased(settled,mail.target))return@map mail
             val camp=policy.role(mail.card,country)?.camp ?: return@map mail
-            if(mail.senderCard in rebelLeaderCards && rebelLeaderCard(policy,settled,mail.sender,country)!=mail.senderCard)
+            if(!senderStillAuthorized(policy,settled,mail,country,camp,keyOf(mail.sender)?.let(players::get),identities))
                 return@map mail
             fun currentHolder(id:Int)=!BattleDeath.deceased(settled,id) && CoupActions.camp(settled,id,country)==camp &&
                 (keyOf(id)?.let {players.getValue(it).country==country} ?: true)

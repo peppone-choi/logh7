@@ -37,6 +37,36 @@ class ProposalActionsTest {
         assertNull(approved.rejection);assertEquals(960,approved.player?.mcp,"the recipient pays the other half")
         assertTrue(policy.held(assertNotNull(approved.stocks),10001).none {it.card==19},"card 19 was resigned")
     }
+    @Test fun ordersFromAFormerOfficeHolderWaitForExpiryAndRefund() {
+        val opened=act("a",ProposalActions.OPEN,17,b.characterId,ProposalActions.RESIGNATION,19,stocks())
+        assertNull(opened.rejection)
+        val pending=assertNotNull(opened.stocks)
+        val former=policy.set(pending,OfficeHolding(17,1049,a.characterId),remove=true)
+        val mail=former.social.proposals.mails.single()
+        val reply=act("b",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,former)
+        assertEquals(SocialRejection.CARD,reply.rejection)
+        assertEquals(b,reply.player)
+        assertEquals(former,reply.stocks)
+
+        val players=mutableMapOf("a" to assertNotNull(opened.player),"b" to b)
+        val due=session.copy(gameMillis=(mail.createdAt+ProposalActions.ABSENT_ORDER_SECONDS)*1000,
+            participants=session.participants+("b" to session.participants.getValue("b").copy(online=false)))
+        assertEquals(former,ProposalActions.settle(galaxy,due,players,former))
+        assertEquals(b,players.getValue("b"))
+
+        val successor=b.copy(characterId=10003)
+        val moved=policy.set(policy.set(former,OfficeHolding(19,1049,b.characterId),remove=true),
+            OfficeHolding(19,1049,successor.characterId))
+        players["successor"]=successor
+        assertEquals(moved,ProposalActions.settle(galaxy,due,players,moved))
+        assertEquals(successor,players.getValue("successor"))
+
+        val expired=ProposalActions.settle(galaxy,due.copy(gameMillis=mail.expiresAt*1000),players,moved)
+        assertTrue(expired.social.proposals.mails.isEmpty())
+        assertEquals(a.mcp,players.getValue("a").mcp)
+        assertTrue(policy.held(expired,successor.characterId).any {it.card==19})
+    }
+
     @Test fun aRegularPoliticianCanOrderSeniorOfficersAcrossInstitutions() {
         val base=policy.set(stocks(),OfficeHolding(17,1049,a.characterId),remove=true)
         val politician=base.copy(strategic=base.strategic.copy(people=base.strategic.people+
@@ -52,6 +82,13 @@ class ProposalActionsTest {
         assertNull(approved.rejection)
         assertEquals(960,approved.player?.mcp)
         assertTrue(policy.held(assertNotNull(approved.stocks),b.characterId).none {it.card==19})
+
+        val former=pending.copy(strategic=pending.strategic.copy(people=pending.strategic.people+
+            (a.characterId to pending.strategic.people.getValue(a.characterId).copy(rank=10,militaryRank=0))))
+        val stale=act("b",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,former)
+        assertEquals(SocialRejection.CARD,stale.rejection)
+        assertEquals(b,stale.player)
+        assertEquals(former,stale.stocks)
 
         assertEquals(SocialRejection.CARD,act("a",ProposalActions.OPEN,67,b.characterId,ProposalActions.RESIGNATION,19,base).rejection)
         assertEquals(SocialRejection.CARD,act("a",ProposalActions.OPEN,196,b.characterId,ProposalActions.RESIGNATION,19,politician).rejection)
@@ -503,7 +540,13 @@ class ProposalActionsTest {
 
         val released = detained.copy(social = detained.social.copy(
             justice = detained.social.justice.copy(detentions = emptyMap())))
-        val approved = SocialActions.evaluate(galaxy, reply, session, a, released, players.values, players)
+        val stillFormer = SocialActions.evaluate(galaxy, reply, session, a, released, players.values, players)
+        assertEquals(SocialRejection.CARD, stillFormer.rejection)
+        assertEquals(a, stillFormer.player)
+        assertEquals(released, stillFormer.stocks)
+
+        val reinstated = policy.set(released,OfficeHolding(19,1049,b.characterId))
+        val approved = SocialActions.evaluate(galaxy, reply, session, a, reinstated, players.values, players)
         assertNull(approved.rejection)
         assertEquals(920, approved.player?.mcp)
         assertEquals(mapOf("b" to players.getValue("b")), approved.navigators)
