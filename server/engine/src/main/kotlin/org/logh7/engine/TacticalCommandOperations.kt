@@ -556,7 +556,12 @@ internal object TacticalCommandOperations {
             for((id,m) in missions.toMap()) {
                 if(m.completed || m.mission==0)continue
                 if(session.ended!=null) {missions[id]=m.copy(completed=true);continue}
-                val p=players.values.singleOrNull {it.characterId==id} ?: continue
+                val (account, p) = players.entries.singleOrNull { it.value.characterId == id } ?: continue
+                if (p.country in session.eliminated || session.participants[account]?.country in session.eliminated) {
+                    missions[id] = m.copy(completed = true)
+                    finished[id] = m.mission to 0L
+                    continue
+                }
                 val checks=TacticalMissionRules.completedCheckIntervals(m.checkedAt,now)
                 var reward=0L;var completed=false
                 if(m.mission!=5 && m.grid!=null && p.grid!=m.grid) {missions[id]=m.copy(completed=true);finished[id]=m.mission to 0L;continue}

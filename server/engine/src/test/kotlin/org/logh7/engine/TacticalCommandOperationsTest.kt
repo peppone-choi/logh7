@@ -798,6 +798,50 @@ class TacticalCommandOperationsTest {
         assertEquals(mapOf(10000 to (1 to 0L)),events.single().finishedMissions)
     }
 
+    @Test fun anEliminatedCountryStopsEarningMissionMeritWhileSurvivingCountriesKeepFighting() {
+        val s = state()
+        val fallen = Power.EMPIRE.country
+        val survivor = Power.ALLIANCE.country
+        val third = CountryId(42)
+        val pilot = s.players.getValue("pilot")
+        val ally = s.players.getValue("ally").copy(country = survivor)
+        val opponent = ally.copy(characterId = 10002, country = third)
+        val players = mutableMapOf("pilot" to pilot, "ally" to ally, "opponent" to opponent)
+        val secondBase = galaxy.bases.single().copy(id = 1001, name = "Ally base")
+        val world = Galaxy(galaxy.systems, galaxy.bases + secondBase, galaxy.starts)
+        val missions = mapOf(
+            pilot.characterId to TacticalMissionState(pilot.characterId, 1, 0, 1000, now, grid = pilot.grid),
+            ally.characterId to TacticalMissionState(ally.characterId, 1, 0, 1001, now, grid = ally.grid),
+        )
+        val initial = s.stocks.copy(bases = s.stocks.bases + (1001 to PlanetStock(1001, 3, 0, 100, 0, 0)),
+            tacticalCommands = s.stocks.tacticalCommands.copy(missions = missions))
+        val ongoing = session.copy(countries = setOf(fallen, survivor, third),
+            participants = session.participants - "pilot" - "ally")
+        val interval = TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS
+        fun settle(at: Long, phase: SessionState, stock: PlanetStocks, events: MutableList<TacticalCommandResult> = mutableListOf()) =
+            TacticalCommandOperations.finishMissions(phase.copy(gameMillis = at * 1000), world, players,
+                stock, 1, events, mutableListOf(), emptySet())
+
+        val earned = settle(now + interval, ongoing, initial)
+        assertEquals(1L, earned.strategic.people.getValue(pilot.characterId).merit)
+        assertEquals(1L, earned.strategic.people.getValue(ally.characterId).merit)
+
+        val defeated = ongoing.copy(eliminated = mapOf(fallen to CountryDefeat(EndReason.SYSTEMS_REDUCED, now + interval + 1)))
+        val events = mutableListOf<TacticalCommandResult>()
+        val next = settle(now + 2 * interval, defeated, earned, events)
+        assertEquals(1L, next.strategic.people.getValue(pilot.characterId).merit)
+        assertEquals(1L, next.tacticalCommands.creditedMerits.getValue(pilot.characterId))
+        assertTrue(next.tacticalCommands.missions.getValue(pilot.characterId).completed)
+        assertEquals(mapOf(pilot.characterId to (1 to 0L)), events.single { it.finishedMissions.isNotEmpty() }.finishedMissions)
+        assertEquals(2L, next.strategic.people.getValue(ally.characterId).merit)
+        assertFalse(next.tacticalCommands.missions.getValue(ally.characterId).completed)
+
+        events.clear()
+        val later = settle(now + 3 * interval, defeated, next, events)
+        assertEquals(1L, later.strategic.people.getValue(pilot.characterId).merit)
+        assertTrue(events.all { it.finishedMissions.isEmpty() })
+    }
+
     @Test fun withdrawalRewardsAnExitButNotDefeatAndReturn() {
         val s=state()
         val mission=TacticalMissionState(10000,5,0,0,now,grid=2488)
