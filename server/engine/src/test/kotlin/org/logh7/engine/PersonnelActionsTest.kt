@@ -104,6 +104,36 @@ class PersonnelActionsTest {
         assertNull(promote(0))
         assertNull(act(request(2,10002).copy(navigators=mapOf("target" to target.copy(characterId=10002,hull=FlagshipHull(3,0))))).navigators["target"])
     }
+    @Test fun demotionReplacesOnlyThePreviousRankDefaultOutsideCombatAndInjury() {
+        val target=p.copy(characterId=10002,returnBase=1050,hull=FlagshipHull(0,0))
+        fun demote(player:Navigator,oldRank:Int=7):StrategyActionResult {
+            val card=if(oldRank<=7)17 else 19
+            val ids=identities.map {if(it.id!=p.characterId)it.copy(rank=oldRank) else it}
+            return act(request(2,10002,card).copy(identities=ids,navigators=mapOf("target" to player)),stocks(card))
+        }
+
+        val result=demote(target)
+        assertNull(result.rejection)
+        assertEquals(8,result.stocks?.strategic?.people?.get(10002)?.rank)
+        val changed=assertNotNull(result.navigators["target"])
+        assertEquals(2,changed.hull?.kind)
+        assertEquals(1050,changed.returnBase)
+
+        val hull=assertNotNull(target.hull)
+        val protected=listOf(target.copy(cpPaused=true),
+            target.copy(hull=hull.copy(woundedUntil=session.gameMillis/1000+1)),
+            target.copy(hull=hull.copy(marketAcquired=true)),
+            target.copy(hull=FlagshipHull(4,0)))
+        for (player in protected) {
+            val demotion=demote(player)
+            assertNull(demotion.rejection)
+            assertEquals(8,demotion.stocks?.strategic?.people?.get(10002)?.rank)
+            assertTrue(demotion.navigators.isEmpty())
+        }
+        assertTrue(demote(target.copy(hull=FlagshipHull(2,0)),8).navigators.isEmpty())
+        assertTrue(demote(target,10).navigators.isEmpty())
+    }
+
     @Test fun specialPromotionAndDemotionExcludeTheTopAndUseTheManualCosts() {
         val s=stocks()
         assertEquals(StrategyActionRejection.RANK,act(request(1),s).rejection)

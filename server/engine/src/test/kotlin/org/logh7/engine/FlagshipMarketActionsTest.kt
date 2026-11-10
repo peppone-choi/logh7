@@ -31,7 +31,7 @@ class FlagshipMarketActionsTest {
         assertEquals(920,result.player?.pcp);assertEquals(950L,result.stocks?.strategic?.people?.get(10000)?.evaluation)
     }
     @Test fun consentingOwnersOfDifferentStylesExchangeTheWholeShipAndItsStyleTogether() {
-        val mixed=receiver.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(90,now,hp=89))
+        val mixed=receiver.copy(shipStyle=ShipStyleId("alliance"),hull=FlagshipHull(90,now,hp=89,marketAcquired=true))
         val people=players+("receiver" to mixed)
         val offered=act(request(1).copy(navigators=people))
         assertNull(offered.rejection)
@@ -53,6 +53,15 @@ class FlagshipMarketActionsTest {
         val replay=act(s=assertNotNull(result.stocks),p=assertNotNull(result.player))
         assertEquals(StrategyActionRejection.MAXIMUM,replay.rejection);assertEquals(result.player,replay.player)
     }
+    @Test fun purchaseCanSelectTheBuyersRankDefaultAfterUsingAnotherModel() {
+        val p=player.copy(hull=FlagshipHull(3,now))
+        val choice=FlagshipMarketCatalog.options(p.shipStyle).single {it.kind==Flagships.rankDefault(2,5).kind}
+        val result=act(request().copy(value=choice.index),p=p)
+        assertNull(result.rejection)
+        assertEquals(0,result.player?.hull?.kind)
+        assertEquals(true,result.player?.hull?.marketAcquired)
+    }
+
     @Test fun capitalYardRankCurrencyAndCpAreEnforcedWithoutPartialDebit() {
         val original=stocks()
         assertEquals(StrategyActionRejection.LOCATION,act(p=player.copy(spotId=0)).rejection)

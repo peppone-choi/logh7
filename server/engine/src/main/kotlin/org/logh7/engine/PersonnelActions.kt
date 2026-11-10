@@ -42,9 +42,23 @@ internal object PersonnelActions {
         if(player.cpPaused || hull.woundedUntil>now)return player
         val upgrade=Flagships.rankDefault(player.shipStyle.nativePower,rank)
         if(Flagships.tier(upgrade.kind)<=Flagships.tier(hull.kind))return player
-        return player.copy(hull=FlagshipHull(upgrade.kind,now,clockScale=hull.clockScale),energy=null,motion=null,
-            retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null)
+        return replaceFlagship(player,upgrade.kind,now,hull.clockScale)
     }
+
+    private fun downgradeFlagship(player:Navigator,oldRank:Int,newRank:Int,now:Long):Navigator {
+        val hull=player.hull ?: return player
+        if(player.cpPaused || hull.woundedUntil>now || hull.marketAcquired)return player
+        val power=player.shipStyle.nativePower
+        // CD p.37 describes changing to the new rank's flagship. Protect non-default hulls and active combat or injury.
+        if(hull.kind!=Flagships.rankDefault(power,oldRank).kind)return player
+        val downgrade=Flagships.rankDefault(power,newRank)
+        if(Flagships.tier(downgrade.kind)>=Flagships.tier(hull.kind))return player
+        return replaceFlagship(player,downgrade.kind,now,hull.clockScale)
+    }
+
+    private fun replaceFlagship(player:Navigator,kind:Int,now:Long,clockScale:Long):Navigator =
+        player.copy(hull=FlagshipHull(kind,now,clockScale=clockScale),energy=null,motion=null,
+            retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null)
 
     /** W pp.35–36: one unique first place per military ladder, using its round-opening ranking and quotas. */
     fun promoteMonthly(stocks:PlanetStocks,identities:List<StrategicIdentity>,eliminated:Set<CountryId>,at:Long,
@@ -131,11 +145,11 @@ internal object PersonnelActions {
                 }
                 if(directory!=null)return StrategyActionResult(p,stocks,changed=true)
                 next=changeRank(stocks,r.target,changedRank,if(r.command==2)100 else 0)
-                // U-24: a promoted character outside battle receives the new rank's default flagship.
-                if(r.command!=2)r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}?.let {(key,other)->
+                r.navigators.entries.singleOrNull {it.value.characterId==r.target && it.value.generation==r.generation}?.let {(key,other)->
                     if(other.country==p.country) {
-                        val upgraded=upgradeFlagship(other,changedRank,now)
-                        if(upgraded!==other)promoted=mapOf(key to upgraded)
+                        val updated=if(r.command==2)downgradeFlagship(other,rank,changedRank,now)
+                            else upgradeFlagship(other,changedRank,now)
+                        if(updated!==other)promoted=mapOf(key to updated)
                     }
                 }
             }
