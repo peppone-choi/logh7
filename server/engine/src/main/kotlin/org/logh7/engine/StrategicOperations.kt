@@ -241,7 +241,7 @@ internal object StrategicOperations {
             val bonus=if(plan.state==StrategicPlanState.STARTED || reached)when(outcome) {
                 OperationOutcome.FULL_SUCCESS->100;OperationOutcome.PARTIAL_SUCCESS->50;OperationOutcome.FAILURE,null->0
             } else 0
-            if(bonus>0)for(id in plan.characters+plan.planner+plan.issuer) {
+            if(bonus>0)for(id in plan.characters) {
                 if(id !in people && people.size>=4096)continue
                 val person=people[id] ?: StrategicPerson()
                 people=people+(id to person.copy(merit=minOf(0xffffffffL,person.merit+bonus)))
