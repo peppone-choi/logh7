@@ -37,6 +37,31 @@ class CharacterCarryOverTest {
         assertEquals(CountryId(2),CharacterStores(file).get(1).profiles().getValue("veteran").country)
         assertTrue(stores.carryOver(world,catalog).isEmpty())
     }
+    @Test fun memoryCarryOverKeepsBothGenerationsWithoutRetainingOlderOnes() {
+        val stores=CharacterStores(null)
+        val veteran=character(10000,30)
+        assertTrue(stores.get(1).carry("veteran",veteran))
+        assertTrue(stores.get(1).carry("novice",character(10001,30)))
+        val end=SessionEnd(EndReason.TIME_LIMIT,emptySet(),100)
+        val result=SessionResults.assess(end,SessionStatistics(population=10),mapOf(
+            Power.EMPIRE to SessionStatistics(population=6),Power.ALLIANCE to SessionStatistics(population=4)),VictoryConditions(true,true))
+        val session=SessionSimulation(SessionRules.load()).snapshot().copy(ended=end)
+        val person=StrategicPerson(evaluation=CharacterCarryOver.MINIMUM_EVALUATION,rank=6)
+        val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(10000 to person)))
+        val world=WorldSnapshot(0,0,session,planetStocks=stocks,result=result)
+
+        assertEquals(listOf("veteran"),stores.carryOver(world))
+        val carried=assertNotNull(stores.get(2).character("veteran"))
+        assertEquals(6,carried.rank)
+        assertNull(stores.get(2).character("novice"))
+        assertEquals(veteran,stores.get(1).character("veteran"))
+        assertTrue(stores.carryOver(world).isEmpty())
+        assertEquals(carried,stores.get(2).character("veteran"))
+
+        assertNull(stores.get(3).character("veteran"))
+        assertNull(stores.get(1).character("veteran"))
+        assertEquals(carried,stores.get(2).character("veteran"))
+    }
     @Test fun qualifyingGeneratedCharactersMoveToTheNextGenerationWithAgeAbilitiesAndRank() {
         val dir=Files.createTempDirectory("carry")
         val file=dir.resolve("characters.properties")
