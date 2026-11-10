@@ -207,7 +207,24 @@ class PostgresOriginalCandidatesTest {
                 val merkatzOfficer=assertNotNull(reopened.save(1106,0,merkatz,empire))
                 assertNull(reopened.save(1107,0,merkatz,empire))
                 assertNull(reopened.save(1106,1,merkatz.copy(startingOffice=null),empire))
-                assertEquals(preV21Officers+merkatzOfficer,
+                val preV22Officers=preV21Officers+merkatzOfficer
+                val hawood=paetta.copy(surname="Hawood",startingOffice=OriginalStartingOffice.HAWOOD_FLEET_7)
+                val lefebvre=paetta.copy(surname="Lefebvre",startingOffice=OriginalStartingOffice.LEFEBVRE_FLEET_3)
+                assertFalse(reopened.supportsLusianaStartingOffices)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1107,0,hawood,alliance)}
+                assertFailsWith<IllegalArgumentException> {reopened.save(1108,0,lefebvre,alliance)}
+                migrate("V22__lusiana_original_starting_offices.sql")
+                assertEquals(preV22Officers,reopened.load().filter {it.profile.startingOffice!=null}.toSet())
+                assertTrue(reopened.supportsLusianaStartingOffices && reopened.supportsMerkatzStartingOffice &&
+                    reopened.supportsAllianceStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1107,0,hawood,empire)}
+                assertFailsWith<IllegalArgumentException> {reopened.save(1107,0,hawood.copy(rank=4),alliance)}
+                val hawoodOfficer=assertNotNull(reopened.save(1107,0,hawood,alliance))
+                assertNull(reopened.save(1108,0,hawood,alliance))
+                assertNull(reopened.save(1107,1,hawood.copy(startingOffice=null),alliance))
+                val lefebvreOfficer=assertNotNull(reopened.save(1108,0,lefebvre,alliance))
+                assertNull(reopened.save(1109,0,lefebvre,alliance))
+                assertEquals(preV22Officers+hawoodOfficer+lefebvreOfficer,
                     PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
                 connect().use {test->test.createStatement().use {
                     val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile

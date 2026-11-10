@@ -33,6 +33,9 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
     @Volatile override var supportsMerkatzStartingOffice=false
         private set
 
+    @Volatile override var supportsLusianaStartingOffices=false
+        private set
+
     override fun load():List<OriginalCandidateEdit> = connect().use { db ->
         db.prepareStatement("""
             SELECT bool_or(conname='original_candidate_profile_native_face_check'),
@@ -40,7 +43,8 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
                 bool_or(conname='original_candidate_profile_staden_starting_office_check'),
                 bool_or(conname='original_candidate_profile_paetta_starting_office_check'),
                 bool_or(conname='original_candidate_profile_fogel_starting_office_check'),
-                bool_or(conname='original_candidate_profile_merkatz_starting_office_check')
+                bool_or(conname='original_candidate_profile_merkatz_starting_office_check'),
+                bool_or(conname='original_candidate_profile_lusiana_starting_offices_check')
             FROM pg_constraint
             WHERE conrelid=to_regclass('original_candidate_profile') AND convalidated
         """).use { query ->
@@ -48,7 +52,8 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
             query.executeQuery().use { rows ->
                 rows.next()
                 supportsFemaleFaces=rows.getBoolean(1)
-                supportsMerkatzStartingOffice=rows.getBoolean(6)
+                supportsLusianaStartingOffices=rows.getBoolean(7)
+                supportsMerkatzStartingOffice=supportsLusianaStartingOffices || rows.getBoolean(6)
                 supportsFogelStartingOffice=supportsMerkatzStartingOffice || rows.getBoolean(5)
                 supportsPaettaStartingOffice=supportsFogelStartingOffice || rows.getBoolean(4)
                 supportsStadenStartingOffice=supportsPaettaStartingOffice || rows.getBoolean(3)
@@ -118,6 +123,8 @@ class PostgresOriginalCandidates(private val connect:()->Connection,private val 
         require(office!=OriginalStartingOffice.PAETTA_FLEET_2 || supportsPaettaStartingOffice)
         require(office!=OriginalStartingOffice.FOGEL_FLEET_5 || supportsFogelStartingOffice)
         require(office!=OriginalStartingOffice.MERKATZ_FLEET_3 || supportsMerkatzStartingOffice)
+        require(office !in setOf(OriginalStartingOffice.HAWOOD_FLEET_7,OriginalStartingOffice.LEFEBVRE_FLEET_3) ||
+            supportsLusianaStartingOffices)
         val sql=if(expected==0L)"""INSERT INTO original_candidate_profile
             (surname,given_name,face,rank,abilities,country_id,peerage${if(portraitColumn)",portrait_asset" else ""}
                 ${if(officeColumn)",starting_office" else ""},world_identity,candidate_id,revision)
