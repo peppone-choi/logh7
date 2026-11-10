@@ -29,11 +29,11 @@ class ProposalActionsWireTest {
         val inventory=object:PlanetStockStore {override fun load()=stocks;override fun save(value:PlanetStocks){stocks=value}}
         override fun saveWorld(navigation:Map<String,Navigator>,inventory:PlanetStocks?){players=navigation;stocks=checkNotNull(inventory)}
     }
-    private fun seed(path:Path,count:Int=2) {
+    private fun seed(path:Path,count:Int=2,secondRank:Int=9) {
         Files.createDirectories(path);val store=CharacterCreation(path.resolve("characters.properties"));val ship=checkNotNull(Flagships.find(3))
         for(i in 0 until count) {
             val data=CharacterMessages.Generate(4,(10000+i).toLong(),2,0,0,"Pilot$i","Test",30,1,1,1000001,List(8){50},
-                0,0,0,if(i==0)2 else 9,ship.type,ship.kind,"Ship",1)
+                0,0,0,if(i==0)2 else secondRank,ship.type,ship.kind,"Ship",1)
             assertTrue(store.carry("load-%03d".format(i),CharacterProfile(data,CountryId(2),ShipStyleId("empire"))))
         }
     }
@@ -357,9 +357,9 @@ class ProposalActionsWireTest {
     @Test fun nativeAppointmentApprovalRefreshesTheOnlineProposersCards() {
         val state = State()
         state.stocks = state.stocks.copy(strategic = state.stocks.strategic.copy(
-            people = state.stocks.strategic.people + (10001 to StrategicPerson(rank = 4, influence = 10))))
+            people = mapOf(10000 to StrategicPerson(influence = 10), 10001 to StrategicPerson(influence = 10))))
         val (card, seat) = ProposalActions.vacancies(galaxy, state.stocks, 10000, 2, 2, 10001, 4).first()
-        seed(directory)
+        seed(directory, secondRank = 4)
         LoadFixture(directory, 2, LoadMetrics(), galaxy, ticking = false, navigationStore = state.navigation,
             stockStore = state.inventory, worldStateCommitter = state).use { fixture ->
             val approver = fixture.join(fixture.account(0), false, false).client
@@ -373,6 +373,8 @@ class ProposalActionsWireTest {
             next(proposer, 0x1201); next(proposer, 0x0356)
             val mail = state.stocks.social.proposals.mails.single()
             assertEquals(10001, mail.target)
+            assertNull(state.stocks.strategic.people.getValue(10001).rank)
+            assertFalse(mail.order)
 
             val answer = body(Wire.reply(Wire.Reply(0, mail.id, 0, Wire.Peer(10000), Wire.Peer(10001), 0, 0, 0, Proposals.APPROVE)))
             approver.send(answer)
