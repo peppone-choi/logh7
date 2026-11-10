@@ -57,6 +57,32 @@ class AcademyActionsTest {
         assertEquals(20,ended.academy?.gained)
         assertEquals(SocialRejection.COOLDOWN,act(request(27,2,ticket=2,card=38,account="peer",id=10001),s,lecturer).rejection)
     }
+    @Test fun expiredLecturesFreeCapacityWhileLiveLecturesStillFillTheLimit() {
+        val original=stocks()
+        val lectureTime=now+AcademyActions.LECTURE_SECONDS
+        val clock=session.copy(gameMillis=lectureTime*1000)
+        val full=(20000 until 20256).associateWith {id->
+            val until=lectureTime+1
+            Lecture(id,1049,classroom,1,until-AcademyActions.LECTURE_SECONDS,until)
+        }
+        fun state(lectures:Map<Int,Lecture>)=
+            original.copy(social=original.social.copy(academy=AcademyState(lectures=lectures)))
+        val start=request(27,1,card=38,account="peer",id=lecturer.characterId)
+        val blocked=act(start,state(full),lecturer,clock=clock)
+        assertEquals(SocialRejection.MAXIMUM,blocked.rejection)
+        assertEquals(lecturer,blocked.player)
+        assertEquals(state(full),blocked.stocks)
+
+        val expired=full.getValue(20000).let {it.copy(at=it.at-1,until=lectureTime)}
+        val opened=act(start,state(full+(expired.lecturer to expired)),lecturer,clock=clock)
+        assertNull(opened.rejection)
+        assertEquals(840,opened.player?.mcp)
+        val saved=assertNotNull(opened.stocks).social.academy.lectures
+        assertEquals(full-expired.lecturer,saved-lecturer.characterId)
+        assertEquals(Lecture(lecturer.characterId,1049,classroom,1,lectureTime,lectureTime+AcademyActions.LECTURE_SECONDS),
+            saved.getValue(lecturer.characterId))
+    }
+
     @Test fun leavingAndReturningDoesNotRestoreTheLectureAndARejectedSaveMovesNeitherState() {
         val opened = act(request(27, 1, card = 38, account = "peer", id = 10001), p = lecturer)
         assertNull(opened.rejection)
