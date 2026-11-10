@@ -95,7 +95,7 @@ class PoliticianLadderTest {
         val ids=listOf(id(11,3),id(12,3))
         val seated=OrganizationalOfficePolicy(galaxy).set(stocks.copy(strategic=StrategicState(people=people)),OfficeHolding(132,1177,11))
         val otherBoxes=mapOf(2 to (30L to 40L),42 to (50L to 60L))
-        val distrust=seated.copy(social=seated.social.copy(funds=FundState(confidence=otherBoxes+(3 to (100L to 500L)),support=mapOf(12 to 50L))))
+        val distrust=seated.copy(social=seated.social.copy(funds=FundState(confidence=otherBoxes+(3 to (100L to 500L)),support=mapOf(11 to 60L,12 to 50L))))
         val after=PoliticianLadder.monthly(galaxy,distrust,ids,1)
         assertEquals(listOf(12),OrganizationalOfficePolicy(galaxy).holders(after,132).map {it.character})
         assertEquals(otherBoxes,after.social.funds.confidence)
@@ -105,6 +105,20 @@ class PoliticianLadderTest {
         val trusted=seated.copy(social=seated.social.copy(funds=FundState(confidence=mapOf(3 to (500L to 100L)))))
         assertEquals(listOf(11),OrganizationalOfficePolicy(galaxy).holders(PoliticianLadder.monthly(galaxy,trusted,ids,1),132).map {it.character})
     }
+    @Test fun aLoneChairmanWhoLosesConfidenceCanStandAgainAtTheNextRound() {
+        val people=mapOf(11 to StrategicPerson(merit=90))
+        val ids=listOf(id(11,3))
+        val policy=OrganizationalOfficePolicy(galaxy)
+        val seated=policy.set(stocks.copy(strategic=StrategicState(people=people)),OfficeHolding(132,1177,11))
+        val distrust=seated.copy(social=seated.social.copy(funds=FundState(confidence=mapOf(3 to (0L to 500L)))))
+
+        val vacant=PoliticianLadder.monthly(galaxy,distrust,ids,1)
+        assertTrue(policy.holders(vacant,132).isEmpty())
+        assertTrue(vacant.social.funds.confidence.isEmpty())
+        val next=PoliticianLadder.monthly(galaxy,vacant,ids,2)
+        assertEquals(listOf(11),policy.holders(next,132).map {it.character})
+    }
+
     @Test fun aDeadPoliticianNeitherInheritsNorIsElected() {
         val people=mapOf(4 to StrategicPerson(merit=90,deceasedAt=5),2 to StrategicPerson(merit=10),
             11 to StrategicPerson(merit=90,deceasedAt=5),12 to StrategicPerson(merit=1))

@@ -8,7 +8,7 @@ package org.logh7.engine
  * emperor; while an empire revolt is under way (U-10) the seat stays to the coup's outcome.
  * The ability decrease of 1 and the deterministic per-person random are evidence:guess.
  * U-19 (proposal 2026-11-02, evidence:guess): at each 30-day boundary the alliance 信任ボックス is tallied and the
- * chairman is removed when "against" exceeds "for" (the emperor faces no vote); both boxes are then emptied.
+ * chairman is removed when "against" exceeds "for" and sits out that round (the emperor faces no vote).
  * At the same boundary a vacant chairman seat is filled by the alliance politician with the largest 支持ボックス total
  * (ties and an empty box fall to the ladder: merit, then lowest ID); the support box is emptied after the election.
  * Author: Peppone Choi. */
@@ -39,17 +39,21 @@ object PoliticianLadder {
             next=next.copy(strategic=next.strategic.copy(people=next.strategic.people+(identity.id to updated)))
         }
         val policy=OrganizationalOfficePolicy(galaxy,catalog)
+        val dismissed=mutableSetOf<Int>()
         for(id in catalog.countries.keys.sorted()) {
             val country=CountryId(id)
             if(OrganizationOffices.system(country,catalog)!=3)continue
             val funds=next.social.funds
             val (yes,no)=funds.confidence[id] ?: (0L to 0L)
-            if(no>yes)policy.holders(next,CHAIRMAN_CARD,country).forEach {next=policy.set(next,it,remove=true)}
+            if(no>yes)for(holding in policy.holders(next,CHAIRMAN_CARD,country)) {
+                dismissed+=holding.character
+                next=policy.set(next,holding,remove=true)
+            }
             if(id in funds.confidence)next=next.copy(social=next.social.copy(funds=funds.copy(confidence=funds.confidence-id)))
         }
         // Imperial succession (SuccessionActions, user decision 2026-11-02) replaces the politician-ladder heir.
         next=SuccessionActions.accede(galaxy,next,identities,month*PERIOD_DAYS*Justice.DAY,catalog)
-        return election(galaxy,next,identities,catalog)
+        return election(galaxy,next,identities,catalog,dismissed)
     }
     fun chairmanVacant(galaxy:Galaxy,stocks:PlanetStocks,country:CountryId=CountryId(3),catalog:CountryCatalog=CountryCatalogLoader.current()):Boolean {
         val policy=OrganizationalOfficePolicy(galaxy,catalog)
@@ -58,14 +62,15 @@ object PoliticianLadder {
         return policy.active(stocks,role,capital) && policy.holders(stocks,CHAIRMAN_CARD,country).isEmpty() && !stocks.social.coup.revolting(country)
     }
     /** 議長選出: fills a vacant chairman seat from the alliance politicians (see the class comment). */
-    fun election(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>,catalog:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
+    fun election(galaxy:Galaxy,stocks:PlanetStocks,identities:List<StrategicIdentity>,
+        catalog:CountryCatalog=CountryCatalogLoader.current(),dismissed:Set<Int> = emptySet()):PlanetStocks {
         var next=stocks
         for(id in catalog.countries.keys.sorted()) {
             val country=CountryId(id)
             if(!chairmanVacant(galaxy,next,country,catalog))continue
             val people=next.strategic.people;val support=next.social.funds.support
             val candidates=identities.filter {it.country==country && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L && !CoupActions.rebel(next,it.id,country)}
-            val winner=candidates.filterNot {next.social.justice.detained(it.id)}
+            val winner=candidates.filterNot {it.id in dismissed || next.social.justice.detained(it.id)}
                 .sortedWith(compareByDescending<StrategicIdentity> {support[it.id] ?: 0L}
                 .thenByDescending {people[it.id]?.merit ?: 0L}.thenBy {it.id}).firstOrNull() ?: continue
             val policy=OrganizationalOfficePolicy(galaxy,catalog)
