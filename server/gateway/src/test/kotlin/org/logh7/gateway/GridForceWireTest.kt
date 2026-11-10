@@ -82,6 +82,19 @@ class GridForceWireTest {
             client.expect(0x0356)
             report(client, 2487)
             assertEquals(760, fixture.engine.snapshot().navigators.values.single().mcp)
+
+            repeat(5) {
+                client.request(search, 0x0b03, "strategicSearch")
+                client.expect(0x0356)
+                report(client, 2487)
+            }
+            val exhausted = fixture.engine.snapshot().navigators.values.single()
+            assertEquals(40, exhausted.pcp)
+            assertEquals(40, exhausted.mcp)
+            // The next frame is the unchanged balance, not a successful search acknowledgement.
+            client.request(search, 0x0356, "deniedStrategicSearch")
+            fixture.clock(client)
+            assertEquals(exhausted, fixture.engine.snapshot().navigators.values.single())
         }
     }
 }
