@@ -13,8 +13,13 @@ object BattleDeath {
             val person=next.strategic.people[id] ?: StrategicPerson()
             if(person.deceasedAt>0 || !roll(id,seconds))continue
             if(id !in next.strategic.people && next.strategic.people.size>=4096)continue
-            next=StrategyActions.clearOffices(next,id).let {c->c.copy(strategic=c.strategic.copy(
-                people=c.strategic.people+(id to person.copy(deceasedAt=maxOf(1L,seconds)))))}
+            val cleared = StrategyActions.clearOffices(next, id)
+            // A partial retreat can leave tactical authority without an office in the detached outfit.
+            next = cleared.copy(
+                tacticalCommands = cleared.tacticalCommands.copy(
+                    authority = cleared.tacticalCommands.authority.filterValues { it != id }),
+                strategic = cleared.strategic.copy(
+                    people = cleared.strategic.people + (id to person.copy(deceasedAt = maxOf(1L, seconds)))))
         }
         return if(next===stocks)stocks else FlagshipMarketActions.settle(next,seconds)
     }

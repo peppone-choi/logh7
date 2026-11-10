@@ -549,12 +549,28 @@ class TacticalCombatTest {
             hull = FlagshipHull(89, now),
             fire = TacticalFire(1, TacticalPendingFire(1, 2488, 89, victim.unitId, now, fatalAt))))
         val fleet = state.stocks.outfits.getValue(1).copy(commanderId = victim.characterId)
-        state.stocks = state.stocks.copy(outfits = mapOf(1 to fleet))
+        val detachedShip = fleet.activeShips!!.values.single().copy(id = 2)
+        val unrelatedShip = detachedShip.copy(id = 3)
+        val detachedShips = ActiveShipUnits(listOf(detachedShip, unrelatedShip))
+        val detachment = fleet.copy(id = 2, warehouseId = 11, commanderId = 0,
+            units = UnitInventory(ships = detachedShips.quantities()), activeShips = detachedShips)
+        val otherDelegate = 10002
+        val authority = mapOf(detachedShip.id to victim.characterId, unrelatedShip.id to otherDelegate)
+        state.stocks = state.stocks.copy(outfits = mapOf(fleet.id to fleet, detachment.id to detachment),
+            warehouses = state.stocks.warehouses + (11 to OutfitWarehouse(11, 2, OutfitKind.FLEET, 1000, 2)),
+            nextShipId = 4, tacticalCommands = state.stocks.tacticalCommands.copy(authority = authority))
+        assertTrue(detachment.members().isEmpty())
+        assertSame(state.stocks, BattleDeath.apply(state.stocks, listOf(victim.characterId), fatalAt) { _, _ -> false })
+        val livingOfficeLoss = StrategyActions.clearOffices(state.stocks, victim.characterId)
+        assertEquals(authority, livingOfficeLoss.tacticalCommands.authority)
+
         val engine = WorldEngine(this, rules, ticking = false, galaxy = galaxy, navigationStore = state.nav,
             stockStore = state.inventory, worldStateCommitter = state.commit)
         val notices = mutableListOf<Triple<Long, Set<Int>, Int>>()
         engine.observeTacticalOfficeRefresh { generation, outfits ->
-            notices += Triple(generation, outfits, engine.snapshot().planetStocks!!.outfits.getValue(1).commanderId)
+            val saved = checkNotNull(engine.snapshot().planetStocks)
+            val detachedCommander = TacticalAuthority.commander(saved.outfits.getValue(detachment.id), detachedShip, saved)
+            notices += Triple(generation, outfits, detachedCommander)
         }
         try {
             for ((account, player) in state.players) {
@@ -570,7 +586,11 @@ class TacticalCombatTest {
         }
         assertTrue(BattleDeath.deceased(state.stocks, victim.characterId))
         assertEquals(0, state.stocks.outfits.getValue(1).commanderId)
-        assertEquals(listOf(Triple(1L, setOf(1), 0)), notices)
+        assertEquals(mapOf(unrelatedShip.id to otherDelegate), state.stocks.tacticalCommands.authority)
+        val savedDetachment = state.stocks.outfits.getValue(detachment.id)
+        assertEquals(0, TacticalAuthority.commander(savedDetachment, detachedShip, state.stocks))
+        assertEquals(otherDelegate, TacticalAuthority.commander(savedDetachment, unrelatedShip, state.stocks))
+        assertEquals(listOf(Triple(1L, setOf(fleet.id, detachment.id), 0)), notices)
     }
 
     @Test fun aSinkingAndAnAbsentOrderDueOnTheSameTickResolveDeathBeforeApproval() {
