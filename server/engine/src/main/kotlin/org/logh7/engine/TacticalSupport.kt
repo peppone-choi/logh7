@@ -241,7 +241,7 @@ internal object TacticalSupportOperations {
                 player==null || BattleDeath.deceased(stocks,order.character) ||
                 (order.issuedByOfflineAi && !TacticalOfflineAi.eligible(session,commander.key,player,stocks)) ||
                 !eligible(source,player,order,now,players,stocks,galaxy) ||
-                forces[order.grid].orEmpty().none {it.camp!=TacticalAuthority.camp(player,stocks) && (it.units>0 || it.base)}) {
+                forces[order.grid].orEmpty().none {it.camp!=TacticalAuthority.camp(player,stocks) && it.combatPresence}) {
                 results+=cancelled(session,source,order,players)
                 stocks=replace(stocks,source,source.unit.copy(support=null)); continue
             }

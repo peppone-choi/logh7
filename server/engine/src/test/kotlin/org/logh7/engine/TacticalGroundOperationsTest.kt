@@ -340,7 +340,7 @@ class TacticalGroundOperationsTest {
         val saves=s.saves
         val targetRequest=request().copy(tacticalGround=TacticalGroundCommand(TacticalGroundAction.TARGET,listOf(2),target=50))
         val rejected=TacticalGroundOperations.accept(targetRequest,defeated,galaxy,n,p,p.snapshot(1)!!,s.commit,24)
-        assertEquals(NavigationRejection.TARGET,rejected.rejection)
+        assertEquals(NavigationRejection.TACTICAL,rejected.rejection,"a defeated country no longer keeps this grid in tactics")
         assertEquals(before,s.stocks)
         assertEquals(saves,s.saves)
         assertNotNull(order(listOf(2),50).player);assertEquals(mapOf(2 to 50),s.stocks.tacticalCommands.groundTargets)

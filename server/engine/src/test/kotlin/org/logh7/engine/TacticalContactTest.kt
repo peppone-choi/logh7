@@ -4,6 +4,36 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalContactTest {
+    @Test fun anEliminatedOwnersBaseStopsCombatButStillRestrictsSoloEntry() {
+        val enemy = Power.EMPIRE.country
+        val battle = pilot.copy(grid = 2488, cpPaused = true)
+        val players = mutableMapOf("pilot" to battle)
+        val eliminated = setOf(enemy)
+        assertTrue(TacticalContact.active(galaxy, battle, players.values, stocks))
+        TacticalContact.endUncontested(galaxy, players, stocks, 100)
+        assertEquals(battle, players.getValue("pilot"))
+
+        assertFalse(TacticalContact.active(galaxy, battle, players.values, stocks, eliminated))
+        val forces = GridForces.collect(galaxy, 1, players.values, stocks, eliminated)
+        assertFalse(TacticalContact.contested(forces.getValue(2488)))
+        TacticalContact.endUncontested(galaxy, players, stocks, 101, eliminated)
+        val recovered = players.getValue("pilot")
+        assertFalse(recovered.cpPaused)
+        assertEquals(101L, recovered.cpRecoveryAt)
+        assertEquals(battle.mcp, recovered.mcp)
+
+        val entry = GridEntry(Camp(Power.ALLIANCE.country), 1, soloShip = true)
+        for (defeated in listOf(emptySet(), eliminated)) {
+            val beforeEntry = GridForces.collect(galaxy, 1, emptyList(), stocks, defeated)
+            assertEquals(GridEntryVerdict.SOLO_SHIP_BLOCKED,
+                GridEntryRules.evaluate(GridForces.state(galaxy, 2488, beforeEntry), entry))
+            val withAlly = GridForces.collect(galaxy, 1, listOf(recovered), stocks, defeated)
+            assertEquals(GridEntryVerdict.ALLOWED,
+                GridEntryRules.evaluate(GridForces.state(galaxy, 2488, withAlly), entry))
+        }
+        assertEquals(enemy, stocks.bases.getValue(1001).country)
+    }
+
     @Test fun deceasedEnemyFlagshipNoLongerKeepsTheBattleActive() {
         val allied=pilot.copy(cpPaused=true)
         val enemy=pilot.copy(characterId=10001,country=Power.EMPIRE.country,
