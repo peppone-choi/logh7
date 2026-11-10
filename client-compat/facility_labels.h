@@ -63,14 +63,26 @@ static void pollNativeFacilityNames(void* world) {
     }
     if(target)pollFacilityGuide(world,target,true);
 }
+// The 00591450 picker formats facility and spot rows with " %s[%d] " (0x78d758) through cdecl 646616.
+// Only the two format pushes change: the stable ID stays pushed as an unused vararg, add esp,0x10 still
+// cleans every slot, and the row/selection IDs read from EDI/EBP afterwards are untouched.
+static const char facilityPickerFormat[]=" %s ";
+static constexpr unsigned facilityPickerFormatPushes[]={0x59159a,0x591616};
 static bool installFacilityLabels() {
     const unsigned calls[]={0x591590,0x58f21d};
     const BYTE expected[][5]={{0xe8,0x7b,0x77,0xf3,0xff},{0xe8,0xee,0x9a,0xf3,0xff}};
     const BYTE* targets[]={reinterpret_cast<const BYTE*>(&facilityMenuLabel),reinterpret_cast<const BYTE*>(&facilityHudLabel)};
     for(unsigned i=0;i<2;++i)if(memcmp(reinterpret_cast<void*>(calls[i]),expected[i],5))return false;
+    const BYTE oldFormat[5]={0x68,0x58,0xd7,0x78,0x00};
+    if(memcmp(reinterpret_cast<void*>(0x78d758)," %s[%d] ",9))return false;
+    for(unsigned address:facilityPickerFormatPushes)
+        if(memcmp(reinterpret_cast<void*>(address),oldFormat,sizeof(oldFormat)))return false;
     for(unsigned i=0;i<2;++i) {
         BYTE patch[5]={0xe8};*reinterpret_cast<LONG*>(patch+1)=static_cast<LONG>(targets[i]-reinterpret_cast<const BYTE*>(calls[i])-5);
         if(!patchBytes(reinterpret_cast<void*>(calls[i]),expected[i],patch,5))return false;
     }
+    BYTE newFormat[5]={0x68};const char* format=facilityPickerFormat;memcpy(newFormat+1,&format,4);
+    for(unsigned address:facilityPickerFormatPushes)
+        if(!patchBytes(reinterpret_cast<void*>(address),oldFormat,newFormat,sizeof(oldFormat)))return false;
     return true;
 }
