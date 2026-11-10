@@ -208,13 +208,13 @@ object ProposalActions {
             if(session.participants[key]?.online==true)continue
             val recipient=players.getValue(key)
             val country=recipient.country?.takeIf {it==mail.originCountry && it.value in countries.countries} ?: continue
+            if (country in session.eliminated) continue
             if(recipient.cpPaused || recipient.navigationPending || settled.social.justice.detained(recipient.characterId))continue
             val cost=costs[mail.command]?.div(2) ?: continue
             val paid=CpPayment.charge(CpBalance(recipient.pcp.toLong(),recipient.mcp.toLong()),cost,CpPool.MCP)
             if(paid !is PaymentResult.Paid)continue
             val (answered,refused)=Proposals.reply(settled.social.proposals,mail.id,mail.recipient,Proposals.APPROVE,now)
             if(refused!=null)continue
-            if((rankChange(mail.command) || mail.command==ASSIGNMENT) && country in session.eliminated)continue
             val rank=rank(settled,mail.recipient,country,20,countries)
             val executed=execute(g,mail,settled.copy(social=settled.social.copy(proposals=answered)),
                 rank,players,countries,now,assignmentBlocked,identities) ?: continue
@@ -272,7 +272,7 @@ object ProposalActions {
             val cost=costs[mail.command]?.div(2) ?: return reject(SocialRejection.COMMAND)
             val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),cost,CpPool.MCP)
             if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
-            if((rankChange(mail.command) || mail.command==ASSIGNMENT) && i.country in session.eliminated)return reject(SocialRejection.SESSION)
+            if (i.country in session.eliminated) return reject(SocialRejection.SESSION)
             val executed=execute(g,mail,next,rank(s,i.characterId,i.country,i.rank,countries),accounts,countries,now,assignmentBlocked) {i.identities}
                 ?: return reject(SocialRejection.CARD)
             executed.rejection?.let { return reject(it) }
