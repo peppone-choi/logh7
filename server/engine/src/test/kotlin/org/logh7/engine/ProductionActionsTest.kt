@@ -16,6 +16,31 @@ class ProductionActionsTest {
     private fun act(command:Int,s:PlanetStocks,value:Int=0)=SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest(
         "a","a",10000,Power.EMPIRE,1,command,66,1,value=value)),session,a,s,listOf(a),mapOf("a" to a))
 
+    @Test fun aDefeatedCountryCannotQuoteOrStartProductionAtItsRemainingBase() {
+        val defeated = session.copy(eliminated = mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.CAPITAL_CAPTURED, now, Power.ALLIANCE.country)))
+        val ship = ProductionActions.kinds(2, true).first()
+        val troop = ProductionActions.kinds(2, false).first()
+        for ((command, kind) in listOf(ProductionActions.SHIP to ship.kind, ProductionActions.RECRUIT to troop.kind)) {
+            val identity = StrategyActionRequest("a", "a", 10000, Power.EMPIRE, 1, command, 66, 1, value = kind)
+            val order = SocialRequest(identity)
+            val quote = order.copy(phase = ProductionActions.QUOTE_PHASE)
+            for (request in listOf(order, quote)) {
+                val denied = SocialActions.evaluate(galaxy, request, defeated, a, stocks)
+                assertEquals(SocialRejection.SESSION, denied.rejection)
+                assertNull(denied.productionQuote)
+                assertFalse(denied.changed)
+                assertSame(a, denied.player)
+                assertSame(stocks, denied.stocks)
+            }
+
+            val active = SocialActions.evaluate(galaxy, quote, session, a, stocks)
+            assertNull(active.rejection)
+            assertNotNull(active.productionQuote)
+            assertTrue(SocialActions.evaluate(galaxy, order, session, a, stocks).changed)
+        }
+    }
+
     @Test fun theCountryChoosesNewModelsWhileAnAlreadyPaidOrderKeepsItsOldKind() {
         val catalog=countriesWithSwappedShipStyles()
         val kinds=ProductionActions.kinds(CountryId(2),true,catalog)
