@@ -1,5 +1,6 @@
 package org.logh7.engine
 
+import org.logh7.engine.GroundBattleOperations.admits
 import kotlin.math.hypot
 
 /** TARGET/CLEAR are the reconstructed ground battle window's 0417/0418 orders (design-ground-battle-window.md). */
@@ -38,8 +39,6 @@ internal object TacticalGroundOperations {
     private fun ground(o:OutfitStock,carrier:Int,base:Int,action:TacticalGroundAction)=o.activeGround?.values.orEmpty().filter {
         if(action==TacticalGroundAction.DEPLOY)it.carrier==carrier else it.origin==carrier && it.base==base
     }
-    private fun admits(base:GalaxyBase,troop:ActiveGroundUnit)=
-        GroundBattleRules.admitsCrewType(base,UnitSpecifications.crews.single {it.kind==troop.stack.kind}.type)
     private fun landedCount(base:GalaxyBase,troops:List<ActiveGroundUnit>)=
         troops.count {it.base==base.id && admits(base,it)}
     private fun operational(ship:ActiveShipUnit,stocks:PlanetStocks)=
@@ -127,14 +126,17 @@ internal object TacticalGroundOperations {
         val sites=command.units.map {id->
             val (outfit,unit)=landed(id) ?: return reject(NavigationRejection.UNIT)
             if(TacticalAuthority.camp(outfit,stocks)!=camp || GroundCommandAuthority.commander(outfit,unit,stocks,galaxy)!=p.characterId)return reject(NavigationRejection.CARD)
-            if(galaxy.bases.singleOrNull {it.id==unit.base}?.grid!=p.grid)return reject(NavigationRejection.GRID)
-            unit.base
+            val base = galaxy.bases.singleOrNull { it.id == unit.base && it.grid == p.grid }
+                ?: return reject(NavigationRejection.GRID)
+            if (command.action == TacticalGroundAction.TARGET && !admits(base, unit)) return reject(NavigationRejection.CREW)
+            base
         }.toSet()
         val c=stocks.tacticalCommands
         val targets=if(command.action==TacticalGroundAction.CLEAR)c.groundTargets-command.units.toSet() else {
             val (enemy,victim)=landed(command.target) ?: return reject(NavigationRejection.TARGET)
-            if(enemy.country in session.eliminated || TacticalAuthority.camp(enemy,stocks)==camp || sites!=setOf(victim.base))
-                return reject(NavigationRejection.TARGET)
+            val site = sites.singleOrNull() ?: return reject(NavigationRejection.TARGET)
+            if (enemy.country in session.eliminated || TacticalAuthority.camp(enemy, stocks) == camp ||
+                site.id != victim.base || !admits(site, victim)) return reject(NavigationRejection.TARGET)
             c.groundTargets+command.units.associateWith {command.target}
         }
         val players=navigation.snapshot(session.generation)

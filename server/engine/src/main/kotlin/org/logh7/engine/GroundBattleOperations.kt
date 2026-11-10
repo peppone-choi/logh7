@@ -15,10 +15,13 @@ object GroundBattleView {
 internal object GroundBattleOperations {
     private val specifications=UnitSpecifications.crews.associateBy {it.kind}
 
+    fun admits(base: GalaxyBase, troop: ActiveGroundUnit): Boolean =
+        GroundBattleRules.admitsCrewType(base, specifications.getValue(troop.stack.kind).type)
+
     fun participants(stocks:PlanetStocks,base:GalaxyBase,country:CountryId,camp:Int?=null):List<ActiveGroundUnit> =
         stocks.outfits.values.filter {it.country==country && (camp==null || CoupActions.outfitCamp(stocks,it)==camp)}
             .flatMap {it.activeGround?.values.orEmpty()}
-            .filter {it.base==base.id && GroundBattleRules.admitsCrewType(base,specifications.getValue(it.stack.kind).type)}
+            .filter {it.base==base.id && admits(base,it)}
             .sortedBy {it.id}.take(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
 
     fun sides(stocks:PlanetStocks,base:GalaxyBase,eliminated:Set<CountryId> = emptySet())=stocks.outfits.values
@@ -107,11 +110,13 @@ internal object GroundBattleOperations {
         }
         val targets=next.tacticalCommands.groundTargets
         val orders=if(targets.isEmpty())targets else {
+            val bases = galaxy.bases.associateBy { it.id }
             val positions=buildMap {
                 for(outfit in next.outfits.values) {
                     if(outfit.country in session.eliminated)continue
                     for(unit in outfit.activeGround?.values.orEmpty()) {
-                        if(unit.base>0)put(unit.id,unit.base to TacticalAuthority.camp(outfit,next))
+                        val base = bases[unit.base] ?: continue
+                        if (admits(base, unit)) put(unit.id, unit.base to TacticalAuthority.camp(outfit, next))
                     }
                 }
             }

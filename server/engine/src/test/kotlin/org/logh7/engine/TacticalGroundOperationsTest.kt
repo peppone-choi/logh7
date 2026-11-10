@@ -361,6 +361,41 @@ class TacticalGroundOperationsTest {
         assertEquals(NavigationRejection.CARD,order(listOf(2),50).rejection,"observing another commander does not grant command")
         assertTrue(s.stocks.tacticalCommands.groundTargets.isEmpty())
     }
+    @Test fun specialPlanetGroundOrdersCannotUseArmoredTroopsExcludedFromCombat() {
+        galaxy = galaxy(30)
+        val armored = UnitSpecifications.crews.first { it.power == 2 && it.type == 2 }.kind
+        val enemyArmored = UnitSpecifications.crews.first { it.power == 3 && it.type == 2 }.kind
+        val s = state(kind = armored)
+        val own = s.stocks.outfits.getValue(1)
+        val landed = ActiveGroundUnits(own.activeGround!!.values.map {
+            if (it.id in 2..3) it.copy(carrier = 0, base = 1000, origin = 1) else it
+        })
+        val enemy = ActiveGroundUnits(listOf(ActiveGroundUnit(50, UnitStack(4), base = 1000),
+            ActiveGroundUnit(51, UnitStack(enemyArmored), base = 1000)))
+        val targets = mapOf(2 to 50, 3 to 51)
+        s.stocks = s.stocks.copy(outfits = s.stocks.outfits + (1 to own.copy(activeGround = landed)) +
+            (9 to OutfitStock(9, 3, OutfitKind.GROUND, 1001, 11, 10009,
+                UnitInventory(troops = enemy.quantities()), activeGround = enemy)),
+            warehouses = s.stocks.warehouses + (11 to OutfitWarehouse(11, 3, OutfitKind.GROUND, 1001)),
+            tacticalCommands = s.stocks.tacticalCommands.copy(groundTargets = targets))
+        val navigation = Navigation(galaxy, s.nav, NavigationPolicy())
+        val production = production(s)
+        fun order(unit: Int, target: Int) = accept(s, navigation, production, request().copy(tacticalGround =
+            TacticalGroundCommand(if (target == 0) TacticalGroundAction.CLEAR else TacticalGroundAction.TARGET,
+                listOf(unit), target = target)))
+
+        assertEquals(NavigationRejection.CREW, order(2, 50).rejection)
+        assertEquals(NavigationRejection.TARGET, order(3, 51).rejection)
+        assertEquals(0, s.saves)
+        assertEquals(targets, s.stocks.tacticalCommands.groundTargets)
+        assertNotNull(order(2, 0).player)
+        val old = s.stocks.copy(tacticalCommands = s.stocks.tacticalCommands.copy(groundTargets = targets))
+        val cleaned = GroundBattleOperations.advance(session, galaxy, s.players, old, 24, mutableListOf())
+        assertTrue(cleaned.tacticalCommands.groundTargets.isEmpty())
+        assertNotNull(order(3, 50).player)
+        assertEquals(mapOf(3 to 50), s.stocks.tacticalCommands.groundTargets)
+    }
+
     @Test fun groundTargetLimitRejectsNewEntriesButAllowsChangingAndClearingSavedOrders() {
         val s=state()
         val own=s.stocks.outfits.getValue(1)
