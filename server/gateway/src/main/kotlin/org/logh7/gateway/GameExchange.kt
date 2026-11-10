@@ -9,6 +9,7 @@ import org.logh7.protocol.ChatMessages
 import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.protocol.OutfitPartyMessages
 import org.logh7.engine.NavigationRejection
+import org.logh7.engine.NavigationResult
 import org.logh7.engine.LogisticsRejection
 import org.logh7.engine.CompletenessSupply
 import org.logh7.engine.SupplyCost
@@ -521,9 +522,9 @@ class GameExchange(
         }
         return listOf(ChatMessages.spot(ChatMessages.Spot(characterId, "[워프] $reason·CP 미환불"), seconds))
     }
-    private fun warpRefusal(characterId: Int, rejection: NavigationRejection?, seconds: Long): ByteArray {
+    private fun warpRefusal(characterId: Int, result: NavigationResult, seconds: Long): ByteArray {
         // The original strategy chat shows only the tail of long notices.
-        val reason = when (rejection) {
+        val reason = when (result.rejection) {
             NavigationRejection.SAME_GRID -> "다른 칸 선택"
             NavigationRejection.RANGE -> "더 가까운 칸 선택"
             NavigationRejection.STAR_SYSTEM_NOT_ADJACENT -> "성계에 인접 필요"
@@ -536,6 +537,7 @@ class GameExchange(
             NavigationRejection.SUPPLYING -> "보급 완료까지 대기"
             NavigationRejection.TRAVELLING -> "이동 완료까지 대기"
             NavigationRejection.WOUNDED -> "부상 회복까지 대기"
+            NavigationRejection.BUSY -> if (result.blockedByDetention) "구금 중 이동 불가" else "현재 사용 불가"
             else -> "현재 사용 불가"
         }
         return ChatMessages.spot(ChatMessages.Spot(characterId, "[워프] $reason"), seconds)
@@ -555,8 +557,8 @@ class GameExchange(
         }
         return ChatMessages.spot(ChatMessages.Spot(characterId, "[기항] $reason"), seconds)
     }
-    private fun fuelRefusal(rejection: NavigationRejection?): ByteArray {
-        val reason = when (rejection) {
+    private fun fuelRefusal(result: NavigationResult): ByteArray {
+        val reason = when (result.rejection) {
             NavigationRejection.FUEL_FULL -> "연료가 가득 찼습니다"
             NavigationRejection.CP -> "MCP 160 또는 PCP 320 필요"
             NavigationRejection.CARD -> "함장 카드 필요"
@@ -565,6 +567,7 @@ class GameExchange(
             NavigationRejection.SUPPLYING -> "이미 보급 중입니다"
             NavigationRejection.TRAVELLING -> "이동 완료까지 대기"
             NavigationRejection.WOUNDED -> "부상 회복까지 대기"
+            NavigationRejection.BUSY -> if (result.blockedByDetention) "구금 중 보급 불가" else "현재 보급 불가"
             else -> "현재 보급 불가"
         }
         return ChatMessages.invalidCommand(0x0b02, "[연료 보급] $reason")
@@ -2014,7 +2017,7 @@ class GameExchange(
                             val seconds=gameSeconds()
                             listOf(org.logh7.protocol.FuelMessages.reply(command, seconds, player.pcp, player.mcp, result.player != null),
                                 characterMessage(character, player, true)) + completedWork(result, character) +
-                                listOfNotNull(if(result.player==null)fuelRefusal(result.rejection) else null)
+                                listOfNotNull(if(result.player==null)fuelRefusal(result) else null)
                         }
                         return null
                     }
@@ -2047,7 +2050,7 @@ class GameExchange(
                                         org.logh7.protocol.NavigationMessages.moved(command.copy(grid = origin.grid),
                                             seconds, origin.unitId, origin.cruise)) else emptyList()) +
                                     completedWork(result, character, warpNotified = origin.baseId == 0 && origin.mode == 5) +
-                                    warpRefusal(origin.characterId, result.rejection, seconds)
+                                    warpRefusal(origin.characterId, result, seconds)
                             }
                             publication = Publication(character, player, false)
                             player.warpReadyAt?.let { readyAt ->

@@ -161,6 +161,8 @@ class FleetNavigationWireTest {
                 val fleet=NavigationMessages.accepted(NavigationMessages.Warp(10000,59,destination,0,5),0,0,0)
                 commander.send(fleet.copyOfRange(4,fleet.size))
                 assertEquals(1,ByteBuffer.wrap(through(commander,0x0b01)).getInt(0))
+                val notice=through(commander,0x0f1d)
+                assertEquals(ChatMessages.Spot(10000,"[워프] 현재 사용 불가"),ChatMessages.spot(notice.copyOfRange(4,notice.size)))
                 assertEquals(before,state.players);assertEquals(stocks,state.stocks)
                 connected(commander);connected(aide)
             }
