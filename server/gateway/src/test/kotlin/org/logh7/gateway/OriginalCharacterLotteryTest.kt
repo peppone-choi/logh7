@@ -147,6 +147,35 @@ class OriginalCharacterLotteryTest {
         for(office in OriginalStartingOffice.entries)checkStartingOfficeAward(office)
     }
 
+    @Test fun berthClaimsStartOnlyForWinnersAndKeepTheirOriginalExpiryAfterReload() {
+        val clock=TestClock()
+        val file=directory.resolve("berth-claims.properties")
+        val office=OriginalStartingOffice.FOGEL_FLEET_5
+        val published=PublishedOriginalCandidates(CharacterCreation.originalDefinitions())
+        val profile=OriginalCandidateProfile("Fogel","Fixture",26,5,List(8) {50},startingOffice=office)
+        published.publish(listOf(OriginalCandidateEdit(1003,1,profile,office.country)))
+        fun open()=CharacterCreation(file,clock,60_000,publishedOriginals=published)
+        val store=open()
+        val empire=CharacterCreation.CountrySelection(office.country,2,ShipStyleId("empire"))
+        val alliance=CharacterCreation.CountrySelection(CountryId(3),3,ShipStyleId("alliance"))
+        store.apply("fogel",listOf(1003),empire)
+        store.apply("kircheis",listOf(1001),empire)
+        store.apply("unbound",listOf(1002),alliance)
+        assertTrue(store.originalBerthClaims().isEmpty())
+        clock.time+=60_000
+        val claims=store.originalBerthClaims().associateBy {it.account}
+        assertEquals(setOf("fogel","kircheis"),claims.keys)
+        assertEquals(office,claims.getValue("fogel").office)
+        assertEquals(1001,claims.getValue("kircheis").character)
+        assertNotNull(store.character("unbound"))
+        val legacy=Properties().also {Files.newBufferedReader(file).use(it::load)}
+        assertEquals(setOf("fogel","kircheis","unbound"),legacy.stringPropertyNames())
+        clock.time+=59_999
+        assertEquals(claims,open().originalBerthClaims().associateBy {it.account})
+        clock.time++
+        assertTrue(open().originalBerthClaims().isEmpty())
+    }
+
     private fun checkStartingOfficeAward(office:OriginalStartingOffice) {
         val clock = TestClock()
         val file = directory.resolve("${office.key}.properties")

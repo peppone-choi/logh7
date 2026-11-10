@@ -18,6 +18,29 @@ class NpcStrategyTest {
     private fun advance(at:Long,stocks:PlanetStocks,players:MutableMap<String,Navigator>,events:MutableList<NpcStrategicMovement>)=
         NpcStrategy.advance(simulation.copy(gameMillis=at*1000),galaxy,players,stocks,events)
 
+    @Test fun awardedOriginalOnlyHoldsItsVacantFleetAtTheStartingBerth() {
+        val base=galaxy.bases.single().copy(id=1049)
+        val world=Galaxy(galaxy.systems,listOf(base),galaxy.starts)
+        val initial=stocks()
+        val fleet=initial.outfits.getValue(1).copy(id=2,number=2,baseId=base.id,
+            position=OutfitPosition(base.grid,base.id),strategy=NpcStrategicState(21600,2488,3600))
+        val ready=initial.copy(bases=mapOf(base.id to initial.bases.getValue(1000).copy(baseId=base.id)),
+            outfits=mapOf(2 to fleet.copy(activeGround=null)),warehouses=mapOf(10 to initial.warehouses.getValue(10).copy(baseId=base.id,outfitId=2)))
+        val claim=OriginalBerthClaim("winner",1001,CountryId(2),10,null)
+        val due=simulation.copy(gameMillis=3600_000)
+        val events=mutableListOf<NpcStrategicMovement>()
+        val targets=players()
+        assertEquals(ready,NpcStrategy.advance(due,world,targets,ready,events,startingClaims=listOf(claim)))
+        assertTrue(events.isEmpty())
+        val departed=NpcStrategy.advance(due,world,targets,ready,events)
+        assertEquals(OutfitPosition(2488),departed.outfits.getValue(2).position)
+        assertEquals(1,events.size)
+        assertEquals(departed,NpcStrategy.advance(due,world,targets,departed,events,startingClaims=listOf(claim)))
+        val entered=players().apply {put("winner",Navigator(1,1001,Power.EMPIRE,base.grid,100,100,100,baseId=base.id,mode=1))}
+        val afterEntry=NpcStrategy.advance(due,world,entered,ready,mutableListOf(),startingClaims=listOf(claim))
+        assertEquals(OutfitPosition(2488),afterEntry.outfits.getValue(2).position)
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test fun restoredNpcJumpArrivesBetweenPeriodicTicksWithoutAClientRequest() = runTest {
         val rules=SessionRules.load()
