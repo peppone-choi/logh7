@@ -51,6 +51,44 @@ class GatheringActionsTest {
         assertEquals(SocialRejection.STALE,act(request("guest",10001,10000,1,s.social.nextId),s,clock=late).rejection)
         assertEquals(SocialRejection.STALE,act(request("guest",10001,10000,1,s.social.nextId,GatheringActions.TALK),s).rejection,"command must match")
     }
+    @Test fun detentionOfEitherParticipantBlocksInvitingAndAcceptingWithoutPreventingDecline() {
+        val prison = galaxy.facilitiesAt(1049).single { it.kind == 0 }.spots.single { it.kind == 18 }.id
+        val initial = stocks()
+        val invite = request("host", 10000, 10001, 0, initial.social.nextId)
+        val opened = act(invite, initial)
+        assertNull(opened.rejection)
+        val pending = assertNotNull(opened.stocks)
+        val accept = request("guest", 10001, 10000, 1, pending.social.nextId)
+        val offline = session.copy(participants = session.participants - "guest")
+        assertEquals(680, act(invite, initial, clock = offline).player?.mcp, "eligible offline guest accepts automatically")
+
+        for (detainee in listOf(host, guest)) {
+            val detainedHost = if (detainee == host) host.copy(spotId = prison, spotOwner = 0) else host
+            val detainedGuest = if (detainee == guest) guest.copy(spotId = prison) else guest
+            val detention = Detention(detainee.characterId, CountryId(2), now, now + 86400)
+            fun detained(stocks: PlanetStocks) = stocks.copy(social = stocks.social.copy(
+                justice = stocks.social.justice.copy(detentions = mapOf(detainee.characterId to detention))))
+            fun unchanged(result: SocialResult, player: Navigator, stocks: PlanetStocks) {
+                assertEquals(SocialRejection.BUSY, result.rejection)
+                assertEquals(player, result.player)
+                assertEquals(stocks, result.stocks)
+                assertFalse(result.changed)
+                assertTrue(result.navigators.isEmpty())
+            }
+
+            val held = detained(initial)
+            for (clock in listOf(session, offline))
+                unchanged(act(invite, held, h = detainedHost, g = detainedGuest, clock = clock), detainedHost, held)
+            val heldPending = detained(pending)
+            unchanged(act(accept, heldPending, h = detainedHost, g = detainedGuest), detainedGuest, heldPending)
+            val declined = act(request("guest", 10001, 10000, 2, pending.social.nextId), heldPending, h = detainedHost, g = detainedGuest)
+            assertNull(declined.rejection)
+            assertTrue(assertNotNull(declined.stocks).social.gatherings.invites.isEmpty())
+            assertEquals(detainedGuest, declined.player)
+            assertTrue(declined.navigators.isEmpty())
+        }
+    }
+
     @Test fun huntingNeedsTheOwnFiefForestAndAPartyTheCapitalBallroomOfANoble() {
         val forest=1049*10000+GatheringActions.MANSION*200+GatheringActions.FOREST+1
         val ballroom=1049*10000+GatheringActions.MANSION*200+GatheringActions.BALLROOM+1
