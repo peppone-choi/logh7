@@ -243,7 +243,7 @@ internal object StrategyActions {
     fun settle(stocks:PlanetStocks,seconds:Long,galaxy:Galaxy?=null,navigators:Collection<Navigator>?=null,
         countries:CountryCatalog=CountryCatalogLoader.current(),eliminated:Set<CountryId> = emptySet()):PlanetStocks {
         val market=FlagshipMarketActions.settle(stocks,seconds)
-        val original=if(galaxy==null)market else BlackHoleTides.settle(galaxy,StrategicOperations.settle(galaxy,market,seconds,navigators),seconds)
+        val original=if(galaxy==null)market else BlackHoleTides.settle(galaxy,StrategicOperations.settle(galaxy,market,seconds,navigators,eliminated),seconds)
         return settleSuppression(original,seconds,navigators,countries,eliminated)
     }
     private fun settleSuppression(stocks:PlanetStocks,seconds:Long,navigators:Collection<Navigator>?,countries:CountryCatalog,

@@ -161,11 +161,13 @@ internal object StrategicOperations {
         return stocks.copy(strategic=stocks.strategic.copy(people=people+(shooter.characterId to person.copy(merit=merit))))
     }
 
-    fun settle(galaxy:Galaxy,stocks:PlanetStocks,seconds:Long,navigators:Collection<Navigator>?=null):PlanetStocks {
+    fun settle(galaxy:Galaxy,stocks:PlanetStocks,seconds:Long,navigators:Collection<Navigator>?=null,
+        eliminated: Set<CountryId> = emptySet()):PlanetStocks {
         if(stocks.strategic.operations.none {it.live})return stocks
         var people=stocks.strategic.people
         val plans=stocks.strategic.operations.map {plan->
             if(!plan.live)return@map plan
+            if (plan.country in eliminated) return@map plan.copy(state = StrategicPlanState.WITHDRAWN)
             val ids=bases(galaxy,plan.grid);val ownership=owned(stocks,ids,plan.country)
             // Successful occupation must remain live until its result; it is no longer an
             // enemy-only planning target after our first capture. Neutral/rebel takeover
