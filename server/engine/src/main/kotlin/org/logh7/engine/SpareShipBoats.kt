@@ -73,9 +73,21 @@ internal object ReplacementBoats {
                 nextUnits[added]=nextUnits[added].copy(boats=boats)
             }
         }
-        require(nextUnits.sumOf {it.boats}>=previous.sumOf {it.boats} ||
-            ready.strategic.transports.none {it.carrier==outfitId}) {
-            "Unload transport packages before returning live boats"
+        val projected=next.outfits.getValue(outfitId).copy(activeShips=ActiveShipUnits(nextUnits))
+        val cargo=TransportActions.carriedCargo(outfit,ready.strategic.transports)
+        if(cargo.isNotEmpty()) {
+            require(TransportActions.boats(projected)>=TransportActions.boats(outfit)) {
+                "Unload transport packages before returning live boats"
+            }
+            val cargoSupplies=cargo.sumOf {it.first.toLong()}
+            val previousCapacity=OutfitSupplies.capacity(outfit)-outfit.supplies.toLong()
+            val nextCapacity=OutfitSupplies.capacity(projected)-projected.supplies.toLong()
+            val previousSlots=TransportActions.freeUnitSlots(outfit,ready.strategic.transports)
+            val nextSlots=TransportActions.freeUnitSlots(projected,ready.strategic.transports)
+            // Existing damage can leave the cargo over capacity. An edit may keep or improve that state.
+            require(nextCapacity>=minOf(cargoSupplies,previousCapacity) && nextSlots>=minOf(0,previousSlots)) {
+                "Unload transport packages before reducing cargo capacity"
+            }
         }
         for (unit in previous.filter {it.id !in retained}) {
             val size=UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number
@@ -87,8 +99,7 @@ internal object ReplacementBoats {
         require(warehouseShipIncreaseFits(warehouse.units.ships,warehouse.spareShips,full,remainder)) {
             "Warehouse ship capacity exceeded"
         }
-        return next.copy(outfits=next.outfits+(outfitId to next.outfits.getValue(outfitId).copy(
-            activeShips=ActiveShipUnits(nextUnits))),warehouses=next.warehouses+(warehouse.id to warehouse.copy(
+        return next.copy(outfits=next.outfits+(outfitId to projected),warehouses=next.warehouses+(warehouse.id to warehouse.copy(
             units=UnitInventory(full,moved.source.troops),spareShips=remainder)))
     }
 
