@@ -26,6 +26,64 @@ class CountryEspionageActionsTest {
     private fun time(target:Int,success:Boolean)=(1L..1000).first {
         (EspionageActions.roll(10000,target,it)<EspionageActions.threshold(100,1))==success}
 
+    @Test fun successfulIntelligenceStoresAHomeSnapshotUntilTheExactExpiry() {
+        val spot=galaxy.facilitiesAt(1001,stocks(),catalog).first().spots.last().id
+        val target=stocks().bases.getValue(1001).copy(treasury=3_000_000_000)
+        val original=stocks().let {it.copy(bases=it.bases+(1001 to target))}
+        val entered=act(EspionageActions.INFILTRATE,time(spot,true),original,player.copy(baseId=1001,grid=2488,spotId=10010001),base=spot)
+        val infiltrated=assertNotNull(entered.stocks)
+        val agent=assertNotNull(entered.player)
+        val observed=time(spot,true)
+        val succeeded=act(EspionageActions.INTELLIGENCE,observed,infiltrated,agent)
+        assertEquals(1,succeeded.outcome)
+        assertEquals(Int.MAX_VALUE,succeeded.found)
+        val saved=assertNotNull(succeeded.stocks)
+        val failed=act(EspionageActions.INTELLIGENCE,time(spot,false),saved,agent)
+        assertEquals(3,failed.outcome)
+        assertEquals(saved,failed.stocks)
+
+        val members=mapOf("ally" to Participant(a,false,connection="ally-connection"),
+            "other" to Participant(b,false,connection="other-connection"))
+        val ally=player.copy(characterId=10001)
+        val other=player.copy(characterId=10002,country=b)
+        fun at(time:Long)=session.copy(gameMillis=time*1000,participants=members)
+        val expires=observed+Justice.DAY
+        val viewerState=at(expires-1)
+        val report=HomeIntelligenceReport(a,1001,observed,3_000_000_000,60,60)
+        val changedTarget=saved.copy(bases=saved.bases+(1001 to target.copy(treasury=5)))
+        assertEquals(report,EspionageActions.homeReport(changedTarget,viewerState,"ally","ally-connection",ally,1001))
+        assertNull(EspionageActions.homeReport(saved,viewerState,"other","other-connection",other,1001))
+        assertNull(EspionageActions.homeReport(saved,viewerState,"other","other-connection",ally,1001))
+        assertNull(EspionageActions.homeReport(saved,viewerState,"ally","old-connection",ally,1001))
+        assertNull(EspionageActions.homeReport(saved,at(expires),"ally","ally-connection",ally,1001))
+        assertTrue(EspionageActions.settle(galaxy,at(expires),mutableMapOf(),saved,catalog).social.justice.homeReports.isEmpty())
+    }
+
+    @Test fun aFullReportStorePreservesActiveReportsAndReusesExpiredCapacity() {
+        val spot=galaxy.facilitiesAt(1001,stocks(),catalog).first().spots.last().id
+        val observed=(Justice.DAY..Justice.DAY+1000).first {EspionageActions.roll(10000,spot,it)<EspionageActions.threshold(100,1)}
+        val p=player.copy(baseId=1001,grid=2488,spotId=spot)
+        val original=stocks()
+        val reports=(2000 until 2000+JusticeState.MAX_HOME_REPORTS).associate {base->
+            (b to base) to HomeIntelligenceReport(b,base,observed-Justice.DAY+1,100,60,60)
+        }
+        val justice=JusticeState(infiltrations=mapOf(10000 to Infiltration(10000,1001,spot,observed+10,a,b)),homeReports=reports)
+        fun withJustice(state:JusticeState)=original.copy(social=original.social.copy(justice=state))
+        val full=withJustice(justice)
+        val rejected=act(EspionageActions.INTELLIGENCE,observed,full,p)
+        assertEquals(SocialRejection.MAXIMUM,rejected.rejection)
+        assertEquals(p,rejected.player)
+        assertEquals(full,rejected.stocks)
+
+        val expired=b to 2000
+        val freed=withJustice(justice.copy(homeReports=reports+(expired to reports.getValue(expired).copy(observedAt=observed-Justice.DAY))))
+        val succeeded=act(EspionageActions.INTELLIGENCE,observed,freed,p)
+        assertEquals(1,succeeded.outcome)
+        assertEquals(840,succeeded.player?.mcp)
+        val saved=assertNotNull(succeeded.stocks).social.justice.homeReports
+        assertEquals(reports-expired,saved-(a to 1001))
+    }
+
     @Test fun intrudeReturnAndCaptureUseActualCountryDespiteIdenticalDisplay() {
         val entered=act(EspionageActions.INTRUDE,time(1001,true),base=1001,value=2)
         assertNull(entered.rejection);assertEquals(680,entered.player?.mcp);assertEquals(1001,entered.player?.baseId)

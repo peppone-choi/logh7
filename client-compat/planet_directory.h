@@ -43,13 +43,14 @@ static void createPlanetDirectory() {
 }
 static void planetDirectoryLayout(bool directory) {
     auto root=planetWindowRoot;
-    const int ranges[][2]={{0,3},{10,13},{20,32},{40,79},{80,88},{100,103}};
+    // 33 is the detail view's 첩보 보고 button (home_report.h); hidden with the other detail controls.
+    const int ranges[][2]={{0,3},{10,13},{20,33},{40,79},{80,88},{100,103}};
     for (const auto& range:ranges) for (int i=range[0];i<=range[1];++i) {
         bool visible=!directory;
         if (i==0 || i==25 || i==26) visible=true;
         if (directory && (i==1 || i==23 || i==24 || i==27 || i==28)) visible=true;
         if (i==2 || (directory && i==30)) visible=false;
-        if (i>=72 && i<=79) visible=!directory && planetWindowTab==4;
+        if (i>=72 && i<=79) visible=!directory && !planetReportView && planetWindowTab==4;
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)(root,planetWidget(i),visible ? 1 : 0);
         // 005025c0 checks +15 (input enabled), not +18 (visible). Hidden
         // detail labels otherwise intercept clicks on the directory below.
@@ -58,7 +59,8 @@ static void planetDirectoryLayout(bool directory) {
     for (int i=0;i<planetDecorationCount;++i) {
         auto sprite=reinterpret_cast<void*(__thiscall*)(void*,int,int)>(0x502780)(root,2,i);
         BYTE section=planetDecorationSection[i];
-        bool tabVisible=!section || section==(planetWindowTab<2 ? planetWindowTab+1 : 3);
+        // The report view uses the row lines (section 3) instead of the overview panels.
+        bool tabVisible=!section || section==(planetReportView ? 3 : planetWindowTab<2 ? planetWindowTab+1 : 3);
         reinterpret_cast<void(__thiscall*)(void*,void*,int)>(0x502eb0)
             (root,sprite,((!directory && tabVisible) || i==planetDecorationCount-1) ? 1 : 0);
     }

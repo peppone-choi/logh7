@@ -32,6 +32,7 @@ static struct CountryPaintInbox {
     bool identityReceived,fuelSupported,productionQuotesSupported,repairQuotesSupported,supplyQuotesSupported,portraitSupported,spotPortraitSupported;
     bool orbitalStrikeQuotesSupported;
     bool woundedPersistent; // Server-owned 0x20 flag from the same authenticated mode 11 record.
+    bool homeReportsSupported; // 0x40 flag from the same record: the server answers 7f14.
     ULONGLONG fuelAt,portraitAt;
     FuelProgress fuel;
     unsigned imageCountry;std::uint64_t imageRevision;
@@ -78,6 +79,7 @@ static bool receiveCountryPaint(const BYTE* record) {
         inbox.portraitSupported=(record[10]&4)!=0;
         inbox.spotPortraitSupported=(record[10]&8)!=0;
         inbox.woundedPersistent=identity.wounded; // Older servers leave the bit clear.
+        inbox.homeReportsSupported=identity.homeReports;
         if(!inbox.portraitSupported)clearOwnPortrait();
     }
     if(inbox.pending && inbox.mode==fuelStatusMode && readFuelProgress(record,inbox.character,inbox.nonce,inbox.fuel)) {
@@ -202,6 +204,16 @@ static bool persistentWoundedStatus(void* world,unsigned character) {
     const auto& inbox=countryPaintInbox;
     const bool wounded=inbox.world==world && inbox.character==character && inbox.identityReceived && inbox.woundedPersistent;
     ReleaseSRWLockShared(&countryPaintLock);return wounded;
+}
+// 1 supported, 0 refused by the authenticated mode 11 record, -1 not yet confirmed for this world/character.
+// Only 1 may send 7f14: older servers close the connection on an unknown 1200 search value.
+static int homeReportCapability(void* world,unsigned character) {
+    AcquireSRWLockShared(&countryPaintLock);
+    const auto& inbox=countryPaintInbox;
+    const int supported=world && inbox.world==world && inbox.character==character && inbox.identityReceived ?
+        static_cast<int>(inbox.homeReportsSupported) : -1;
+    ReleaseSRWLockShared(&countryPaintLock);
+    return supported;
 }
 static int orbitalStrikeQuoteCapability(void* world,unsigned character) {
     AcquireSRWLockShared(&countryPaintLock);

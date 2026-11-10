@@ -85,6 +85,7 @@ static void closePlanetInformation() {
     planetInformation.popup = nullptr;
     planetInformation.world = nullptr;
     planetOfficeWire.abandon();
+    closeHomeReport();
 }
 
 static void requestPlanetInformation() {
@@ -109,6 +110,18 @@ static void requestPlanetInformation() {
     send(info.world, 0, 0x22, &query); // 0320 -> 0321 institutions/spots
     unsigned warehouse[] = {query.ids[0], 0};
     send(info.world, 0, 0x17, warehouse); // 0326 -> 0327 warehouse
+    // A base change or refresh drops the old ticket; an open report view asks again for this base only.
+    restartHomeReport();
+}
+// Explicit 첩보 보고 click: switch between the public details and the stored report of the selected base.
+static void togglePlanetReport() {
+    auto& info = planetInformation;
+    stopPlanetUnits();
+    planetWindowTab = 0; info.page = 0;
+    // A disabled button may still report a hit; never enter the view without the confirmed capability.
+    planetReportView = !planetReportView && info.count > 0 && homeReportAvailable(info.world, info.character);
+    restartHomeReport();
+    info.displayed = false;
 }
 
 // Both callbacks run in the native world dispatcher, after its validated decode
@@ -327,6 +340,11 @@ static int __cdecl planetInfoMenu(void* gui) {
                 return -1;
             }
             updatePlanetGovernor();
+            if (pollHomeReportGate()) info.displayed=false;
+            if (planetReportView) {
+                const unsigned sequence=pollHomeReport();
+                if (sequence!=homeReportSeen) {homeReportSeen=sequence;info.displayed=false;}
+            }
             if (planetWindowTab==4 && info.count) {
                 auto own=at<BYTE*>(info.world,8);
                 unsigned power=own ? own[0x28] : 0;
@@ -388,6 +406,11 @@ static int __cdecl planetInfoMenu(void* gui) {
                     break;
                 }
             }
+            if (GetTickCount64() >= info.acceptAfter && info.count &&
+                reinterpret_cast<BYTE(__thiscall*)(void*, int, void*, void*, int)>(0x5015f0)(info.popup, 2, planetWidget(33), event, 0)) {
+                info.acceptAfter = GetTickCount64() + 200;
+                togglePlanetReport();
+            }
             if (GetTickCount64() >= info.acceptAfter) for (int index = 10; index <= 32; ++index) {
                 if (index > 13 && index < 20) continue;
                 auto widget = planetWidget(index);
@@ -395,11 +418,11 @@ static int __cdecl planetInfoMenu(void* gui) {
                     (info.popup, 2, widget, event, 0)) continue;
                 info.acceptAfter = GetTickCount64() + 200;
                 if (index == 26) { closePlanetInformation(); break; }
-                if (index == 30) {stopPlanetUnits();info.directoryVisible=true;rebuildPlanetDirectory();break;}
+                if (index == 30) {stopPlanetUnits();closeHomeReport();info.directoryVisible=true;rebuildPlanetDirectory();break;}
                 if (index <= 13 && static_cast<unsigned>(index - 10) < info.count && info.index != static_cast<unsigned>(index - 10)) {
                     info.index = index - 10; requestPlanetInformation();
                 } else if ((index >= 20 && index <= 22) || index == 31 || index == 32) {
-                    stopPlanetUnits();
+                    stopPlanetUnits();closeHomeReport();
                     planetWindowTab = index >= 31 ? index-28 : index - 20; info.page = 0; info.displayed = false;
                 } else if (index == 23 && info.page) { facilityGuideSelected=0; --info.page; info.displayed = false; }
                 else if (index == 24 && info.page + 1 < planetStockPages()) { facilityGuideSelected=0; ++info.page; info.displayed = false; }
@@ -433,6 +456,7 @@ static int __cdecl planetInfoMenu(void* gui) {
     auto character = at<void*>(world, 8);
     unsigned grid = planetInformationGrid(world);
     if (!character || grid >= 5000 || !createPlanetWindow(gui)) return selected;
+    closeHomeReport();
     info = {}; info.world = world; info.character = at<unsigned>(character, 0x24); info.originGrid = grid;
     info.popup = planetWindowRoot; info.tactical=at<BYTE>(world,0x126718)!=0; planetWindowTab = 0;
     for (unsigned slot = 0; slot < 350; ++slot) {

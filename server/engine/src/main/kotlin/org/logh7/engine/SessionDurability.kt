@@ -105,6 +105,7 @@ fun WorldCommand.sessionAction(replacingDeceased: Boolean = false): SessionActio
     is WorldCommand.Logistics -> error("Logistics uses the combined inventory store on the world actor")
     is WorldCommand.Tax -> error("Tax uses the combined world store on the world actor")
     is WorldCommand.Budget -> error("Budget uses the combined world store on the world actor")
+    is WorldCommand.ReadHomeIntelligence -> error("Intelligence reads committed state without a session action")
     is WorldCommand.Social -> error("Social uses the combined world store on the world actor")
     is WorldCommand.StrategyAction -> error("Strategy actions use the combined world store on the world actor")
     is WorldCommand.FormOutfit -> error("Outfit formation uses the combined world store on the world actor")

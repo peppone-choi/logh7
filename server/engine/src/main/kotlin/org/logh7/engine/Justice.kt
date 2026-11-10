@@ -32,22 +32,26 @@ data class JusticeState(val permits:Map<Int,ArrestPermit> = emptyMap(),val right
     /** U-17 工作: infiltrations by character, armed bombs by character, bases whose production stops until a time. */
     val infiltrations:Map<Int,Infiltration> = emptyMap(),val bombs:Map<Int,Bomb> = emptyMap(),val disabled:Map<Int,Long> = emptyMap(),
     /** U-17 侵入: forged identities by character (user decision 2026-11-01: disguise included). */
-    val disguises:Map<Int,Disguise> = emptyMap()) {
+    val disguises:Map<Int,Disguise> = emptyMap(),
+    val homeReports:Map<Pair<CountryId,Int>,HomeIntelligenceReport> = emptyMap()) {
+    companion object {const val MAX_HOME_REPORTS=4096}
     init {require(permits.size<=4096 && permits.all {(k,v)->k==v.target} && rights.size<=4096 && rights.all {(k,v)->k==v.holder} &&
         detentions.size<=4096 && detentions.all {(k,v)->k==v.character} && watches.size<=4096 && watches.all {(k,v)->k==v.watcher} &&
         infiltrations.size<=4096 && infiltrations.all {(k,v)->k==v.character} && bombs.size<=4096 && bombs.all {(k,v)->k==v.character} &&
         disabled.size<=350 && disabled.all {(base,until)->base in 1..65535 && until in 0..0xffffffffL} &&
-        disguises.size<=4096 && disguises.all {(k,v)->k==v.character})}
+        disguises.size<=4096 && disguises.all {(k,v)->k==v.character} &&
+        homeReports.size<=MAX_HOME_REPORTS && homeReports.all {(k,v)->k==(v.country to v.base)})}
     fun detached()=copy(permits=java.util.Collections.unmodifiableMap(LinkedHashMap(permits)),
         rights=java.util.Collections.unmodifiableMap(LinkedHashMap(rights)),detentions=java.util.Collections.unmodifiableMap(LinkedHashMap(detentions)),
         watches=java.util.Collections.unmodifiableMap(LinkedHashMap(watches)),infiltrations=java.util.Collections.unmodifiableMap(LinkedHashMap(infiltrations)),
         bombs=java.util.Collections.unmodifiableMap(LinkedHashMap(bombs)),disabled=java.util.Collections.unmodifiableMap(LinkedHashMap(disabled)),
-        disguises=java.util.Collections.unmodifiableMap(LinkedHashMap(disguises)))
+        disguises=java.util.Collections.unmodifiableMap(LinkedHashMap(disguises)),
+        homeReports=java.util.Collections.unmodifiableMap(LinkedHashMap(homeReports)))
     internal fun deadlines():Sequence<Long> = permits.values.asSequence().map {it.until} +
         rights.values.asSequence().map {it.until} + watches.values.asSequence().map {it.checkAt} +
         detentions.values.asSequence().map {it.releaseAt} + bombs.values.asSequence().map {it.explodesAt} +
         infiltrations.values.asSequence().map {it.until} + disabled.values.asSequence() +
-        disguises.values.asSequence().map {it.checkAt}
+        disguises.values.asSequence().map {it.checkAt} + homeReports.values.asSequence().map {it.expiresAt}
     fun detained(character:Int)=character in detentions
 }
 

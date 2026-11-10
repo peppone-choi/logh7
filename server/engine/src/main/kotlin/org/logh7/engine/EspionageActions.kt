@@ -15,6 +15,13 @@ data class Bomb(val character:Int,val base:Int,val spot:Int,val explodesAt:Long)
     init {require(character>0 && base in 1..65535 && spot>0 && explodesAt in 0..0xffffffffL)}
 }
 
+/** A snapshot sent home by 情報工作, accessible to the actual country for one game day. */
+data class HomeIntelligenceReport(val country:CountryId,val base:Int,val observedAt:Long,val treasury:Long,
+    val approval:Int,val peace:Int) {
+    init {require(base in 1..65535 && observedAt in 0..0xffffffffL && treasury>=0 && approval in 0..100 && peace in 0..100)}
+    val expiresAt get()=observedAt+Justice.DAY
+}
+
 /** Others see [alias] of the forged [country]; [originCountry] binds new records to the actual agent. */
 data class Disguise(val character:Int,val alias:Int,val country:CountryId,val since:Long,val checkAt:Long,
     val originCountry:CountryId?=null) {
@@ -51,6 +58,16 @@ object EspionageActions {
     fun threshold(intelligence:Int,guard:Int)=Justice.arrestThreshold(intelligence,50)-CivicActions.guardPenalty(guard)
     fun roll(actor:Int,spot:Int,seconds:Long)=java.util.Random(seconds*1_000_003L+actor*131L+spot*7L+53).nextInt(100)
 
+    /** The caller supplies the authenticated account's current authoritative navigator. */
+    fun homeReport(s:PlanetStocks,session:SessionState,account:String,connection:String,viewer:Navigator,base:Int):HomeIntelligenceReport? {
+        val country=viewer.country ?: return null
+        val member=session.participants[account] ?: return null
+        if(!member.online || member.connection!=connection || member.country!=country || country in session.eliminated ||
+            session.ended!=null || viewer.generation!=s.generation || viewer.generation!=session.generation)return null
+        val now=session.gameMillis/1000
+        return s.social.justice.homeReports[country to base]?.takeIf {now in it.observedAt until it.expiresAt}
+    }
+
     /** A forged identity cannot follow an agent who changed country or left its host country. */
     fun disguise(s:PlanetStocks,player:Navigator):Disguise?=s.social.justice.disguises[player.characterId]?.takeIf {d->
         player.generation==s.generation && (if(d.originCountry!=null)player.country==d.originCountry
@@ -71,7 +88,8 @@ object EspionageActions {
         val now=session.gameMillis/1000;val j=s.social.justice
         val due=j.bombs.values.filter {it.explodesAt<=now}
         val seen=j.disguises.values.filter {it.checkAt<=now}
-        if(due.isEmpty() && seen.isEmpty() && j.infiltrations.none {it.value.until<=now} && j.disabled.none {it.value<=now})return s
+        if(due.isEmpty() && seen.isEmpty() && j.infiltrations.none {it.value.until<=now} && j.disabled.none {it.value<=now} &&
+            j.homeReports.none {it.value.expiresAt<=now})return s
         val disabled=LinkedHashMap(j.disabled.filterValues {it>now})
         for(b in due.sortedBy {it.character}) {
             val resumesAt=productionResumesAt(b)
@@ -80,7 +98,8 @@ object EspionageActions {
                 players[key]=n.hull?.let {n.copy(hull=it.copy(woundedUntil=maxOf(it.woundedUntil,b.explodesAt+Justice.WOUND_SECONDS)))} ?: n
         }
         var next=s.copy(social=s.social.copy(justice=j.copy(bombs=j.bombs.filterValues {it.explodesAt>now},
-            infiltrations=j.infiltrations.filterValues {it.until>now},disabled=disabled)))
+            infiltrations=j.infiltrations.filterValues {it.until>now},disabled=disabled,
+            homeReports=j.homeReports.filterValues {it.expiresAt>now})))
         // A disguise is rolled once per game day; seen through, the intruder is arrested by the side it hid among.
         for(d in seen.sortedBy {it.character}) {
             val intelligence=next.strategic.people[d.character]?.abilities?.getOrNull(3) ?: 50
@@ -124,7 +143,7 @@ object EspionageActions {
         if(OrganizationalOfficePolicy(g,catalog).held(s,i.characterId).none {it.card==i.card && it.country==own} || i.card !in cards)return reject(SocialRejection.CARD)
         if(p.baseId==0)return reject(SocialRejection.LOCATION)
         val owner=s.bases[p.baseId]?.country
-        val j=s.social.justice;val inside=j.infiltrations[i.characterId]?.takeIf {it.base==p.baseId && it.spot==p.spotId &&
+        val j=s.social.justice;val inside=j.infiltrations[i.characterId]?.takeIf {it.until>now && it.base==p.baseId && it.spot==p.spotId &&
             (if(it.country!=null)it.country==own && it.targetCountry==owner else own.value in 2..3)}
         val intelligence=s.strategic.people[i.characterId]?.abilities?.getOrNull(3)
             ?: i.identities.singleOrNull {it.id==i.characterId}?.abilities?.getOrNull(3) ?: 50
@@ -162,11 +181,16 @@ object EspionageActions {
             INTELLIGENCE -> {
                 inside ?: return reject(SocialRejection.STALE)
                 val b=s.bases.getValue(p.baseId)
-                // Report: the base treasury and approval/peace (0 when the base keeps no economy).
-                return if(roll(i.characterId,p.spotId,now)<threshold(intelligence,CivicActions.guardStrength(s,p.baseId,p.spotId,now)))
-                    SocialResult(payer,s,changed=true,outcome=1,found=minOf(b.treasury,0x7fffffffL).toInt(),
-                        report=(b.economy?.approval ?: 0)*256+(b.economy?.peace ?: 0))
-                else SocialResult(payer,s,changed=true,outcome=3)
+                if(roll(i.characterId,p.spotId,now)>=threshold(intelligence,CivicActions.guardStrength(s,p.baseId,p.spotId,now)))
+                    return SocialResult(payer,s,changed=true,outcome=3)
+                val report=HomeIntelligenceReport(own,b.baseId,now,b.treasury,b.economy?.approval ?: 0,b.economy?.peace ?: 0)
+                val key=own to b.baseId
+                val reports=j.homeReports.filterValues {it.expiresAt>now}.toMutableMap()
+                if(key !in reports && reports.size==JusticeState.MAX_HOME_REPORTS)return reject(SocialRejection.MAXIMUM)
+                reports[key]=report
+                val next=s.copy(social=s.social.copy(justice=j.copy(homeReports=reports)))
+                return SocialResult(payer,next,changed=true,outcome=1,found=minOf(report.treasury,0x7fffffffL).toInt(),
+                    report=report.approval*256+report.peace)
             }
             SABOTAGE -> {
                 inside ?: return reject(SocialRejection.STALE)

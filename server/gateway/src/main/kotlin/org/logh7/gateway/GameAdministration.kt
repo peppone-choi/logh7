@@ -9,6 +9,8 @@ fun interface GameAdministration {
     val foundingEnabled:Boolean get()=false
     fun budget(request:BudgetRequest):CompletableFuture<BudgetResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Budget is unavailable"))
+    fun homeIntelligence(account:String,connection:String,generation:Long,character:Int,base:Int):CompletableFuture<HomeIntelligenceReport?> =
+        CompletableFuture.completedFuture(null)
     fun social(request:SocialRequest):CompletableFuture<SocialResult> =
         CompletableFuture.failedFuture(UnsupportedOperationException("Social command is unavailable"))
     fun strategyAction(request:StrategyActionRequest):CompletableFuture<StrategyActionResult> =
@@ -36,6 +38,15 @@ fun interface GameAdministration {
 }
 class EngineGameAdministration(private val engine: WorldEngine, private val scope: CoroutineScope, private val galaxy: Galaxy) : GameAdministration {
     override val foundingEnabled:Boolean get()=engine.foundingEnabled
+    override fun homeIntelligence(account:String,connection:String,generation:Long,character:Int,base:Int):CompletableFuture<HomeIntelligenceReport?> {
+        val future=CompletableFuture<HomeIntelligenceReport?>()
+        scope.launch {try {
+            val result=CompletableDeferred<HomeIntelligenceReport?>()
+            engine.submit(WorldCommand.ReadHomeIntelligence(account,connection,generation,character,base,result))
+            future.complete(result.await())
+        } catch(failure:Throwable){future.completeExceptionally(failure)}}
+        return future
+    }
     override fun social(request:SocialRequest):CompletableFuture<SocialResult> {
         val future=CompletableFuture<SocialResult>()
         scope.launch {try {

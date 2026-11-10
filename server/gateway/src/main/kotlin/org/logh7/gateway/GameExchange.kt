@@ -2150,6 +2150,19 @@ class GameExchange(
                     0x1200 -> {
                         if(gameStarted) {
                             check(worldInitialized && world!=null && stock!=null)
+                            if(org.logh7.protocol.HomeIntelligenceMessages.matches(body)) {
+                                val q=org.logh7.protocol.HomeIntelligenceMessages.query(body)
+                                val character=checkNotNull(currentCharacter(identity.account))
+                                require(q.character==character.id.toInt())
+                                val reply=administration?.homeIntelligence(identity.account,connection,
+                                    checkNotNull(generation),q.character,q.base) ?: CompletableFuture.completedFuture(null)
+                                pendingWorld=reply.thenApply {report ->
+                                    val view=report?.let {org.logh7.protocol.HomeIntelligenceMessages.View(
+                                        it.observedAt,it.treasury,it.approval,it.peace)}
+                                    listOf(org.logh7.protocol.HomeIntelligenceMessages.response(q,view))
+                                }
+                                return null
+                            }
                             if(org.logh7.protocol.GatheringMessages.matches(body)) {
                                 check(administration!=null)
                                 val q=org.logh7.protocol.GatheringMessages.query(body)
