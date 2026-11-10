@@ -384,7 +384,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             if (ship.power != before.shipStyle.nativePower) return reject(NavigationRejection.UNIT)
             if (before.retreat != null) return reject(NavigationRejection.BUSY)
             if (before.energy?.values?.get(1) != TacticalEnergy.WARP_MAX) return reject(NavigationRejection.ENERGY)
-            val pose = before.motion?.pose(now,before.posture,galaxy) ?: TacticalDeployment.initial(before.unitId, before.grid,
+            val pose = before.motion?.pose(now,before.posture,galaxy,stocks) ?: TacticalDeployment.initial(before.unitId, before.grid,
                 snapshot(session.generation).values + before, stocks, galaxy,countries)
             if (!RetreatRules.outside(pose)) return reject(NavigationRejection.INSIDE_RADAR)
             val target = RetreatRules.destination(galaxy, before, snapshot(session.generation).values, stocks, pose, session.eliminated.keys)
@@ -597,7 +597,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 continue
             }
             if (now < retreat.completesAt) continue
-            val pose = player.motion?.pose(now,player.posture,galaxy) ?: continue
+            val pose = player.motion?.pose(now,player.posture,galaxy,stocks) ?: continue
             if (!RetreatRules.outside(pose)) continue
             val forces = GridForces.collect(galaxy, session.generation, next.values, stocks, session.eliminated.keys)
             if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces, stocks)) continue

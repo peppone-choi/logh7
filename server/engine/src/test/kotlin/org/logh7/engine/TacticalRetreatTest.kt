@@ -109,6 +109,35 @@ class TacticalRetreatTest {
         assertEquals(arrived.supplies - OrbitalStrikeActions.SUPPLIES, strike.player?.supplies)
     }
 
+    @Test fun retreatFromAMovingBerthUsesItsCurrentRadarDistanceAtAcceptanceAndCompletion() {
+        val fortress=galaxy.bases.single().copy(kind=1,mobile=true,radius=300f,angle=-90f)
+        val world=Galaxy(galaxy.systems,listOf(fortress),galaxy.starts)
+        val anchored=pilot.copy(posture=TacticalPosture(pilot.grid,TacticalShipMode.ANCHORED,fortress.id))
+        val saved=store(anchored)
+        val navigation=Navigation(world,saved,NavigationPolicy())
+        val retreat=assertNotNull(navigation.apply(request,session,stocks).player?.retreat)
+        assertEquals(2486,retreat.destination)
+
+        val start=TacticalBasePosition.at(fortress,seconds)
+        val fortressMotion=TacticalMotion(pilot.grid,retreat.completesAt-650,TacticalPose(start,0f),
+            TacticalFortressMotion.VELOCITY,0f,listOf(TacticalPoint(-240f,0f),start),waitSeconds=0)
+        val moving=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(
+            fortresses=mapOf(fortress.id to TacticalFortressMotion(pilot.grid,fortressMotion))))
+        val due=session.copy(gameMillis=retreat.completesAt*1000)
+        val fresh=Navigation(world,store(anchored),NavigationPolicy())
+        assertEquals(NavigationRejection.INSIDE_RADAR,fresh.apply(request,due,moving).rejection)
+
+        val restored=Navigation(world,saved,NavigationPolicy())
+        restored.settleRetreats(due,moving)
+        assertEquals(pilot.grid,restored.snapshot(1).getValue("pilot").grid)
+        assertEquals(retreat,restored.snapshot(1).getValue("pilot").retreat)
+        restored.settleRetreats(due.copy(gameMillis=due.gameMillis+600_000),moving)
+        val arrived=restored.snapshot(1).getValue("pilot")
+        assertEquals(retreat.destination,arrived.grid)
+        assertNull(arrived.retreat)
+        assertNull(arrived.posture)
+    }
+
     @Test fun eliminatedFlagshipCancelsRestoredRetreatWithoutWarping() {
         val store=store()
         val prepared=Navigation(galaxy,store,NavigationPolicy()).apply(request,session,stocks).player!!
