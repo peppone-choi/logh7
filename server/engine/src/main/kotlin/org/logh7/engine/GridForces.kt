@@ -29,12 +29,13 @@ object GridForces {
                 stocks?.social?.justice?.detained(it.characterId) != true
         }.forEach {
             val player = it
-            val grouped = stocks?.outfits?.values?.any { outfit ->
-                player.characterId in outfit.members() && outfit.country == player.country &&
-                    outfit.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
-            } == true
             // U-10: a revolt's rebels count as their side's rebel camp (manual p.31).
-            add(it.grid, Force(Camp.of(it, stocks?.let { s -> CoupActions.rebel(s, player.characterId,player.country) } == true), 1, nonSolo = grouped, ship = true,
+            val camp = stocks?.let { TacticalAuthority.camp(player, it) } ?: Camp.of(player)
+            val grouped = stocks != null && stocks.outfits.values.any { outfit ->
+                player.characterId in outfit.members() && TacticalAuthority.camp(outfit, stocks) == camp &&
+                    outfit.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
+            }
+            add(player.grid, Force(camp, 1, nonSolo = grouped, ship = true,
                 deployedShip = player.baseId == 0 && player.mode == 5))
         }
         galaxy.bases.forEach { base ->

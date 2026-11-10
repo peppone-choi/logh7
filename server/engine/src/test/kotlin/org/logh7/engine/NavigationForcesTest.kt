@@ -94,6 +94,42 @@ class NavigationForcesTest {
             Navigation(galaxy,Store(),NavigationPolicy()).apply(request,session,enemy).rejection)
     }
 
+    @Test fun anOppositeCampOfficeDoesNotTurnALoneFlagshipIntoAFleet() {
+        val target = 2587
+        val now = session.gameMillis / 1000
+        val rebel = Navigator(session.generation, 10001, Power.EMPIRE, target, 1000, 1000, 1000)
+        val seed = stocks()
+        val outfit = OutfitStock(1, 2, OutfitKind.FLEET, base.id, 10,
+            commanderId = 10002, aideId = rebel.characterId, position = OutfitPosition(target))
+        val plot = Plot(rebel.characterId, Power.EMPIRE.country, now, revolt = now + 1)
+        val rebellion = CoupState(plots = mapOf(rebel.characterId to plot))
+        val inventory = seed.copy(outfits = mapOf(outfit.id to outfit),
+            warehouses = mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, base.id, outfitId = outfit.id)),
+            social = seed.social.copy(coup = rebellion))
+        val command = request.copy(destination = target)
+        val store = Store()
+        val pilot = assertNotNull(Navigation(galaxy, store, NavigationPolicy())
+            .apply(command.copy(destination = null), session).player)
+        store.saved = store.saved + ("rebel" to rebel)
+        val navigation = Navigation(galaxy, store, NavigationPolicy())
+
+        val sameCamp = rebellion.copy(
+            plots = mapOf(rebel.characterId to plot.copy(members = listOf(outfit.commanderId))),
+            loyalty = mapOf(outfit.id to CoupActions.LOYAL),
+        )
+        val blocked = navigation.apply(command, session, inventory.copy(social = seed.social.copy(coup = sameCamp)))
+        assertEquals(NavigationRejection.GRID, blocked.rejection)
+        assertEquals(pilot, store.saved.getValue("pilot"))
+
+        val allowed = navigation.apply(command, session, inventory)
+        assertNull(allowed.rejection)
+        val arrived = assertNotNull(allowed.player)
+        assertEquals(target, arrived.grid)
+        assertEquals(pilot.mcp - 40, arrived.mcp)
+        assertEquals(pilot.cruise - 100, arrived.cruise)
+        assertTrue(arrived.cpPaused)
+    }
+
     @Test fun soloWarpIgnoresEliminatedMobileForcesAtReservationAndArrival() {
         val target=2588
         val third=CountryId(42)
