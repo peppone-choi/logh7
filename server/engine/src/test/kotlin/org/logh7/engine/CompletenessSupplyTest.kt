@@ -36,6 +36,53 @@ class CompletenessSupplyTest {
         assertSame(before,result.stocks)
     }
 
+    @Test fun losingTheTransportHomeRevokesEarlierQuoteAtAnotherFriendlyPort() {
+        val initial=stocks()
+        val dock=OutfitPosition(2487,1050)
+        val visiting=initial.copy(outfits=initial.outfits.mapValues {(_,outfit)->outfit.copy(position=dock)})
+        val actor=player.copy(baseId=1050)
+        val source=visiting.outfits.getValue(1)
+        val target=visiting.outfits.getValue(2)
+        val quote=CompletenessSupply.quote(actor,source,target,visiting)
+        val confirm=request.copy(expected=assertNotNull(quote.cost))
+        assertEquals(capacity,CompletenessSupply.evaluate(confirm,session,actor,visiting).transferred)
+
+        val home=visiting.bases.getValue(source.baseId)
+        for(lost in listOf(home.copy(owner=Allegiance.Country(Power.ALLIANCE.country)),home.copy(camp=1))) {
+            val captured=visiting.copy(bases=visiting.bases+(home.baseId to lost))
+            val refreshed=CompletenessSupply.quote(actor,source,target,captured)
+            assertEquals(LogisticsRejection.ACCESS,refreshed.rejection)
+            assertNull(refreshed.cost)
+            val denied=CompletenessSupply.evaluate(confirm,session,actor,captured)
+            assertEquals(LogisticsRejection.ACCESS,denied.rejection)
+            assertSame(actor,denied.player)
+            assertSame(captured,denied.stocks)
+            assertFalse(denied.changed)
+        }
+    }
+
+    @Test fun implicitSourceIgnoresAStaleCommanderSeatAtTheSamePort() {
+        val initial=stocks()
+        val source=initial.outfits.getValue(1)
+        val visiting=source.copy(baseId=1050,position=OutfitPosition(2487,1049))
+        val stationed=source.copy(id=3,warehouseId=103,
+            activeShips=ActiveShipUnits(listOf(source.activeShips!!.values.single().copy(id=20))))
+        val ready=initial.copy(outfits=initial.outfits+mapOf(1 to visiting,3 to stationed),
+            warehouses=initial.warehouses+mapOf(101 to initial.warehouses.getValue(101).copy(baseId=1050),
+                103 to OutfitWarehouse(103,2,OutfitKind.TRANSPORT,1049,3)),nextShipId=21)
+        val implicit=request.copy(from=0)
+        assertEquals(LogisticsRejection.OUTFIT,CompletenessSupply.evaluate(implicit,session,player,ready).rejection)
+
+        val captured=ready.copy(bases=ready.bases+(1050 to
+            ready.bases.getValue(1050).copy(owner=Allegiance.Country(Power.ALLIANCE.country))))
+        val supplied=CompletenessSupply.evaluate(implicit,session,player,captured)
+        assertEquals(3,supplied.source)
+        assertEquals(capacity,supplied.transferred)
+        assertEquals(capacity,supplied.stocks!!.outfits.getValue(1).supplies)
+        assertEquals(0,supplied.stocks.outfits.getValue(3).supplies)
+        assertEquals(LogisticsRejection.ACCESS,CompletenessSupply.evaluate(request,session,player,captured).rejection)
+    }
+
     @Test fun detentionBlocksTheQuoteAndAnEarlierConfirmationUntilRelease() {
         val original = stocks()
         val source = original.outfits.getValue(request.from)

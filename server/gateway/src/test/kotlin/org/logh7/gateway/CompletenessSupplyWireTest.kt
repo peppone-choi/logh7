@@ -36,7 +36,7 @@ class CompletenessSupplyWireTest {
             override fun save(stocks:PlanetStocks) {this@State.stocks=stocks}
         }
     }
-    private fun fixture(state:State, folder:String)=LoadFixture(directory.resolve(folder),1,LoadMetrics(),galaxy,
+    private fun fixture(state:State, folder:String, world:Galaxy=galaxy)=LoadFixture(directory.resolve(folder),1,LoadMetrics(),world,
         ticking=false,stockStore=state.stockStore,navigationStore=state.navigationStore,worldStateCommitter=state)
     private fun start(client:SyntheticClient) {
         client.send(SyntheticClient.opcode(0x0f00))
@@ -86,6 +86,45 @@ class CompletenessSupplyWireTest {
             client.send(confirmed(999));acknowledge(client,false,"이전량·CP 변경 · 다시 조회",1000)
             assertEquals(saves,state.saves)
             client.send(confirmed(1000));acknowledge(client,true,"1000 이전 · MCP -160")
+        }
+    }
+    @Test fun lostHomeRemovesVisitingTransportFromDirectoryAndRejectsTheOldQuote() {
+        val state=State()
+        val home=GalaxyBase(1050,2487,80,0,"Forward",0,20f,86400,0,0f,2f)
+        val world=Galaxy(galaxy.systems,galaxy.bases+home,Power.entries.associateWith {2487})
+        val source=state.stocks.outfits.getValue(1)
+        state.stocks=state.stocks.copy(
+            bases=state.stocks.bases+(1050 to PlanetStock(1050,2,0,0,0,0)),
+            outfits=state.stocks.outfits+(1 to source.copy(baseId=1050,position=OutfitPosition(2487,1049))),
+            warehouses=state.stocks.warehouses+(101 to state.stocks.warehouses.getValue(101).copy(baseId=1050)))
+        fun quote(client:SyntheticClient) {
+            client.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(14).putShort(124)
+                .putShort(0x5351).putShort(99).also {it.putInt(19,2487)}.array())
+        }
+        fixture(state,"home-before",world).use { server ->
+            val client=server.join(server.account(0),true,false).client
+            start(client)
+            quote(client)
+            val response=ByteBuffer.wrap(client.expect(0x1200))
+            assertEquals(0x7f00,response.getShort(10).toInt())
+            assertEquals(1000,response.getInt(29))
+            client.expect(0x1200);client.expect(0x120b);client.expect(0x1201)
+        }
+        state.stocks=state.stocks.copy(bases=state.stocks.bases+(1050 to
+            state.stocks.bases.getValue(1050).copy(owner=Allegiance.Country(Power.ALLIANCE.country))))
+        fixture(state,"home-captured",world).use { server ->
+            val client=server.join(server.account(0),true,false).client
+            start(client)
+            quote(client)
+            assertEquals(14,ByteBuffer.wrap(client.expect(0x1200)).getShort(10).toInt())
+            assertEquals(0,ByteBuffer.wrap(client.expect(0x120b)).getShort(6).toInt())
+            client.expect(0x1201)
+            val saves=state.saves
+            client.send(request().also {ByteBuffer.wrap(it).putInt(10,0x53510001).putInt(26,1000)})
+            acknowledge(client,false,"대상·수송 지휘권 확인",1000)
+            assertEquals(saves,state.saves)
+            assertEquals(1000,state.stocks.outfits.getValue(1).supplies)
+            assertEquals(0,state.stocks.outfits.getValue(2).supplies)
         }
     }
     @Test fun encryptedTransferIgnoresForgedOutcomesAndQueriesStayConsistentAfterReconnect() {
