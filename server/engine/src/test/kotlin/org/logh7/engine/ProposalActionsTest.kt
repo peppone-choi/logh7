@@ -523,7 +523,16 @@ class ProposalActionsTest {
         assertTrue(vacancies.isNotEmpty(),"the minister has a vacancy for 10001");val (card,seat)=vacancies.first()
         val r=SocialRequest(StrategyActionRequest("b","b",10001,Power.EMPIRE,1,ProposalActions.OPEN,19,9,target=10000,
             value=ProposalActions.APPOINTMENT,argument=17,base=seat,amount=card.toLong()))
-        val opened=SocialActions.evaluate(galaxy,r,session,b,s,listOf(a,b),mapOf("a" to a,"b" to b))
+        val wrongCountry=StrategicIdentity(a.characterId,3,2,0,List(8){50})
+        val profileWithoutAuthority=StrategicIdentity(a.characterId,2,20,0,List(8){50})
+        val withoutStoredRank=s.copy(strategic=s.strategic.copy(people=s.strategic.people+
+            (a.characterId to s.strategic.people.getValue(a.characterId).copy(rank=null))))
+        val foreign=SocialActions.evaluate(galaxy,r.copy(identity=r.identity.copy(identities=listOf(wrongCountry))),
+            session,b,withoutStoredRank,listOf(a,b),mapOf("a" to a,"b" to b))
+        assertEquals(SocialRejection.TARGET,foreign.rejection)
+        assertEquals(withoutStoredRank,foreign.stocks)
+        val request=r.copy(identity=r.identity.copy(identities=listOf(profileWithoutAuthority)))
+        val opened=SocialActions.evaluate(galaxy,request,session,b,s,listOf(a,b),mapOf("a" to a,"b" to b))
         assertNull(opened.rejection);val mail=assertNotNull(opened.stocks).social.proposals.mails.single()
         assertEquals(10001,mail.target);assertEquals(seat,mail.seat);assertEquals(920,opened.player?.mcp,"half of 160")
         val players = linkedMapOf("a" to a, "b" to assertNotNull(opened.player))
@@ -557,6 +566,8 @@ class ProposalActionsTest {
         assertTrue(duplicate.navigators.isEmpty())
     }
     @Test fun approvedTransportAppointmentsRefreshOnlyChangedTacticalAuthority() = runBlocking {
+        val roster=listOf(StrategicIdentity(a.characterId,2,2,0,List(8){50}),
+            StrategicIdentity(b.characterId,2,4,0,List(8){50}))
         for((automatic,former) in listOf(false to 10002,true to 10002,false to b.characterId)) {
             val initial=policy.set(stocks(),OfficeHolding(18,1049,a.characterId))
             val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(76))))
@@ -564,10 +575,10 @@ class ProposalActionsTest {
                 units=UnitInventory(ships.quantities()),activeShips=ships,position=OutfitPosition(2488))
             val available=initial.copy(outfits=mapOf(200 to outfit),
                 warehouses=mapOf(300 to OutfitWarehouse(300,2,OutfitKind.TRANSPORT,1049,200)),
-                strategic=initial.strategic.copy(people=initial.strategic.people+(b.characterId to StrategicPerson(rank=4,influence=10))),
+                strategic=initial.strategic.copy(people=initial.strategic.people.mapValues {(_,person)->person.copy(rank=null)}),
                 tacticalCommands=TacticalCommandState(authority=mapOf(1 to former)),deploymentInitialized=true,nextShipId=2)
             val open=SocialRequest(StrategyActionRequest("b","b",b.characterId,Power.EMPIRE,1,ProposalActions.OPEN,19,4,
-                target=a.characterId,value=ProposalActions.APPOINTMENT,argument=18,base=200,amount=44))
+                target=a.characterId,value=ProposalActions.APPOINTMENT,argument=18,base=200,amount=44,identities=roster))
             val opened=SocialActions.evaluate(galaxy,open,session,b,available,listOf(a,b),mapOf("a" to a,"b" to b))
             assertNull(opened.rejection)
             var saved=assertNotNull(opened.stocks)
@@ -585,6 +596,7 @@ class ProposalActionsTest {
                 override fun save(stocks:PlanetStocks) {saved=stocks}
             },worldStateCommitter=WorldStateCommitter {p,s->players=p;saved=checkNotNull(s)},npcPolicy=NpcTacticalPolicy(enabled=false))
             val refreshed=mutableListOf<Set<Int>>()
+            val identities=engine.provideIdentities {roster}
             try {
                 engine.observeTacticalOfficeRefresh {_,ids->refreshed+=ids}.use {
                     for(account in listOf("a","b")) {
@@ -601,7 +613,7 @@ class ProposalActionsTest {
                         withTimeout(5000) {flushed.await()}
                     } else {
                         val reply=SocialRequest(StrategyActionRequest("a","a",a.characterId,Power.EMPIRE,1,
-                            ProposalActions.REPLY,0,2,target=mail.id,value=Proposals.APPROVE))
+                            ProposalActions.REPLY,0,2,target=mail.id,value=Proposals.APPROVE,identities=roster))
                         val result=CompletableDeferred<SocialResult>()
                         engine.submit(WorldCommand.Social(reply,result))
                         assertNull(withTimeout(5000) {result.await()}.rejection)
@@ -610,7 +622,7 @@ class ProposalActionsTest {
                     assertEquals(b.characterId,TacticalAuthority.commander(appointed,ships.values.single(),saved))
                     assertEquals(if(former==b.characterId)emptyList() else listOf(setOf(200)),refreshed)
                 }
-            } finally {engine.drainAndClose()}
+            } finally {identities.close();engine.drainAndClose()}
         }
     }
     @Test fun aDormantFiefCountsAgainstOpeningAndApprovingAnAppointment() {

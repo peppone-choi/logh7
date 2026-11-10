@@ -127,6 +127,13 @@ object ProposalActions {
         val person=s.strategic.people[character] ?: StrategicPerson()
         return if(family.ranks=="empire")person.ladderRank(fallback) else person.rank ?: fallback
     }
+
+    private fun rankFromRoster(s:PlanetStocks,character:Int,country:CountryId,countries:CountryCatalog,
+        identities:()->List<StrategicIdentity>):Int {
+        val fallback=if(s.strategic.people[character]?.rank==null)
+            identities().singleOrNull {it.id==character && it.country==country}?.rank ?: 20 else 20
+        return rank(s,character,country,fallback,countries)
+    }
     private data class Execution(val stocks:PlanetStocks,val navigators:Map<String,Navigator>,
         val rejection: SocialRejection? = null)
     private fun seatSpecificResignation(policy:OrganizationalOfficePolicy,card:Int,country:CountryId):Boolean =
@@ -206,7 +213,7 @@ object ProposalActions {
                 })))
             }
             APPOINTMENT -> {
-                val candidateRank=this.rank(s,mail.target,country,20,countries)
+                val candidateRank=rankFromRoster(s,mail.target,country,countries,identities)
                 if(mail.target==mail.sender && vacancies(g,s,mail.recipient,country.value,rank,mail.target,candidateRank,countries)
                         .contains(mail.targetCard to mail.seat))
                     policy.set(s,OfficeHolding(mail.targetCard,mail.seat,mail.target,country)) else null
@@ -292,7 +299,7 @@ object ProposalActions {
             if(paid !is PaymentResult.Paid)continue
             val (answered,refused)=Proposals.reply(settled.social.proposals,mail.id,mail.recipient,Proposals.APPROVE,now)
             if(refused!=null)continue
-            val rank=rank(settled,mail.recipient,country,20,countries)
+            val rank=rankFromRoster(settled,mail.recipient,country,countries,identities)
             val executed=execute(g,mail,settled.copy(social=settled.social.copy(proposals=answered)),
                 rank,players,countries,now,assignmentBlocked,identities) ?: continue
             if(executed.rejection!=null)continue
@@ -373,7 +380,8 @@ object ProposalActions {
             return reject(SocialRejection.CARD)
         val people=s.strategic.people
         val sender=people[i.characterId] ?: StrategicPerson(rank=i.rank)
-        val senderRank=rank(s,i.characterId,i.country,i.rank,countries);val recipientRank=rank(s,i.target,i.country,20,countries)
+        val senderRank=rank(s,i.characterId,i.country,i.rank,countries)
+        val recipientRank=rankFromRoster(s,i.target,i.country,countries) {i.identities}
         // 命令 goes down the ranks, 提案 up. The CD manual names exceptions with cross-institution command rights.
         val order=isOrder(i.card,senderRank,recipientRank)
         if(sender.influence<1)return reject(SocialRejection.RANK)

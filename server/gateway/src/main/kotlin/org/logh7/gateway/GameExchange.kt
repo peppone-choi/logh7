@@ -2102,7 +2102,8 @@ class GameExchange(
                         require(reply.sender.id==character.id.toInt()) {"Proposal reply owner mismatch"}
                         val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                             character.id.toInt(),currentProfile(identity.account,character.id.toInt()).country,
-                            checkNotNull(generation),org.logh7.engine.ProposalActions.REPLY,0,character.rank,target=reply.refer,value=reply.value))
+                            checkNotNull(generation),org.logh7.engine.ProposalActions.REPLY,0,character.rank,target=reply.refer,value=reply.value,
+                            identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())))
                         pendingWorld=administration.social(request).thenApply {result ->
                             val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                             publication=Publication(updated,player,false)
@@ -2795,7 +2796,8 @@ class GameExchange(
                                     val request=org.logh7.engine.SocialRequest(org.logh7.engine.StrategyActionRequest(identity.account,connection,
                                         query.character,currentProfile(identity.account,query.character).country,
                                         checkNotNull(generation),query.command,pair.second,character.rank,target=query.target,value=query.value,
-                                        argument=pair.third,base=query.base,amount=query.amount.toLong()))
+                                        argument=pair.third,base=query.base,amount=query.amount.toLong(),
+                                        identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot())))
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val player=checkNotNull(result.player);val updated=checkNotNull(currentCharacter(identity.account))
                                         publication=Publication(updated,player,false)
