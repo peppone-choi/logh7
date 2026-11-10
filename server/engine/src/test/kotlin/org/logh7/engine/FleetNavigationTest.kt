@@ -252,6 +252,8 @@ class FleetNavigationTest {
         assertEquals(listOf(3,137,5,1086,175),listOf(vucock.country.value,vucock.fleetId,vucock.fleetNumber,vucock.baseId,vucock.role.card))
         val staden=OriginalStartingOffice.STADEN_FLEET_4
         assertEquals(listOf(2,4,4,1015,39),listOf(staden.country.value,staden.fleetId,staden.fleetNumber,staden.baseId,staden.role.card))
+        val paetta=OriginalStartingOffice.PAETTA_FLEET_2
+        assertEquals(listOf(3,134,2,1177,175),listOf(paetta.country.value,paetta.fleetId,paetta.fleetNumber,paetta.baseId,paetta.role.card))
         for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
     }
 
@@ -263,8 +265,10 @@ class FleetNavigationTest {
             OriginalStartingOffice.REINHARD_FLEET_2 -> home.copy(id=office.baseId,name=Capital.EMPIRE.baseName)
             OriginalStartingOffice.VUCOCK_FLEET_5 -> home.copy(id=office.baseId,name="Santa Ana")
             OriginalStartingOffice.STADEN_FLEET_4 -> home.copy(id=1015,grid=1260,model=51,name="Hafen")
+            OriginalStartingOffice.PAETTA_FLEET_2 -> home.copy(id=1177,grid=2015,model=61,name=Capital.ALLIANCE.baseName)
         }
-        val systems=if(base.grid==start.grid)listOf(start) else listOf(start,GalaxySystem(4,base.grid,4,"Amritsar",2))
+        val systems=if(base.grid==start.grid)listOf(start) else
+            listOf(start,GalaxySystem(4,base.grid,4,base.name,power.country.value))
         val world=Galaxy(systems,listOf(base),Power.entries.associateWith {start.grid})
         fun admitted(original:Boolean,side:Power=power)=SessionSimulation(SessionRules.load()).also {
             it.join("pilot",side,original,"c")

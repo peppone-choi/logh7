@@ -4,7 +4,8 @@ enum class OriginalStartingOffice(val key:String,val country:CountryId,val fleet
     val baseId:Int,val role:FleetOffice) {
     REINHARD_FLEET_2("reinhard-fleet-2",CountryId(2),2,2,1049,FleetOffice.EMPIRE_COMMANDER),
     VUCOCK_FLEET_5("vucock-fleet-5",CountryId(3),137,5,1086,FleetOffice.ALLIANCE_COMMANDER),
-    STADEN_FLEET_4("staden-fleet-4",CountryId(2),4,4,1015,FleetOffice.EMPIRE_COMMANDER);
+    STADEN_FLEET_4("staden-fleet-4",CountryId(2),4,4,1015,FleetOffice.EMPIRE_COMMANDER),
+    PAETTA_FLEET_2("paetta-fleet-2",CountryId(3),134,2,1177,FleetOffice.ALLIANCE_COMMANDER);
 
     fun accepts(id:Long,country:CountryId?,rank:Int):Boolean =
         id in PublishedOriginalCandidates.NEW_IDS && country==this.country && rank==5
@@ -63,6 +64,7 @@ interface OriginalCandidateStore {
     val supportsStartingOffice:Boolean get()=false
     val supportsAllianceStartingOffice:Boolean get()=false
     val supportsStadenStartingOffice:Boolean get()=false
+    val supportsPaettaStartingOffice:Boolean get()=false
     fun load():List<OriginalCandidateEdit>
     fun loadPortraits():Map<String,CandidatePortrait> = emptyMap()
     fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?=null):OriginalCandidateEdit?
