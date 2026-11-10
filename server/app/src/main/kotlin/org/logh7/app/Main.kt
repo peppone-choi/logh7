@@ -260,7 +260,9 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             stock = if (world == null) null else org.logh7.gateway.EngineGameStock(engine, scope),
             administration = if (world == null) null else org.logh7.gateway.EngineGameAdministration(engine, scope, world.galaxy),
             sessionDirectory=lobby,sessionId=sessionId,sessionName=sessionName,accountFame=fame,npcDialogue=npcDialogue,npcProfiles=npcProfiles,
-            originalCandidates=originalCandidates)
+            originalCandidates=originalCandidates,
+            maintenanceStateFile=maintenanceStateFile(sessionDirectory,
+                environment["LOGH7_WORLD_STATE_DIR"]?.let { Path.of(it) },characterFile))
         resources.addFirst(gateway)
         val audit = environment["LOGH7_OPS_AUDIT_FILE"]?.let { OpsAudit.open(Path.of(it)) }
         if (audit != null) resources.addFirst(audit)
@@ -386,4 +388,11 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
         try { closeResources() } catch (closing: Throwable) { failure.addSuppressed(closing) }
         throw failure
     }
+}
+
+/** Keep the operator gate beside release data, outside the game save directories restored from backup. */
+internal fun maintenanceStateFile(sessionDirectory: Path?, worldDirectory: Path?, characterFile: Path?): Path? {
+    val anchor = (sessionDirectory ?: worldDirectory ?: characterFile)?.toAbsolutePath()?.normalize() ?: return null
+    val suffix = if (sessionDirectory == null && worldDirectory == null) "-maintenance" else ".maintenance"
+    return anchor.fileName?.let { anchor.resolveSibling("$it$suffix") } ?: anchor.resolve("maintenance.state")
 }

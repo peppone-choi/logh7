@@ -203,9 +203,15 @@ class OpsApiTest {
 
     private class FakeMaintenance : MaintenanceControl {
         var closed = false
+        var failSave = false
         val notices = mutableListOf<String>()
         override fun closed() = closed
-        override fun setClosed(closed: Boolean): Boolean { val changed = this.closed != closed; this.closed = closed; return changed }
+        override fun setClosed(closed: Boolean): Boolean {
+            if (failSave) throw IOException("simulated maintenance storage failure")
+            val changed = this.closed != closed
+            this.closed = closed
+            return changed
+        }
         override fun notice(text: String): Int { notices += text; return 2 }
         override fun refusedLogins() = 5L
     }
@@ -228,6 +234,12 @@ class OpsApiTest {
                 assertTrue("logh7_maintenance_closed 1" in metrics && "logh7_maintenance_refused_logins_total 5" in metrics)
                 val page = client.send(HttpRequest.newBuilder(URI("http://127.0.0.1:$port/admin")).GET().build(), HttpResponse.BodyHandlers.ofString()).body()
                 assertTrue("차단 중" in page && "/admin/notice" in page)
+                control.failSave = true
+                val unavailable = post("/commands/maintenance/off")
+                assertEquals(503, unavailable.statusCode())
+                assertTrue("기존 상태가 유지됩니다" in unavailable.body())
+                assertTrue(control.closed)
+                control.failSave = false
                 assertEquals("changed", post("/commands/maintenance/off").body())
                 assertFalse(control.closed)
                 // A browser-driven cross-origin POST is refused before anything runs (PR #283 review).
@@ -244,7 +256,7 @@ class OpsApiTest {
         } }
         assertEquals(listOf("오늘 22시 점검합니다"), control.notices)
         assertEquals(listOf("MAINTENANCE:CHANGED", "MAINTENANCE:UNCHANGED", "MAINTENANCE:INVALID", "NOTICE:INVALID", "NOTICE:INVALID",
-            "NOTICE:CHANGED", "MAINTENANCE:CHANGED", "MAINTENANCE:CHANGED"), rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] })
+            "NOTICE:CHANGED", "MAINTENANCE:UNAVAILABLE", "MAINTENANCE:CHANGED", "MAINTENANCE:CHANGED"), rows().filter { it["phase"] == "RESULT" }.map { it["action"] + ":" + it["outcome"] })
     }
     @Test fun onlyAuthenticatedOperatorsWithAuditCanDisconnectTheSelectedConnection() {
         val old = UUID.randomUUID().toString()
