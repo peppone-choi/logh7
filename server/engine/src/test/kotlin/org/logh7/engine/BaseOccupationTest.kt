@@ -81,6 +81,31 @@ class BaseOccupationTest {
         assertSame(after,advance(after,players))
     }
 
+    @Test fun occupationLeavesDetaineesInTheirRecordedCellUntilRelease() {
+        val original = stocks()
+        val docked = Navigator(1, 10001, Power.ALLIANCE, base.grid, 777, 555, 321,
+            baseId = base.id, mode = 4, returnBase = base.id, spotId = base.id * 10_000 + 19)
+        val held = docked.copy(characterId = 10002)
+        val elsewhere = docked.copy(characterId = 10003)
+        val detention = Detention(held.characterId, Power.ALLIANCE.country, now, now + 60, base = base.id)
+        val otherPrison = detention.copy(character = elsewhere.characterId, base = base.id + 1)
+        val justice = JusticeState(detentions = listOf(detention, otherPrison).associateBy { it.character })
+        val before = original.copy(social = original.social.copy(justice = justice))
+        val players = mutableMapOf("ordinary" to docked, "held" to held, "elsewhere" to elsewhere)
+        val events = mutableListOf<BaseOccupation>()
+
+        val captured = advance(before, players, events)
+        assertEquals(Power.EMPIRE.country, captured.bases.getValue(base.id).country)
+        assertEquals(setOf("ordinary", "elsewhere"), events.single().expelled.keys)
+        assertEquals(0, players.getValue("ordinary").returnBase)
+        assertEquals(held.copy(returnBase = 0), players.getValue("held"))
+        assertEquals(detention, captured.social.justice.detentions[held.characterId])
+
+        val released = JusticeActions.settle(galaxy, session.copy(gameMillis = detention.releaseAt * 1000), players, captured)
+        assertFalse(released.social.justice.detained(held.characterId))
+        assertEquals(held.copy(returnBase = 0, spotId = 0), players.getValue("held"))
+    }
+
     @Test fun foreignOccupationSettlesLocalUnladenTransportStockExactlyOnce() {
         val original=stocks()
         val old=original.bases.getValue(1000)

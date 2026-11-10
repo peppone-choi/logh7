@@ -38,10 +38,10 @@ object JusticeActions {
     /** Releases a detainee to its capital's central square (no other effect). */
     private fun release(g:Galaxy,s:PlanetStocks,players:MutableMap<String,Navigator>,d:Detention):PlanetStocks {
         val key=players.entries.singleOrNull {it.value.characterId==d.character && it.value.generation==s.generation}?.key
-        val base=d.base.takeIf {it>0} ?: g.bases.singleOrNull {Capital.of(it)?.power==d.country.value}?.id
-        if(key!=null && base!=null)players[key]=players.getValue(key).let {
-            if(it.baseId==base && it.spotId==Math.addExact(Math.multiplyExact(base,10_000),19) && it.spotOwner==0)
-                it.copy(spotId=0,spotOwner=0) else it}
+        if (key != null) {
+            val player = players.getValue(key)
+            if (d.holdsAt(g, player)) players[key] = player.copy(spotId = 0, spotOwner = 0)
+        }
         val j=s.social.justice
         return s.copy(social=s.social.copy(justice=j.copy(detentions=j.detentions-d.character)))
     }
