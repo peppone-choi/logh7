@@ -593,7 +593,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val forces = GridForces.collect(galaxy, session.generation, next.values, stocks, session.eliminated.keys)
             if (!RetreatRules.allowed(galaxy, player, retreat.destination, forces, stocks)) continue
             val moved = player.copy(grid = retreat.destination, motion = null, retreat = null, charge = null,commandRange=null,
-                attack=null,fire=player.fire?.copy(pending=null),
+                attack=null,fire=player.fire?.copy(pending=null),posture=null,
                 cpRecoveryAt = now, moves = Math.addExact(player.moves, 1))
             val active = TacticalContact.active(galaxy, moved, next.values, stocks, session.eliminated.keys)
             next[account] = moved.copy(cpPaused = active,commandRange=if(active)TacticalCommandRange(now,
