@@ -67,6 +67,7 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
         else GridTerrain.NONE
     /** Room identities and backgrounds follow the saved owner after conquest. */
     fun facilitiesAt(baseId: Int, stocks: PlanetStocks? = null,countries:CountryCatalog=CountryCatalogLoader.current()): List<PlanetFacility> {
+        val base=bases.single {it.id==baseId}
         val owner=stocks?.let {checkNotNull(it.bases[baseId]).owner} ?: initialOwners.getValue(baseId)
         val power=countries.nativePower(owner)
         val country=owner.country
@@ -74,10 +75,10 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
         // Explicit capitals choose institutional types by office rules, images by the display code.
         val capitalSystem=when {
             country!=null && capitals[country]==baseId -> OrganizationOffices.system(country,countries) ?: 0
-            country in capitals || baseId in capitals.values || country?.value !in setOf(2,3) -> 0
-            else -> null
+            country in capitals || baseId in capitals.values -> 0
+            else -> Capital.of(base)?.power?.takeIf {it==country?.value} ?: 0
         }
-        return Places.forBase(bases.single {it.id==baseId},power,baseId in stocks?.strategic?.fiefs.orEmpty(),capitalSystem)
+        return Places.forBase(base,power,baseId in stocks?.strategic?.fiefs.orEmpty(),capitalSystem)
     }
     fun kind(grid: Int): GridKind = when {
         grid !in cells.indices -> GridKind.IMPASSABLE

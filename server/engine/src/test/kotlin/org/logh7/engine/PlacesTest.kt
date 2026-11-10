@@ -23,6 +23,41 @@ class PlacesTest {
         assertFalse(3 in Places.forBase(bases[2], 2).map { it.kind }) // no park on gas outpost
     }
 
+    @Test fun capturedHistoricalCapitalKeepsItsPortButLosesTheFormerOwnersCapitalFacilities() {
+        val odin = base(1049, 2487, 60, "オーディン")
+        val heinessen = base(1177, 2015, 61, "ハイネセン")
+        val galaxy = Galaxy(listOf(GalaxySystem(3, odin.grid, 4, "Valhalla", 2),
+            GalaxySystem(4, heinessen.grid, 4, "Bharat", 3)), listOf(odin, heinessen),
+            mapOf(Power.EMPIRE to odin.grid, Power.ALLIANCE to heinessen.grid))
+        val original = PlanetStocks(1, 0, mapOf(odin.id to PlanetStock(odin.id, 2, 0, 0, 0, 0),
+            heinessen.id to PlanetStock(heinessen.id, 3, 0, 0, 0, 0)))
+        assertTrue(galaxy.facilitiesAt(odin.id, original).any { it.kind == 22 })
+        assertTrue(galaxy.facilitiesAt(heinessen.id, original).any { it.kind == 24 })
+
+        val captured = original.copy(bases = original.bases + (odin.id to PlanetStock(odin.id, 3, 0, 0, 0, 0)))
+        val facilities = galaxy.facilitiesAt(odin.id, captured)
+        val oldOffice = galaxy.facilitiesAt(odin.id, original).single { it.kind == 30 }.spots.single { it.kind == 7 }
+        val pilot = Navigator(1, 10000, Power.ALLIANCE, odin.grid, 1000, 1000, 900, baseId = odin.id, mode = 4)
+        val session = SessionSimulation(SessionRules.load()).also { it.join("pilot", Power.ALLIANCE, false, "c") }.exportState()
+        val navigation = Navigation(galaxy, object : NavigationStore {
+            override fun load() = mapOf("pilot" to pilot)
+            override fun save(players: Map<String, Navigator>) = error("expected a read-only preview")
+        }, NavigationPolicy())
+        fun enter(spot: PlanetSpot) = navigation.apply(NavigationRequest("pilot", pilot.characterId, Power.ALLIANCE, "c", 1,
+            unitId = pilot.unitId, place = PlaceMove.Spot(spot.id, 0)), session, captured, persist = false)
+        assertEquals(NavigationRejection.SPOT, enter(oldOffice).rejection)
+
+        assertEquals(Places.forBase(odin, 3, capitalSystem = 0), facilities)
+        val quay = facilities.single { it.kind == 4 }.spots.single { it.kind == 6 }
+        assertEquals(7, quay.image)
+        assertEquals(quay.id, assertNotNull(enter(quay).player).spotId)
+        assertTrue(galaxy.facilitiesAt(heinessen.id, captured).any { it.kind == 24 })
+
+        val moved = captured.copy(strategic = captured.strategic.copy(capitals = mapOf(Power.ALLIANCE.country to odin.id)))
+        assertEquals(Places.forBase(odin, 3, capitalSystem = 3), galaxy.facilitiesAt(odin.id, moved))
+        assertFalse(galaxy.facilitiesAt(heinessen.id, moved).any { it.kind == 24 })
+    }
+
     @Test fun capitalsRequireHabitabilityAndAtmosphereWhileOutpostsRemainArtificial() {
         val capital = BaseCondition.initial(base(1, 2487, 60, "オーディン"), 2)
         assertEquals(1, capital.habitability); assertEquals(1, capital.atmosphere)
