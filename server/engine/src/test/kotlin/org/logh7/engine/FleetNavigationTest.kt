@@ -9,6 +9,8 @@ class FleetNavigationTest {
     private val enemy=home.copy(id=1001,grid=2488,name="Enemy")
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",3),GalaxySystem(4,2488,4,"Enemy",2)),
         listOf(home,enemy),Power.entries.associateWith { 2487 })
+    private val operationGalaxy = Galaxy(galaxy.systems + GalaxySystem(5,2588,4,"Objective",3),
+        galaxy.bases + home.copy(id = 1002, grid = 2588), galaxy.starts)
     private val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.ALLIANCE,false,"c")}.exportState()
     private val request=NavigationRequest("pilot",10000,Power.ALLIANCE,"c",1,unitId=1010000,captainCard=195)
     private class State(initial: PlanetStocks, player: Navigator) {
@@ -41,10 +43,10 @@ class FleetNavigationTest {
             Navigator(1,10000,Power.ALLIANCE,2487,1000,1000,1000,baseId=1000,mode=4,spotId=quay.id))
     }
     private fun apply(state:State, vararg requests:NavigationRequest, blocked:Boolean=false,
-        committer:WorldStateCommitter?=state.commit):List<NavigationResult> {
-        val navigation=Navigation(galaxy,state.nav,NavigationPolicy())
-        val production=PlanetProduction(galaxy,state.inventory,SessionRules.load().startSeconds,PlanetProductionPolicy())
-        return requests.map { FleetNavigation.apply(it,session,galaxy,navigation,production,
+        committer:WorldStateCommitter?=state.commit, world:Galaxy=galaxy):List<NavigationResult> {
+        val navigation=Navigation(world,state.nav,NavigationPolicy())
+        val production=PlanetProduction(world,state.inventory,SessionRules.load().startSeconds,PlanetProductionPolicy())
+        return requests.map { FleetNavigation.apply(it,session,world,navigation,production,
             production.settle(1,session.gameMillis/1000),committer) {blocked} }
     }
     @Test fun departureAndFleetWarpMoveEveryDeployedUnitWithoutMovingTheDepotAndSurviveReload() {
@@ -60,6 +62,71 @@ class FleetNavigationTest {
         assertEquals(14L,forces.getValue(2488).single {it.camp.country==Power.ALLIANCE.country}.units)
         assertEquals(0L,forces.getValue(2487).single().units)
         assertEquals(player,apply(state,request).single().player)
+    }
+
+    @Test fun immediateWarpCommitsTheOperationStartWithTheShipAndRollsBothBackOnFailure() {
+        for (fleet in listOf(false, true)) {
+            val state = operationTravelState(fleet, 2488)
+            val before = state.players
+            val initial = state.stocks
+            val commits = state.commits
+            state.fail = true
+            assertFailsWith<java.io.IOException> { apply(state, request.copy(destination = 2488), world = operationGalaxy) }
+            assertEquals(before, state.players)
+            assertEquals(initial, state.stocks)
+            assertEquals(commits, state.commits)
+
+            state.fail = false
+            assertNull(apply(state, request.copy(destination = 2488), world = operationGalaxy).single().rejection)
+            assertEquals(2488, state.players.getValue("pilot").grid)
+            assertEquals(StrategicPlanState.STARTED, state.stocks.strategic.operations.single().state)
+            assertEquals(commits + 1, state.commits)
+        }
+    }
+
+    @Test fun aQueuedArrivalStartsTheOperationEvenIfTheNextLegMovesAwayOrIsRejected() {
+        for (fleet in listOf(false, true)) for (rejectFollowUp in listOf(false, true)) {
+            val state = operationTravelState(fleet, 2588)
+            val reserved = assertNotNull(apply(state, request.copy(destination = 2588), world = operationGalaxy).single().player)
+            val ready = assertNotNull(reserved.warpReadyAt)
+            val due = session.copy(gameMillis = ready * 1000)
+            val navigation = Navigation(operationGalaxy, state.nav, NavigationPolicy())
+            val production = PlanetProduction(operationGalaxy, state.inventory, 0, PlanetProductionPolicy())
+            val current = production.settle(1, ready)
+            val commits = state.commits
+            val followUp = if (rejectFollowUp) 2588 else 2589
+            val result = FleetNavigation.apply(request.copy(destination = followUp), due, operationGalaxy, navigation,
+                production, current, state.commit) { false }
+
+            assertEquals(if (rejectFollowUp) NavigationRejection.SAME_GRID else null, result.rejection)
+            assertTrue(result.completedWarp)
+            assertNull(result.warpCancellation)
+            assertEquals(followUp, state.players.getValue("pilot").grid)
+            assertEquals(StrategicPlanState.STARTED, state.stocks.strategic.operations.single().state)
+            assertEquals(commits + 1, state.commits)
+        }
+    }
+
+    private fun operationTravelState(fleet: Boolean, target: Int): State {
+        val state = state()
+        apply(state, request.copy(place = PlaceMove.SwitchMode(5)))
+        state.players = state.players.mapValues { (_, player) -> player.copy(hull = FlagshipHull(89, 0)) }
+        val initial = state.stocks
+        val outfit = initial.outfits.getValue(1)
+        val units = ActiveShipUnits(listOf(ActiveShipUnit(1, UnitStack(89))))
+        val objective = operationGalaxy.bases.single { it.grid == target }
+        val plan = StrategicOperation(1, 10001, if (fleet) 147 else 149, Power.ALLIANCE.country, target,
+            if (fleet) StrategicForce.FLEET else StrategicForce.SOLO, StrategicPurpose.DEFEND,
+            1, 0, StrategicPlanState.ISSUED, 0, outfits = if (fleet) setOf(outfit.id) else emptySet(),
+            characters = setOf(10000), defended = setOf(objective.id), issuer = 10002)
+        state.stocks = initial.copy(
+            bases = operationGalaxy.bases.associate { base -> base.id to PlanetStock(base.id, 3, 0, 100, 100, 100,
+                PlanetEconomy(100_000_000, 60_000_000, 70, 80)) },
+            outfits = if (fleet) mapOf(outfit.id to outfit.copy(activeShips = units, activeGround = null,
+                units = UnitInventory(ships = units.quantities()))) else emptyMap(),
+            warehouses = if (fleet) initial.warehouses else emptyMap(),
+            nextShipId = 2, strategic = initial.strategic.copy(operations = listOf(plan)))
+        return state
     }
 
     @Test fun leavingTheInfiltratedQuayWithAConvoyClearsOnlyDepartingInfiltrationsOnCommit() {

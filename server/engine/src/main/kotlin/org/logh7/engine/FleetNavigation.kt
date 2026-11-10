@@ -9,6 +9,7 @@ internal object FleetNavigation {
         val players = navigation.snapshot(session.generation)
         val saved = players[request.account]
         val before = saved?.takeIf { it.blocksFirstEntry(request,stocks) }
+        val now = session.gameMillis / 1000
         val claim=OriginalBerthClaim(request.account,request.characterId,request.country,request.rank,request.startingOffice)
         val placement=claim.berth()
         val startingRole=placement?.second
@@ -27,8 +28,18 @@ internal object FleetNavigation {
         } ?: inventory
         fun endDepartedActivities(inventory: PlanetStocks, before: Navigator?, after: Navigator): PlanetStocks =
             EspionageActions.endDepartedInfiltration(AcademyActions.endDepartedLecture(inventory, before, after), before, after)
-        fun commitPersonal(result:NavigationResult, inventory: PlanetStocks? = null):NavigationResult {
-            val after=result.player ?: return result
+        fun warpArrivals(result: NavigationResult): List<Navigator> {
+            val reserved = if (result.completedWarp && result.warpCancellation == null)
+                result.previous?.takeIf { it.grid != saved?.grid } ?: result.player?.takeIf { it.grid != saved?.grid }
+            else null
+            val immediate = result.player?.takeIf {
+                request.destination != null && result.rejection == null && it.grid != (reserved ?: result.previous ?: saved)?.grid
+            }
+            return listOfNotNull(reserved, immediate)
+        }
+        fun commitPersonal(result:NavigationResult, inventory: PlanetStocks? = null,
+            resolved: Navigator? = result.player):NavigationResult {
+            val after = resolved ?: return result
             if(committer==null)return NavigationResult(null,saved ?: after,NavigationRejection.DISABLED)
             val next=players+(request.account to after)
             val settled=CivicActions.settle(galaxy,inventory ?: endDepartedActivities(stocks, saved, after),session.gameMillis/1000,next.values)
@@ -51,12 +62,17 @@ internal object FleetNavigation {
                 saved!=null && stocks.civic.active.any {it.character==saved.characterId}
             val hasSpotActivity=request.place!=null && (saved?.characterId in stocks.social.academy.lectures ||
                 saved?.characterId in stocks.social.justice.infiltrations)
-            if(committer==null && !needsSharedCommit && !hasSpotActivity)
+            if(committer==null && !needsSharedCommit && !hasSpotActivity &&
+                stocks.strategic.operations.none { it.state == StrategicPlanState.ISSUED })
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
             val preview=navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip,
                 initialDock=startingFleet?.positionIn(galaxy))
-            val inventory=preview.player?.let { endDepartedActivities(stocks, saved, it) } ?: stocks
-            val after=preview.player
+            val arrivals = warpArrivals(preview)
+            val withOperations = arrivals.fold(stocks) { inventory, arrived ->
+                StrategicOperations.startOnWarp(inventory, arrived.grid, now, listOf(arrived), null, session.eliminated.keys)
+            }
+            val after=preview.player ?: arrivals.lastOrNull()?.takeIf { withOperations !== stocks }
+            val inventory=after?.let { endDepartedActivities(withOperations, saved, it) } ?: withOperations
             val entryChanged=after!=null && (saved?.cpPaused!=after.cpPaused || saved.grid!=after.grid ||
                 saved.characterId!=after.characterId) &&
                 (saved?.cpPaused==true || after.cpPaused)
@@ -67,7 +83,7 @@ internal object FleetNavigation {
             else inventory
             if(!needsSharedCommit && withAuthority === stocks)
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
-            return commitPersonal(preview,withAuthority)
+            return if (after == null) preview else commitPersonal(preview,withAuthority,after)
         }
         // Personal flagship retreat must not transport the commander's unimplemented fleet/CRC selection.
         if (request.tacticalRetreat != null || before?.retreat != null)
@@ -110,7 +126,6 @@ internal object FleetNavigation {
         val position = OutfitPosition(after.grid, after.baseId)
         val starting = preview.rejection == null && (request.destination != null || request.place is PlaceMove.Dock ||
             request.place == PlaceMove.SwitchMode(5))
-        val now = session.gameMillis / 1000
         if ((starting || position != outfit.positionIn(galaxy)) && followers.values.any {
             it.cpPaused || it.navigationPending || (it.hull?.woundedUntil ?: 0) > now
         })
@@ -165,11 +180,16 @@ internal object FleetNavigation {
             if (nextOrigin == before.grid && position.grid == nextOrigin) units
             else ActiveShipUnits(units.values.map { unit -> unit.copy(posture = null) })
         }
-        val moving = outfit.copy(position = position, activeShips = ships)
+        val reservedFleet = outfit.copy(position = position, activeShips = ships)
             .let { if (reservedPulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
+        val moving = reservedFleet
             .let { if (immediatePulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
         val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to moving))
-        val departed = moved.entries.fold(endDepartedActivities(deployed, before, after)) { inventory, (account, follower) ->
+        val withOperations = warpArrivals(preview).fold(deployed) { inventory, arrived ->
+            val fleet = if (arrived.grid == after.grid) moving else reservedFleet
+            StrategicOperations.startOnWarp(inventory, arrived.grid, now, moved.values + arrived, fleet, session.eliminated.keys)
+        }
+        val departed = moved.entries.fold(endDepartedActivities(withOperations, before, after)) { inventory, (account, follower) ->
             endDepartedActivities(inventory, followers.getValue(account), follower)
         }
         val settled=CivicActions.settle(galaxy,departed,session.gameMillis/1000,next.values)
