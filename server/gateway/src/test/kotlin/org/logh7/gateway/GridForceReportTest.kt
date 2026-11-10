@@ -51,7 +51,7 @@ class GridForceReportTest {
             "far" to enemy.copy(characterId = 10002, grid = 2495),
             "old" to enemy.copy(characterId = 10003, generation = 2)))
         assertEquals(mapOf(2487 to 1), counts(state))
-        val packets = GridForceReport.search(state, galaxy, viewer, 1).map(ByteBuffer::wrap)
+        val packets = GridForceReport.search(state, galaxy, viewer, 1).values.map(ByteBuffer::wrap)
         assertEquals(setOf(2, 3), packets.map { it.get(22).toInt() }.toSet())
         val hostile = packets.single { it.get(22).toInt() == 3 }
         assertEquals(1, hostile.get(18).toInt())

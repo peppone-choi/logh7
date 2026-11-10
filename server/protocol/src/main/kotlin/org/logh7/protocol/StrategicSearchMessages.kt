@@ -5,12 +5,19 @@ import org.logh7.protocol.generated.MessageId
 
 /** CD CommandSearch readers 004a0d90 / 0049a490. Both directions pack five big-endian words. */
 object StrategicSearchMessages {
-    fun requester(message: ByteArray): Int {
+    internal const val CLEAR_REPORT = 0x434c5231
+    private const val CLEAR_CLIENT = 0x4c374753
+
+    data class Request(val characterId: Int, val supportsClear: Boolean)
+
+    fun request(message: ByteArray): Request {
         require(message.size == 22)
         val input = ByteBuffer.wrap(message)
         require(input.short.toInt() == MessageId.CommandSearch.opcode)
         // The world owns time, duration and balances. The caller must match this ID to the account.
-        return input.getInt(10).also { require(it > 0) }
+        val characterId = input.getInt(10)
+        require(characterId > 0)
+        return Request(characterId, input.getInt(2) == CLEAR_CLIENT && input.getInt(6) == CLEAR_REPORT)
     }
 
     fun reply(characterId: Int, seconds: Long, wait: Long, pcp: Int, mcp: Int): ByteArray {

@@ -8,15 +8,15 @@ import kotlin.math.abs
 internal object GridForceReport {
     fun message(snapshot: WorldSnapshot, galaxy: Galaxy, viewer: Navigator, seconds: Long,
         countries:CountryCatalog=CountryCatalogLoader.current()): ByteArray? =
-        reports(snapshot, galaxy, viewer, seconds, countries, search = false).singleOrNull()
+        reports(snapshot, galaxy, viewer, seconds, countries, search = false).values.singleOrNull()
 
     fun search(snapshot: WorldSnapshot, galaxy: Galaxy, viewer: Navigator, seconds: Long,
-        countries: CountryCatalog = CountryCatalogLoader.current()): List<ByteArray> =
+        countries: CountryCatalog = CountryCatalogLoader.current()): Map<Pair<Int, Boolean>, ByteArray> =
         reports(snapshot, galaxy, viewer, seconds, countries, search = true)
 
     private fun reports(snapshot: WorldSnapshot, galaxy: Galaxy, viewer: Navigator, seconds: Long,
-        countries: CountryCatalog, search: Boolean): List<ByteArray> {
-        if (snapshot.session?.generation != viewer.generation) return emptyList()
+        countries: CountryCatalog, search: Boolean): Map<Pair<Int, Boolean>, ByteArray> {
+        if (snapshot.session?.generation != viewer.generation) return emptyMap()
         val stocks=snapshot.planetStocks?.takeIf {it.generation==viewer.generation}
         val camp=Camp.of(viewer,stocks?.let {CoupActions.rebel(it,viewer.characterId,viewer.country)}==true)
         fun nativePower(camp: Camp, fallback: Int? = null) =
@@ -49,7 +49,7 @@ internal object GridForceReport {
                 add(owner, nativePower(owner), outfit.positionIn(galaxy).grid, ships)
             }
         // The native importer converts a zero count to one. Never send fake units.
-        return groups.map { (group, units) ->
+        return groups.mapValues { (group, units) ->
             GridForceMessages.search(seconds, viewer.characterId, group.first, if (group.second) 1 else 0,
                 units.mapValues { it.value.coerceAtMost(65535).toInt() })
         }
