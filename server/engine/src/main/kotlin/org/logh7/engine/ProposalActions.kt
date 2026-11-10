@@ -115,7 +115,11 @@ object ProposalActions {
                 ?.let {OfficeResignation.clear(policy,s,it)}
             DISMISSAL -> {
                 val dismissal=OfficeDismissalPolicy(g,countries)
+                // Old mail without a seat can only name a unique national or capital post.
+                if(mail.seat==0 && policy.role(mail.targetCard,country)?.scope !in setOf(OfficeScope.NATIONAL,OfficeScope.CAPITAL))
+                    return null
                 dismissal.available(s,mail.recipient,country.value,rank).singleOrNull {it.target==mail.target && it.card==mail.targetCard}
+                    ?.takeIf {mail.seat==0 || it.id==mail.seat}
                     ?.let {dismissal.clear(s,it)}
             }
             DEMOTION, SPECIAL_PROMOTION -> {
@@ -304,12 +308,15 @@ object ProposalActions {
         // Appointment: base = the seat, amount = the card; the sender asks the recipient to appoint the sender there.
         val target=when(i.value) {DISMISSAL,DEMOTION,SPECIAL_PROMOTION -> i.base;APPOINTMENT -> i.characterId;else -> 0}
         val targetCard=if(i.value==DISMISSAL || i.value==APPOINTMENT)i.amount.toInt() else 0
-        val seat=if(i.value==APPOINTMENT)i.base else 0
         if(target>0 && accounts.values.singleOrNull {it.generation==i.generation && it.characterId==target}?.country!=i.country)
             return reject(SocialRejection.TARGET)
         val power=i.country.value
-        if(i.value==DISMISSAL && OfficeDismissalPolicy(g,countries).available(s,i.target,power,recipientRank)
-                .none {it.target==target && it.card==targetCard})return reject(SocialRejection.TARGET)
+        val seat=when(i.value) {
+            APPOINTMENT -> i.base
+            DISMISSAL -> OfficeDismissalPolicy(g,countries).available(s,i.target,power,recipientRank)
+                .singleOrNull {it.target==target && it.card==targetCard}?.id ?: return reject(SocialRejection.TARGET)
+            else -> 0
+        }
         if(i.value==APPOINTMENT && (targetCard to seat) !in vacancies(g,s,i.target,power,recipientRank,i.characterId,senderRank,countries))
             return reject(SocialRejection.TARGET)
         if(rankChange(i.value) && (i.amount!=0L || i.country in session.eliminated ||
