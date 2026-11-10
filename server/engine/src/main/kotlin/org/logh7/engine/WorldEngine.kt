@@ -519,7 +519,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         if (navigation == null || production == null || storageFailed) return emptyList()
         val stocks = production.snapshot(session.generation) ?: return emptyList()
         val players = navigation.snapshot(session.generation)
-        val (next, after) = CpExperience.settle(players, stocks) { profiles[it] } ?: return emptyList()
+        val identities by lazy { production.identities?.invoke().orEmpty().associateBy { it.id } }
+        val (next, after) = CpExperience.settle(players, stocks) { account ->
+            profiles[account]?.let { return@settle it }
+            val player = players.getValue(account)
+            val existing = stocks.strategic.people[player.characterId]?.takeIf { it.abilities == null } ?: return@settle null
+            val identity = identities[player.characterId]?.takeIf { it.country == player.country } ?: return@settle null
+            existing.copy(abilities = identity.abilities)
+        } ?: return emptyList()
         val prepared = production.prepareReplacement(stocks, after)
         try { committer.saveWorld(next, prepared) }
         catch (failure: java.io.IOException) { storageFailed = true; System.err.println("CP experience commit failed: ${failure.javaClass.simpleName}"); return emptyList() }
