@@ -10,7 +10,12 @@ import java.time.ZoneOffset
 import java.util.Random
 import org.logh7.protocol.OriginalCharacterMessages
 import org.logh7.protocol.CharacterMessages
+import org.logh7.engine.EndReason
 import org.logh7.engine.Flagships
+import org.logh7.engine.SessionEnd
+import org.logh7.engine.SessionRules
+import org.logh7.engine.SessionSimulation
+import org.logh7.engine.WorldSnapshot
 import org.logh7.engine.CountryId
 import org.logh7.engine.OriginalCandidateEdit
 import org.logh7.engine.OriginalCandidateProfile
@@ -45,6 +50,33 @@ class OriginalCharacterLotteryTest {
         for (account in listOf("alpha", "beta", "gamma")) assertEquals(restored.character(account), again.character(account))
         assertTrue(again.candidates("new").isEmpty())
         assertFails { again.apply("new", listOf(1001)) }
+    }
+    @Test fun endedGenerationReadsCannotAwardOriginalsAndTheNextGenerationCanStillSettle() {
+        val file=directory.resolve("ended-characters.properties")
+        val clock=TestClock()
+        val active=CharacterCreation(file,clock,10)
+        active.apply("winner",listOf(1001))
+        clock.time+=10
+        val winner=assertNotNull(active.character("winner"))
+        active.apply("late",listOf(1002))
+        val original=Files.readAllBytes(file)
+
+        val start=SessionSimulation(SessionRules.load()).snapshot()
+        var snapshot=WorldSnapshot(0,0,start.copy(ended=SessionEnd(EndReason.TIME_LIMIT,emptySet(),start.gameSeconds)))
+        fun open()=CharacterStores(file) {snapshot}
+        val ended=open().get(1)
+        assertEquals(winner,ended.character("winner"))
+        assertNull(ended.character("late"))
+        assertEquals(listOf(winner),ended.registeredCharacters())
+        assertEquals(setOf("winner"),open().get(1).profiles().keys)
+        assertContentEquals(original,Files.readAllBytes(file))
+
+        val nextFile=file.resolveSibling("${file.fileName}.session-2")
+        CharacterCreation(nextFile,clock,10).apply("late",listOf(1002))
+        snapshot=WorldSnapshot(1,0,start.copy(generation=2))
+        assertNull(ended.character("late"))
+        assertEquals(1002L,open().get(2).character("late")?.id)
+        assertContentEquals(original,Files.readAllBytes(file))
     }
     @Test fun rejectsUnknownOrDuplicateChoicesAndExistingOwners() {
         val service = CharacterCreation(clock = TestClock(), lotteryWindowMillis = 10)
