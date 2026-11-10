@@ -14,8 +14,8 @@ class GoalActionsTest {
     private val a=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,1000,baseId=1049,mode=4,spotId=10490001)
     private val stocks=policy.set(PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300,PlanetEconomy(1000,500,60,60)),
         1050 to PlanetStock(1050,3,0,1,1,1)),strategic=StrategicState(fiefs=mapOf(1049 to 10000))),OfficeHolding(5,1049,10000))
-    private fun act(command:Int,card:Int,target:Int,value:Int=0,s:PlanetStocks=stocks)=SocialActions.evaluate(galaxy,SocialRequest(
-        StrategyActionRequest("a","a",10000,Power.EMPIRE,1,command,card,5,target=target,value=value)),session,a,s,listOf(a),mapOf("a" to a))
+    private fun act(command:Int,card:Int,target:Int,value:Int=0,s:PlanetStocks=stocks,state:SessionState=session)=SocialActions.evaluate(galaxy,SocialRequest(
+        StrategyActionRequest("a","a",10000,Power.EMPIRE,1,command,card,5,target=target,value=value)),state,a,s,listOf(a),mapOf("a" to a))
 
     @Test fun aNationalGoalNamesAnEnemyBaseAndItsOccupiersEarnMerit() {
         assertEquals(SocialRejection.TARGET,act(GoalActions.NATIONAL,5,1049).rejection,"own base")
@@ -27,6 +27,27 @@ class GoalActionsTest {
         assertEquals(GoalActions.GOAL_MERIT,won.strategic.people.getValue(10000).merit);assertTrue(won.social.goals.national.isEmpty())
         assertSame(s,GoalActions.achieved(s,1049,CountryId(2),listOf(10000)),"another base")
     }
+    @Test fun eliminationBlocksBothGoalsWhileTheOtherTwoCountriesContinue() {
+        val empire=Power.EMPIRE.country
+        val alliance=Power.ALLIANCE.country
+        val simulation=SessionSimulation(rules)
+        assertEquals(Admission.ACCEPTED,simulation.join("a",Power.EMPIRE,false,"a"))
+        simulation.updateCountryTerritory(mapOf(empire to 3,alliance to 8,CountryId(42) to 8),emptyMap(),setOf(empire))
+        val state=simulation.exportState()
+        assertEquals(setOf(empire),state.eliminated.keys)
+        assertNull(state.ended)
+        assertTrue(state.participants.getValue("a").online)
+
+        val national=act(GoalActions.NATIONAL,5,1050,state=state)
+        val governance=act(GoalActions.GOVERNANCE,66,1049,GoalActions.APPROVAL,state=state)
+        for(result in listOf(national,governance)) {
+            assertEquals(SocialRejection.SESSION,result.rejection)
+            assertSame(a,result.player)
+            assertSame(stocks,result.stocks)
+            assertFalse(result.changed)
+        }
+    }
+
     @Test fun aLordSetsTheFocusOfAGovernedPlanetAndTheDayLeansToIt() {
         assertEquals(SocialRejection.TARGET,act(GoalActions.GOVERNANCE,66,1050,2).rejection)
         val s=assertNotNull(act(GoalActions.GOVERNANCE,66,1049,GoalActions.APPROVAL).stocks)
