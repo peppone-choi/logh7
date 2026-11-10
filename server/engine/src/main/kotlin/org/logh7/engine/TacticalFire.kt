@@ -105,7 +105,8 @@ internal object TacticalCombat {
         val now = session.gameMillis / 1000
         if (now > 0xffffffffL - 5 * scale || player.fire?.sequence == Long.MAX_VALUE) return reject(NavigationRejection.CLOCK)
         val players = navigation.snapshot(session.generation)
-        val victim = target(shoot.target, player.grid,TacticalAuthority.camp(player,stocks), stocks, galaxy, players) ?: return reject(NavigationRejection.TARGET)
+        val victim = target(shoot.target,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players,
+            session.eliminated.keys) ?: return reject(NavigationRejection.TARGET)
         if (effectiveness(player, mount, victim, now, players.values, stocks, galaxy) == 0) return reject(NavigationRejection.RANGE)
         val charge = player.charge?.settle(now, player.energy ?: TacticalEnergy.ZERO)
         if (!ready(charge, weapon)) return reject(NavigationRejection.ENERGY)
@@ -147,9 +148,8 @@ internal object TacticalCombat {
             !ready(player.charge?.settle(now,player.energy ?: TacticalEnergy.ZERO),weapon))return null
         val ids=players.values.map {it.unitId}+stocks.outfits.values.flatMap {it.activeShips?.values.orEmpty().map {u->u.id}}+PirateActions.ids(stocks)
         val candidates=TacticalOfflineAi.automaticTargets(session,account,player,stocks,ids)
-        return candidates.firstOrNull {id -> target(id,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players)?.let {
-            (player.attack?.issuedByOfflineAi!=true || TacticalOfflineAi.activeEnemy(it,session.eliminated.keys)) &&
-                effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0 } == true }
+        return candidates.firstOrNull {id -> target(id,player.grid,TacticalAuthority.camp(player,stocks),stocks,galaxy,players,
+            session.eliminated.keys)?.let {effectiveness(player,mount,it,now,players.values,stocks,galaxy)>0}==true }
     }
 
     // CD manual omits later ammunition costs. One supply per flagship shot is explicit replacement policy.
@@ -319,7 +319,8 @@ internal object TacticalCombat {
             } else player.fire?.pending?.takeIf {it==scheduled} ?: continue
             val fire=if(automatic)TacticalFire(shot.sequence,last=player.fire?.last) else checkNotNull(player.fire)
             var next = player.copy(fire = fire.copy(pending = null))
-            val victim = target(shot.target, shot.grid,TacticalAuthority.camp(player,inventory), inventory, galaxy, players)
+            val victim = target(shot.target,shot.grid,TacticalAuthority.camp(player,inventory),inventory,galaxy,players,
+                session.eliminated.keys)
             if (session.ended == null && player.cpPaused && player.grid == shot.grid && player.baseId == 0 &&
                 victim != null && (player.charge == null || player.charge.at <= shot.firesAt)) {
                 val charge = player.charge?.settle(shot.firesAt, player.energy ?: TacticalEnergy.ZERO)
