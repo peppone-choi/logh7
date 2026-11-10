@@ -99,6 +99,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
     private var combatSubscription: AutoCloseable? = null
     private var movementSubscription: AutoCloseable? = null
     private var strategicMovementSubscription: AutoCloseable? = null
+    private var offlineDockSubscription: AutoCloseable? = null
     private var occupationSubscription:AutoCloseable?=null
     private var coupDockSubscription:AutoCloseable?=null
     private var fortressSinkingSubscription:AutoCloseable?=null
@@ -252,6 +253,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             }})}
         strategicMovementSubscription=presence?.let {p->navigation!!.observeStrategicMovements {event->
             navigation.snapshot()?.let {snapshot->p.strategicMovement(event,snapshot,world!!,currentCharacters()::characterById)}
+        }}
+        offlineDockSubscription=presence?.let {p->navigation!!.observeOfflineDockArrivals {event->
+            navigation.snapshot()?.let {snapshot->p.offlineDockArrival(event,snapshot,world!!.galaxy)}
         }}
         combatSubscription = presence?.let { p -> navigation!!.observeCombat { impact ->
             navigation.snapshot()?.let { snapshot -> p.combat(impact,snapshot,world!!.galaxy,currentCharacters()::characterById) }
@@ -482,6 +486,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
         combatSubscription?.close()
         movementSubscription?.close()
         strategicMovementSubscription?.close()
+        offlineDockSubscription?.close()
         groundSubscription?.close();groundBattleSubscription?.close();occupationSubscription?.close();fortressSinkingSubscription?.close();characterRefreshSubscription?.close()
         tacticalOfficeRefreshSubscription?.close()
         postureSubscription?.close()

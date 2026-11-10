@@ -122,6 +122,62 @@ class DockingWireTest {
         }
     }
 
+    @Test fun anOfflineDockCompletesOnceForCurrentSameGridObservers() = runBlocking<Unit> {
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2), GalaxySystem(4, 2488, 4, "Away", 2)),
+            listOf(GalaxyBase(1049, 2487, 60, 0, "Odin", 0, 20f, 86400, 0, 0f, 2f)),
+            Power.entries.associateWith { 2487 })
+        val initial = mapOf(
+            "load-000" to Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000),
+            "load-001" to Navigator(1, 10001, Power.EMPIRE, 2487, 1000, 1000, 1000),
+            "load-002" to Navigator(1, 10002, Power.EMPIRE, 2488, 1000, 1000, 1000))
+        val store = object : NavigationStore {
+            private var players = initial
+            override fun load() = players
+            override fun save(players: Map<String, Navigator>) { this.players = players }
+        }
+        LoadFixture(directory, 3, LoadMetrics(), galaxy, ticking = false, navigationStore = store).use { fixture ->
+            fun join(index: Int) = fixture.join(fixture.account(index), true, false).client.also {
+                it.send(SyntheticClient.opcode(0x0f00))
+                through(it, 0x0f01)
+            }
+            val captain = join(0)
+            val observer = join(1)
+            val away = join(2)
+            captain.send(SyntheticClient.opcode(0x0300))
+            through(captain, 0x0301)
+            captain.send(PlaceMessages.docked(PlaceMessages.Dock(10000, 59, 1049, 4), 0, 0, 0).copyOfRange(4, 34))
+            val accepted = ByteBuffer.wrap(through(captain, 0x0b00).last())
+            assertEquals(0, accepted.int)
+            assertEquals(1049, accepted.getInt(28))
+            through(captain, 0x0325)
+            assertEquals(840, store.load().getValue(fixture.account(0)).mcp)
+            captain.close()
+            fixture.awaitState(2, 2, 3)
+
+            fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24 - 1))
+            observer.send(SyntheticClient.opcode(0x0300))
+            assertFalse(through(observer, 0x0301).any { code(it) == 0x0b0b })
+
+            fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24))
+            val packets = through(observer, 0x0b0b)
+            val notice = ByteBuffer.wrap(packets.last())
+            assertEquals(10000, notice.getInt(10))
+            assertEquals(1049, notice.getInt(14))
+            assertEquals(4, notice.getShort(18).toInt())
+            assertFalse(packets.any { code(it) == 0x0425 })
+            val docked = store.load().getValue(fixture.account(0))
+            assertEquals(1049, docked.baseId)
+            assertNull(docked.dockTarget)
+            assertEquals(docked, fixture.engine.snapshot().navigators.getValue(fixture.account(0)))
+
+            fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24 + 1000))
+            for (client in listOf(observer, away)) {
+                client.send(SyntheticClient.opcode(0x0300))
+                assertFalse(through(client, 0x0301).any { code(it) == 0x0b0b })
+            }
+        }
+    }
+
     @Test fun insufficientCpExplainsTheRefusalThenAllowsRetryAfterRecovery() = runBlocking<Unit> {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
             listOf(GalaxyBase(1049, 2487, 60, 0, "Odin", 0, 20f, 86400, 0, 0f, 2f)),

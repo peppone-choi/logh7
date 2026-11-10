@@ -6,6 +6,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 data class WorldSnapshot(val revision: Long, val acceptedCommands: Long, val session: SessionSnapshot? = null, val rejectedCommands: Long = 0,
     val navigators: Map<String, Navigator> = emptyMap(), val planetStocks: PlanetStocks? = null, val result:SessionResult?=null)
+data class OfflineDockArrival(val captain: Navigator, val seconds: Long,
+    val followers: Set<Int>, val recipients: Map<Int, String>)
+
 sealed interface WorldCommand {
     data object Probe : WorldCommand
     data class ReadHomeIntelligence(val account:String,val connection:String,val generation:Long,
@@ -101,6 +104,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         if (players.isEmpty()) return
         for (observer in coupDockCancellationObservers) try { observer(players) }
         catch (failure: Exception) { System.err.println("Coup dock cancellation delivery failed: ${failure.javaClass.simpleName}") }
+    }
+
+    private val offlineDockObservers = java.util.concurrent.CopyOnWriteArrayList<(OfflineDockArrival) -> Unit>()
+    fun observeOfflineDockArrivals(observer: (OfflineDockArrival) -> Unit): AutoCloseable {
+        offlineDockObservers += observer
+        return AutoCloseable { offlineDockObservers.remove(observer) }
     }
 
     private val resultObservers=java.util.concurrent.CopyOnWriteArrayList<(WorldSnapshot)->Unit>()
@@ -494,10 +503,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
      * flagship and observers see the arrival without waiting for a reconnect. A deferred fleet (a member is busy)
      * keeps its job and is retried on a later tick; only future deadlines schedule ticks, so it cannot spin.
      */
-    private fun settleOfflineNavigation(session:SessionState) {
-        val navigation=navigation ?: return
-        if(session.ended!=null)return
+    private fun settleOfflineNavigation(session:SessionState): List<OfflineDockArrival> {
+        val navigation=navigation ?: return emptyList()
+        if(session.ended!=null)return emptyList()
         val movements=mutableListOf<NpcStrategicMovement>()
+        val dockArrivals = mutableListOf<OfflineDockArrival>()
         val identities by lazy {production?.identities?.invoke().orEmpty().associateBy {it.id}}
         for((account,player) in navigation.snapshot(session.generation).toSortedMap()) {
             if(!dueOfflineWork(session,account,player))continue
@@ -508,15 +518,35 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 identities[player.characterId]?.abilities
             }
             if(abilities==null && player.warpTarget!=null)continue
+            val beforeDock = player.dockTarget?.let { navigation.snapshot(session.generation) }
             val result=recoverNavigation(NavigationRequest(account,player.characterId,player.country,member.connection.orEmpty(),
                 session.generation,politics=abilities?.get(1) ?: 50,administration=abilities?.get(2) ?: 50,
                 offlineSettle=true,offlineAbilities=abilities!=null),session) ?: continue
             val arrived=navigation.snapshot(session.generation)[account] ?: continue
             if(result.completedWarp && arrived.grid!=player.grid)movements+=offlineArrival(session,player,arrived)
+            if (result.completedDock && arrived.baseId == player.dockTarget && arrived.baseId != player.baseId && beforeDock != null) {
+                val current = navigation.snapshot(session.generation)
+                val followers = current.mapNotNull { (peer, next) ->
+                    next.characterId.takeIf { peer != account && next.grid == arrived.grid && next.baseId == arrived.baseId &&
+                        beforeDock[peer]?.baseId != next.baseId }
+                }.toSet()
+                val recipients = session.participants.mapNotNull { (peer, participant) ->
+                    val viewer = current[peer] ?: return@mapNotNull null
+                    participant.connection?.takeIf { participant.online && viewer.grid == arrived.grid }
+                        ?.let { viewer.characterId to it }
+                }.toMap()
+                if (recipients.isNotEmpty()) dockArrivals += OfflineDockArrival(arrived, session.gameMillis / 1000, followers, recipients)
+            }
         }
         // Same delivery as an NPC fleet arrival: grid force reports, and destination tactical viewers rebuild.
         for(event in movements)for(observer in strategicMovementObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("Offline arrival delivery failed: ${failure.javaClass.simpleName}")}
+        return dockArrivals
+    }
+
+    private fun publishOfflineDockArrivals(arrivals: List<OfflineDockArrival>) {
+        for (event in arrivals) for (observer in offlineDockObservers) try { observer(event) }
+        catch (failure: Exception) { System.err.println("Offline docking delivery failed: ${failure.javaClass.simpleName}") }
     }
     private fun offlineArrival(session:SessionState,before:Navigator,after:Navigator):NpcStrategicMovement {
         val stocks=production?.snapshot(session.generation)
@@ -1490,16 +1520,17 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val next = transitionSession(rules, before, action)
                     durability.commit(action, next)
                     durableState = next.state
-                    if (command is WorldCommand.AdvanceTo) {
+                    val dockArrivals = if (command is WorldCommand.AdvanceTo) {
                         production?.settle(next.state.session)
                         settleCombat(next.state.session,next.state.snapshot(rules)) {reconcileTerritory()}
                         val current=checkNotNull(durableState).session
                         navigation?.settleRetreats(current, production?.snapshot(current.generation))
                         settleOfflineNavigation(current)
-                    }
+                    } else emptyList()
                     val current=checkNotNull(durableState)
                     publish(current.snapshot(rules).copy(navigators = navigation?.snapshot(current.session.generation).orEmpty(),
                         planetStocks = production?.snapshot(current.session.generation)))
+                    publishOfflineDockArrivals(dockArrivals)
                     if (command is WorldCommand.Join) {
                         if (next.rejected) command.result.completeExceptionally(IllegalArgumentException("Invalid join"))
                         else {
@@ -1519,6 +1550,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             }
             var admission: Admission? = null
             var restartResult: Boolean? = null
+            var dockArrivals = emptyList<OfflineDockArrival>()
             val events = try { when (command) {
                 WorldCommand.Probe -> emptyList()
                 is WorldCommand.AdvanceTo -> {
@@ -1529,7 +1561,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     if (!storageFailed) production?.settle(simulation.exportState())
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot())) {reconcileTerritory()}
                     navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
-                    if (!storageFailed) settleOfflineNavigation(simulation.exportState())
+                    if (!storageFailed) dockArrivals = settleOfflineNavigation(simulation.exportState())
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events
                 }
@@ -1579,7 +1611,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             state = state.copy(revision = state.revision + 1,
                 acceptedCommands = state.acceptedCommands + if (command == WorldCommand.Probe) 1 else 0, session = simulation.snapshot(), navigators = navigation?.snapshot(simulation.snapshot().generation).orEmpty(),
                 planetStocks = production?.snapshot(simulation.snapshot().generation))
-            try { publish(state) }
+            try {
+                publish(state)
+                publishOfflineDockArrivals(dockArrivals)
+            }
             catch (failure: java.io.IOException) {
                 storageFailure = failure
                 storageFailed = true

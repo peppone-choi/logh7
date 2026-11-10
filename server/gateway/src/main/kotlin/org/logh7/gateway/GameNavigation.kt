@@ -13,6 +13,7 @@ fun interface GameNavigation {
     fun observeCombat(observer: (TacticalImpact) -> Unit): AutoCloseable = AutoCloseable {}
     fun observeMovements(observer:(TacticalMovement)->Unit):AutoCloseable = AutoCloseable {}
     fun observeStrategicMovements(observer:(NpcStrategicMovement)->Unit):AutoCloseable = AutoCloseable {}
+    fun observeOfflineDockArrivals(observer:(OfflineDockArrival)->Unit):AutoCloseable = AutoCloseable {}
     fun observeSupport(observer:(TacticalSupportResult)->Unit):AutoCloseable = AutoCloseable {}
     fun observeCoupDockCancellations(observer:(List<Navigator>)->Unit):AutoCloseable = AutoCloseable {}
     fun observeOccupations(observer:(BaseOccupation)->Unit):AutoCloseable = AutoCloseable {}
@@ -31,6 +32,7 @@ class EngineGameNavigation(private val engine: WorldEngine, private val scope: C
     override fun observeCombat(observer: (TacticalImpact) -> Unit) = engine.observeCombat(observer)
     override fun observeMovements(observer:(TacticalMovement)->Unit) = engine.observeMovements(observer)
     override fun observeStrategicMovements(observer:(NpcStrategicMovement)->Unit) = engine.observeStrategicMovements(observer)
+    override fun observeOfflineDockArrivals(observer:(OfflineDockArrival)->Unit) = engine.observeOfflineDockArrivals(observer)
     override fun observeSupport(observer:(TacticalSupportResult)->Unit) = engine.observeSupport(observer)
     override fun observeCoupDockCancellations(observer:(List<Navigator>)->Unit)=engine.observeCoupDockCancellations(observer)
     override fun observeOccupations(observer:(BaseOccupation)->Unit) = engine.observeOccupations(observer)

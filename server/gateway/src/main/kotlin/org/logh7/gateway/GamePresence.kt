@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import org.logh7.engine.Navigator
+import org.logh7.engine.OfflineDockArrival
 import org.logh7.engine.ProposalActions
 import org.logh7.engine.TacticalWeapon
 import org.logh7.engine.NpcFleetDialogue
@@ -490,6 +491,36 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,true)
             }
             send(member,packets+updated.refresh)
+        }
+    }
+
+    @Synchronized fun offlineDockArrival(event: OfflineDockArrival, snapshot: org.logh7.engine.WorldSnapshot,
+        galaxy: org.logh7.engine.Galaxy) {
+        val captain = event.captain
+        if (snapshot.session?.generation != captain.generation ||
+            snapshot.navigators.values.none { it.characterId == captain.characterId && it.grid == captain.grid &&
+                it.baseId == captain.baseId && it.generation == captain.generation }) return
+        val audience = members.values.filter {
+            it.player.generation == captain.generation && event.recipients[it.player.characterId] == it.connection
+        }
+        val currentPlayers = snapshot.navigators.values.associateBy { it.characterId }
+        fun notice(player: Navigator) = org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,
+            player.baseId, player.mode, event.seconds, player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)
+        for (previous in audience) {
+            val player = currentPlayers[previous.player.characterId] ?: continue
+            if (player.grid != captain.grid || player.generation != captain.generation) continue
+            val packets = mutableListOf<ByteArray>()
+            val member = if (player.characterId in event.followers && player.baseId == captain.baseId &&
+                player.baseId != previous.player.baseId) {
+                previous.copy(player = player).also {
+                    packets += update(it, event.seconds).refresh
+                    packets += unit(it)
+                    packets += notice(player)
+                }
+            } else previous
+            if (player.country != null && player.country == captain.country) packets += notice(captain)
+            GridForceReport.message(snapshot, galaxy, player, event.seconds)?.let { packets += it }
+            send(member, packets)
         }
     }
 
