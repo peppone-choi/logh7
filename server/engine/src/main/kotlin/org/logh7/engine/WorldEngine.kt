@@ -694,14 +694,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         scheduleDeadline(state.copy(navigators=navigation?.snapshot(generation).orEmpty(),
             planetStocks=production?.snapshot(generation)))
         var restartAt: Long? = null
+        var storageFailure: Exception? = null
         fun restart(): List<WorldEvent> {
+            check(storageFailure == null) { "Session storage is unavailable" }
             val snapshot = simulation.snapshot()
             check(snapshot.ended != null)
             val generation = generationStore.advance(snapshot.generation)
             simulation.restart(generation); restartAt = null
             return listOf(WorldEvent.Restarted(generation))
         }
-        var storageFailure: Exception? = null
         fun reconcileTerritory() {
             if(storageFailed)return
             val session=durableState?.session ?: simulation.exportState()
@@ -1542,7 +1543,11 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             state = state.copy(revision = state.revision + 1,
                 acceptedCommands = state.acceptedCommands + if (command == WorldCommand.Probe) 1 else 0, session = simulation.snapshot(), navigators = navigation?.snapshot(simulation.snapshot().generation).orEmpty(),
                 planetStocks = production?.snapshot(simulation.snapshot().generation))
-            publish(state)
+            try { publish(state) }
+            catch (failure: java.io.IOException) {
+                storageFailure = failure
+                storageFailed = true
+            }
             if (command is WorldCommand.Join && admission != null) command.result.complete(admission)
             if (command is WorldCommand.RequestRestart) command.result.complete(restartResult == true)
             events.forEach(onEvent)

@@ -154,6 +154,30 @@ class SessionEndingLobbyWireTest {
         }
     }
 
+    @Test fun fameStorageFailureKeepsEndedSessionAndRejectsRollover() = runBlocking {
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false).use { f ->
+            f.join(f.account(0), true, false).client.close()
+            f.engine.submit(WorldCommand.AdvanceTo(0))
+            f.await("world ready") { f.engine.health() == EngineHealth.RUNNING }
+            // An unreadable ledger target makes result settlement fail on the real file path.
+            java.nio.file.Files.createDirectory(directory.resolve("characters.properties.fame"))
+            f.engine.submit(WorldCommand.Territory(mapOf(Power.EMPIRE to 4, Power.ALLIANCE to 4), setOf(Power.ALLIANCE)))
+            f.await("fame storage failure") {
+                f.engine.health() in setOf(EngineHealth.STORAGE_FAILED, EngineHealth.STOPPED)
+            }
+            assertEquals(EngineHealth.STORAGE_FAILED, f.engine.health())
+
+            val restarted = kotlinx.coroutines.CompletableDeferred<Boolean>()
+            f.engine.submit(WorldCommand.RequestRestart(restarted))
+            assertFalse(kotlinx.coroutines.withTimeout(5000) { restarted.await() })
+            f.engine.submit(WorldCommand.AdvanceTo(SessionRules.load().restartDelayRealMillis))
+            f.engine.submit(WorldCommand.Probe)
+            f.await("tick and probe after failed settlement") { f.engine.snapshot().acceptedCommands == 1L }
+            assertEquals(1L, f.engine.snapshot().session!!.generation)
+            assertTrue(f.engine.snapshot().result != null)
+        }
+    }
+
     @Test fun automaticNextGenerationRecreatesBothAccountsAndRestoresInitialWorldWithoutOldLocationsOrCosts()=runBlocking {
         LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,powerByIndex={if(it==1)3 else 2}).use {f->
             val old=(0..1).map {f.join(f.account(it),true,false).client.also {client->
