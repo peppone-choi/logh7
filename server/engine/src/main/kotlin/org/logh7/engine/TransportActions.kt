@@ -166,7 +166,10 @@ object TransportActions {
             else -> {
                 if(r.card !in commanders || OrganizationOffices.of(r.card,country,countries)==null)return reject(StrategyActionRejection.CARD)
                 val o=stocks.outfits[r.outfit] ?: return reject(StrategyActionRejection.AUTHORITY)
-                if(o.kind!=OutfitKind.TRANSPORT || o.commanderId!=r.characterId || o.country!=country)return reject(StrategyActionRejection.AUTHORITY)
+                val office = OrganizationalOfficePolicy(galaxy, countries)
+                if (o.kind != OutfitKind.TRANSPORT || o.commanderId != r.characterId || o.country != country ||
+                    office.holders(stocks, r.card, country).none { it.character == r.characterId && it.seat == o.id })
+                    return reject(StrategyActionRejection.AUTHORITY)
                 val position=o.positionIn(galaxy)
                 if(position.baseId==0 || position.grid!=p.grid || position.baseId!=p.baseId || p.mode !in 1..4)
                     return reject(StrategyActionRejection.LOCATION)

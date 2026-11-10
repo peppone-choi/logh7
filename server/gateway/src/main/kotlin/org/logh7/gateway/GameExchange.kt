@@ -2654,11 +2654,14 @@ class GameExchange(
                                             val canCancel=query.command==29 && heldOffice && country!=null &&
                                                 org.logh7.engine.LogisticsOfficePolicy(world.galaxy,countries)
                                                     .cards(inventory,query.character,country.value).any {it.first==query.card}
-                                            val outfit=if(query.command==65 && heldOffice && country!=null &&
+                                            val outfit=if(query.command==65 && country!=null &&
                                                 org.logh7.engine.OrganizationOffices.of(query.card,country,countries)!=null)
                                                 inventory.outfits[query.outfit]?.takeIf {
                                                     it.kind==org.logh7.engine.OutfitKind.TRANSPORT && it.country==country &&
-                                                        it.commanderId==query.character
+                                                        it.commanderId==query.character &&
+                                                        org.logh7.engine.OrganizationalOfficePolicy(world.galaxy,countries)
+                                                            .holders(inventory,query.card,country)
+                                                            .any { holder -> holder.character==query.character && holder.seat==it.id }
                                                 } else null
                                             val here=outfit?.positionIn(world.galaxy)?.baseId ?: 0
                                             val boats=outfit?.let(org.logh7.engine.TransportActions::boats) ?: 0
