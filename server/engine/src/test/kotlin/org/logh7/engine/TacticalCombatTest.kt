@@ -584,7 +584,7 @@ class TacticalCombatTest {
             val delay = ProposalActions.ABSENT_ORDER_SECONDS
             val at = (now + delay..now + delay + 2000).first { BattleDeath.dies(victim.characterId, it) == fatal }
             val mail = ProposalMail(1, victim.characterId, recipient.characterId, 40, 39, ProposalActions.RESIGNATION,
-                true, at - delay, at - delay + Proposals.LIFETIME, mcp = 40, country = victim.country)
+                true, at - delay, at - delay + Proposals.LIFETIME, mcp = 40, seat = 1, country = victim.country)
             state.players = state.players + ("victim" to victim) + ("recipient" to recipient) +
                 ("pilot" to state.players.getValue("pilot").copy(hull = FlagshipHull(89, now),
                     fire = TacticalFire(1, TacticalPendingFire(1, 2488, 89, victim.unitId, now, at))))
