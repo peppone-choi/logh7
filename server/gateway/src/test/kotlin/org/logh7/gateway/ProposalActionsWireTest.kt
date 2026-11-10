@@ -217,9 +217,9 @@ class ProposalActionsWireTest {
         val proposals = if (appointment) {
             val role = checkNotNull(OrganizationOffices.of(44))
             state.stocks = state.stocks.copy(strategic = state.stocks.strategic.copy(
-                offices = listOf(OfficeHolding(checkNotNull(role.authority), 1049, 10001)),
+                offices = listOf(OfficeHolding(19, 1049, 10000), OfficeHolding(checkNotNull(role.authority), 1049, 10001)),
                 people = mapOf(10000 to StrategicPerson(rank = 5), 10001 to StrategicPerson(rank = 2))))
-            Proposals.open(ProposalState(), 1, 10000, 10001, 17, checkNotNull(role.authority),
+            Proposals.open(ProposalState(), 1, 10000, 10001, 19, checkNotNull(role.authority),
                 ProposalActions.APPOINTMENT, order = false, now = now, pcp = 0, mcp = 80, country = CountryId(2),
                 target = 10000, targetCard = 44, seat = 1).first
         } else Proposals.open(ProposalState(), 1, 10000, 10001, 39, 43, ProposalActions.RESIGNATION,
