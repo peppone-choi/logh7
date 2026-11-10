@@ -9,6 +9,11 @@ import kotlin.math.*
 internal object TacticalCommandOperations {
     private data class Ship(val outfit:OutfitStock,val unit:ActiveShipUnit)
     private fun ship(id:Int,s:PlanetStocks)=s.outfits.values.mapNotNull {o->o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)}}.singleOrNull()
+    private fun airTarget(id: Int, grid: Int, camp: Camp, stocks: PlanetStocks, galaxy: Galaxy,
+        players: Map<String, Navigator>, eliminated: Set<CountryId>) =
+        TacticalCombat.target(id, grid, camp, stocks, galaxy, players)?.takeUnless { target ->
+            target.personal?.second?.country in eliminated || target.regular?.first?.country in eliminated
+        }
     fun baseCommander(base:GalaxyBase,owner:PlanetStock,s:PlanetStocks,g:Galaxy):Int {
         val country=owner.country ?: return 0
         if(base.kind!=1)return GroundCommandAuthority.garrison(base.id,s,g)
@@ -195,7 +200,7 @@ internal object TacticalCommandOperations {
                 }
                 if(c.kind==1) {
                     val camp=TacticalAuthority.camp(p,s)
-                    if(TacticalCombat.target(c.target,p.grid,camp,s,g,players)==null)return NavigationRejection.TARGET
+                    if(airTarget(c.target,p.grid,camp,s,g,players,eliminated)==null)return NavigationRejection.TARGET
                     val target=pose(c.target,p.grid,now,players,s,g)?.position ?: return NavigationRejection.TARGET
                     for(id in c.units) {
                         val at=pose(id,p.grid,now,players,s,g)?.position ?: return NavigationRejection.TARGET
@@ -492,7 +497,7 @@ internal object TacticalCommandOperations {
             val invalid=stocks.tacticalCommands.air.values.filter {wing->
                 val commander=wingCommander(wing)
                 commander==null || wing.mode==1 &&
-                    TacticalCombat.target(wing.target,wing.grid,TacticalAuthority.camp(commander,stocks),stocks,g,players)==null
+                    airTarget(wing.target,wing.grid,TacticalAuthority.camp(commander,stocks),stocks,g,players,session.eliminated.keys)==null
             }
             for(wing in invalid)removeWing(wing.source)
             for(id in stocks.tacticalCommands.air.keys.sorted()) {
@@ -506,7 +511,7 @@ internal object TacticalCommandOperations {
                         wingCommander(other)?.let {TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(p,stocks)}==true && other.target==(wing.target.takeIf {it>0} ?: id)}
                     for(enemy in hostiles.keys)removeWing(enemy)
                 } else {
-                    val victim=TacticalCombat.target(wing.target,wing.grid,TacticalAuthority.camp(p,stocks),stocks,g,players)
+                    val victim=airTarget(wing.target,wing.grid,TacticalAuthority.camp(p,stocks),stocks,g,players,session.eliminated.keys)
                     val target=pose(wing.target,wing.grid,now,players,stocks,g)
                     if(victim==null || target==null) {removeWing(id);continue}
                     if(hypot((at.position.x-target.position.x).toDouble(),(at.position.y-target.position.y).toDouble())<=8.0) {

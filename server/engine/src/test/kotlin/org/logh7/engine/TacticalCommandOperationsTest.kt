@@ -280,6 +280,62 @@ class TacticalCommandOperationsTest {
         val hits=mutableListOf<TacticalImpact>();settle(r,now+5,impacts=hits)
         assertEquals(90,s.stocks.outfits.getValue(1).supplies);assertTrue(hits.single().airBattle)
     }
+    @Test fun antiShipLaunchRejectsOrCancelsAnEliminatedTargetWhileOtherEnemiesRemain() {
+        val enemy = Power.ALLIANCE.country
+        val third = CountryId(42)
+        val ongoing = session.copy(countries = setOf(Power.EMPIRE.country, enemy, third))
+        val command = request(TacticalCommand(0x40e, listOf(1), kind = 0, target = 99))
+        fun defeated(at: Long) = ongoing.copy(gameMillis = at * 1000,
+            eliminated = mapOf(enemy to CountryDefeat(EndReason.SYSTEMS_REDUCED, at)))
+
+        for (phase in listOf("admission", "launch", "deployed")) {
+            val s = state()
+            s.players = s.players + ("third" to s.players.getValue("ally").copy(
+                characterId = 10002, country = third, motion = motion(200f),
+            ))
+            val targetOutfit = s.stocks.outfits.getValue(2)
+            val target = targetOutfit.activeShips!!.values.single()
+            val moving = target.copy(tactical = target.tactical!!.copy(
+                motion = motion(0f, 1.5f).copy(velocity = .5f, waypoints = listOf(TacticalPoint(0f, 40f))),
+            ))
+            s.stocks = s.stocks.copy(outfits = s.stocks.outfits +
+                (targetOutfit.id to targetOutfit.copy(activeShips = ActiveShipUnits(listOf(moving)))))
+            val r = run(s)
+            val admitted = TacticalCommandOperations.accept(command, if (phase == "admission") defeated(now) else ongoing,
+                galaxy, r.navigation, r.production, r.production.snapshot(1)!!, s.commit, 1)
+            if (phase == "admission") {
+                assertEquals(NavigationRejection.TARGET, admitted.rejection)
+                assertEquals(100, s.stocks.outfits.getValue(1).supplies)
+                assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
+                continue
+            }
+            assertNotNull(admitted.player, phase)
+            val at = if (phase == "deployed") {
+                val hits = TacticalCombat.settle(ongoing.copy(gameMillis = (now + 5) * 1000), galaxy,
+                    r.navigation, r.production, s.commit, scale = 1)
+                assertTrue(hits.any { it.airBattle })
+                assertEquals(.25f, s.stocks.outfits.getValue(2).activeShips!!.values.single().tactical!!.motion.velocity)
+                s.stocks.tacticalCommands.air.getValue(1).nextAt
+            } else now + 5
+            val before = s.stocks.outfits.getValue(2).activeShips!!.values.single()
+            val restored = run(s)
+            val events = mutableListOf<TacticalCommandResult>()
+            val hits = TacticalCombat.settle(defeated(at), galaxy, restored.navigation, restored.production,
+                s.commit, scale = 1, onCommand = events::add)
+            assertTrue(hits.none { it.airBattle }, phase)
+            assertTrue(s.stocks.tacticalCommands.air.isEmpty(), phase)
+            assertTrue(s.stocks.tacticalCommands.orders.isEmpty(), phase)
+            assertEquals(if (phase == "deployed") 90 else 100, s.stocks.outfits.getValue(1).supplies, phase)
+            val after = s.stocks.outfits.getValue(2).activeShips!!.values.single()
+            assertEquals(before.boats, after.boats, phase)
+            assertEquals(before.damaged, after.damaged, phase)
+            // Defeat stops movement independently of the wing; removing it must not restart the route.
+            assertEquals(0f, after.tactical!!.motion.velocity, phase)
+            if (phase == "launch") assertTrue(events.single().cancelled)
+            else assertTrue(events.none { it.motions[99]?.velocity?.let { speed -> speed > 0f } == true })
+        }
+    }
+
     @Test fun antiShipLaunchRequiresContactThroughTheEndOfTheLaunchDelay() {
         val world=Galaxy(galaxy.systems.map {it.copy(star=0)},galaxy.bases.map {it.copy(radius=25f)},galaxy.starts)
         for(keepContact in listOf(false,true)) {
