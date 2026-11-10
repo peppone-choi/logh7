@@ -23,6 +23,25 @@ data class SupplementResult(val player: Navigator?,val stocks: PlanetStocks?,val
  */
 internal object Supplement {
     const val COST=160
+
+    data class CrewTransfer(val onboard:Map<UnitStack,Int>,val reserve:Map<UnitStack,Int>,
+        val moved:Map<UnitStack,Int>,val available:Long,val shortfall:Long)
+
+    fun transferCrew(outfit:OutfitStock,warehouse:OutfitWarehouse,required:Long):CrewTransfer {
+        val crewKinds=UnitSpecifications.crews.filter {it.power==outfit.shipStyle.nativePower && it.type==3}.map {it.kind}.toSet()
+        val current=outfit.units.troops.filterKeys {it.kind in crewKinds}.values.sumOf {it.toLong()}
+        var needed=maxOf(0L,required-current)
+        val moved=linkedMapOf<UnitStack,Int>()
+        val troopStock=warehouse.units.troops.toMutableMap();val troops=outfit.units.troops.toMutableMap()
+        for((stack,count) in warehouse.units.troops.entries.filter {it.key.kind in crewKinds}.sortedBy {it.key.level}) {
+            val amount=minOf(needed,count.toLong()).toInt();if(amount==0)continue
+            moved[stack]=amount;needed-=amount
+            if(count==amount)troopStock.remove(stack) else troopStock[stack]=count-amount
+            troops[stack]=Math.addExact(troops[stack] ?: 0,amount)
+        }
+        return CrewTransfer(troops,troopStock,moved,current+moved.values.sumOf {it.toLong()},needed)
+    }
+
     fun evaluate(r: SupplementRequest,s: SessionState,p: Navigator?,stocks: PlanetStocks): SupplementResult {
         fun reject(reason: LogisticsRejection)=SupplementResult(p,stocks,reason)
         val member=s.participants[r.account]
@@ -61,31 +80,21 @@ internal object Supplement {
             // Full-unit crew count scaled to surviving boats, rounded up per unit.
             (unit.boats.toLong()*spec.number("必要乗組員ユニット数:必要乗組員ユニット数")+spec.number-1)/spec.number
         })
-        val crewKinds=UnitSpecifications.crews.filter {it.power==outfit.shipStyle.nativePower && it.type==3}.map {it.kind}.toSet()
-        val current=outfit.units.troops.filterKeys {it.kind in crewKinds}.values.sumOf {it.toLong()}
-        var needed=maxOf(0L,required-current)
-        val moved=linkedMapOf<UnitStack,Int>()
-        val troopStock=warehouse.units.troops.toMutableMap();val troops=outfit.units.troops.toMutableMap()
-        for((stack,count) in warehouse.units.troops.entries.filter {it.key.kind in crewKinds}.sortedBy {it.key.level}) {
-            val amount=minOf(needed,count.toLong()).toInt();if(amount==0)continue
-            moved[stack]=amount;needed-=amount
-            if(count==amount)troopStock.remove(stack) else troopStock[stack]=count-amount
-            troops[stack]=Math.addExact(troops[stack] ?: 0,amount)
-        }
-        if(required>0 && current+moved.values.sumOf {it.toLong()}==0L) return reject(LogisticsRejection.CREW)
+        val crew=transferCrew(outfit,warehouse,required.toLong())
+        if(required>0 && crew.available==0L) return reject(LogisticsRejection.CREW)
         val cargo=outfit.supplies.toLong()+r.supplies;val stockCargo=warehouse.supplies.toLong()-r.supplies
         if(cargo !in 0..OutfitSupplies.capacity(outfit.copy(activeShips=ActiveShipUnits(restored))).toLong() || stockCargo !in 0..Int.MAX_VALUE.toLong())
             return reject(LogisticsRejection.STOCK)
         val nextOutfit=outfit.copy(activeShips=ActiveShipUnits(restored),
-            units=UnitInventory(outfit.units.ships,troops),supplies=cargo.toInt())
-        warehouse=warehouse.copy(units=UnitInventory(warehouse.units.ships,troopStock),supplies=stockCargo.toInt())
+            units=UnitInventory(outfit.units.ships,crew.onboard),supplies=cargo.toInt())
+        warehouse=warehouse.copy(units=UnitInventory(warehouse.units.ships,crew.reserve),supplies=stockCargo.toInt())
         val next=stocks.copy(outfits=stocks.outfits+(outfit.id to nextOutfit),warehouses=stocks.warehouses+(warehouse.id to warehouse))
         val changed=next!=stocks
         if(r.mode==0 || !changed)return SupplementResult(p,if(r.mode==0)next else stocks,
-            troops=moved,supplies=r.supplies,maxCrew=required)
+            troops=crew.moved,supplies=r.supplies,maxCrew=required)
         val payment=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),COST.toLong(),CpPool.MCP)
         if(payment !is PaymentResult.Paid)return reject(LogisticsRejection.CP)
         return SupplementResult(p.paidWith(payment.balance),
-            next,changed=true,troops=moved,supplies=r.supplies,maxCrew=required)
+            next,changed=true,troops=crew.moved,supplies=r.supplies,maxCrew=required)
     }
 }

@@ -248,9 +248,6 @@ internal object NpcStrategy {
             if (warehouse.units.ships.isEmpty() && warehouse.spareShips.values.isEmpty() ||
                 warehouseBlocked(stocks, outfit.id)) return outfit
             val ships = checkNotNull(outfit.activeShips)
-            val crewKinds = UnitSpecifications.crews.filter { it.power == outfit.shipStyle.nativePower && it.type == 3 }
-                .map { it.kind }.toSet()
-            val onboardCrew = outfit.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
             for (unit in ships.values) {
                 if (unit.boats == 0) continue
                 val (remaining, restored) = try {
@@ -260,9 +257,17 @@ internal object NpcStrategy {
                 }
                 if (restored == unit) continue
                 val replacement = outfit.copy(activeShips = ActiveShipUnits(ships.values.map { if (it.id == unit.id) restored else it }))
-                if (ReplacementBoats.crewRequired(replacement) > onboardCrew || !canDepart(stocks, replacement, galaxy)) continue
-                stocks = stocks.copy(warehouses = stocks.warehouses + (warehouse.id to remaining))
-                return replacement
+                if (!canDepart(stocks, replacement, galaxy)) continue
+                val crew = Supplement.transferCrew(outfit, remaining, ReplacementBoats.crewRequired(replacement))
+                if (crew.shortfall > 0) continue
+                val units = try {
+                    UnitInventory(replacement.units.ships, crew.onboard, replacement.units.work)
+                } catch (_: IllegalArgumentException) {
+                    continue
+                }
+                val replenishedWarehouse = remaining.copy(units = UnitInventory(remaining.units.ships, crew.reserve, remaining.units.work))
+                stocks = stocks.copy(warehouses = stocks.warehouses + (warehouse.id to replenishedWarehouse))
+                return replacement.copy(units = units)
             }
             return outfit
         }

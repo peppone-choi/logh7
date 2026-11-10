@@ -739,10 +739,28 @@ class NpcStrategyTest {
         assertEquals(equipped.activeShips, skipped.outfits.getValue(1).activeShips)
         assertEquals(readyWarehouse, skipped.warehouses.getValue(10))
 
-        val locked = NpcStrategy.advance(simulation.copy(gameMillis = 0), galaxy, mutableMapOf(), before,
+        val veteran = UnitStack(crewKind,1)
+        val required = ReplacementBoats.crewRequired(full).toInt()
+        val reserve = readyWarehouse.copy(units = UnitInventory(troops = mapOf(crew to required - 1, veteran to 2)))
+        val crewReady = uncrewed.copy(warehouses = mapOf(10 to reserve))
+        val replenished = advance(0, crewReady, mutableMapOf(), mutableListOf())
+        assertEquals(ship, replenished.outfits.getValue(1).activeShips!!.values.single())
+        assertEquals(full.units.troops + mapOf(crew to required - 1, veteran to 1), replenished.outfits.getValue(1).units.troops)
+        assertEquals(mapOf(veteran to 1), replenished.warehouses.getValue(10).units.troops)
+        assertTrue(replenished.warehouses.getValue(10).spareShips.values.isEmpty())
+        assertEquals(crewReady.bases, replenished.bases)
+        assertEquals(replenished, advance(1, replenished, mutableMapOf(), mutableListOf()))
+
+        val insufficient = reserve.copy(units = UnitInventory(troops = mapOf(crew to required - 1)))
+        val rejected = advance(0, crewReady.copy(warehouses = mapOf(10 to insufficient)), mutableMapOf(), mutableListOf())
+        assertEquals(equipped.activeShips, rejected.outfits.getValue(1).activeShips)
+        assertEquals(full.units, rejected.outfits.getValue(1).units)
+        assertEquals(insufficient, rejected.warehouses.getValue(10))
+
+        val locked = NpcStrategy.advance(simulation.copy(gameMillis = 0), galaxy, mutableMapOf(), crewReady,
             mutableListOf(), warehouseBlocked = { _, outfitId -> outfitId == equipped.id })
         assertEquals(equipped.activeShips, locked.outfits.getValue(1).activeShips)
-        assertEquals(readyWarehouse, locked.warehouses.getValue(10))
+        assertEquals(reserve, locked.warehouses.getValue(10))
     }
 
     @Test fun depotRepairSkipsGuardShipsAndHumanCommandedOutfits() {
