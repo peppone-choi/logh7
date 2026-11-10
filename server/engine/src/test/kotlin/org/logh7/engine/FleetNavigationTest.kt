@@ -581,6 +581,39 @@ class FleetNavigationTest {
             assertEquals(before,state.players.getValue("aide"))
         }
     }
+
+    @Test fun oldFleetOfficesDoNotLetDeceasedCrewMoveOrBlockLivingCrew() {
+        val state = state(); addAide(state)
+        val captain = state.players.getValue("pilot")
+        val livingAide = state.players.getValue("aide")
+        val now = session.gameMillis / 1000
+        val death = StrategicPerson(deceasedAt = maxOf(1, now))
+        val deceasedAide = livingAide.copy(characterId = 10002, cruise = 0,
+            hull = FlagshipHull(93, now, woundedUntil = now + Justice.DAY))
+        state.players = state.players + ("deceased" to deceasedAide)
+        val fleet = state.stocks.outfits.getValue(1).copy(staff = FleetStaff(deputy = deceasedAide.characterId))
+        state.stocks = state.stocks.copy(outfits = mapOf(fleet.id to fleet), strategic = state.stocks.strategic.copy(
+            people = mapOf(deceasedAide.characterId to death)))
+
+        assertNull(apply(state, request.copy(place = PlaceMove.SwitchMode(5))).single().rejection)
+        assertNull(apply(state, request.copy(destination = 2488)).single().rejection)
+        assertEquals(OutfitPosition(2488), state.stocks.outfits.getValue(fleet.id).position)
+        assertEquals(2488, state.players.getValue("pilot").grid)
+        assertEquals(captain.mcp - 40, state.players.getValue("pilot").mcp)
+        assertEquals(2488, state.players.getValue("aide").grid)
+        assertEquals(livingAide.cruise - 100, state.players.getValue("aide").cruise)
+        assertEquals(livingAide.mcp, state.players.getValue("aide").mcp)
+        assertEquals(deceasedAide, state.players.getValue("deceased"))
+
+        val arrived = state.players
+        val committed = state.stocks.copy(strategic = state.stocks.strategic.copy(people = state.stocks.strategic.people +
+            (captain.characterId to death)))
+        state.stocks = committed
+        assertEquals(NavigationRejection.IDENTITY, apply(state, request.copy(destination = 2487)).single().rejection)
+        assertEquals(arrived, state.players)
+        assertEquals(committed, state.stocks)
+    }
+
     @Test fun oldForeignOfficeDoesNotPreventAnAideFromFollowingTheirCurrentFleet() {
         val state = state(); addAide(state)
         state.stocks = state.stocks.copy(outfits = state.stocks.outfits +

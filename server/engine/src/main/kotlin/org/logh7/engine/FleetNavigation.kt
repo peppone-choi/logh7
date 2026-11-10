@@ -86,6 +86,7 @@ internal object FleetNavigation {
             account != request.account && player.country == before.country && player.characterId in outfit.members() &&
                 TacticalAuthority.camp(player,stocks) == camp &&
                 player.grid == before.grid && player.baseId == before.baseId && player.mode in 4..5 &&
+                !BattleDeath.deceased(stocks,player.characterId) &&
                 !stocks.social.justice.detained(player.characterId) &&
                 stocks.outfits.values.count {
                     it.country == player.country && player.characterId in it.members() && TacticalAuthority.camp(it,stocks) == camp
