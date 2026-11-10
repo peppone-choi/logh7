@@ -529,19 +529,33 @@ class FleetNavigationTest {
         }
     }
 
-    @Test fun fleetWarpClearsPreviousTacticalPostureForCaptainAndFollowerOnlyOnMovement() {
+    @Test fun fleetWarpClearsPreviousTacticalPostureForCaptainFollowerAndShipsOnlyOnMovement() {
         val state = state()
         addAide(state)
+        val destination = state.stocks.bases.getValue(enemy.id).copy(owner = Allegiance.Country(Power.ALLIANCE.country))
+        state.stocks = ActiveShips.initialize(state.stocks.copy(bases = state.stocks.bases + (destination.baseId to destination)))
         assertNull(apply(state, request.copy(place = PlaceMove.SwitchMode(5))).single().rejection)
         val anchored = TacticalPosture(home.grid, TacticalShipMode.ANCHORED, home.id)
         state.players = state.players.mapValues { (_, player) -> player.copy(posture = anchored) }
+        val fleet = state.stocks.outfits.getValue(1)
+        val ships = assertNotNull(fleet.activeShips).values
+        state.stocks = state.stocks.copy(outfits = state.stocks.outfits +
+            (fleet.id to fleet.copy(activeShips = ActiveShipUnits(ships.map { it.copy(posture = anchored) }))))
+        fun shipsPosture() = assertNotNull(state.stocks.outfits.getValue(fleet.id).activeShips).values.map { it.posture }
         val warp = request.copy(destination = enemy.grid)
 
+        assertNull(apply(state, request).single().rejection)
+        assertEquals(List(ships.size) { anchored }, shipsPosture())
         assertEquals(NavigationRejection.BUSY, apply(state, warp, blocked = true).single().rejection)
         assertTrue(state.players.values.all { it.grid == home.grid && it.posture == anchored })
+        assertEquals(List(ships.size) { anchored }, shipsPosture())
         assertNull(apply(state, warp).single().rejection)
         assertTrue(state.players.values.all { it.grid == enemy.grid && it.posture == null })
         assertEquals(OutfitPosition(enemy.grid), state.stocks.outfits.getValue(1).position)
+        assertEquals(List(ships.size) { null }, shipsPosture())
+        assertNull(apply(state, request.copy(destination = home.grid)).single().rejection)
+        assertEquals(OutfitPosition(home.grid), state.stocks.outfits.getValue(1).position)
+        assertEquals(List(ships.size) { null }, shipsPosture())
     }
 
     @Test fun offlineAideFollowsDepartureWarpAndReloadWithoutPayingTheCommandersCp() {
