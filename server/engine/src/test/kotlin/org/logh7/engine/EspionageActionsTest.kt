@@ -15,9 +15,9 @@ class EspionageActionsTest {
     private val accounts=mapOf("a" to a)
     private fun stocks()=policy.set(PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300,
         economy=PlanetEconomy(1000,500,60,60)))),OfficeHolding(58,1049,10000))
-    private fun act(command:Int,base:Int=0,s:PlanetStocks=stocks(),p:Navigator=a):SocialResult=
+    private fun act(command:Int,base:Int=0,s:PlanetStocks=stocks(),p:Navigator=a,at:SessionState=session):SocialResult=
         SocialActions.evaluate(galaxy,SocialRequest(StrategyActionRequest("a","a",10000,Power.EMPIRE,1,command,58,9,base=base)),
-            session,p,s,accounts.values,mapOf("a" to p))
+            at,p,s,accounts.values,mapOf("a" to p))
 
     @Test fun anInfiltrationEntersTheSpotOrIsCaughtAndDetained() {
         val spot=galaxy.facilitiesAt(1049).flatMap {it.spots}.first {it.id!=10490001}.id
@@ -35,6 +35,29 @@ class EspionageActionsTest {
         val exploded=EspionageActions.settle(galaxy,session.copy(gameMillis=200_000),players,armed)
         assertTrue(exploded.social.justice.bombs.isEmpty())
         assertTrue(EspionageActions.disabled(exploded,1049,100+6*86400L));assertFalse(EspionageActions.disabled(exploded,1049,100+7*86400L))
+    }
+    @Test fun sabotageOnlyArmsBombsAtStrategicFacilities() {
+        val facilities = galaxy.facilitiesAt(1049, stocks())
+        for (kind in listOf(0, 10, 15)) {
+            val spot = facilities.single { it.kind == kind }.spots.first { it.id != a.spotId }.id
+            val seconds = (1L..100L).first { EspionageActions.roll(a.characterId, spot, it) < EspionageActions.threshold(50, 1) }
+            val at = session.copy(gameMillis = seconds * 1000)
+            val infiltration = act(EspionageActions.INFILTRATE, base = spot, at = at)
+            val infiltrator = assertNotNull(infiltration.player)
+            val entered = assertNotNull(infiltration.stocks)
+            assertEquals(1, infiltration.outcome)
+
+            val result = act(EspionageActions.SABOTAGE, s = entered, p = infiltrator, at = at)
+            if (kind == 15) {
+                assertEquals(SocialRejection.TARGET, result.rejection)
+                assertEquals(infiltrator, result.player)
+                assertEquals(entered, result.stocks)
+            } else {
+                assertNull(result.rejection)
+                assertEquals(infiltrator.mcp - 160, result.player?.mcp)
+                assertEquals(spot, assertNotNull(result.stocks).social.justice.bombs.getValue(a.characterId).spot)
+            }
+        }
     }
     @Test fun agitationNeedsAnotherSidesBase() {
         assertEquals(SocialRejection.TARGET,act(EspionageActions.AGITATE).rejection,"own base")
