@@ -9,6 +9,14 @@ import org.logh7.engine.*
 import kotlin.test.*
 
 class TacticalCommandStateStoreTest {
+
+    @Test fun entryAssignmentRoundTripsAlongsideLegacyExplicitAuthority() {
+        val legacy = TacticalCommandState(authority = mapOf(8 to 10000))
+        val assignment = legacy.copy(entryAuthority = (9..1028).associateWith { 10001 })
+        assertEquals(legacy, TacticalCommandStateCodec.decode(TacticalCommandStateCodec.encode(legacy)))
+        assertEquals(assignment, TacticalCommandStateCodec.decode(TacticalCommandStateCodec.encode(assignment)))
+    }
+
     @TempDir lateinit var directory:Path
     @Test fun emergencySupplyRetainsAnActualCountryIdAcrossWorldReload() {
         val command=TacticalCommandState(emergencySupplies=mapOf(1000 to 42))

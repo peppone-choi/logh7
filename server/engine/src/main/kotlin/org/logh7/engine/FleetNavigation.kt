@@ -46,7 +46,10 @@ internal object FleetNavigation {
             else updated
             val assigned=if(startingFleet!=null && result.rejection==null)withPerson.copy(outfits=withPerson.outfits+
                 (startingFleet.id to checkNotNull(startingRole).assign(startingFleet,after.characterId))) else withPerson
-            val prepared=production.prepareReplacement(stocks,assigned)
+            val withAuthority=TacticalEntryAssignment.settle(session,galaxy,players,next,assigned) {
+                production.identities?.invoke().orEmpty()
+            }
+            val prepared=production.prepareReplacement(stocks,withAuthority)
             committer.saveWorld(next,prepared)
             navigation.publishCommitted(players,next,session.generation);production.publishCommitted(stocks,prepared)
             return result
@@ -56,14 +59,23 @@ internal object FleetNavigation {
                 saved!=null && stocks.civic.active.any {it.character==saved.characterId}
             val hasSpotActivity=request.place!=null && (saved?.characterId in stocks.social.academy.lectures ||
                 saved?.characterId in stocks.social.justice.infiltrations)
-            if(!needsSharedCommit && !hasSpotActivity)
+            if(committer==null && !needsSharedCommit && !hasSpotActivity)
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
             val preview=navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip,
                 initialDock=startingFleet?.positionIn(galaxy))
             val inventory=preview.player?.let { endDepartedActivities(stocks, saved, it) } ?: stocks
-            if(!needsSharedCommit && inventory === stocks)
+            val after=preview.player
+            val entryChanged=after!=null && (saved?.cpPaused!=after.cpPaused || saved.grid!=after.grid ||
+                saved.characterId!=after.characterId) &&
+                (saved?.cpPaused==true || after.cpPaused)
+            val withAuthority=if(entryChanged && !needsSharedCommit)
+                TacticalEntryAssignment.settle(session,galaxy,players,players+(request.account to after),inventory) {
+                    production.identities?.invoke().orEmpty()
+                }
+            else inventory
+            if(!needsSharedCommit && withAuthority === stocks)
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
-            return commitPersonal(preview,inventory)
+            return commitPersonal(preview,withAuthority)
         }
         // Personal flagship retreat must not transport the commander's unimplemented fleet/CRC selection.
         if (request.tacticalRetreat != null || before?.retreat != null)
@@ -155,7 +167,10 @@ internal object FleetNavigation {
             endDepartedActivities(inventory, followers.getValue(account), follower)
         }
         val settled=CivicActions.settle(galaxy,departed,session.gameMillis/1000,next.values)
-        val prepared = production.prepareReplacement(stocks,configured(settled,after))
+        val withAuthority=TacticalEntryAssignment.settle(session,galaxy,players,next,configured(settled,after)) {
+            production.identities?.invoke().orEmpty()
+        }
+        val prepared = production.prepareReplacement(stocks,withAuthority)
         committer.saveWorld(next, prepared)
         navigation.publishCommitted(players, next, session.generation)
         production.publishCommitted(stocks, prepared)

@@ -81,6 +81,66 @@ class TacticalCommandOperationsTest {
         assertEquals(15,s.stocks.tacticalCommands.morale[1])
     }
 
+    @Test fun tacticalEntryAssignsShipAndGroundCommandToOnlineSameOutfitMember() {
+        val state = state()
+        val old = state.players.getValue("ally")
+        state.players = state.players + ("ally" to old.copy(cpPaused = false, motion = null, commandRange = null))
+        val ground = ActiveGroundUnits(listOf(ActiveGroundUnit(3, UnitStack(0), base = 1000, origin = 1)))
+        val outfit = state.stocks.outfits.getValue(1).let {
+            it.copy(aideId = 10001, activeGround = ground, units = UnitInventory(it.units.ships, ground.quantities()))
+        }
+        val explicit = mapOf(2 to 10000)
+        state.stocks = state.stocks.copy(outfits = state.stocks.outfits + (1 to outfit),
+            tacticalCommands = TacticalCommandState(authority = explicit),
+            strategic = state.stocks.strategic.copy(people = mapOf(10000 to StrategicPerson(rank = 1),
+                10001 to StrategicPerson(rank = 10))))
+        val offlineCommander = session.copy(participants = session.participants +
+            ("pilot" to session.participants.getValue("pilot").copy(online = false, connection = null)))
+        val world = run(state)
+        val request = NavigationRequest("ally", 10001, Power.EMPIRE, "two", 1, captainCard = 59, shipKind = 0)
+        assertTrue(assertNotNull(FleetNavigation.apply(request, offlineCommander, galaxy, world.navigation,
+            world.production, world.production.snapshot(1)!!, state.commit) { false }.player).cpPaused)
+        assertEquals(mapOf(1 to 10001, 3 to 10001), state.stocks.tacticalCommands.entryAuthority)
+        assertEquals(explicit, state.stocks.tacticalCommands.authority)
+        assertEquals(10001, TacticalAuthority.commander(outfit, outfit.activeShips!!.values.first(), state.stocks))
+        assertEquals(10000, TacticalAuthority.commander(outfit, outfit.activeShips.values.last(), state.stocks))
+        assertEquals(10001, GroundCommandAuthority.commander(outfit, ground.values.single(), state.stocks, galaxy))
+        val explicitGround = state.stocks.copy(tacticalCommands = state.stocks.tacticalCommands.copy(
+            authority = explicit + (3 to 10000)))
+        assertEquals(10000, GroundCommandAuthority.commander(outfit, ground.values.single(), explicitGround, galaxy))
+
+        val sameField = state.players
+        assertSame(state.stocks, TacticalEntryAssignment.settle(session, galaxy, sameField, sameField,
+            state.stocks) { error("Ranks must not be read again without an entry") })
+        val left = sameField.getValue("ally").copy(cpPaused = false, charge = null, motion = null, commandRange = null)
+        val departed = TacticalEntryAssignment.settle(session, galaxy, sameField, sameField + ("ally" to left),
+            state.stocks) { emptyList() }
+        assertTrue(departed.tacticalCommands.entryAuthority.isEmpty())
+        assertEquals(explicit, departed.tacticalCommands.authority)
+    }
+
+    @Test fun tacticalEntryAssignsEveryUnitInAWorldWithMoreThanOneThousandUnits() {
+        val state = state()
+        val count = 17
+        val size = 60
+        val pilot = state.players.getValue("pilot")
+        val outfits = (1..count).associateWith { fleet ->
+            val ships = ActiveShipUnits((1..size).map { slot -> ActiveShipUnit((fleet - 1) * size + slot, UnitStack(64)) })
+            OutfitStock(fleet, 2, OutfitKind.FLEET, 1000, fleet, pilot.characterId + fleet,
+                UnitInventory(ships.quantities()), number = fleet, activeShips = ships, position = OutfitPosition(pilot.grid))
+        }
+        val warehouses = outfits.mapValues { (id, _) -> OutfitWarehouse(id, 2, OutfitKind.FLEET, 1000, id) }
+        val stocks = state.stocks.copy(outfits = outfits, warehouses = warehouses, nextShipId = count * size + 1)
+        val entering = outfits.map { (fleet, outfit) ->
+            "pilot-$fleet" to pilot.copy(characterId = outfit.commanderId)
+        }.toMap()
+        val assigned = TacticalEntryAssignment.settle(session, galaxy, emptyMap(), entering, stocks) { emptyList() }
+        val expected = outfits.values.flatMap { outfit ->
+            outfit.activeShips!!.values.map { it.id to outfit.commanderId }
+        }.toMap()
+        assertEquals(expected, assigned.tacticalCommands.entryAuthority)
+    }
+
     @Test fun commandReassignmentRequiresSameOutfitAtAcceptanceAndCompletion() {
         for (opcode in listOf(0x40b,0x420)) {
             val s=state()
@@ -90,12 +150,14 @@ class TacticalCommandOperationsTest {
             assertTrue(s.stocks.tacticalCommands.orders.isEmpty())
 
             val outfit=s.stocks.outfits.getValue(1)
-            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(aideId=10001)))
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(aideId=10001)),
+                tacticalCommands=s.stocks.tacticalCommands.copy(entryAuthority=mapOf(1 to 10000)))
             val ready=assertNotNull(accept(run(s),order,"ally").commandReadyAt)
             val events=mutableListOf<TacticalCommandResult>()
             settle(run(s),ready,events)
             assertFalse(events.single().cancelled)
             assertEquals(10001,s.stocks.tacticalCommands.authority[1])
+            assertNull(s.stocks.tacticalCommands.entryAuthority[1])
 
             val nextOrder=order.copy(units=listOf(2))
             val nextReady=assertNotNull(accept(run(s),nextOrder,"ally").commandReadyAt)

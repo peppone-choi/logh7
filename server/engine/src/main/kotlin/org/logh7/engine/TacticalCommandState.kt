@@ -43,8 +43,12 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
     /** CD p.46 orbital attack on fortresses: armor damage taken (0..[FortressArmor.ARMOR]) and mobile fortresses whose propulsion broke. */
     val fortressDamage:Map<Int,Int> = emptyMap(),val brokenPropulsion:Set<Int> = emptySet(),
     /** Ground unit -> enemy ground unit it attacks (reconstructed 0417, design-ground-battle-window.md). */
-    val groundTargets:Map<Int,Int> = emptyMap()) {
-    companion object {internal const val MAX_GROUND_TARGETS=1000}
+    val groundTargets:Map<Int,Int> = emptyMap(),
+    val entryAuthority:Map<Int,Int> = emptyMap()) {
+    companion object {
+        internal const val MAX_GROUND_TARGETS=1000
+        const val MAX_ENTRY_AUTHORITY=999_999
+    }
     init {require(orders.size<=1000 && listOf(morale.size,authority.size,formations.size,missions.size,proposals.size,air.size,ranks.size,merits.size).all {it<=1000} &&
         morale.all {(id,v)->id>0 && v in 0..100} && authority.all {(id,v)->id in 1..999999 && v>0} &&
         formations.all {(id,v)->id>0 && v in 0..7} && missions.all {(id,v)->id==v.character} && proposals.all {(id,v)->id==v.character} &&
@@ -57,6 +61,7 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
         aiNextAt.size<=1000 && aiNextAt.all {(id,v)->id>0 && v in 0..0xffffffffL} &&
         fortressDamage.size<=350 && fortressDamage.all {(id,v)->id in 1..65535 && v in 1..FortressArmor.ARMOR} &&
         brokenPropulsion.size<=350 && brokenPropulsion.all {it in 1..65535} &&
+        entryAuthority.size<=MAX_ENTRY_AUTHORITY && entryAuthority.all {(id,holder)->id in 1..MAX_ENTRY_AUTHORITY && holder>0} &&
         groundTargets.size<=MAX_GROUND_TARGETS && groundTargets.all {(unit,target)->unit in 1..999999 && target in 1..999999 && unit!=target})}
     val empty get()=this==TacticalCommandState()
     fun confused(unit:Int)=morale[unit]?.let {it<=20}==true
@@ -76,7 +81,7 @@ data class TacticalCommandState(val orders:List<TacticalQueuedCommand> = emptyLi
             }),ranks=map(ranks),merits=map(merits),emergencySupplies=map(emergencySupplies),formationLeaders=map(formationLeaders),
             aiSwitches=map(aiSwitches),creditedMerits=map(creditedMerits),aiNextAt=map(aiNextAt),
             fortressDamage=map(fortressDamage),brokenPropulsion=java.util.Collections.unmodifiableSet(LinkedHashSet(brokenPropulsion)),
-            groundTargets=map(groundTargets))
+            groundTargets=map(groundTargets),entryAuthority=map(entryAuthority))
     }
 }
 data class TacticalCommandResult(val generation:Long,val order:TacticalQueuedCommand,val seconds:Long,
@@ -88,7 +93,11 @@ data class TacticalCommandResult(val generation:Long,val order:TacticalQueuedCom
 
 /** Tactical reassignment changes per-unit command, never the strategic personnel appointment. */
 object TacticalAuthority {
-    fun commander(outfit:OutfitStock,unit:ActiveShipUnit,stocks:PlanetStocks)=stocks.tacticalCommands.authority[unit.id] ?: outfit.commanderId
+    fun commander(outfit:OutfitStock,unit:ActiveShipUnit,stocks:PlanetStocks)=stocks.tacticalCommands.authority[unit.id] ?: entryCommander(outfit,unit.id,stocks) ?: outfit.commanderId
+    internal fun entryCommander(outfit:OutfitStock,unit:Int,stocks:PlanetStocks):Int? =
+        stocks.tacticalCommands.entryAuthority[unit]?.takeIf {it in outfit.members() &&
+            !BattleDeath.deceased(stocks,it) && !stocks.social.justice.detained(it) &&
+            CoupActions.camp(stocks,it,outfit.country)==CoupActions.outfitCamp(stocks,outfit)}
     fun uncommanded(outfit:OutfitStock,stocks:PlanetStocks)=outfit.members().isEmpty() &&
         outfit.activeShips?.values.orEmpty().none {commander(outfit,it,stocks)>0}
     fun camp(player:Navigator,stocks:PlanetStocks)=Camp.of(player,CoupActions.rebel(stocks,player.characterId,player.country))
@@ -129,6 +138,8 @@ object GroundCommandAuthority {
         return holders(setOf(56,193)) ?: holders(setOf(52,55,188,191)) ?: 0
     }
     fun commander(outfit:OutfitStock,unit:ActiveGroundUnit,stocks:PlanetStocks,galaxy:Galaxy):Int {
+        stocks.tacticalCommands.authority[unit.id]?.let {return it}
+        TacticalAuthority.entryCommander(outfit,unit.id,stocks)?.let {return it}
         if(outfit.commanderId>0)return outfit.commanderId
         if(outfit.kind!=OutfitKind.GROUND || unit.base==0 || unit.origin!=0 || outfit.baseId!=unit.base ||
             outfit.positionIn(galaxy)!=OutfitPosition(galaxy.bases.single {it.id==unit.base}.grid,unit.base))return 0

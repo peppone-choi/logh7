@@ -397,6 +397,9 @@ internal object TacticalCombat {
             if (after != player) cancelledDocking += account
             navigation.clearInvalidReturnBase(after,inventory)
         }
+        if (committer!=null) inventory=TacticalEntryAssignment.settle(session,galaxy,original,players,inventory) {
+            production.identities?.invoke().orEmpty()
+        }
         if(players==original && inventory==stocks)return emptyList()
         val prepared = production.prepareReplacement(stocks, inventory,cargoBaseline)
         val recovered = settleOfficeRecovery(stocks, prepared, players)
