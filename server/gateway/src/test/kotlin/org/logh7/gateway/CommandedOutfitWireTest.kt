@@ -68,6 +68,52 @@ class CommandedOutfitWireTest {
             assertEquals(10000,store.value.outfits.getValue(1).commanderId)
         }
     }
+    @Test fun encryptedFlagshipAffiliationUsesOnlyUnambiguousCurrentCampMembership() = runBlocking<Unit> {
+        val initial = stocks()
+        val ownFleet = initial.outfits.getValue(1)
+        val oppositeFleet = ownFleet.copy(id = 2, warehouseId = 102, commanderId = 10002, aideId = 10000, number = 2)
+        val duplicateFleet = oppositeFleet.copy(id = 3, warehouseId = 103, commanderId = 10003, number = 3)
+        val now = SessionRules.load().startSeconds
+        val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000, baseId = 1049, mode = 4)
+        val rebelBase = 1050
+        val world = Galaxy(galaxy.systems, galaxy.bases + galaxy.bases.single().copy(id = rebelBase, name = "Rebel base"), galaxy.starts)
+        val coup = CoupState(mapOf(10002 to Plot(10002, CountryId(2), now, revolt = maxOf(1L, now), bases = setOf(rebelBase))),
+            loyalty = mapOf(oppositeFleet.id to CoupActions.LOYAL))
+        for ((name, fleets, expected) in listOf(
+            Triple("opposite-only", listOf(oppositeFleet), 0),
+            Triple("mixed-camps", listOf(ownFleet, oppositeFleet), ownFleet.id),
+            Triple("ambiguous-own-camp", listOf(ownFleet, oppositeFleet, duplicateFleet), 0)
+        )) {
+            val store = object : PlanetStockStore {
+                var value = initial.copy(bases = initial.bases + (rebelBase to PlanetStock(rebelBase, 2, 1, 0, 0, 0)),
+                    outfits = fleets.associateBy { it.id },
+                    warehouses = fleets.associate { fleet ->
+                        fleet.warehouseId to OutfitWarehouse(fleet.warehouseId, fleet.country, fleet.kind, fleet.baseId, fleet.id)
+                    }, social = initial.social.copy(coup = coup))
+                override fun load() = value
+                override fun save(stocks: PlanetStocks) { value = stocks }
+            }
+            val navigation = object : NavigationStore {
+                var players = mapOf("load-000" to player)
+                override fun load() = players
+                override fun save(players: Map<String, Navigator>) { this.players = players }
+            }
+            LoadFixture(directory.resolve(name), 1, LoadMetrics(), world, ticking = false, stockStore = store,
+                navigationStore = navigation).use { fixture ->
+                val client = fixture.join(fixture.account(0), true, false).client
+                client.send(SyntheticClient.opcode(0x0f00))
+                var affiliation: Int? = null
+                for (ignored in 0..300) {
+                    val packet = ByteBuffer.wrap(client.receive())
+                    val opcode = packet.getShort(4).toInt()
+                    if (opcode == 0x0325 && packet.getInt(8) == player.unitId) affiliation = packet.getInt(19)
+                    if (opcode == 0x0f01) break
+                }
+                assertEquals(expected, affiliation, name)
+            }
+        }
+    }
+
     @Test fun missingWrongIdOrEnemyCharacterCannotBeSubstitutedForStoredCommander() {
         val world = WorldBootstrap(galaxy); val stocks=stocks()
         val query=OutfitPartyMessages.Query(1,1049,0)
