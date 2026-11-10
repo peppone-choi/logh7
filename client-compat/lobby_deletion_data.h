@@ -12,6 +12,9 @@ namespace logh {
 // Same offsets as SessionEndingData::readLobby and lobby_portrait_transport.h.
 constexpr std::size_t lobbyRowBytes=0x36c;
 constexpr std::size_t lobbyListBytes=0x6d8;
+// Only server-generated characters (id >= 10000) can be deleted; original NPC ids drawn in the
+// lottery (e.g. 1001) stay disabled. Rank/location eligibility is the server's saved judgment.
+constexpr unsigned lobbyGeneratedCharacterMin=10000;
 struct LobbyDeletionRow {
     unsigned session=0,character=0;wchar_t name[14]={};
     bool same(const LobbyDeletionRow& other) const {return session==other.session && character==other.character;}
@@ -23,11 +26,16 @@ inline bool readLobbyDeletionRow(const unsigned char* p,std::size_t length,unsig
     LobbyDeletionRow next;
     std::uint16_t session=0;std::uint32_t character=0;
     std::memcpy(&session,q+4,2);std::memcpy(&character,q+0x2a4,4);
-    if(!session || !character)return false;
+    if(!session || character<lobbyGeneratedCharacterMin)return false;
     next.session=session;next.character=character;
-    if(q[7]) {
-        std::memcpy(next.name,q+8,q[7]*2u);next.name[q[7]]=0;
-        for(unsigned i=0;i<q[7];++i)if(!next.name[i]) {next.name[0]=0;break;}
+    // The 2004 length counts the terminating NUL (same contract as readLobbySessionList). Show
+    // the name only when that last unit is NUL and none before it is; otherwise no name.
+    if(const unsigned n=q[7]) {
+        const auto name=q+8;
+        if(!name[(n-1)*2] && !name[(n-1)*2+1]) {
+            std::memcpy(next.name,name,(n-1)*2u);next.name[n-1]=0;
+            for(unsigned i=0;i+1<n;++i)if(!next.name[i]) {next.name[0]=0;break;}
+        }
     }
     row=next;return true;
 }
@@ -36,7 +44,7 @@ inline bool readLobbyDeletionRow(const unsigned char* p,std::size_t length,unsig
 constexpr unsigned lobbyDeletionMode=24;
 constexpr std::size_t lobbyDeletionBodyBytes=9;
 inline bool lobbyDeletionQuery(const LobbyDeletionRow& row,unsigned (&query)[3]) {
-    if(!row.session || row.session>0xffff || !row.character)return false;
+    if(!row.session || row.session>0xffff || row.character<lobbyGeneratedCharacterMin)return false;
     query[0]=row.character;query[1]=row.session;query[2]=lobbyDeletionMode;
     return true;
 }

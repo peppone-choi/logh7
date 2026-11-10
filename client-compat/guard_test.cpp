@@ -2562,13 +2562,39 @@ static int runGuard(int argc, wchar_t** argv) {
             chargedRow[0x2a0]=2;chargedRow[0x2a1]=1;
         };
         charge(0,0x1234,10002);charge(1,7,10005);
-        const wchar_t name[]=L"ODIN";list[7]=4;memcpy(list+8,name,8);
+        // The 2004 name length counts its terminating NUL.
+        const wchar_t name[]=L"ODIN";list[7]=5;memcpy(list+8,name,10);
         if(!logh::readLobbyDeletionRow(list,sizeof(list),0,row) || row.session!=0x1234 || row.character!=10002 ||
             wcscmp(row.name,L"ODIN"))return 1611;
         if(!logh::readLobbyDeletionRow(list,sizeof(list),1,row) || row.session!=7 || row.character!=10005 || row.name[0])return 1612;
         if(logh::readLobbyDeletionRow(list,sizeof(list),2,row) || logh::readLobbyDeletionRow(list,logh::lobbyRowBytes,1,row) ||
             logh::readLobbyDeletionRow(nullptr,sizeof(list),0,row))return 1613;
-        list[7]=14;if(logh::readLobbyDeletionRow(list,sizeof(list),0,row))return 1614;list[7]=4;
+        list[7]=14;if(logh::readLobbyDeletionRow(list,sizeof(list),0,row))return 1614;
+        // Name boundary: no final NUL or an interior NUL keeps the row but drops the name.
+        list[7]=4;if(!logh::readLobbyDeletionRow(list,sizeof(list),0,row) || row.name[0] || row.character!=10002)return 1622;
+        list[7]=1;if(!logh::readLobbyDeletionRow(list,sizeof(list),0,row) || row.name[0])return 1622;
+        list[7]=5;list[8+2]=0;list[8+3]=0;
+        if(!logh::readLobbyDeletionRow(list,sizeof(list),0,row) || row.name[0])return 1622;
+        const wchar_t longName[]=L"ABCDEFGHIJKL";list[7]=13;memcpy(list+8,longName,26);
+        if(!logh::readLobbyDeletionRow(list,sizeof(list),0,row) || wcscmp(row.name,L"ABCDEFGHIJKL"))return 1622;
+        memset(list+8,0,26);list[7]=5;memcpy(list+8,name,10);
+        // Only generated ids (>= 10000) are deletable; an original NPC id from the lottery is not.
+        auto& chargedId=*reinterpret_cast<unsigned*>(list+0x2a4);
+        const unsigned npcIds[]={1001,9999,0};
+        for(const unsigned npcId:npcIds) {
+            chargedId=npcId;
+            if(logh::readLobbyDeletionRow(list,sizeof(list),0,row))return 1621;
+            logh::LobbyDeletionRow npc;npc.session=0x1234;npc.character=npcId;unsigned npcQuery[3]={};
+            if(logh::lobbyDeletionQuery(npc,npcQuery))return 1621;
+        }
+        {
+            // A lobby holding only the drawn original character enables nothing (lobbyDeletionCandidate).
+            BYTE npcOnly[logh::lobbyListBytes]={};memcpy(npcOnly,list,logh::lobbyRowBytes);npcOnly[0]=1;
+            *reinterpret_cast<unsigned*>(npcOnly+0x2a4)=1001;
+            for(unsigned slot=0;slot<2;++slot)if(logh::readLobbyDeletionRow(npcOnly,sizeof(npcOnly),slot,row))return 1621;
+        }
+        chargedId=10000;if(!logh::readLobbyDeletionRow(list,sizeof(list),0,row) || row.character!=10000)return 1621;
+        chargedId=10002;
         list[0x36c+0x2a1]=0;if(logh::readLobbyDeletionRow(list,sizeof(list),1,row))return 1615;list[0x36c+0x2a1]=1;
         logh::LobbyDeletionRow target;logh::readLobbyDeletionRow(list,sizeof(list),0,target);
         unsigned char deletionBody[logh::lobbyDeletionBodyBytes]={};

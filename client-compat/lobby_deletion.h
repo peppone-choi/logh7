@@ -39,10 +39,12 @@ static void closeLobbyDeletionPanel(void* controller,void* root) {
     if(root)reinterpret_cast<void(__thiscall*)(void*)>(0x506920)(root);
 }
 static void requestLobbyDeletion(void* world,unsigned index,const logh::LobbyDeletionRow& row) {
-    wchar_t text[512];
-    swprintf_s(text,L"선택한 인물을 삭제합니다.\n\n세션: %s (ID %u)\n인물 ID: %u\n\n"
+    wchar_t session[64],text[512];
+    if(row.name[0])swprintf_s(session,L"세션: %s (ID %u)",row.name,row.session);
+    else swprintf_s(session,L"세션 ID: %u",row.session);
+    swprintf_s(text,L"선택한 인물을 삭제합니다.\n\n%s\n인물 ID: %u\n\n"
         L"삭제한 인물은 되돌릴 수 없습니다.\n대령 이하이며 자기 거주구나 호텔 객실에 있고 진행 중인 행동이 없어야 삭제됩니다.\n\n"
-        L"정말 삭제하시겠습니까?",row.name[0] ? row.name : L"이름 없음",row.session,row.character);
+        L"정말 삭제하시겠습니까?",session,row.character);
     if(MessageBoxW(lobbyDeletionWindow(),text,L"인물 삭제 확인",MB_YESNO|MB_ICONWARNING|MB_DEFBUTTON2)!=IDYES)return;
     // The modal pumps messages; send only for the exact row that was confirmed.
     logh::LobbyDeletionRow current;
