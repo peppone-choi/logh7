@@ -18,6 +18,7 @@
 #include "planet_info_data.h"
 #include "facility_guide_data.h"
 #include "facility_label_data.h"
+#include "home_spot_label_data.h"
 #include "lobby_country_data.h"
 #include "spot_presence.h"
 #include "unicode_text.h"
@@ -1294,6 +1295,24 @@ static bool runtimeKoreanGlyphTest() {
     size_t none=0;
     return !logh::koreanGlyphIndex(0x3042,none) && !logh::koreanGlyphIndex(0xae41,none,false);
 }
+static int homeSpotLabelTest() {
+    // Captured 0321: residence facility kind 16, spot kind 12, ID 10493213; 0e00 owner 10010.
+    BYTE facility[0xfc]={};
+    auto put16=[&](unsigned offset,unsigned short value){memcpy(facility+offset,&value,2);};
+    auto put32=[&](unsigned offset,unsigned value){memcpy(facility+offset,&value,4);};
+    put16(0,16);put32(4,104932);facility[8]=2;
+    put16(0xc,5);put32(0x10,10493201);
+    put16(0x18,12);put32(0x1c,10493213);
+    if(!logh::ownResidenceSpot(10010,10010,10493213,facility))return 3101;
+    if(logh::ownResidenceSpot(10010,10011,10493213,facility) || logh::ownResidenceSpot(0,0,10493213,facility) ||
+        logh::ownResidenceSpot(10010,10010,0,facility) || logh::ownResidenceSpot(10010,10010,10493213,nullptr) ||
+        logh::ownResidenceSpot(10010,10010,10493299,facility) || logh::ownResidenceSpot(10010,10010,10493201,facility))return 3102;
+    facility[8]=1;if(logh::ownResidenceSpot(10010,10010,10493213,facility))return 3103;
+    facility[8]=21;if(logh::ownResidenceSpot(10010,10010,10493213,facility))return 3104;
+    facility[8]=2;put16(0,15);if(logh::ownResidenceSpot(10010,10010,10493213,facility))return 3105;
+    put16(0,16);put16(0x18,11);if(logh::ownResidenceSpot(10010,10010,10493213,facility))return 3106;
+    return 0;
+}
 static int facilityGuideTest() {
     std::string label;
     if(!logh::facilityLabel(104901,0,L"오딘 민정청",label))return 620;
@@ -1733,6 +1752,7 @@ static int runGuard(int argc, wchar_t** argv) {
     if(int result=outfitAffiliationTest())return result;
     if(int result=baseAffiliationTest())return result;
     if(int result=facilityGuideTest())return result;
+    if(int result=homeSpotLabelTest())return result;
     if(int result=lobbyCountryDataTest())return result;
     if(int result=transportPlanTest())return result;
     if(int result=homeReportTest())return result;
