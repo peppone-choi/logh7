@@ -338,7 +338,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private val simulation = SessionSimulation(rules, generationStore.current())
     private val navigation = galaxy?.let {
         Navigation(it, navigationStore, navigationPolicy, rules.cpIntervalSeconds, rules.speed, initialWorld.second,
-            recoveryPenalty = ::officeRecoveryPenalty)
+            worldManagesRetreats = true, recoveryPenalty = ::officeRecoveryPenalty)
     }
     private var durableState = durability?.let { store ->
         try {
@@ -473,8 +473,40 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
 
     private fun assignmentBlocked(session: SessionState, stocks: PlanetStocks, payload: StockAssignmentProposal): Boolean =
         formations.blocksBase(session, payload.base) || logistics.blocksSupply(session, stocks, stocks.outfits.keys)
+    private fun settlePersonalRetreats(session: SessionState) {
+        val navigation = navigation ?: return
+        val before = navigation.snapshot(session.generation)
+        val stocks = production?.snapshot(session.generation)
+        val next = navigation.previewRetreats(session, stocks, before)
+        if (next == before) return
+        val updated = stocks?.let { initial ->
+            next.entries.fold(initial) { inventory, (account, arrived) ->
+                if (before.getValue(account).grid == arrived.grid) inventory
+                else StrategicOperations.startOnWarp(inventory, arrived.grid, session.gameMillis / 1000,
+                    listOf(arrived), null, session.eliminated.keys)
+            }
+        }
+        if (updated != null && updated !== stocks) {
+            val committer = worldStateCommitter ?: return
+            val production = checkNotNull(production)
+            val prepared = production.prepareReplacement(checkNotNull(stocks), updated)
+            committer.saveWorld(next, prepared)
+            navigation.publishCommitted(before, next, session.generation)
+            production.publishCommitted(stocks, prepared)
+        } else {
+            navigation.saveReplacement(before, next, session.generation)
+        }
+    }
+
+    private fun settlePersonalRetreatsForRequest(request: NavigationRequest, session: SessionState) {
+        if (navigation?.sessionRejection(request, session) == null &&
+            !BattleDeath.deceased(production?.snapshot(session.generation), request.characterId))
+            settlePersonalRetreats(session)
+    }
+
     private fun recoverNavigation(request:NavigationRequest,session:SessionState):NavigationResult? {
         val navigation=navigation ?: return null
+        settlePersonalRetreatsForRequest(request, session)
         val stocks=production?.snapshot(session.generation)
         if(BattleDeath.deceased(stocks,request.characterId))return navigation.apply(request,session,stocks)
         val player=navigation.snapshot(session.generation)[request.account]
@@ -1528,6 +1560,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     val ownership = production?.settle(session)
                     settleCombat(session,published.get()) {reconcileTerritory()}
                     session=durableState?.session ?: simulation.exportState()
+                    settlePersonalRetreatsForRequest(command.request, session)
                     val result = if (navigation != null && production != null && ownership != null && galaxy != null)
                         TacticalCommandOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
                         TacticalGroundOperations.guard(command.request,session,navigation,checkNotNull(production.snapshot(session.generation))) ?:
@@ -1617,7 +1650,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         production?.settle(next.state.session)
                         settleCombat(next.state.session,next.state.snapshot(rules)) {reconcileTerritory()}
                         val current=checkNotNull(durableState).session
-                        navigation?.settleRetreats(current, production?.snapshot(current.generation))
+                        settlePersonalRetreats(current)
                         settleOfflineNavigation(current)
                     } else OfflineArrivals()
                     val current=checkNotNull(durableState)
@@ -1653,7 +1686,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                     elapsed = command.elapsedRealMillis
                     if (!storageFailed) production?.settle(simulation.exportState())
                     settleCombat(simulation.exportState(),published.get().copy(session=simulation.snapshot())) {reconcileTerritory()}
-                    navigation?.settleRetreats(simulation.exportState(), production?.snapshot(simulation.snapshot().generation))
+                    settlePersonalRetreats(simulation.exportState())
                     if (!storageFailed) offlineArrivals = settleOfflineNavigation(simulation.exportState())
                     if (events.any { it is WorldEvent.Ended }) restartAt = elapsed + rules.restartDelayRealMillis
                     events

@@ -429,6 +429,87 @@ class TacticalDeadlineTest {
             assertEquals(player,rig.engine.snapshot().navigators.getValue("pilot"))
         } finally {rig.engine.drainAndClose()}
     }
+
+    @Test fun personalRetreatCommitsItsSoloOperationOnBothClockPaths() = runTest {
+        for (resumed in listOf(null, 0L)) {
+            val rig = Rig(this, testScheduler, resumedAt = resumed, retreatDeadline = true, retreatOperation = true)
+            try {
+                rig.engine.submit(WorldCommand.Probe)
+                runCurrent()
+                advanceTimeBy(624)
+                runCurrent()
+                assertEquals(2488, rig.players.getValue("pilot").grid)
+                assertTrue(rig.retreatCommits.isEmpty())
+                advanceTimeBy(1)
+                runCurrent()
+                assertEquals(2487, rig.players.getValue("pilot").grid)
+                assertEquals(StrategicPlanState.STARTED, rig.retreatCommits.single())
+                assertEquals(0, rig.navigationOnlyRetreats)
+                assertEquals(StrategicPlanState.STARTED,
+                    rig.engine.snapshot().planetStocks!!.strategic.operations.single().state)
+            } finally { rig.engine.drainAndClose() }
+        }
+    }
+
+    @Test fun anAuthenticatedRequestOrRecoveryCommitsAnAlreadyDuePersonalRetreatAndItsOperation() = runTest {
+        for (recover in listOf(false, true)) {
+            val rig = Rig(this, testScheduler, resumedAt = 625, retreatDeadline = true, retreatOperation = true)
+            try {
+                rig.connectPilot()
+                if (recover) {
+                    val done = CompletableDeferred<StrategyActionResult>()
+                    val request = StrategyActionRequest("pilot", "c", 10000, Power.EMPIRE, 1, 255, 59, 4)
+                    rig.engine.submit(WorldCommand.StrategyAction(request, done))
+                    runCurrent()
+                    done.await()
+                } else {
+                    val done = CompletableDeferred<NavigationResult>()
+                    val request = NavigationRequest("pilot", 10000, Power.EMPIRE, "c", 1)
+                    rig.engine.submit(WorldCommand.Navigate(request, done))
+                    runCurrent()
+                    assertNull(done.await().rejection)
+                }
+                assertEquals(2487, rig.players.getValue("pilot").grid)
+                assertEquals(StrategicPlanState.STARTED, rig.retreatCommits.single())
+                assertEquals(0, rig.navigationOnlyRetreats)
+            } finally { rig.engine.drainAndClose() }
+        }
+    }
+
+    @Test fun failedRetreatCommitPublishesNeitherTheArrivalNorItsSoloOperation() = runTest {
+        val rig = Rig(this, testScheduler, resumedAt = 625, retreatDeadline = true, retreatOperation = true)
+        try {
+            rig.connectPilot()
+            rig.failRetreat = true
+            val done = CompletableDeferred<NavigationResult>()
+            rig.engine.submit(WorldCommand.Navigate(NavigationRequest("pilot", 10000, Power.EMPIRE, "c", 1), done))
+            runCurrent()
+            assertFailsWith<java.io.IOException> { done.await() }
+            assertEquals(2488, rig.players.getValue("pilot").grid)
+            assertNotNull(rig.players.getValue("pilot").retreat)
+            assertTrue(rig.retreatCommits.isEmpty())
+            assertEquals(0, rig.navigationOnlyRetreats)
+            assertEquals(StrategicPlanState.ISSUED,
+                rig.engine.snapshot().planetStocks!!.strategic.operations.single().state)
+        } finally { rig.engine.drainAndClose() }
+    }
+
+    @Test fun aWorldWithoutSharedStorageCannotSaveOnlyTheRetreatHalfOfAnOperationArrival() = runTest {
+        val rig = Rig(this, testScheduler, resumedAt = 625, retreatDeadline = true, retreatOperation = true,
+            withWorldCommitter = false)
+        try {
+            rig.connectPilot()
+            val done = CompletableDeferred<NavigationResult>()
+            rig.engine.submit(WorldCommand.Navigate(NavigationRequest("pilot", 10000, Power.EMPIRE, "c", 1), done))
+            runCurrent()
+            assertNull(done.await().rejection)
+            assertEquals(2488, rig.players.getValue("pilot").grid)
+            assertNotNull(rig.players.getValue("pilot").retreat)
+            assertEquals(0, rig.navigationOnlyRetreats)
+            assertEquals(StrategicPlanState.ISSUED,
+                rig.engine.snapshot().planetStocks!!.strategic.operations.single().state)
+        } finally { rig.engine.drainAndClose() }
+    }
     @Test fun unchargedAutomaticAttackLeavesTheClockFreeToAdvance() = runTest {
         val rig=Rig(this,testScheduler,automaticFireDeadline=true,uncharged=true)
         val impacts=mutableListOf<TacticalImpact>()
@@ -627,10 +708,21 @@ class TacticalDeadlineTest {
         pirateHarmDeadline:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
         awaitIdentities:Boolean=false,mailDeadline:Boolean=false,orderDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
         operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false,dismissalOrder:Boolean=false,coupRevolt:Boolean=false,
-        shipyardLifecycle: Boolean = false, shipyardReadyIn: Long? = null) {
+        shipyardLifecycle: Boolean = false, shipyardReadyIn: Long? = null, retreatOperation: Boolean = false,
+        withWorldCommitter: Boolean = true) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
+        var failRetreat = false
+        val retreatCommits = mutableListOf<StrategicPlanState?>()
+        var navigationOnlyRetreats = 0
+        private fun completedRetreat(next: Map<String, Navigator>) =
+            players["pilot"]?.retreat != null && next["pilot"]?.grid == 2487 && players["pilot"]?.grid != 2487
+        suspend fun connectPilot() {
+            val joined = CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot", Power.EMPIRE, false, joined, "c", 1))
+            assertEquals(Admission.ACCEPTED, joined.await())
+        }
         var players=mapOf("pilot" to Navigator(1,10000,Power.EMPIRE,2488,1000,1000,1000,
             cpPaused=true,hull=FlagshipHull(0,start),energy=TacticalEnergy(listOf(100)+List(10){0}),
             motion=TacticalMotion(2488,start,TacticalPose(TacticalPoint(0f,0f),0f),1f,0f,
@@ -640,10 +732,12 @@ class TacticalDeadlineTest {
         private val imperialCapital=orderDeadline || coupDeadline || coupRevolt
         private val homeGrid=if(imperialCapital)2487 else 2488
         val galaxy=Galaxy(listOf(GalaxySystem(3,homeGrid,4,"Home",if(imperialCapital)2 else 3))+
-            listOfNotNull(GalaxySystem(4,2490,4,"Frontier").takeIf {pirateStrategyDeadline}),
+            listOfNotNull(GalaxySystem(4,2490,4,"Frontier").takeIf {pirateStrategyDeadline},
+                GalaxySystem(5,2487,4,"Objective",2).takeIf {retreatOperation}),
             listOf(GalaxyBase(if(imperialCapital)1049 else 1000,homeGrid,80,if(fortressDeadline)1 else 0,
                 if(imperialCapital)Capital.EMPIRE.baseName else "Home",0,20f,86400,0,0f,2f,mobile=fortressDeadline)) + listOfNotNull(
-                GalaxyBase(1050,homeGrid,81,0,"Second base",0,20f,86400,0,0f,2f).takeIf { coupRevolt }),
+                GalaxyBase(1050,homeGrid,81,0,"Second base",0,20f,86400,0,0f,2f).takeIf { coupRevolt },
+                GalaxyBase(1002,2487,80,0,"Objective",0,20f,86400,0,0f,2f).takeIf {retreatOperation}),
             Power.entries.associateWith {homeGrid})
         init {
             if (shipyardLifecycle) {
@@ -745,6 +839,13 @@ class TacticalDeadlineTest {
                 val enemy=Navigator(1,10001,Power.ALLIANCE,2488,1000,1000,1000,
                     cpPaused=true,hull=FlagshipHull(89,start))
                 players=mapOf("pilot" to pilot,"enemy" to enemy)
+                if (retreatOperation) {
+                    val plan = StrategicOperation(1, 10002, 26, Power.EMPIRE.country, 2487, StrategicForce.SOLO,
+                        StrategicPurpose.DEFEND, 1, start, StrategicPlanState.ISSUED, start,
+                        characters = setOf(pilot.characterId), defended = setOf(1002), issuer = 10003)
+                    stocks = stocks.copy(bases = stocks.bases + (1002 to PlanetStock(1002,2,0,0,0,0)),
+                        strategic = stocks.strategic.copy(operations = listOf(plan)))
+                }
                 if(fleetRetreat) {
                     players=players+("pilot" to pilot.copy(retreat=null))
                     val stack=UnitStack(119)
@@ -841,6 +942,7 @@ class TacticalDeadlineTest {
         }
         private val durability=resumedAt?.let {elapsed->object:SessionDurability {
             private var saved=DurableWorldState(SessionSimulation(rules).apply {
+                if(retreatOperation)join("pilot",Power.EMPIRE,false,"c")
                 if(orderDeadline) {
                     join("recipient",Power.EMPIRE,false,"before-restart")
                     disconnect("recipient","before-restart")
@@ -854,13 +956,17 @@ class TacticalDeadlineTest {
         val engine=WorldEngine(scope,rules,durability=durability,monotonicMillis={scheduler.currentTime},galaxy=galaxy,
             navigationStore=object:NavigationStore {
                 override fun load()=players
-                override fun save(next:Map<String,Navigator>){players=next}
+                override fun save(next:Map<String,Navigator>){
+                    if (completedRetreat(next)) navigationOnlyRetreats++
+                    players=next
+                }
             },stockStore=object:PlanetStockStore {
                 override fun load()=stocks
                 override fun save(next:PlanetStocks){stocks=next}
-            },worldStateCommitter=WorldStateCommitter {next,inventory->
-                if(fail)throw java.io.IOException("deadline save failed")
+            },worldStateCommitter=if(withWorldCommitter) WorldStateCommitter {next,inventory->
+                if(fail || failRetreat && completedRetreat(next))throw java.io.IOException("deadline save failed")
+                if (completedRetreat(next)) retreatCommits += inventory?.strategic?.operations?.singleOrNull()?.state
                 players=next;stocks=checkNotNull(inventory)
-            },npcPolicy=NpcTacticalPolicy(enabled=false),awaitIdentities=awaitIdentities)
+            } else null,npcPolicy=NpcTacticalPolicy(enabled=false),awaitIdentities=awaitIdentities)
     }
 }

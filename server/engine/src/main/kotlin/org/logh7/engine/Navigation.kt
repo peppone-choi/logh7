@@ -196,6 +196,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
     private val policy: NavigationPolicy, private val cpIntervalSeconds: Long = 7200, private val clockScale: Long = 24,
     restored:Map<String,Navigator> = store?.load().orEmpty(),
     private val configuredCountries:CountryCatalog?=null,
+    private val worldManagesRetreats: Boolean = false,
     private val recoveryPenalty: (Navigator) -> Int = { 0 }) {
     init { require(cpIntervalSeconds in 1..86400 && clockScale in 1..1000) }
     private var players = restored.toMap()
@@ -203,6 +204,14 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
 
     fun warpCruise(origin: Int, target: Int) = Math.toIntExact((WarpCourse.cruiseCost(origin, target).toLong() *
         policy.cruiseCost + WarpCourse.LIGHT_YEARS_PER_GRID - 1) / WarpCourse.LIGHT_YEARS_PER_GRID)
+    internal fun sessionRejection(request: NavigationRequest, session: SessionState): NavigationRejection? {
+        val member = session.participants[request.account] ?: return NavigationRejection.SESSION
+        if (session.ended != null || member.country in session.eliminated || session.generation != request.generation ||
+            (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
+            return NavigationRejection.SESSION
+        return if (member.country != request.country) NavigationRejection.IDENTITY else null
+    }
+
     fun apply(request: NavigationRequest, session: SessionState, stocks: PlanetStocks? = null,
         persist: Boolean = true, movingUnits: Int = 1, soloShip: Boolean = true, initialDock:OutfitPosition?=null,
         retreatStocks: PlanetStocks? = stocks,
@@ -215,13 +224,9 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         var warpCancellation: NavigationRejection? = null
         fun reject(reason: NavigationRejection) = NavigationResult(null, previous = current, rejection = reason,
             completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
-        val member = session.participants[request.account] ?: return reject(NavigationRejection.SESSION)
-        if (session.ended != null || member.country in session.eliminated || session.generation != request.generation ||
-            (if (request.offlineSettle) member.online else !member.online || member.connection != request.connection))
-            return reject(NavigationRejection.SESSION)
-        if (member.country != request.country) return reject(NavigationRejection.IDENTITY)
+        sessionRejection(request, session)?.let { return reject(it) }
         val deceased = BattleDeath.deceased(stocks,request.characterId)
-        if (persist && !deceased) settleRetreats(session, retreatStocks)
+        if (persist && !deceased && !worldManagesRetreats) settleRetreats(session, retreatStocks)
         // U-11: a dead character's navigator gives way to the account's next character.
         val existing = players[request.account]?.takeIf { it.blocksFirstEntry(request,stocks) }
         if (request.strategicSearch && (existing == null || deceased)) return reject(NavigationRejection.IDENTITY)
@@ -591,10 +596,16 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             abs(operation.grid % 100 - destination % 100) <= 1 && abs(operation.grid / 100 - destination / 100) <= 1 }
     /** Runs on clock advances as well as requests, including while the captain is offline. */
     fun settleRetreats(session: SessionState, stocks: PlanetStocks?) {
-        if (session.ended != null) return
+        val before = snapshot(session.generation)
+        val after = previewRetreats(session, stocks, before)
+        if (after != before) saveReplacement(before, after, session.generation)
+    }
+
+    internal fun previewRetreats(session: SessionState, stocks: PlanetStocks?,
+        before: Map<String, Navigator>): Map<String, Navigator> {
+        if (session.ended != null || before.values.none { it.retreat != null }) return before
         val now = session.gameMillis / 1000
-        val next = snapshot(session.generation).toMutableMap()
-        var changed = false
+        val next = before.toMutableMap()
         for ((account, player) in next.toSortedMap()) {
             val retreat = player.retreat ?: continue
             val delegationEnded = retreat.issuedByOfflineAi &&
@@ -603,13 +614,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 BattleDeath.deceased(stocks,player.characterId) ||
                 stocks?.social?.justice?.detained(player.characterId)==true || delegationEnded) {
                 next[account] = player.copy(retreat=null)
-                changed = true
                 continue
             }
             if (!TacticalContact.active(galaxy, player, next.values, stocks, session.eliminated.keys)) {
                 next[account] = player.copy(cpPaused = false, motion = null, retreat = null, charge = null,commandRange=null,
                     attack=null,fire=player.fire?.copy(pending=null),cpRecoveryAt = now)
-                changed = true
                 continue
             }
             if (now < retreat.completesAt) continue
@@ -623,12 +632,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val active = TacticalContact.active(galaxy, moved, next.values, stocks, session.eliminated.keys)
             next[account] = moved.copy(cpPaused = active,commandRange=if(active)TacticalCommandRange(now,
                 command=player.commandRange?.command ?: 50) else null)
-            changed = true
         }
-        if (changed) {
-            store?.save(next)
-            players = next.toMap()
-        }
+        return next
     }
     private fun settleWork(player: Navigator, now: Long): Navigator {
         if (player.cpPaused) return player
