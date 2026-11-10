@@ -81,7 +81,7 @@ class CharacterCarryOverTest {
         val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(10000 to strong,
             10001 to StrategicPerson(evaluation=CharacterCarryOver.MINIMUM_EVALUATION-1),10002 to strong,
             10003 to strong.copy(deceasedAt=50),10004 to strong)))
-        val session=SessionSimulation(SessionRules.load()).snapshot().copy(gameSeconds=twoYears,ended=end)
+        val session=SessionSimulation(SessionRules.load()).snapshot().copy(gameSeconds=twoYears,ended=end,elapsedGameSeconds=twoYears)
         val world=WorldSnapshot(0,0,session,planetStocks=stocks,result=result)
         val stores=CharacterStores(file)
         assertEquals(listOf("veteran"),stores.carryOver(world),"under the threshold, 60 at the end, dead or original stay behind")
@@ -91,5 +91,22 @@ class CharacterCarryOverTest {
         assertEquals(0L,next.evaluation);assertTrue(next.generated)
         assertNull(CharacterStores(file).get(2).character("novice"))
         assertNotNull(CharacterStores(file).get(1).character("veteran"),"the finished generation keeps its file")
+    }
+
+    @Test fun theCalendarEpochDoesNotAgeACharacterBeforeTheSessionHasRunAFullYear() {
+        val veteran=character(10000,59)
+        val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(
+            10000 to StrategicPerson(evaluation=CharacterCarryOver.MINIMUM_EVALUATION))))
+        val start=GameDate(796,1,1)
+        for((end,expectedAge) in listOf(GameDate(796,12,30,23,59,59) to 59,GameDate(797,1,1) to null)) {
+            val rules=SessionRules.load().copy(start=start,end=end)
+            val simulation=SessionSimulation(rules)
+            simulation.advance((rules.endSeconds-rules.startSeconds)*1000/rules.speed+1)
+            val session=simulation.snapshot()
+            assertEquals(EndReason.TIME_LIMIT,session.ended?.reason)
+            val world=WorldSnapshot(0,0,session,planetStocks=stocks)
+            val carried=CharacterCarryOver.select(world,mapOf("veteran" to veteran))
+            assertEquals(expectedAge,carried["veteran"]?.age)
+        }
     }
 }

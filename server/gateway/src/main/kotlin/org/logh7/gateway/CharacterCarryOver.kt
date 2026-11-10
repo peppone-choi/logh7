@@ -15,10 +15,10 @@ object CharacterCarryOver {
     /** One game year: twelve 30-day periods, the clock AbilityAging uses. */
     private const val YEAR_SECONDS = 12L * 30 * 86_400
 
-    fun ageAtEnd(registeredAge: Int, gameSeconds: Long) = registeredAge + (gameSeconds / YEAR_SECONDS).toInt()
+    fun ageAtEnd(registeredAge: Int, elapsedSeconds: Long) = registeredAge + (elapsedSeconds / YEAR_SECONDS).toInt()
 
     fun select(snapshot: WorldSnapshot, generated: Map<String, CharacterMessages.Generate>): Map<String, CharacterMessages.Generate> {
-        val seconds = snapshot.session?.gameSeconds ?: return emptyMap()
+        val seconds = snapshot.session?.elapsedGameSeconds ?: return emptyMap()
         val people = snapshot.planetStocks?.strategic?.people ?: return emptyMap()
         return generated.mapNotNull { (account, data) ->
             val person = people[data.id.toInt()] ?: return@mapNotNull null
