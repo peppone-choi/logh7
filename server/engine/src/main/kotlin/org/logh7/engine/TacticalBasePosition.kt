@@ -32,3 +32,12 @@ fun TacticalMotion.pose(seconds:Long,posture:TacticalPosture?,galaxy:Galaxy,stoc
     val origin=TacticalBasePosition.at(base,acceptedAt,stocks)
     return sampled.copy(position=TacticalPoint(sampled.position.x+(current.x-origin.x),sampled.position.y+(current.y-origin.y)))
 }
+
+internal fun ActiveShipUnit.tacticalPose(grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose {
+    val state=posture?.takeIf {it.grid==grid && it.mode.requiresBase}
+    val base=state?.let {berth->galaxy.bases.singleOrNull {it.id==berth.base && it.grid==grid}}
+    val motion=tactical?.motion?.takeIf {it.grid==grid}
+    if(base!=null && (state.mode==TacticalShipMode.STATIONED || motion==null))
+        return TacticalPose(TacticalBasePosition.at(base,now,stocks),motion?.origin?.direction ?: 0f)
+    return motion?.pose(now,state,galaxy,stocks) ?: TacticalDeployment.initial(id,grid,players,stocks,galaxy)
+}
