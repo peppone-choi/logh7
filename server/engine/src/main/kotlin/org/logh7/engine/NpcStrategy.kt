@@ -55,8 +55,13 @@ internal object NpcStrategy {
         spentJumps:Int=0,relief:Boolean=false,firstStep:Int?=null):DepotRoute? {
         val position=outfit.positionIn(galaxy)
         val origin=position.grid
+        val tacticalBerths=if(position.baseId==0)outfit.activeShips?.values.orEmpty().mapNotNull {unit->
+            unit.posture?.takeIf {unit.boats>0 && it.grid==origin && it.mode.requiresBase}?.base
+        } else emptyList()
         fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
+        // Local docking must not move a ship already berthed at a different base in this grid.
         val depots=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
+            (b.grid!=origin || tacticalBerths.all {it==b.id}) &&
             !TacticalContact.contested(forces[b.grid].orEmpty())}
             .sortedWith(compareBy<GalaxyBase> {stocks.bases.getValue(it.id).supplies}
                 .thenByDescending {it.id}).associateBy {it.grid}
