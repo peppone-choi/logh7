@@ -235,6 +235,9 @@ internal object TacticalCombat {
         inventory=inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(morale=inventory.tacticalCommands.morale+(targetId to morale.coerceAtLeast(0))))
         inventory=EvaluationPoints.award(inventory,EvaluationPoints.shooter(source,players,stocks),earned)
         if(destroyedBoats>0)players.values.firstOrNull {it.unitId==source}?.let {shooter->
+            // An overdue strike can still prove the shooter had reached its target before the deadline.
+            if(seconds<session.gameMillis/1000)
+                inventory=StrategicOperations.startReachedSweeps(inventory,seconds,listOf(shooter),session.eliminated.keys)
             inventory=StrategicOperations.awardSweep(inventory,shooter,grid,seconds,destroyedBoats)
         }
         return inventory to TacticalImpact(session.generation,source,weapon,hit,audience,departed,pirateSunk=pirateSunk)
@@ -309,9 +312,17 @@ internal object TacticalCombat {
             (session.ended!=null || committer==null || stocks.social.proposals.mails.none {it.pending} &&
                 stocks.social.justice.deadlines().none {it<=now}))return emptyList()
         due.sortWith(compareBy({it.shot.firesAt},{original.getValue(it.account).unitId},{it.shot.weapon.wire}))
+        var sweepArrivalsPending = session.ended == null
+        fun startSweepArrivals() {
+            inventory = StrategicOperations.startReachedSweeps(inventory, now, original.values, session.eliminated.keys)
+            sweepArrivalsPending = false
+        }
+        // A current arrival must not give credit to an older neighboring shot.
+        if (sweepArrivalsPending && (due.firstOrNull()?.shot?.firesAt ?: now) == now) startSweepArrivals()
         val impacts = mutableListOf<TacticalImpact>()
         inventory=TacticalCommandOperations.advance(session,galaxy,players,inventory,scale,commands,impacts)
         for ((account, scheduled, automatic) in due) {
+            if (sweepArrivalsPending && scheduled.firesAt == now) startSweepArrivals()
             val player = players.getValue(account)
             if(automatic && (player.attack==null || player.hull==null || player.fire?.sequence==Long.MAX_VALUE))continue
             val shot=if(automatic) {
@@ -347,6 +358,7 @@ internal object TacticalCombat {
             }
             players[account] = next
         }
+        if (sweepArrivalsPending) startSweepArrivals()
         if(session.ended==null)inventory=TacticalFleetShoot.advance(session,galaxy,players,inventory,impacts,scale)
         if(session.ended==null)inventory=TacticalFleetAttack.advance(session,galaxy,players,inventory,scale,impacts)
         if(session.ended==null)inventory=PirateActions.counter(session,galaxy,players,inventory,now,impacts)

@@ -355,12 +355,15 @@ class TacticalCombatTest {
             StrategicPlanState.ISSUED,now,characters=setOf(10000),issuer=10002)
         state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(operations=listOf(sweep)))
         val shooter=state.players.getValue("pilot")
-        assertSame(state.stocks,StrategicOperations.awardSweep(state.stocks,shooter,2493,now,1))
-        assertSame(state.stocks,StrategicOperations.awardSweep(state.stocks,shooter,2488,OperationPlanRules.endGameSeconds(now),1))
-        assertEquals(1L,StrategicOperations.awardSweep(state.stocks,shooter,2492,now,1).strategic.people.getValue(10000).merit)
-        val attached=state.stocks.copy(outfits=state.stocks.outfits.mapValues {(_,outfit)->
+        val started=StrategicOperations.startReachedSweeps(state.stocks,now,
+            listOf(shooter.copy(hull=FlagshipHull(89,now))),emptySet())
+        assertEquals(StrategicPlanState.STARTED,started.strategic.operations.single().state)
+        assertSame(started,StrategicOperations.awardSweep(started,shooter,2493,now,1))
+        assertSame(started,StrategicOperations.awardSweep(started,shooter,2488,OperationPlanRules.endGameSeconds(now),1))
+        assertEquals(1L,StrategicOperations.awardSweep(started,shooter,2492,now,1).strategic.people.getValue(10000).merit)
+        val attached=started.copy(outfits=started.outfits.mapValues {(_,outfit)->
             outfit.copy(country=Power.ALLIANCE.country,commanderId=shooter.characterId)},
-            warehouses=state.stocks.warehouses.mapValues {(_,warehouse)->warehouse.copy(country=Power.ALLIANCE.country)})
+            warehouses=started.warehouses.mapValues {(_,warehouse)->warehouse.copy(country=Power.ALLIANCE.country)})
         assertSame(attached,StrategicOperations.awardSweep(attached,shooter,2488,now,1))
         var nav = Navigation(galaxy,state.nav,NavigationPolicy())
         var production = production(state)
@@ -390,6 +393,62 @@ class TacticalCombatTest {
         assertTrue(TacticalCombat.settle(session.copy(gameMillis=(now+500)*1000),galaxy,nav,production,state.commit).isEmpty())
         assertEquals(saved,state.stocks);assertEquals(fired,nav.snapshot(1).getValue("pilot"))
     }
+
+    @Test fun sweepAwardsTheFirstKillInItsTargetGridButNothingForANeighborBeforeArrival() {
+        for ((target, overdue) in listOf(2487 to false, 2488 to false, 2487 to true, 2488 to true)) {
+            val state = state()
+            val sweep = StrategicOperation(1, 10001, 149, CountryId(3), target, StrategicForce.SOLO,
+                StrategicPurpose.SWEEP, 1, now, StrategicPlanState.ISSUED, now,
+                characters = setOf(10000), issuer = 10002)
+            state.stocks = state.stocks.copy(strategic = state.stocks.strategic.copy(operations = listOf(sweep)))
+            val nav = Navigation(galaxy, state.nav, NavigationPolicy())
+            val production = production(state)
+            val accepted = TacticalCombat.accept(request, session, galaxy, nav, checkNotNull(production.snapshot(1)),
+                state.commit, 24)
+            val fire = assertNotNull(accepted.player?.fire?.pending)
+            assertEquals(StrategicPlanState.ISSUED, state.stocks.strategic.operations.single().state)
+
+            val at = if (overdue) OperationPlanRules.endGameSeconds(now) + 1 else fire.firesAt
+            val impacts = TacticalCombat.settle(session.copy(gameMillis = at * 1000), galaxy, nav,
+                production, state.commit)
+            val destroyed = impacts.single().hit.destroyed
+            assertTrue(destroyed > 0)
+            val merit = state.stocks.strategic.people[10000]?.merit ?: 0
+            val expectedState = when {
+                overdue -> StrategicPlanState.ENDED
+                target == 2488 -> StrategicPlanState.STARTED
+                else -> StrategicPlanState.ISSUED
+            }
+            assertEquals(expectedState, state.stocks.strategic.operations.single().state)
+            assertEquals(if (target == 2488) destroyed.toLong() else 0L, merit)
+        }
+    }
+
+    @Test fun overdueNeighborKillPrecedesAnotherAssignedFlagshipsFirstObservedArrival() {
+        val state = state()
+        val sweep = StrategicOperation(1, 10002, 149, CountryId(3), 2487, StrategicForce.SOLO,
+            StrategicPurpose.SWEEP, 2, now, StrategicPlanState.ISSUED, now,
+            characters = setOf(10000, 10001), issuer = 10003)
+        state.stocks = state.stocks.copy(strategic = state.stocks.strategic.copy(operations = listOf(sweep)))
+        var navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+        val production = production(state)
+        val accepted = TacticalCombat.accept(request, session, galaxy, navigation, checkNotNull(production.snapshot(1)),
+            state.commit, 24)
+        val fire = assertNotNull(accepted.player?.fire?.pending)
+        val arrivalAt = fire.firesAt + 1
+        state.players += "arrival" to Navigator(1, 10001, Power.ALLIANCE, 2487, 1000, 1000, 900,
+            hull = FlagshipHull(89, arrivalAt))
+        navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+
+        val impacts = TacticalCombat.settle(session.copy(gameMillis = arrivalAt * 1000), galaxy, navigation,
+            production, state.commit)
+        val hit = impacts.single().hit
+        assertEquals(fire.firesAt, hit.seconds)
+        assertTrue(hit.destroyed > 0)
+        assertEquals(StrategicPlanState.STARTED, state.stocks.strategic.operations.single().state)
+        assertEquals(0L, state.stocks.strategic.people[10000]?.merit ?: 0L)
+    }
+
     @Test fun forgedIdentityForeignUnitFriendlyOrMissingTargetUnsupportedWeaponsAndUnchargedBeamAreRejected() {
         val state=state();val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stocks=production(state).snapshot(1)!!
         fun reject(request:NavigationRequest,reason:NavigationRejection) {

@@ -62,6 +62,11 @@ internal object StrategicOperations {
     }
     private fun hasLiveFlagship(player:Navigator,stocks:PlanetStocks)=
         !BattleDeath.deceased(stocks,player.characterId) && player.hull?.hp?.let {it>0}==true
+    private fun soloReached(plan: StrategicOperation, stocks: PlanetStocks, navigators: Collection<Navigator>) =
+        plan.force == StrategicForce.SOLO && navigators.any {
+            it.generation == stocks.generation && it.characterId in plan.characters && it.grid == plan.grid &&
+                TacticalAuthority.camp(it, stocks) == Camp(plan.country) && hasLiveFlagship(it, stocks)
+        }
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -145,11 +150,25 @@ internal object StrategicOperations {
         val next=stocks.copy(strategic=stocks.strategic.copy(operations=plans))
         return StrategyActionResult(p.paidWith(paid.balance),next,changed=true)
     }
+    fun startReachedSweeps(stocks: PlanetStocks, seconds: Long, navigators: Collection<Navigator>,
+        eliminated: Set<CountryId>): PlanetStocks {
+        val operations = stocks.strategic.operations
+        val updated = operations.map { plan ->
+            val issued = plan.issuedAt
+            if (plan.purpose == StrategicPurpose.SWEEP && plan.state == StrategicPlanState.ISSUED &&
+                plan.country !in eliminated && issued != null && seconds in issued until OperationPlanRules.endGameSeconds(issued) &&
+                soloReached(plan, stocks, navigators)) {
+                plan.copy(state = StrategicPlanState.STARTED)
+            } else plan
+        }
+        return if (updated == operations) stocks else stocks.copy(strategic = stocks.strategic.copy(operations = updated))
+    }
+
     fun awardSweep(stocks:PlanetStocks,shooter:Navigator,grid:Int,seconds:Long,destroyed:Int):PlanetStocks {
         if(destroyed<=0 || CoupActions.rebel(stocks,shooter.characterId,shooter.country))return stocks
         if(stocks.strategic.operations.none {plan->
             val issued=plan.issuedAt
-            plan.live && plan.purpose==StrategicPurpose.SWEEP && plan.country==shooter.country &&
+            plan.state==StrategicPlanState.STARTED && plan.purpose==StrategicPurpose.SWEEP && plan.country==shooter.country &&
                 shooter.characterId in plan.characters && issued!=null && seconds in issued until OperationPlanRules.endGameSeconds(issued) &&
                 WarpCourse.cruiseCost(grid,plan.grid)<=400
         })return stocks
