@@ -229,7 +229,7 @@ class WorldBootstrap(val galaxy: Galaxy,
         }
         val troops = outfit.units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { OutfitPartyMessages.Troops(1000+it.key.kind,it.key.level,it.value) }
-        val maximum = org.logh7.engine.OutfitSupplies.visibleCapacity(outfit)
+        val maximum = org.logh7.engine.OutfitSupplies.visibleCapacity(outfit, stocks.strategic.transports)
         return LoginMessages.sessionMessage(0x032f,OutfitPartyMessages.party(query.copy(base=if(query.mode==1)outfit.baseId else position.baseId),display,
             outfit.kind.wire,outfit.number,groups,troops,outfit.supplies,maximum,members))
     }
