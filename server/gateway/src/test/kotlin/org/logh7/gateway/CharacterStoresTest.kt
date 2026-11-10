@@ -49,6 +49,16 @@ class CharacterStoresTest {
         val legacy = CharacterStores(legacyFile, worldSnapshot = { snapshot })
         assertEquals(10_041L, reserved(legacy.get(1)))
         assertEquals(10_000L, reserved(legacy.get(2)))
+
+        val active=Navigator(1,10041,CountryId(2),2487,1000,1000,1000)
+        val navigated=snapshot.copy(navigators=mapOf("live" to active,"stale" to active.copy(generation=2,characterId=10099)))
+        assertEquals(10_042L,reserved(CharacterStores(null,worldSnapshot={navigated}).get(1)))
+        val orphanedWorld=navigated.copy(
+            planetStocks=stocks.copy(bases=mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
+                strategic=stocks.strategic.copy(offices=listOf(OfficeHolding(150,1049,10042)))))
+        val memory=CharacterStores(null,worldSnapshot={orphanedWorld})
+        assertEquals(10_043L,reserved(memory.get(1)))
+        assertEquals(10_000L,reserved(memory.get(2)))
     }
 
     @Test fun worldOnlyOriginalsAreUnavailableInTheirOwnGeneration() {
