@@ -51,7 +51,8 @@ internal object OfficeDismissal {
         fun reject(reason:DismissalRejection)=OfficeDismissalResult(player,stocks,reason)
         val participant=session.participants[r.account] ?: return reject(DismissalRejection.SESSION)
         if(session.ended!=null || session.generation!=r.generation || stocks.generation!=r.generation ||
-            !participant.online || participant.connection!=r.connection) return reject(DismissalRejection.SESSION)
+            !participant.online || participant.connection!=r.connection || participant.country in session.eliminated)
+            return reject(DismissalRejection.SESSION)
         if(player==null || r.country==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.country!=r.country || participant.country!=r.country || BattleDeath.deceased(stocks,r.characterId))
             return reject(DismissalRejection.IDENTITY)

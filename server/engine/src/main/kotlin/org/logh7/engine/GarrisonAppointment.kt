@@ -25,7 +25,8 @@ internal object GarrisonAppointment {
         fun reject(reason: AppointmentRejection)=GarrisonAppointmentResult(player,stocks,reason)
         val participant=session.participants[r.account] ?: return reject(AppointmentRejection.SESSION)
         if (session.ended!=null || session.generation!=r.generation || stocks.generation!=r.generation ||
-            !participant.online || participant.connection!=r.connection) return reject(AppointmentRejection.SESSION)
+            !participant.online || participant.connection!=r.connection || participant.country in session.eliminated)
+            return reject(AppointmentRejection.SESSION)
         if (player==null || r.country==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.country!=r.country || participant.country!=r.country) return reject(AppointmentRejection.IDENTITY)
         if(BattleDeath.deceased(stocks,r.characterId))return reject(AppointmentRejection.IDENTITY)

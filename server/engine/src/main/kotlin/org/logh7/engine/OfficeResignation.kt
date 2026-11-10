@@ -24,7 +24,8 @@ internal object OfficeResignation {
         fun reject(reason:ResignationRejection)=OfficeResignationResult(player,stocks,reason)
         val participant=session.participants[r.account] ?: return reject(ResignationRejection.SESSION)
         if(session.ended!=null || session.generation!=r.generation || stocks.generation!=r.generation ||
-            !participant.online || participant.connection!=r.connection) return reject(ResignationRejection.SESSION)
+            !participant.online || participant.connection!=r.connection || participant.country in session.eliminated)
+            return reject(ResignationRejection.SESSION)
         if(player==null || r.country==null || player.generation!=r.generation || player.characterId!=r.characterId ||
             player.country!=r.country || participant.country!=r.country || BattleDeath.deceased(stocks,r.characterId))
             return reject(ResignationRejection.IDENTITY)
