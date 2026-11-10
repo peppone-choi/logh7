@@ -63,11 +63,13 @@ class TaxWireTest {
             val client = fixture.join(fixture.account(0),!capital,false).client
             client.send(SyntheticClient.opcode(0x0f00))
             fun verifyCards(message: ByteArray) {
-                val size = if (governor == 0) 14 else 20
+                val expected=listOf(0 to 0,(if(capital)195 else 59) to 1_010_000)+
+                    (if(governor!=0)listOf(card to 1049) else emptyList())+
+                    (if(capital)listOf(196 to 0) else emptyList())
+                val size=2+6*expected.size
                 val tail = ByteBuffer.wrap(message,message.size-size,size)
-                assertEquals(if (governor == 0) 2 else 3,tail.get().toInt())
-                tail.position(tail.position()+12)
-                if (governor != 0) { assertEquals(card,tail.short.toInt()); assertEquals(1049,tail.int) }
+                assertEquals(expected.size,tail.get().toInt())
+                assertEquals(expected,List(expected.size) {tail.short.toInt() to tail.int})
                 assertEquals(0,tail.get().toInt()); assertFalse(tail.hasRemaining())
             }
             verifyCards(next(client,0x0323)); next(client,0x0f01)
