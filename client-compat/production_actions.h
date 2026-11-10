@@ -157,8 +157,8 @@ static bool updateProductionAction() {
         taxText(0,label);
     } else taxText(0,titles[command-31]);
     if(listed) {if(row)swprintf_s(label,L"%ls: %ls",command==35 ? L"건조할 함종" : L"모병할 병종",row->name);else swprintf_s(label,L"목록이 없습니다.");}
-    else swprintf_s(label,L"%ls",command==31 ? L"이 행성에 조병창을 짓습니다." : command==32 ? L"조병창의 자동 함정 생산을 멈춥니다." :
-        command==33 ? L"멈춘 조병창을 다시 가동합니다." : L"지은 조병창을 없앱니다.");
+    else swprintf_s(label,L"%ls",command==31 ? L"이 행성에 조병창을 짓습니다." : command==32 ? L"자동 생산을 멈추고 주문 함정 입고를 보류합니다." :
+        command==33 ? L"재가동 후 밀린 주문 함정을 입고합니다." : L"지은 조병창을 없앱니다.");
     taxText(1,label);
     const bool readyTarget=!listed || row;
     if(support==1 && readyTarget && !state.pending && !productionQuote.requested)sendProductionAction(true,true);
