@@ -212,6 +212,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                 val snapshot=navigation?.snapshot();val characters=currentCharacters()
                 val generation=snapshot?.session?.generation
                 if(!started || closed.get() || generation!=null && generation!=(admission?.generation ?: 1L))null else {
+                    snapshot?.planetStocks?.takeIf { it.generation == generation }?.deletedCharacters?.get(account)
+                        ?.let { characters.reconcileVoluntaryDeletion(account, it) }
                     if (snapshot?.session?.ended == null && admission?.running != false) {
                         characters.character(account)?.takeIf {org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}
                             ?.let {characters.retire(account,it.id)}

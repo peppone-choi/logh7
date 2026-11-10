@@ -3157,6 +3157,11 @@ class GameExchange(
                     }
                     val snapshot=navigation?.snapshot()
                     val current=characterProvider()
+                    if (characters === current && snapshot?.session?.generation == admission?.generation) {
+                        snapshot?.planetStocks?.takeIf { it.generation == snapshot.session?.generation }
+                            ?.deletedCharacters?.get(identity.account)
+                            ?.let { characters.reconcileVoluntaryDeletion(identity.account, it) }
+                    }
                     // During play, a fallen character retires so the lobby can offer creation again.
                     if (characters===current && snapshot?.session?.generation==admission?.generation &&
                         snapshot?.session?.ended==null && admission?.running!=false) {

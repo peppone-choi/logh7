@@ -26,6 +26,37 @@ import kotlin.test.*
 class CharacterStoresTest {
     @TempDir lateinit var directory: Path
 
+    @Test fun voluntaryDeletionCanBeReplayedWithoutRemovingAReplacementOrRecordingACasualty() {
+        val file = directory.resolve("voluntary-deletion.properties")
+        val profile = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Alpha", "Pilot", 18, 1, 1,
+            1_000_001, List(8) { 50 }, 0, 0, 0, 13, 3, 3, "Ship", 1)
+        val store = CharacterStores(file).get(1)
+        assertTrue(store.carry("pilot", profile))
+        assertFalse(store.reconcileVoluntaryDeletion("pilot", setOf(10001)))
+        assertTrue(store.reconcileVoluntaryDeletion("pilot", setOf(10000)))
+
+        val reopened = CharacterStores(file).get(1)
+        assertTrue(reopened.fameParticipants().first.isEmpty())
+        assertTrue(reopened.fameParticipants().second.isEmpty())
+        val request = reopened.accept("pilot", profile.copy(category = 0, id = 0))
+        assertEquals(10001L, CharacterMessages.generate(request.copyOfRange(4, request.size)).id)
+        assertTrue(reopened.carry("pilot", profile.copy(id = 10001)))
+        assertFalse(reopened.reconcileVoluntaryDeletion("pilot", setOf(10000)))
+        assertEquals(10001L, reopened.fameParticipants().first.getValue("pilot").character.id)
+
+        val session = SessionSnapshot(1, 0, 0, 0, emptyMap(), 0, 0, null)
+        val stocks = PlanetStocks(1, 0, emptyMap(), deletedCharacters = mapOf("pilot" to setOf(10020)))
+        val world = WorldSnapshot(0, 0, session, planetStocks = stocks)
+        val unpruned = CharacterStores(null).get(1)
+        assertTrue(unpruned.carry("pilot", profile.copy(id = 10020)))
+        assertTrue(WorldCharacters.profiles(unpruned.profiles(), world).isEmpty())
+        assertEquals(unpruned.profiles(), WorldCharacters.profiles(unpruned.profiles(),
+            world.copy(session = session.copy(generation = 2))))
+        val recovered = CharacterStores(null, worldSnapshot = { world }).get(1)
+        val next = recovered.accept("pilot", profile.copy(category = 0, id = 0))
+        assertEquals(10021L, CharacterMessages.generate(next.copyOfRange(4, next.size)).id)
+    }
+
     @Test fun retirementAndLegacyWorldHistoryBothPreventGeneratedIdReuse() {
         val file = directory.resolve("retirement.properties")
         val profile = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Alpha", "Pilot", 18, 1, 1,

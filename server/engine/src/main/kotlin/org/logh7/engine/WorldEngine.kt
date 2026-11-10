@@ -13,6 +13,8 @@ sealed interface WorldCommand {
     data object Probe : WorldCommand
     data class ReadHomeIntelligence(val account:String,val connection:String,val generation:Long,
         val character:Int,val base:Int,val result:CompletableDeferred<HomeIntelligenceReport?>) : WorldCommand
+    data class DeleteGeneratedCharacter(val account: String, val generation: Long, val character: Int,
+        val registeredRank: Int, val result: CompletableDeferred<CharacterDeletionResult>) : WorldCommand
     data class AdvanceTo(val elapsedRealMillis: Long) : WorldCommand
     data class Join(val account: String, val country: CountryId?, val original: Boolean, val result: CompletableDeferred<Admission>, val connection: String? = null, val generation: Long? = null,
         /** The character store's current profile; seeds the strategic record when CP experience first raises an ability. */
@@ -589,13 +591,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         navigation.publishCommitted(players, next, session.generation); production.publishCommitted(stocks, prepared)
         return next.filter { (account, p) -> players[account] != p }.values.map { it.characterId }
     }
-    private fun replacingDeceased(join: WorldCommand.Join, session: SessionState): Boolean {
+    private fun replacingCharacter(join: WorldCommand.Join, session: SessionState): Boolean {
         val participant = session.participants[join.account] ?: return false
         if (participant.online || participant.country != join.country || participant.original == join.original ||
             join.characterId == null || join.generation != null && join.generation != session.generation) return false
-        val predecessor = navigation?.snapshot(session.generation)?.get(join.account) ?: return false
-        return predecessor.characterId != join.characterId &&
-            BattleDeath.deceased(production?.snapshot(session.generation), predecessor.characterId)
+        val stocks = production?.snapshot(session.generation)
+        val predecessor = navigation?.snapshot(session.generation)?.get(join.account)
+        if (predecessor == null) return !stocks?.deletedCharacters?.get(join.account).isNullOrEmpty()
+        return predecessor.characterId != join.characterId && BattleDeath.deceased(stocks, predecessor.characterId)
     }
 
     private fun publish(snapshot:WorldSnapshot,deferredCharacterRefresh:Set<Int> = emptySet()) {
@@ -818,6 +821,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 maxOf(durableState?.elapsed ?: elapsed,if(ticking)Math.addExact(initialElapsed,monotonicMillis()-origin)
                     else durableState?.elapsed ?: elapsed)) else queued.command
             if(command is WorldCommand.AdvanceTo && awaitIdentities && production!=null && production.identities==null)continue
+            if (command is WorldCommand.Join && command.characterId != null) {
+                val generation = (durableState?.session ?: simulation.exportState()).generation
+                val deleted = production?.snapshot(generation)?.deletedCharacters?.get(command.account).orEmpty()
+                if (command.characterId in deleted) {
+                    command.result.complete(Admission.IDENTITY_CHANGED)
+                    continue
+                }
+            }
             if(command is WorldCommand.ReadHomeIntelligence) {
                 val session=durableState?.session ?: simulation.exportState()
                 val viewer=navigation?.snapshot(session.generation)?.get(command.account)
@@ -825,6 +836,46 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 command.result.complete(if(storageFailed || session.generation!=command.generation ||
                     viewer?.characterId!=command.character || inventory==null)null
                 else EspionageActions.homeReport(inventory,session,command.account,command.connection,viewer,command.base))
+                continue
+            }
+            if (command is WorldCommand.DeleteGeneratedCharacter) {
+                try {
+                    val session = durableState?.session ?: simulation.exportState()
+                    val world = galaxy
+                    val committer = worldStateCommitter
+                    val inventory = production?.snapshot(session.generation)
+                    val players = navigation?.snapshot(session.generation)
+                    val player = players?.get(command.account)
+                    val participant = session.participants[command.account]
+                    val result = when {
+                        storageFailed || world == null || committer == null || inventory == null || players == null ->
+                            CharacterDeletionResult.UNAVAILABLE
+                        session.generation != command.generation || session.ended != null ->
+                            CharacterDeletionResult.INELIGIBLE
+                        command.character in inventory.deletedCharacters[command.account].orEmpty() ->
+                            CharacterDeletionResult.DELETED
+                        player?.characterId != command.character || participant == null || participant.original ||
+                            participant.country != player.country -> CharacterDeletionResult.INELIGIBLE
+                        participant.online -> CharacterDeletionResult.BUSY
+                        else -> VoluntaryCharacterDeletion.eligibility(world, inventory, player, command.registeredRank,
+                            CountryCatalogLoader.current()) ?: run {
+                            val after = VoluntaryCharacterDeletion.remove(inventory, command.account, command.character)
+                            val prepared = checkNotNull(production).prepareReplacement(inventory, after)
+                            val remaining = players - command.account
+                            committer.saveWorld(remaining, prepared)
+                            checkNotNull(navigation).publishCommitted(players, remaining, session.generation)
+                            production.publishCommitted(inventory, prepared)
+                            profiles.remove(command.account)
+                            state = published.get().copy(navigators = remaining, planetStocks = prepared)
+                            publish(state)
+                            CharacterDeletionResult.DELETED
+                        }
+                    }
+                    command.result.complete(result)
+                } catch (failure: Exception) {
+                    if (failure is java.io.IOException) { storageFailed = true; storageFailure = failure }
+                    command.result.completeExceptionally(failure)
+                }
                 continue
             }
             if(command is WorldCommand.Quiesce<*>) {
@@ -1541,7 +1592,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 try {
                     storageFailure?.let { throw java.io.IOException("Session storage is unavailable; restart and verify the journal", it) }
                     val before = checkNotNull(durableState)
-                    val action = command.sessionAction(command is WorldCommand.Join && replacingDeceased(command, before.session))
+                    val action = command.sessionAction(command is WorldCommand.Join && replacingCharacter(command, before.session))
                     val next = transitionSession(rules, before, action)
                     durability.commit(action, next)
                     durableState = next.state
@@ -1593,7 +1644,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.Join -> {
                     val session = simulation.exportState()
                     admission = if (command.generation != null && command.generation != session.generation) Admission.STALE_SESSION
-                        else simulation.join(command.account, command.country, command.original, command.connection, replacingDeceased(command, session))
+                        else simulation.join(command.account, command.country, command.original, command.connection, replacingCharacter(command, session))
                     if (admission == Admission.ACCEPTED) command.profile?.let { profiles[command.account] = it }
                     emptyList()
                 }
@@ -1615,6 +1666,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                 is WorldCommand.Tax -> error("Tax is handled before session commands")
                 is WorldCommand.Budget -> error("Budget is handled before session commands")
                 is WorldCommand.ReadHomeIntelligence -> error("Intelligence is handled before session commands")
+                is WorldCommand.DeleteGeneratedCharacter -> error("Character deletion is handled before session commands")
                 is WorldCommand.Social -> error("Social is handled before session commands")
                 is WorldCommand.SupplyOutfit -> error("Supply is handled before session commands")
                 is WorldCommand.TransferGround -> error("Ground transfer is handled before session commands")

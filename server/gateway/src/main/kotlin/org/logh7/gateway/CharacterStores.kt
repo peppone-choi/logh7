@@ -38,7 +38,8 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
         }
         return navigators + stocks.strategic.people.keys.asSequence() + stocks.strategic.offices.asSequence().map { it.character } +
             stocks.nationalOffices.values.asSequence() + stocks.logisticsOfficers.keys.asSequence() + baseOfficers +
-            stocks.outfits.values.asSequence().flatMap { it.members() }
+            stocks.outfits.values.asSequence().flatMap { it.members() } +
+            stocks.deletedCharacters.values.asSequence().flatten()
     }
     private fun open(generation:Long)=CharacterCreation(path(generation),accountFame=fame.accounts,publishedOriginals=publishedOriginals,
         worldOccupiedOriginals = { worldCharacterIds(generation).filter { it in 1..9999 }.map { it.toLong() }.toSet() },

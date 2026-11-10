@@ -8,6 +8,31 @@ import kotlin.test.*
 
 class FilePlanetStockStoreTest {
     @TempDir lateinit var directory: Path
+    @Test fun generatedCharacterDeletionReceiptsRoundTripWithoutChangingOtherStockSections() {
+        val path = directory.resolve("deletion")
+        val stock = PlanetStock(1049, 2, 0, 100, 100, 100)
+        val report = HomeIntelligenceReport(CountryId(2), stock.baseId, 100, 200, 75, 90, garrisonStrength=1200)
+        val ordinary = PlanetStocks(7, 3, mapOf(stock.baseId to stock),
+            strategic=StrategicState(people=mapOf(10003 to StrategicPerson(deceasedAt=150))),
+            social=SocialState(justice=JusticeState(homeReports=mapOf((report.country to report.base) to report))))
+        val marked = ordinary.copy(deletedCharacters=mapOf("other" to setOf(10004), "pilot" to setOf(10002, 10001)))
+        FilePlanetStockStore(path).use { it.save(ordinary) }
+        val legacy = Files.readString(path)
+        assertTrue(legacy.startsWith("LOGH7-STOCK-54\t"))
+        FilePlanetStockStore(path).use { assertEquals(ordinary, it.load()) }
+        FilePlanetStockStore(path).use { it.save(marked) }
+        val receipt = "D\t3\tother:10004\tpilot:10001\tpilot:10002\n"
+        val serialized = Files.readString(path)
+        assertEquals("LOGH7-STOCK-55\t" + legacy + receipt, serialized)
+        FilePlanetStockStore(path).use { assertEquals(marked, it.load()) }
+        for (invalid in listOf(serialized.removeSuffix(receipt), serialized.replace("D\t3", "D\t2"),
+            serialized.replace("pilot:10002", "pilot:10001"), serialized.replace("pilot:10002", "pilot:1"),
+            serialized.replace("LOGH7-STOCK-54", "LOGH7-STOCK-55"))) {
+            Files.writeString(path, invalid)
+            FilePlanetStockStore(path).use { assertFailsWith<IllegalArgumentException> { it.load() } }
+        }
+    }
+
     @Test fun independentOwnershipIsVersionedAndCanonical() {
         val path=directory.resolve("independent")
         val stock=PlanetStock(2000,Allegiance.Independent(10000),0,100,100,100)

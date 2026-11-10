@@ -176,6 +176,17 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         casualties[casualty.first]=casualty.second
         registered.remove(account); pending.remove(account); bindings.remove(account); return true
     }
+    /** Replays a committed world deletion without recording a battle casualty. */
+    @Synchronized internal fun reconcileVoluntaryDeletion(account: String, deletedIds: Set<Int>): Boolean {
+        val character = registered[account]?.character ?: return false
+        if (!character.generated || Math.toIntExact(character.id) !in deletedIds) return false
+        save(registered - account)
+        registered.remove(account)
+        pending.remove(account)
+        bindings.remove(account)
+        return true
+    }
+
     /** Drops an unfinished creation; with an [owner], only the one that connection started. Registered characters
      * and accepted lottery applications are kept. */
     @Synchronized fun cancelCreation(account:String,owner:String?=null):Boolean {

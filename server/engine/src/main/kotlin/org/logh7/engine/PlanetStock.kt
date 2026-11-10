@@ -41,7 +41,9 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
     /** Last game hour whose black-hole tidal loss was applied (BlackHoleTides); 0 before the first settlement. */
     val tidalHour:Long=0,
     /** Air (fighter) training level 1..3 per outfit from 空戦訓練; absent means 0. */
-    val airTraining:Map<Int,Int> = emptyMap()) {
+    val airTraining:Map<Int,Int> = emptyMap(),
+    /** Voluntary deletion receipts by account and generated character ID for this generation. */
+    val deletedCharacters: Map<String, Set<Int>> = emptyMap()) {
     init {
         require(generation > 0 && producedDays in 0..50000 && bases.size <= 350 && bases.all { (id, stock) -> id == stock.baseId })
         validateOutfitStocks(bases, outfits, warehouses, logisticsOfficers)
@@ -59,9 +61,14 @@ data class PlanetStocks(val generation: Long, val producedDays: Long, val bases:
         require(social.squares.keys.all {it in bases} && social.speeches.values.all {it.base in bases}) {"Unknown social base"}
         require(discipline.size<=1000 && discipline.keys.all {it>0}) {"Invalid outfit discipline"}
         require(tidalHour in 0..0xffffffffL/3600) {"Invalid tidal hour"}
+        require(deletedCharacters.all { (account, ids) ->
+            deletionAccount.matches(account) && ids.isNotEmpty() && ids.all { it >= 10_000 }
+        }) { "Invalid character deletion receipts" }
         require(airTraining.size<=1000 && airTraining.all {(id,level)->id>0 && level in 1..3}) {"Invalid air training"}
     }
 }
+private val deletionAccount = Regex("[A-Za-z0-9._-]{1,30}")
+
 interface PlanetStockStore : AutoCloseable {
     fun load(): PlanetStocks?
     fun save(stocks: PlanetStocks)
@@ -108,7 +115,10 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         groundBattles = Collections.unmodifiableMap(LinkedHashMap(stocks.groundBattles)),
         nationalTreasuries = Collections.unmodifiableMap(LinkedHashMap(stocks.nationalTreasuries)),
         strategic=stocks.strategic.detached(),tacticalCommands=stocks.tacticalCommands.detached(),
-        flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached(),social=stocks.social.detached())
+        flagshipMarket=stocks.flagshipMarket.detached(),civic=stocks.civic.detached(),budget=stocks.budget.detached(),social=stocks.social.detached(),
+        deletedCharacters=Collections.unmodifiableMap(stocks.deletedCharacters.mapValues { (_, ids) ->
+            Collections.unmodifiableSet(LinkedHashSet(ids))
+        }))
     val maximumStock: Int get() = policy.maximumStock
     val defaultRemittanceRate:Int get()=policy.tax.remittanceRate
     /** Registered characters for periodic personnel rules; supplied by the gateway's character store.
