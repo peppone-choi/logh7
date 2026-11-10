@@ -2,6 +2,7 @@ package org.logh7.gateway
 
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.logh7.engine.CharacterDeletionResult
 import org.logh7.engine.CountryId
 import org.logh7.engine.Navigator
 import org.logh7.engine.OfficeHolding
@@ -21,10 +22,41 @@ import java.util.Properties
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.CompletableFuture
 import kotlin.test.*
 
 class CharacterStoresTest {
     @TempDir lateinit var directory: Path
+
+    @Test fun lobbyDeletionUsesOnlyTheAuthenticatedAccountsSelectedProfileAndWaitsForCommit() {
+        val profile = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Alpha", "Pilot", 18, 1, 1,
+            1_000_001, List(8) { 50 }, 0, 0, 0, 13, 3, 3, "Ship", 1)
+        val store = CharacterStores(null).get(1)
+        assertTrue(store.carry("pilot", profile))
+        val commit = CompletableFuture<CharacterDeletionResult>()
+        var requests = 0
+        val stock = object : GameStock {
+            override fun snapshot(generation: Long): CompletableFuture<PlanetStocks> = error("Unexpected snapshot")
+            override fun deleteGeneratedCharacter(account: String, generation: Long, character: Int, registeredRank: Int):
+                CompletableFuture<CharacterDeletionResult> {
+                assertEquals("pilot", account)
+                assertEquals(1L, generation)
+                assertEquals(10000, character)
+                assertEquals(profile.rank, registeredRank)
+                requests++
+                return commit
+            }
+        }
+        assertEquals(CharacterDeletionResult.INELIGIBLE, deleteLobbyCharacter("other", 1, 10000, 1, store, stock).join())
+        assertEquals(CharacterDeletionResult.INELIGIBLE, deleteLobbyCharacter("pilot", 2, 10000, 1, store, stock).join())
+        assertEquals(CharacterDeletionResult.INELIGIBLE, deleteLobbyCharacter("pilot", 1, 10001, 1, store, stock).join())
+        val pending = deleteLobbyCharacter("pilot", 1, 10000, 1, store, stock)
+        assertEquals(1, requests)
+        assertEquals(profile, store.character("pilot"))
+        commit.complete(CharacterDeletionResult.DELETED)
+        assertEquals(CharacterDeletionResult.DELETED, pending.join())
+        assertNull(store.character("pilot"))
+    }
 
     @Test fun voluntaryDeletionCanBeReplayedWithoutRemovingAReplacementOrRecordingACasualty() {
         val file = directory.resolve("voluntary-deletion.properties")
