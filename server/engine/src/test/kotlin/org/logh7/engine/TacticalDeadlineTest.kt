@@ -678,10 +678,12 @@ class TacticalDeadlineTest {
                     "recipient" to Navigator(1,10001,Power.EMPIRE,homeGrid,1000,1000,1000))
                 val mail=ProposalMail(1,10000,10001,17,19,ProposalActions.RESIGNATION,true,start,
                     start+Proposals.LIFETIME,mcp=40)
-                stocks=OrganizationalOfficePolicy(galaxy).set(stocks.copy(
+                val policy=OrganizationalOfficePolicy(galaxy)
+                stocks=policy.set(stocks.copy(
                     bases=mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
                     social=stocks.social.copy(proposals=ProposalState(listOf(mail)))),
                     OfficeHolding(19,1049,10001))
+                stocks=policy.set(stocks,OfficeHolding(17,1049,10000))
                 if(dismissalOrder) {
                     players=players+("sender" to Navigator(1,10002,Power.EMPIRE,homeGrid,1000,920,1000))
                     val dismissal=mail.copy(sender=10002,senderCard=1,card=17,command=ProposalActions.DISMISSAL,

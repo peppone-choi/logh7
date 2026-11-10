@@ -664,7 +664,8 @@ class TacticalCombatTest {
             state.players = state.players + ("victim" to victim) + ("recipient" to recipient) +
                 ("pilot" to state.players.getValue("pilot").copy(hull = FlagshipHull(89, now),
                     fire = TacticalFire(1, TacticalPendingFire(1, 2488, 89, victim.unitId, now, at))))
-            val fleet = state.stocks.outfits.getValue(1).copy(commanderId = recipient.characterId, aideId = victim.characterId)
+            val fleet = state.stocks.outfits.getValue(1).copy(commanderId = recipient.characterId,
+                staff = FleetStaff(deputy = victim.characterId))
             state.stocks = state.stocks.copy(outfits = mapOf(fleet.id to fleet),
                 social = state.stocks.social.copy(proposals = ProposalState(listOf(mail))))
             val tick = session.copy(gameMillis = at * 1000, participants = session.participants +
