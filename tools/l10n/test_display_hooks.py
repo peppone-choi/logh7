@@ -60,6 +60,17 @@ class DisplayHookTests(unittest.TestCase):
         # Menu EDI and HUD EAX point to the decoded institution: kind +0, stable ID +4.
         self.assertEqual(bytes.fromhex('8b4f0433d2668b17'),self.raw(0x591581,8))
         self.assertEqual(bytes.fromhex('8b4424343bc7742533c9668b08'),self.raw(0x58f20a,13))
+        # Picker rows push " %s[%d] " for 646616; only these two pushes get the owned " %s ".
+        pushes=re.search(r'facilityPickerFormatPushes\[\]=\{([^}]+)\}',header)[1]
+        self.assertEqual([0x59159a,0x591616],[int(value,16) for value in pushes.split(',')])
+        self.assertIn('facilityPickerFormat[]=" %s ";',header)
+        self.assertEqual(b' %s[%d] \0',self.raw(0x78d758,9))
+        for address in (0x59159a,0x591616):
+            self.assertEqual(b'\x68\x58\xd7\x78\0',self.raw(address,5))
+            self.assertEqual(0x646616,address+11+struct.unpack_from('<i',self.raw(address+6,5),1)[0])
+        # Caller cleanup still drops CString*, format, label and the stable ID.
+        self.assertEqual(bytes.fromhex('83c410'),self.raw(0x5915a5,3))
+        self.assertEqual(bytes.fromhex('83c410'),self.raw(0x591624,3))
         self.assertEqual(self.data,self.original.read_bytes())
 
     def test_dynamic_ship_spec_assignment_has_a_bounded_display_only_bridge(self):
