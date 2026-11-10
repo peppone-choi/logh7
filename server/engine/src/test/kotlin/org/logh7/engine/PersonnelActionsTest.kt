@@ -183,6 +183,33 @@ class PersonnelActionsTest {
         val replay=act(q,assertNotNull(awarded.stocks))
         assertEquals(StrategyActionRejection.MAXIMUM,replay.rejection);assertEquals(p,replay.player)
     }
+    @Test fun pendingTacticalMeritQualifiesForDecorationWithoutBeingCreditedTwice() {
+        val initial=stocks(17)
+        val legacy=initial.copy(tacticalCommands=TacticalCommandState(
+            merits=mapOf(10001 to 80L),creditedMerits=mapOf(10001 to 10L)))
+        val command=request(4,card=17).copy(identities=identities.map {if(it.id==10001)it.copy(rank=6) else it})
+        val awarded=act(command,legacy)
+        assertNull(awarded.rejection)
+        assertEquals(840,awarded.player?.mcp)
+        val after=assertNotNull(awarded.stocks)
+        assertEquals(setOf(0),after.strategic.people.getValue(10001).decorations)
+        assertEquals(100L,TacticalPersonnel.merit(TacticalPersonnel.credit(after),10001))
+    }
+
+    @Test fun promotionUsesPendingTacticalMeritAndConsumesItOnlyForThePromotedPerson() {
+        val legacy=stocks().copy(tacticalCommands=TacticalCommandState(
+            merits=mapOf(10001 to 10L,10002 to 35L)))
+        assertEquals(StrategyActionRejection.RANK,act(request(0),legacy).rejection)
+        val promoted=act(request(0,10002),legacy)
+        assertNull(promoted.rejection)
+        val after=assertNotNull(promoted.stocks)
+        assertEquals(8,after.strategic.people.getValue(10002).rank)
+        assertEquals(0L,TacticalPersonnel.merit(after,10002))
+        assertEquals(0L,TacticalPersonnel.merit(TacticalPersonnel.credit(after),10002))
+        assertEquals(mapOf(10002 to 35L),after.tacticalCommands.creditedMerits)
+        assertEquals(40L,TacticalPersonnel.merit(after,10001))
+    }
+
     @Test fun anEmpirePoliticianStaysOnItsMilitaryLadderAndIsPromotedThere() {
         // U-28 (CD manual p.37): 10001 retired from rank 9 as a politician that keeps rank 9's military ladder.
         val s=stocks().let {it.copy(strategic=it.strategic.copy(people=it.strategic.people+
