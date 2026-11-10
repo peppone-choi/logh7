@@ -154,12 +154,13 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             System.err.println("Image definitions unavailable; using native country images")
         }
         val rules = environment["LOGH7_SESSION_RULES"]?.let { path -> java.nio.file.Files.newInputStream(Path.of(path)).use { SessionRules.load(it) } } ?: SessionRules.load()
-        val characterFile = environment["LOGH7_CHARACTERS_FILE"]?.let { Path.of(it) }
+        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it)),facilityDefinitions=facilities::current,countryImages=publishedImages::current) }
+        val characterFile = worldCharacterFile(environment, world != null)
+        val inferredCharacterFile = characterFile?.takeIf { environment["LOGH7_CHARACTERS_FILE"] == null }
         val generationFile = environment["LOGH7_SESSION_GENERATION_FILE"]?.let { Path.of(it) }
             ?: characterFile?.resolveSibling("${characterFile.fileName}.session-generation")
         val generations = generationFile?.let(::FileSessionGenerationStore) ?: MemorySessionGenerationStore()
         val sessionDirectory = environment["LOGH7_SESSION_STORE_DIR"]?.let { Path.of(it) }
-        val world = environment["LOGH7_WORLD_FILE"]?.let { WorldBootstrap(Galaxy.load(Path.of(it)),facilityDefinitions=facilities::current,countryImages=publishedImages::current) }
         val directorySync = when (environment["LOGH7_SESSION_DIRECTORY_SYNC"]) {
             null, "required" -> org.logh7.persistence.DirectorySync.REQUIRED
             "files-only" -> org.logh7.persistence.DirectorySync.FILE_CONTENTS_ONLY
@@ -207,15 +208,22 @@ internal fun startGameRuntime(environment:RuntimeEnvironment,lobby:org.logh7.gat
             resources.addFirst(AutoCloseable {synchronized(worldIdentities){worldIdentities.remove(identity)}})
             identity
         } else null
-        val engine = try { WorldEngine(scope, rules, generationStore = generations, durability = store, timings = actorTimings,
-            galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState,
-            npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true,
-                chooseFireTarget = jev?.let { advisor -> { decision -> advisor.choose(sessionId,decision) } },
-                behavior = { generation,outfit -> npcProfiles.current(generation,outfit)?.behavior ?: org.logh7.engine.NpcCombatBehavior.STANDARD }),
-            awaitIdentities = world != null,
-            founding = if (worldIdentity!=null && countryDefinitions!=null && world?.galaxy?.unaffiliatedStart!=null)
-                org.logh7.engine.CountryFoundingRegistry(java.util.UUID.fromString(worldIdentity),countryDefinitions) else null) }
-        catch (failure: Throwable) {
+        val engine = try {
+            if (inferredCharacterFile != null) {
+                val restored = store?.load()?.session
+                requireWorldCharacterHistory(inferredCharacterFile, restored?.generation ?: generations.current(),
+                    navigationStore, stockStore, restored?.participants.orEmpty().keys)
+                println("World character storage: $inferredCharacterFile")
+            }
+            WorldEngine(scope, rules, generationStore = generations, durability = store, timings = actorTimings,
+                galaxy = world?.galaxy, navigationStore = navigationStore, stockStore = stockStore, worldStateCommitter = worldState,
+                npcPolicy = org.logh7.engine.NpcTacticalPolicy(strategic = true,
+                    chooseFireTarget = jev?.let { advisor -> { decision -> advisor.choose(sessionId,decision) } },
+                    behavior = { generation,outfit -> npcProfiles.current(generation,outfit)?.behavior ?: org.logh7.engine.NpcCombatBehavior.STANDARD }),
+                awaitIdentities = world != null,
+                founding = if (worldIdentity!=null && countryDefinitions!=null && world?.galaxy?.unaffiliatedStart!=null)
+                    org.logh7.engine.CountryFoundingRegistry(java.util.UUID.fromString(worldIdentity),countryDefinitions) else null)
+        } catch (failure: Throwable) {
             try { stockStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { navigationStore?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
             try { store?.close() } catch (closing: Throwable) { failure.addSuppressed(closing) }
