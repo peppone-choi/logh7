@@ -19,7 +19,7 @@ internal object GridForceReport {
             if (count > 0 && abs(grid % 100 - viewer.grid % 100) <= 7 && abs(grid / 100 - viewer.grid / 100) <= 7)
                 units[grid] = (units[grid] ?: 0L) + count
         }
-        snapshot.navigators.values.filter {it.generation==viewer.generation &&
+        snapshot.navigators.values.filter {it.generation==viewer.generation && !BattleDeath.deceased(stocks,it.characterId) &&
             Camp.of(it,stocks?.let {s->CoupActions.rebel(s,it.characterId,it.country)}==true)==camp}
             .forEach {add(it.grid,1)}
         stocks?.outfits?.values
