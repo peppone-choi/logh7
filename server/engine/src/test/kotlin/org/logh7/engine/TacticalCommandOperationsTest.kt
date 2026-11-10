@@ -323,6 +323,32 @@ class TacticalCommandOperationsTest {
         assertNotEquals(TacticalPoint(0f,.8f),r.state.stocks.outfits.getValue(1).activeShips!!.values[1].tactical!!.motion.waypoints.single())
         settle(restored,now+20,events);assertEquals(1,events.size)
     }
+
+    @Test fun formationMovementKeepsAppliedAirSlowdownAndRestoresItsNewNormalSpeed() {
+        for((mode,normalSpeed) in listOf(1 to .8f,1 to null,0 to null)) {
+            val s=state()
+            val enemy=Navigator(1,10002,Power.ALLIANCE,2488,100,100,1000,cpPaused=true,
+                hull=FlagshipHull(89,now),motion=motion(1f,1f))
+            s.players=s.players+("enemy" to enemy)
+            val enemyFleet=s.stocks.outfits.getValue(2)
+            val wing=TacticalAirWing(enemy.characterId,2488,99,2,mode,now+100,normalSpeed)
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemyFleet.copy(commanderId=enemy.characterId)),
+                tacticalCommands=s.stocks.tacticalCommands.copy(air=mapOf(99 to wing)))
+            val ready=assertNotNull(accept(run(s),TacticalCommand(0x40d,listOf(1,2),kind=6)).commandReadyAt)
+            val events=mutableListOf<TacticalCommandResult>()
+            settle(run(s),ready,events)
+            val speed=if(normalSpeed==null).5f else .25f
+            assertEquals(speed,events.single().motions.getValue(2).velocity)
+            assertEquals(speed,s.stocks.outfits.getValue(1).activeShips!!.values[1].tactical!!.motion.velocity)
+            assertEquals(normalSpeed?.let {.5f},s.stocks.tacticalCommands.air.getValue(99).slowVelocity)
+            if(normalSpeed!=null) {
+                s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemyFleet))
+                settle(run(s),ready+1)
+                assertTrue(s.stocks.tacticalCommands.air.isEmpty())
+                assertEquals(.5f,s.stocks.outfits.getValue(1).activeShips!!.values[1].tactical!!.motion.velocity)
+            }
+        }
+    }
     @Test fun cdAirButtonInterceptAtAHostileUnitBecomesTheAntiShipLaunch() {
         // CD air button sends kind 0 only; a hostile target means the anti-ship attack.
         val s=state();val r=run(s);assertNotNull(accept(r,TacticalCommand(0x40e,listOf(1),kind=0,target=99)).player)
