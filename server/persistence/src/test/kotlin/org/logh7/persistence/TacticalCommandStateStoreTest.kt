@@ -9,6 +9,39 @@ import org.logh7.engine.*
 import kotlin.test.*
 
 class TacticalCommandStateStoreTest {
+
+    @Test fun entryAssignmentRoundTripsAlongsideLegacyExplicitAuthority() {
+        val legacy = TacticalCommandState(authority = mapOf(8 to 10000))
+        val assignment = legacy.copy(entryAuthority = (9..1028).associateWith { 10001 })
+        val oldStock = PlanetStocks(1, 0, emptyMap(), tacticalCommands = legacy)
+        val newStock = oldStock.copy(tacticalCommands = assignment)
+        val path = directory.resolve("entry-authority")
+        FilePlanetStockStore(path).use { store ->
+            store.save(oldStock)
+            val legacyFile = Files.readString(path)
+            assertTrue(legacyFile.startsWith("LOGH7-STOCK-30\t"))
+            assertEquals(oldStock, store.load())
+
+            store.save(newStock)
+            val currentFile = Files.readString(path)
+            assertTrue(currentFile.startsWith("LOGH7-STOCK-52\t"))
+            assertEquals(newStock, store.load())
+
+            // A STOCK-30 file with a v6 command row still has valid STOCK-30 section counts.
+            val commandRow = currentFile.lineSequence().single { it.startsWith("C\t") }
+            Files.writeString(path, legacyFile.replace(
+                legacyFile.lineSequence().single { it.startsWith("C\t") }, commandRow))
+            assertFailsWith<IllegalArgumentException> { store.load() }
+
+            // STOCK-51 has the same outer sections as STOCK-52.
+            Files.writeString(path, currentFile.replaceFirst("LOGH7-STOCK-52", "LOGH7-STOCK-51"))
+            assertFailsWith<IllegalArgumentException> { store.load() }
+
+            store.save(oldStock)
+            assertEquals(legacyFile, Files.readString(path))
+        }
+    }
+
     @TempDir lateinit var directory:Path
     @Test fun emergencySupplyRetainsAnActualCountryIdAcrossWorldReload() {
         val command=TacticalCommandState(emergencySupplies=mapOf(1000 to 42))

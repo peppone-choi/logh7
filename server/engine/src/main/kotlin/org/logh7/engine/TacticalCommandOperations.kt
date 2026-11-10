@@ -396,6 +396,7 @@ internal object TacticalCommandOperations {
                 }
                 0x40b,0x420 -> stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(
                     authority=stocks.tacticalCommands.authority+c.units.associateWith {p.characterId},
+                    entryAuthority=stocks.tacticalCommands.entryAuthority-c.units.toSet(),
                     formationLeaders=stocks.tacticalCommands.formationLeaders.filter {(id,leader)->id !in c.units && leader !in c.units}))
                 0x40d -> {
                     val (formation,commands)=TacticalFleetMotion.withAirSlowdown(

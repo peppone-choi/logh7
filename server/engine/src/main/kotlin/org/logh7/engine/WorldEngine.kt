@@ -562,6 +562,14 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             SessionResults.fromWorld(galaxy,snapshot) else null
         val previousResult=published.get().result
         published.set(snapshot.copy(result=result))
+        if (inventory != null && old != null && old.generation == inventory.generation &&
+            tacticalOfficeObservers.isNotEmpty() && old.tacticalCommands.entryAuthority != inventory.tacticalCommands.entryAuthority) {
+            val outfits = inventory.outfits.values.filter { outfit ->
+                old.outfits[outfit.id]?.let { tacticalOfficeAuthorityChanged(old, inventory, it) } == true
+            }.map { it.id }.toSet()
+            if (outfits.isNotEmpty()) for (observer in tacticalOfficeObservers) try { observer(inventory.generation, outfits) }
+            catch (failure: Exception) { System.err.println("Tactical office refresh delivery failed: ${failure.javaClass.simpleName}") }
+        }
         if(result!=null && previousResult==null)published.get().let {s->resultObservers.forEach {it(s)}}
         if(inventory!=null && old!=null && old.generation==inventory.generation && old.social.coup!=inventory.social.coup) {
             val bases=inventory.bases.keys.filter {id->old.bases[id]?.camp!=inventory.bases.getValue(id).camp}
