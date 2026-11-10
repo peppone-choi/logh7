@@ -32,7 +32,8 @@ internal object SocialStateCodec {
             times(j.disabled),
             j.disguises.toSortedMap().values.joinToString(",") {(listOf(it.character,it.alias,it.country.value,it.since,it.checkAt)+listOfNotNull(it.originCountry?.value)).joinToString(":")}.ifEmpty {"-"},
             j.homeReports.values.sortedWith(compareBy({it.country.value},{it.base})).joinToString(",") {
-                listOf(it.country.value,it.base,it.observedAt,it.treasury,it.approval,it.peace).joinToString(":")}.ifEmpty {"-"})
+                (listOf(it.country.value,it.base,it.observedAt,it.treasury,it.approval,it.peace)+listOfNotNull(it.garrisonStrength))
+                    .joinToString(":")}.ifEmpty {"-"})
         val last=maxOf(2,parts.indexOfLast {it!="-"})
         return parts.take(last+1).joinToString("/")
     }
@@ -56,8 +57,9 @@ internal object SocialStateCodec {
             val x=Disguise(v[0].toInt(),v[1].toInt(),CountryId(v[2].toInt()),v[3].toLong(),v[4].toLong(),
                 if(v.size==6)CountryId(v[5].toInt()) else null);require(disguises.put(x.character,x)==null)}
         val reports=linkedMapOf<Pair<CountryId,Int>,HomeIntelligenceReport>()
-        if(f.size==9)for(v in rows(f[8])) {require(v.size==6 && reports.size<JusticeState.MAX_HOME_REPORTS)
-            val x=HomeIntelligenceReport(CountryId(v[0].toInt()),v[1].toInt(),v[2].toLong(),v[3].toLong(),v[4].toInt(),v[5].toInt())
+        if(f.size==9)for(v in rows(f[8])) {require(v.size in 6..7 && reports.size<JusticeState.MAX_HOME_REPORTS)
+            val x=HomeIntelligenceReport(CountryId(v[0].toInt()),v[1].toInt(),v[2].toLong(),v[3].toLong(),v[4].toInt(),v[5].toInt(),
+                v.getOrNull(6)?.toLong())
             require(reports.put(x.country to x.base,x)==null)}
         return JusticeState(permits,rights,detentions,watches,infiltrations,bombs,if(f.size>=7)times(f[6]) else emptyMap(),disguises,reports)
     }

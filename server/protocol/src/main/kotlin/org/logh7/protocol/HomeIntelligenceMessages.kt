@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 object HomeIntelligenceMessages {
     const val SEARCH=0x7f14
     data class Query(val character:Int,val base:Int,val ticket:Int)
-    data class View(val observedAt:Long,val treasury:Long,val approval:Int,val peace:Int)
+    data class View(val observedAt:Long,val treasury:Long,val approval:Int,val peace:Int,val garrisonStrength:Long?=null)
 
     fun matches(body:ByteArray)=body.size>=8 && ByteBuffer.wrap(body).let {
         it.getShort(0).toInt()==0x1200 && (it.getShort(6).toInt() and 65535)==SEARCH
@@ -23,15 +23,21 @@ object HomeIntelligenceMessages {
         return Query(character,base,ticket)
     }
 
-    fun response(q:Query,view:View?):ByteArray {
+    fun responses(q:Query,view:View?):List<ByteArray> {
+        if(view==null)return listOf(record(q,0,0,0,0,0))
+        require(view.observedAt in 0..0xffffffffL && view.treasury>=0 && view.approval in 0..100 && view.peace in 0..100)
+        val report=record(q,1,view.observedAt,view.treasury,view.approval,view.peace)
+        val strength=view.garrisonStrength ?: return listOf(report)
+        require(strength>=0)
+        // Old DLLs already consume unknown statuses without displaying them.
+        return listOf(report,record(q,2,view.observedAt,strength,0,0))
+    }
+
+    private fun record(q:Query,status:Int,observedAt:Long,value:Long,approval:Int,peace:Int):ByteArray {
         val b=ByteBuffer.allocate(29)
         b.putInt(q.character).putShort(SEARCH.toShort()).putShort(q.base.toShort()).putInt(q.ticket)
-        if(view!=null) {
-            require(view.observedAt in 0..0xffffffffL && view.treasury>=0 && view.approval in 0..100 && view.peace in 0..100)
-            b.put(1).putInt(view.observedAt.toInt()).putLong(view.treasury)
-                .put(view.approval.toByte()).put(view.peace.toByte())
-        }
-        b.putShort(27,1)
+            .put(status.toByte()).putInt(observedAt.toInt()).putLong(value).put(approval.toByte()).put(peace.toByte())
+            .putShort(1)
         return LoginMessages.sessionMessage(0x1200,b.array())
     }
 }

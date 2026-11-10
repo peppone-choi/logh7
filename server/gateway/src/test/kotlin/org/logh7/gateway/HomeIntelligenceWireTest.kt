@@ -34,7 +34,7 @@ class HomeIntelligenceWireTest {
             initialOwners = bases.zip(countries.map { Allegiance.Country(it) }).toMap())
         val start = SessionRules.load().startSeconds
         val target = bases[1]
-        val report = HomeIntelligenceReport(home, target, start, 5_000_000_000, 75, 90)
+        val report = HomeIntelligenceReport(home, target, start, 5_000_000_000, 75, 90, garrisonStrength = 1733)
         var stock = PlanetStocks(1, 0, bases.mapIndexed { i, base ->
             base to PlanetStock(base, Allegiance.Country(countries[i]), 0, 0, 0, 0)
         }.toMap(), deploymentInitialized = true,
@@ -83,6 +83,15 @@ class HomeIntelligenceWireTest {
                         assertEquals(report.treasury, payload.getLong(23))
                         assertEquals(report.approval, payload.get(31).toInt())
                         assertEquals(report.peace, payload.get(32).toInt())
+                        val garrison = ByteBuffer.wrap(client.expect(0x1200))
+                        assertEquals(character, garrison.getInt(6))
+                        assertEquals(0x7f14, garrison.getShort(10).toInt())
+                        assertEquals(target, garrison.getShort(12).toInt())
+                        assertEquals(ticket, garrison.getInt(14))
+                        assertEquals(2, garrison.get(18).toInt())
+                        assertEquals(start, Integer.toUnsignedLong(garrison.getInt(19)))
+                        assertEquals(1733L, garrison.getLong(23))
+                        assertEquals(0, garrison.getShort(31).toInt())
                     } else assertContentEquals(ByteArray(15), response.copyOfRange(18, 33))
                     assertEquals(countries[index + 2], fixture.engine.snapshot().navigators.getValue(fixture.account(index)).country)
                 }

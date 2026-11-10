@@ -41,6 +41,8 @@ static void requestHomeReport(void* world,unsigned character,unsigned base) {
 }
 // Called from the 1200 reader before any other 7fxx reader. Every 7f14 record is consumed and blanked so the
 // native handler never sees it; only the exact pending world/character/base/ticket is accepted.
+// A status 2 garrison record is accepted at most once, only after the status 1 report of the same ticket was
+// accepted, and only with that report's world/character/base/observedAt. Before it, after it or unsolicited: dropped.
 static bool receiveHomeReport(void* record) {
     auto bytes=static_cast<BYTE*>(record);
     if(!logh::isHomeReport(bytes))return false;
@@ -48,8 +50,13 @@ static bool receiveHomeReport(void* record) {
     if(logh::readHomeReport(bytes,report)) {
         void* world=*reinterpret_cast<void**>(0x7ccffc);
         AcquireSRWLockExclusive(&homeReportLock);auto& q=homeReportInbox;
-        if(q.phase==homeReportWaiting && q.world && q.world==world && q.ticket==report.ticket &&
-            q.character==report.character && q.base==report.base) {
+        const bool same=q.world && q.world==world && q.character==report.character && q.base==report.base;
+        if(report.status==logh::homeReportGarrison) {
+            // q.report holds the report accepted for this query's ticket; a new query or abandon clears it.
+            if(same && q.phase==homeReportReady && logh::homeReportGarrisonFits(q.report,report)) {
+                logh::mergeHomeReportGarrison(q.report,report);++q.sequence;
+            }
+        } else if(same && q.phase==homeReportWaiting && q.ticket==report.ticket) {
             q.report=report;q.phase=homeReportReady;q.ticket=0;++q.sequence;
         }
         ReleaseSRWLockExclusive(&homeReportLock);
@@ -136,4 +143,8 @@ static void renderHomeReport() {
     _snwprintf_s(text,_countof(text),_TRUNCATE,L"%llu",report.treasury);row(2,L"금고",text);
     _snwprintf_s(text,_countof(text),_TRUNCATE,L"%u",report.approval);row(3,L"지지율",text);
     _snwprintf_s(text,_countof(text),_TRUNCATE,L"%u",report.peace);row(4,L"치안",text);
+    // Optional status 2 record; an older server never sends it, so absence shows 미관측 (0 is a real value).
+    if(report.garrisonObserved)_snwprintf_s(text,_countof(text),_TRUNCATE,L"%llu",report.garrisonStrength);
+    else wcscpy_s(text,L"미관측");
+    row(5,L"주둔 수비대 전력",text);
 }

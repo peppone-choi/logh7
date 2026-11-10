@@ -17,8 +17,9 @@ data class Bomb(val character:Int,val base:Int,val spot:Int,val explodesAt:Long)
 
 /** A snapshot sent home by 情報工作, accessible to the actual country for one game day. */
 data class HomeIntelligenceReport(val country:CountryId,val base:Int,val observedAt:Long,val treasury:Long,
-    val approval:Int,val peace:Int) {
-    init {require(base in 1..65535 && observedAt in 0..0xffffffffL && treasury>=0 && approval in 0..100 && peace in 0..100)}
+    val approval:Int,val peace:Int,val garrisonStrength:Long?=null) {
+    init {require(base in 1..65535 && observedAt in 0..0xffffffffL && treasury>=0 && approval in 0..100 && peace in 0..100 &&
+        (garrisonStrength==null || garrisonStrength in 0L..TacticalBaseDefense.MAXIMUM_STRENGTH.toLong()))}
     val expiresAt get()=observedAt+Justice.DAY
 }
 
@@ -181,9 +182,11 @@ object EspionageActions {
             INTELLIGENCE -> {
                 inside ?: return reject(SocialRejection.STALE)
                 val b=s.bases.getValue(p.baseId)
+                val base=g.bases.singleOrNull {it.id==b.baseId} ?: return reject(SocialRejection.TARGET)
                 if(roll(i.characterId,p.spotId,now)>=threshold(intelligence,CivicActions.guardStrength(s,p.baseId,p.spotId,now)))
                     return SocialResult(payer,s,changed=true,outcome=3)
-                val report=HomeIntelligenceReport(own,b.baseId,now,b.treasury,b.economy?.approval ?: 0,b.economy?.peace ?: 0)
+                val defense=TacticalBaseDefense.strength(s,base,session.eliminated.keys)
+                val report=HomeIntelligenceReport(own,b.baseId,now,b.treasury,b.economy?.approval ?: 0,b.economy?.peace ?: 0,defense.toLong())
                 val key=own to b.baseId
                 val reports=j.homeReports.filterValues {it.expiresAt>now}.toMutableMap()
                 if(key !in reports && reports.size==JusticeState.MAX_HOME_REPORTS)return reject(SocialRejection.MAXIMUM)

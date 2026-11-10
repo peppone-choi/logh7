@@ -155,12 +155,39 @@ static int homeReportTest() {
         homeReportFromWire(changed,record);return !logh::readHomeReport(record,report);
     };
     if(!rejects(reply,28,2) || !rejects(reply,27,1))return 1215;      // The trailing constant must be exactly 1.
-    if(!rejects(reply,12,2) || !rejects(reply,25,101) || !rejects(reply,26,101) || !rejects(reply,17,0x80))return 1216;
+    if(!rejects(reply,12,3) || !rejects(reply,25,101) || !rejects(reply,26,101) || !rejects(reply,17,0x80))return 1216;
     if(!rejects(query,20,1) || !rejects(query,16,1) || !rejects(query,26,1))return 1217; // Empty carries no values.
     if(!rejects(reply,5,0x13) || !rejects(reply,6,0,2))return 1218;   // Other subtype; base 0.
     if(!rejects(reply,8,0,4) || !rejects(reply,8,0x80) || !rejects(reply,0,0,4) || !rejects(reply,0,0x80))return 1219;
     unsigned char other[36]={};other[4]=0x13;other[5]=0x7f;
     if(logh::isHomeReport(other))return 1220;                         // Other 7fxx families pass through.
+    // Legacy status 1 carries no garrison value; the screen shows 미관측 unless a status 2 record is merged.
+    homeReportFromWire(reply,record);logh::HomeReport accepted;
+    if(!logh::readHomeReport(record,accepted) || accepted.garrisonObserved || accepted.garrisonStrength)return 1221;
+    // Optional status 2: same identity/ticket/observedAt, garrison u64 in the treasury slot @17, approval/peace 0.
+    const unsigned char garrison[29]={0,1,0x9a,0x4e,0x7f,0x14,0x0b,0xcd,1,2,3,4, 2, 0x0a,0x0b,0x0c,0x0d,
+        0,0,0,0,0,0,0x30,0x39, 0,0, 0,1};
+    homeReportFromWire(garrison,record);logh::HomeReport extra;
+    if(!logh::readHomeReport(record,extra) || extra.status!=2 || !extra.garrisonObserved || extra.garrisonStrength!=12345 ||
+        extra.treasury || extra.approval || extra.peace || extra.observedAt!=0x0a0b0c0du || extra.ticket!=0x01020304u)return 1222;
+    if(!rejects(garrison,25,1) || !rejects(garrison,26,1) || !rejects(garrison,17,0x80) || !rejects(garrison,28,0))return 1223;
+    unsigned char zero[29];memcpy(zero,garrison,sizeof(zero));memset(zero+17,0,8); // Zero strength is still observed.
+    homeReportFromWire(zero,record);logh::HomeReport zeroExtra;
+    if(!logh::readHomeReport(record,zeroExtra) || !zeroExtra.garrisonObserved || zeroExtra.garrisonStrength)return 1224;
+    if(!logh::homeReportGarrisonFits(accepted,extra) || !logh::homeReportGarrisonFits(accepted,zeroExtra))return 1225;
+    logh::HomeReport merged=accepted;logh::mergeHomeReportGarrison(merged,extra);
+    if(!merged.garrisonObserved || merged.garrisonStrength!=12345 || merged.treasury!=accepted.treasury ||
+        merged.approval!=73 || merged.peace!=41 || merged.status!=1)return 1226;
+    if(logh::homeReportGarrisonFits(merged,extra))return 1227;         // At most once per accepted report.
+    auto fits=[&](unsigned offset,unsigned char value) {
+        unsigned char changed[29];memcpy(changed,garrison,sizeof(changed));changed[offset]^=value;
+        homeReportFromWire(changed,record);logh::HomeReport other;
+        return logh::readHomeReport(record,other) && logh::homeReportGarrisonFits(accepted,other);
+    };
+    // Different character, base, ticket or observedAt never merges.
+    if(fits(3,1) || fits(7,1) || fits(11,1) || fits(16,1))return 1228;
+    logh::HomeReport empty;homeReportFromWire(query,record);logh::readHomeReport(record,empty);
+    if(logh::homeReportGarrisonFits(empty,extra) || logh::homeReportGarrisonFits(extra,extra))return 1229; // Only onto status 1.
     return 0;
 }
 // HD texture pack rules: data-relative path, skipped files, header sizes and the reported size (codes 901+).

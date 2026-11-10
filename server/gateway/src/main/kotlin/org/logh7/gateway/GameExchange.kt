@@ -2158,8 +2158,8 @@ class GameExchange(
                                     checkNotNull(generation),q.character,q.base) ?: CompletableFuture.completedFuture(null)
                                 pendingWorld=reply.thenApply {report ->
                                     val view=report?.let {org.logh7.protocol.HomeIntelligenceMessages.View(
-                                        it.observedAt,it.treasury,it.approval,it.peace)}
-                                    listOf(org.logh7.protocol.HomeIntelligenceMessages.response(q,view))
+                                        it.observedAt,it.treasury,it.approval,it.peace,it.garrisonStrength)}
+                                    org.logh7.protocol.HomeIntelligenceMessages.responses(q,view)
                                 }
                                 return null
                             }

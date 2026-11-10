@@ -245,6 +245,32 @@ class SocialStoreTest {
         }
     }
 
+    @Test fun stock54PreservesKnownGarrisonStrengthIncludingZeroAlongsideUnknownHistoricalReports() {
+        val a=CountryId(42);val b=CountryId(43)
+        val old=HomeIntelligenceReport(a,1049,now,900,75,90)
+        val reports=listOf(old,old.copy(country=b,garrisonStrength=0),old.copy(base=1177,garrisonStrength=725))
+        fun withReports(values:List<HomeIntelligenceReport>)=stocks.copy(social=SocialState(justice=JusticeState(
+            homeReports=values.associateBy {it.country to it.base})))
+        val legacy=withReports(listOf(old))
+        val updated=withReports(reports)
+        val path=directory.resolve("home-reports-garrison-format.tsv")
+        FilePlanetStockStore(path).use {store->
+            store.save(updated)
+            val current=Files.readAllLines(path)
+            assertTrue(current.first().startsWith("LOGH7-STOCK-54\t"))
+            assertEquals(updated,store.load())
+            Files.write(path,listOf(current.first().replaceFirst("LOGH7-STOCK-54","LOGH7-STOCK-53"))+current.drop(1))
+            assertContains(assertFailsWith<IllegalArgumentException>{store.load()}.message.orEmpty(),"stock format 54")
+
+            store.save(legacy)
+            val earlier=Files.readAllLines(path)
+            assertTrue(earlier.first().startsWith("LOGH7-STOCK-53\t"))
+            assertEquals(legacy,store.load())
+            Files.write(path,listOf(earlier.first().replaceFirst("LOGH7-STOCK-53","LOGH7-STOCK-54"))+earlier.drop(1))
+            assertContains(assertFailsWith<IllegalArgumentException>{store.load()}.message.orEmpty(),"stock format 54")
+        }
+    }
+
     @Test fun justiceCountriesCustodyAndSpyOriginsRoundTripWithLegacyRowsUnchanged() {
         val a=CountryId(42);val b=CountryId(43)
         val state=SocialState(justice=JusticeState(
