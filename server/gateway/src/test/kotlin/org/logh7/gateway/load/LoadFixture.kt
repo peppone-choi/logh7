@@ -52,13 +52,37 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     val loginPort: Int
     val sessionPort: Int
     private var closed = false
+    private val seededNavigators: Map<String, CharacterMessages.Generate>
+    private val seededGeneration: Long
     init {
         Files.createDirectories(directory)
         try {
             prepare(engine)
+            val snapshot = engine.snapshot()
+            seededGeneration = checkNotNull(snapshot.session).generation
+            seededNavigators = seedRegisteredNavigators(seededGeneration, navigationStore?.load().orEmpty(), stockStore?.load())
+            characters.putAll(seededNavigators)
             val started = startGateway()
             gateway = started.first; loginPort = started.second[0]; sessionPort = started.second[2]
         } catch (failure: Throwable) { engine.close(); scope.cancel(); throw failure }
+    }
+    /** World fixtures already place these generated pilots in the simulation. Register the same
+     * identities before the gateway opens its character store, as a real resumed world would. */
+    private fun seedRegisteredNavigators(generation: Long, navigators: Map<String, Navigator>, stocks: PlanetStocks?): Map<String, CharacterMessages.Generate> {
+        if (navigators.isEmpty()) return emptyMap()
+        val file = if (generation == 1L) "characters.properties" else "characters.properties.session-$generation"
+        val store = CharacterCreation(directory.resolve(file))
+        return navigators.mapNotNull { (account, pilot) ->
+            val index = account.removePrefix("load-").toIntOrNull() ?: return@mapNotNull null
+            if (account !in accounts || pilot.generation != generation || pilot.characterId < 10_000 ||
+                BattleDeath.deceased(stocks,pilot.characterId)) return@mapNotNull null
+            val power = powerByIndex(index)
+            val ship = Flagships.forType(pilot.shipStyle.nativePower,0)
+            val character = CharacterMessages.Generate(4,pilot.characterId.toLong(),power,if(power==3)3 else 0,0,
+                "Load%03d".format(index),"Test",30,1,1,1,List(8){50},10,0,0,13,ship.type,ship.kind,
+                "Ship%03d".format(index),1)
+            if (store.carry(account,CharacterProfile(character,pilot.country,pilot.shipStyle))) account to character else null
+        }.toMap()
     }
     private fun startGateway(): Pair<Gateway, List<Int>> {
         repeat(5) { attempt ->
@@ -135,7 +159,8 @@ class LoadFixture(val directory: Path, val capacity: Int, val metrics: LoadMetri
     data class Joined(val client: SyntheticClient, val accepted: Boolean)
     fun join(account: String, create: Boolean, initialize: Boolean = true,
         rejection: LoginMessages.SessionRejection = LoginMessages.SessionRejection.GENERIC): Joined {
-        val client = game(account, create)
+        val seeded = seededGeneration == access.generation && account in seededNavigators
+        val client = game(account, create && !seeded)
         try {
             val body = metrics.measure("join") {
                 client.send(SyntheticClient.opcode(0x0205)); client.expectAny(setOf(0x0206, 0x0202))
