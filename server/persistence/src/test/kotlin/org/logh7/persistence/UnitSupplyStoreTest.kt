@@ -29,6 +29,18 @@ class UnitSupplyStoreTest {
         assertEquals(order,TacticalSupportCodec.decode(encoded))
         assertFailsWith<IllegalArgumentException> {TacticalSupportCodec.decode(encoded+"=")}
         assertFailsWith<IllegalArgumentException> {ActiveShipUnit(1,stack,20,damaged=21)}
+
+        val outfit=expected.outfits.getValue(1)
+        val delegated=outfit.copy(activeShips=ActiveShipUnits(outfit.activeShips!!.values.map { unit ->
+            if(unit.id==1)unit.copy(support=order.copy(issuedByOfflineAi=true)) else unit
+        }))
+        val aiStock=expected.copy(outfits=mapOf(1 to delegated))
+        FilePlanetStockStore(path).use {it.save(aiStock)}
+        val aiText=Files.readString(path)
+        assertTrue(aiText.startsWith("LOGH7-STOCK-50\t"))
+        FilePlanetStockStore(path).use {assertEquals(aiStock,it.load())}
+        Files.writeString(path,aiText.replace("LOGH7-STOCK-50","LOGH7-STOCK-49"))
+        assertFailsWith<IllegalArgumentException> {FilePlanetStockStore(path).use {it.load()}}
     }
 
     @Test fun unitCargoReopensTogetherWithNpcStateAndLegacyStockDoesNotInventAllocations() {

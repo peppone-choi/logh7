@@ -8,12 +8,12 @@ import java.util.Base64
 internal object TacticalSupportCodec {
     fun encode(value:TacticalSupportOrder):String = Base64.getUrlEncoder().withoutPadding().encodeToString(
         listOf(value.action.name,value.character,value.target,value.grid,value.acceptedAt,value.readyAt)
-            .joinToString("|").toByteArray(Charsets.UTF_8))
+            .joinToString("|", postfix=if(value.issuedByOfflineAi)"|ai" else "").toByteArray(Charsets.UTF_8))
     fun decode(text:String):TacticalSupportOrder {
         require(text.length in 1..200)
         val parts=Base64.getUrlDecoder().decode(text).toString(Charsets.UTF_8).split('|')
-        require(parts.size==6)
+        require(parts.size==6 || (parts.size==7 && parts[6]=="ai"))
         return TacticalSupportOrder(TacticalSupportAction.valueOf(parts[0]),parts[1].toInt(),parts[2].toInt(),
-            parts[3].toInt(),parts[4].toLong(),parts[5].toLong()).also {require(encode(it)==text)}
+            parts[3].toInt(),parts[4].toLong(),parts[5].toLong(),issuedByOfflineAi=parts.size==7).also {require(encode(it)==text)}
     }
 }

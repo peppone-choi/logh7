@@ -11,7 +11,7 @@ object TacticalSupportRules {
 }
 data class TacticalSupport(val action: TacticalSupportAction, val unit: Int, val target: Int)
 data class TacticalSupportOrder(val action: TacticalSupportAction, val character: Int, val target: Int,
-    val grid: Int, val acceptedAt: Long, val readyAt: Long) {
+    val grid: Int, val acceptedAt: Long, val readyAt: Long, val issuedByOfflineAi: Boolean = false) {
     init { require(character > 0 && validCombatTarget(target) && grid in 0..4999 &&
         acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL) }
 }
@@ -195,7 +195,7 @@ internal object TacticalSupportOperations {
         var approach:OfflineSupport?=null
         for(target in listOf(player.unitId)+alliedTargets) {
             if(target==unit.id || (action to target) in reserved)continue
-            val order=TacticalSupportOrder(action,player.characterId,target,player.grid,now,now+5*scale)
+            val order=TacticalSupportOrder(action,player.characterId,target,player.grid,now,now+5*scale,issuedByOfflineAi=true)
             val point=eligibleTarget(source,player,order,now,players,stocks,galaxy) ?: continue
             if(!needed(source,order,players,stocks))continue
             if(action==TacticalSupportAction.REPAIR) {
@@ -235,9 +235,11 @@ internal object TacticalSupportOperations {
         for(id in initial.outfits.values.flatMap {it.activeShips?.values.orEmpty()}.filter {it.support!=null}.map {it.id}.sorted()) {
             var source=ship(id,stocks) ?: continue
             val order=source.unit.support ?: continue
-            val player=players.values.singleOrNull {it.characterId==order.character}
+            val commander=players.entries.singleOrNull {it.value.characterId==order.character}
+            val player=commander?.value
             if(session.ended!=null || source.outfit.country in session.eliminated ||
                 player==null || BattleDeath.deceased(stocks,order.character) ||
+                (order.issuedByOfflineAi && !TacticalOfflineAi.eligible(session,commander.key,player,stocks)) ||
                 !eligible(source,player,order,now,players,stocks,galaxy) ||
                 forces[order.grid].orEmpty().none {it.camp!=TacticalAuthority.camp(player,stocks) && (it.units>0 || it.base)}) {
                 results+=cancelled(session,source,order,players)
