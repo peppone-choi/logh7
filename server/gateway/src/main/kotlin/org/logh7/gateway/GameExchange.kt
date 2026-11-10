@@ -385,7 +385,7 @@ class GameExchange(
                     publication=Publication(updated,player,false)
                     val name=bootstrap.galaxy.bases.single {it.id==player.baseId}.name
                     val baseIds=listOf(player.baseId)
-                    val packets=listOf(bootstrap.conditions(baseIds,result.stocks),bootstrap.places(baseIds,result.stocks))
+                    val packets=listOf(bootstrap.conditions(baseIds,result.stocks),bootstrap.places(baseIds,result.stocks,gameSeconds()))
                     presence?.refreshBaseOwnership(player.generation,connection,packets)
                     packets+listOf(characterMessage(updated,player,true),unitMessage(updated,player),
                         org.logh7.protocol.PlaceMessages.dockNotification(id,player.baseId,player.mode,gameSeconds()),
@@ -435,9 +435,10 @@ class GameExchange(
                     publication=Publication(updated,player,false)
                     val stocks=checkNotNull(result.stocks)
                     // The new country has no prior holdings; founding transfers every base of the founder.
+                    val seconds=gameSeconds()
                     val packets=stocks.bases.values.filter {it.country==country}.sortedBy {it.baseId}.flatMap {
                         val baseIds=listOf(it.baseId)
-                        listOf(bootstrap.conditions(baseIds,stocks),bootstrap.places(baseIds,stocks))
+                        listOf(bootstrap.conditions(baseIds,stocks),bootstrap.places(baseIds,stocks,seconds))
                     }
                     presence?.refreshBaseOwnership(player.generation,connection,packets)
                     packets+listOf(characterMessage(updated,player,true),unitMessage(updated,player),
@@ -1764,7 +1765,7 @@ class GameExchange(
                             return handshake.stageAll(world.countryImageFrames(party),clearHeader=0)
                         }
                         if(party?.mode==6) {
-                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party,viewerCountry,checkNotNull(it),character.power))}
+                            pendingWorld=stocks().thenApply {listOf(world.facilityGuide(party, viewerCountry, checkNotNull(it), character.power, gameSeconds()))}
                             return null
                         }
                         val draft=activeAssignmentDraft()
@@ -1968,7 +1969,7 @@ class GameExchange(
                         val ids = org.logh7.protocol.WorldMessages.baseQuery(body, opcode)
                         if (stock != null) {
                             pendingWorld = stocks().thenApply {
-                                listOf(if (opcode == 0x031e) world.conditions(ids, it) else world.places(ids, it))
+                                listOf(if (opcode == 0x031e) world.conditions(ids, it) else world.places(ids, it, gameSeconds()))
                             }
                             return null
                         }
@@ -2509,7 +2510,7 @@ class GameExchange(
                                             // U-17: the spots of this base's facilities (row id = spot, name = facility/room numbers).
                                             val me=checkNotNull(navigation?.snapshot()?.navigators?.get(identity.account))
                                             val spots=if(me.baseId !in inventory.bases || me.baseId !in world.galaxy.conditions)emptyList()
-                                                else world.galaxy.facilitiesAt(me.baseId,inventory)
+                                                else world.galaxy.facilitiesAt(me.baseId, inventory, seconds = gameSeconds())
                                                 .flatMap {f->f.spots.map {sp->Triple(sp.id,f.kind,sp.kind)}}.filter {it.first>query.target && it.first!=me.spotId}
                                                 .sortedBy {it.first}.take(200)
                                             return@thenApply org.logh7.protocol.StrategyActionMessages.selections(query,spots.map {(id,kind,room)->
@@ -3114,7 +3115,8 @@ class GameExchange(
                                     characterMessage(entered, player),
                                     unitMessage(entered, player),
                                     org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused)) +
-                                    world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = captured?.planetStocks ?: stored).orEmpty() +
+                                    world?.initialize(player.grid, directory = opcode == 0x0f00, stocks = captured?.planetStocks ?: stored,
+                                        seconds = captured?.session?.gameSeconds ?: gameSeconds()).orEmpty() +
                                     tactical?.initialize(::offices).orEmpty() +
                                     listOf(checkNotNull(BootstrapMessages.response(body))) + pendingNavigation(player) + tactical?.resume().orEmpty()
                             } }.let {initialized ->

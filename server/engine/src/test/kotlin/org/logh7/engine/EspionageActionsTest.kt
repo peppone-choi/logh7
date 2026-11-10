@@ -60,6 +60,26 @@ class EspionageActionsTest {
             }
         }
     }
+    @Test fun aFormerShipyardRoomCannotBeInfiltratedOrUsedForOperations() {
+        val initial = stocks()
+        val spot = galaxy.facilitiesAt(1049, initial).single { it.kind == ProductionActions.SHIPYARD }.spots.single().id
+        val seconds = (1L..100L).first { EspionageActions.roll(a.characterId, spot, it) < EspionageActions.threshold(50, 1) }
+        val at = session.copy(gameMillis = seconds * 1000)
+        val infiltration = act(EspionageActions.INFILTRATE, base = spot, s = initial, at = at)
+        assertEquals(1, infiltration.outcome)
+        val entered = assertNotNull(infiltration.stocks)
+        val infiltrator = assertNotNull(infiltration.player)
+        val razed = entered.copy(social = entered.social.copy(production = ProductionState(destroyed = setOf(1049))))
+
+        assertEquals(SocialRejection.TARGET, act(EspionageActions.INFILTRATE, base = spot, s = razed, at = at).rejection)
+        for (command in listOf(EspionageActions.SABOTAGE, EspionageActions.INTELLIGENCE)) {
+            val denied = act(command, s = razed, p = infiltrator, at = at)
+            assertEquals(SocialRejection.TARGET, denied.rejection)
+            assertEquals(infiltrator, denied.player)
+            assertSame(razed, denied.stocks)
+        }
+    }
+
     @Test fun leavingByNormalMovementEndsInfiltrationWithoutRemovingTheBomb() {
         val room = galaxy.facilitiesAt(1049).single { it.kind == 0 }.spots.single { it.kind == 2 }.id
         val start = session.gameMillis / 1000

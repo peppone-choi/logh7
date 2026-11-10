@@ -161,11 +161,12 @@ object EspionageActions {
             return SocialResult(players.getValue(i.account),next,changed=true,outcome=3,
                 navigators=players.filter {(k,v)->k!=i.account && accounts[k]!=v})
         }
+        fun facilityAt(spot: Int): PlanetFacility? =
+            g.facilitiesAt(p.baseId, s, catalog, now).singleOrNull { facility -> facility.spots.any { it.id == spot } }
         when(i.command) {
             INFILTRATE -> {
                 val spot=i.base
-                val facilities=g.facilitiesAt(p.baseId,s,catalog)
-                if(spot<=0 || spot==p.spotId || facilities.none {f->f.spots.any {it.id==spot}})return reject(SocialRejection.TARGET)
+                if(spot<=0 || spot==p.spotId || facilityAt(spot)==null)return reject(SocialRejection.TARGET)
                 val guard=CivicActions.guardStrength(s,p.baseId,spot,now)
                 if(roll(i.characterId,spot,now)>=threshold(intelligence,guard))return caught(s)
                 val next=s.copy(social=s.social.copy(justice=j.copy(infiltrations=j.infiltrations+(i.characterId to
@@ -181,6 +182,7 @@ object EspionageActions {
             }
             INTELLIGENCE -> {
                 inside ?: return reject(SocialRejection.STALE)
+                if (facilityAt(p.spotId) == null) return reject(SocialRejection.TARGET)
                 val b=s.bases.getValue(p.baseId)
                 val base=g.bases.singleOrNull {it.id==b.baseId} ?: return reject(SocialRejection.TARGET)
                 if(roll(i.characterId,p.spotId,now)>=threshold(intelligence,CivicActions.guardStrength(s,p.baseId,p.spotId,now)))
@@ -197,9 +199,7 @@ object EspionageActions {
             }
             SABOTAGE -> {
                 inside ?: return reject(SocialRejection.STALE)
-                if (g.facilitiesAt(p.baseId, s, catalog).none { facility ->
-                        facility.kind in sabotageFacilities && facility.spots.any { it.id == p.spotId }
-                    }) return reject(SocialRejection.TARGET)
+                if (facilityAt(p.spotId)?.kind !in sabotageFacilities) return reject(SocialRejection.TARGET)
                 if(j.bombs.containsKey(i.characterId))return reject(SocialRejection.BUSY)
                 if(roll(i.characterId,p.spotId,now)>=threshold(intelligence,CivicActions.guardStrength(s,p.baseId,p.spotId,now)))
                     return SocialResult(payer,s,changed=true,outcome=3)

@@ -714,7 +714,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 val stored = stocks?.bases?.get(before.baseId)
                 val available = condition != null && (stocks == null || stored != null)
                 if (move.id != 0 && !available) return reject(NavigationRejection.BASE)
-                val facilities = if (available) galaxy.facilitiesAt(before.baseId, stocks,countries) else emptyList()
+                val facilities = if (available) galaxy.facilitiesAt(before.baseId, stocks, countries, now) else emptyList()
                 val target = facilities.singleOrNull { f -> f.spots.any { it.id == move.id } }
                 if (move.id == 0) {
                     if (move.owner != before.characterId || before.spotId == 0) return reject(NavigationRejection.SPOT)
