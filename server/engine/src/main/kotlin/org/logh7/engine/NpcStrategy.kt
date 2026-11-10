@@ -53,7 +53,8 @@ internal object NpcStrategy {
 
     private fun home(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,
         spentJumps:Int=0,relief:Boolean=false,firstStep:Int?=null):DepotRoute? {
-        val origin=outfit.positionIn(galaxy).grid
+        val position=outfit.positionIn(galaxy)
+        val origin=position.grid
         fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
         val depots=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
             !TacticalContact.contested(forces[b.grid].orEmpty())}
@@ -61,7 +62,8 @@ internal object NpcStrategy {
                 .thenByDescending {it.id}).associateBy {it.grid}
         if(depots.isEmpty())return null
         val local=depots[origin]?.let {DepotRoute(it,origin,0)}
-        if(local!=null && stocked(local.base))return local
+        // Orbiting fleets can dock locally. An already docked fleet seeking relief needs a remote depot.
+        if(local!=null && stocked(local.base) && (!relief || position.baseId==0))return local
         val strength=GridForces.mobileUnits(outfit)
         if(strength !in 1..GridEntryRules.MAX_UNITS_PER_CAMP.toLong())return local
         val balances=OutfitSupplies.distribution(outfit)
@@ -178,7 +180,6 @@ internal object NpcStrategy {
         stocks:PlanetStocks,destination:Int?=null):DepotRoute? {
         val position=outfit.positionIn(galaxy)
         if(canDepart(stocks,outfit,galaxy) || TacticalContact.contested(forces[position.grid].orEmpty()))return null
-        if(position.baseId!=0 && depot(stocks,outfit,galaxy)?.supplies!=0)return null
         return home(galaxy,forces,outfit,stocks,relief=true,firstStep=destination)?.takeIf {it.jumps>0}
     }
 
