@@ -31,6 +31,28 @@ class OutfitDirectoryTest {
         assertEquals(456001,overloadedInput.int);assertEquals(0,overloadedInput.int)
         assertEquals(456001,overloaded.outfits.getValue(10).supplies)
     }
+    @Test fun partySubtractsOnlySurvivingPackageSuppliesFromFreeCapacity() {
+        val stack = UnitStack(32)
+        val outfit = OutfitStock(40, 2, OutfitKind.TRANSPORT, 1049, 103, supplies = 100,
+            units = UnitInventory(mapOf(stack to 1)),
+            activeShips = ActiveShipUnits(listOf(ActiveShipUnit(1, stack, 150, supplies = 100))))
+        val warehouse = OutfitWarehouse(103, 2, OutfitKind.TRANSPORT, 1049, outfitId = 40)
+        val cargo = TransportPackage(1, outfit.country, 1049, 1050, 113900,
+            carrier = outfit.id, carrierBoats = 150, survivingBoats = 150)
+        val state = stocks.copy(outfits = stocks.outfits + (outfit.id to outfit),
+            warehouses = stocks.warehouses + (warehouse.id to warehouse), nextShipId = 2)
+        val query = org.logh7.protocol.OutfitPartyMessages.Query(outfit.id, 1049, 0)
+        for ((survivingBoats, expectedRoom) in listOf(150 to 0, 75 to 56950)) {
+            val inventory = state.copy(strategic = state.strategic.copy(
+                transports = listOf(cargo.copy(survivingBoats = survivingBoats))))
+            val packet = WorldBootstrap(galaxy).outfitParty(query, 2, inventory)
+            val input = ByteBuffer.wrap(packet)
+            input.position(packet.size - 17)
+            assertEquals(100, input.int)
+            assertEquals(expectedRoom, input.int)
+        }
+    }
+
     private val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2),GalaxySystem(4,2563,4,"Other",2)),
         listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f),
             GalaxyBase(1050,2563,80,0,"Other",0,20f,86400,0,0f,2f)),

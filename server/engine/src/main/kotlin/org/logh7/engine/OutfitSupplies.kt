@@ -13,7 +13,10 @@ object OutfitSupplies {
     } ?: capacity(outfit.units)
 
     /** Native directories encode carried plus free room; legacy overload has zero free room. */
-    fun visibleCapacity(outfit:OutfitStock):Int = maxOf(capacity(outfit),outfit.supplies)
+    fun visibleCapacity(outfit: OutfitStock, packages: List<TransportPackage> = emptyList()): Int {
+        val cargo = TransportActions.carriedCargo(outfit, packages).sumOf { it.first.toLong() }
+        return maxOf(capacity(outfit) - cargo, outfit.supplies.toLong()).toInt()
+    }
 
     /** Preserve explicit unit allocations. Legacy/bulk changes fill in ID order and withdraw in
      * reverse ID order. The outfit total remains authoritative for strategic logistics; unit balances
