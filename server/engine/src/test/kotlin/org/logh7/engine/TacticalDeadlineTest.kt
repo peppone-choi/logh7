@@ -720,7 +720,7 @@ class TacticalDeadlineTest {
             if(operationDeadline) {
                 players=emptyMap()
                 val plan=StrategicOperation(1,10000,147,CountryId(3),2488,StrategicForce.FLEET,StrategicPurpose.DEFEND,1,
-                    start+15,StrategicPlanState.STARTED,start+15,defended=setOf(1000),issuer=10001)
+                    start+15,StrategicPlanState.STARTED,start+15,characters=setOf(10000),defended=setOf(1000),issuer=10001)
                 stocks=stocks.copy(strategic=stocks.strategic.copy(operations=listOf(plan)))
             }
             if(exchangeOffer) {

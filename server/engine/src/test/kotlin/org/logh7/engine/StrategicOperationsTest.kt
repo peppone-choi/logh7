@@ -39,7 +39,7 @@ class StrategicOperationsTest {
         assertTrue(StrategicOperations.settle(galaxy,captured,now+OperationPlanRules.DURATION_GAME_SECONDS-1).strategic.operations.single().live)
         val ended=StrategicOperations.settle(galaxy,captured,now+OperationPlanRules.DURATION_GAME_SECONDS)
         assertEquals(OperationOutcome.FULL_SUCCESS,ended.strategic.operations.single().outcome)
-        for(id in listOf(10000,10001,10002))assertEquals(100L,ended.strategic.people.getValue(id).merit)
+        assertEquals(mapOf(10002 to StrategicPerson(merit = 100)), ended.strategic.people)
         assertEquals(ended,StrategicOperations.settle(galaxy,ended,now+OperationPlanRules.DURATION_GAME_SECONDS+1))
     }
     @Test fun plannerAndIssuerAreDistinctStoredOfficesAndActivationIsEnforced() {
@@ -64,7 +64,11 @@ class StrategicOperationsTest {
     @Test fun captureWithdrawsAnUnissuedOccupationAndReleasesCapacityButKeepsAnIssuedOccupation() {
         val outpost=galaxy.bases.single {it.id==2050}.copy(id=2051,name="Outpost")
         val world=Galaxy(galaxy.systems,galaxy.bases+outpost,galaxy.starts)
-        val initial=stocks().let {it.copy(bases=it.bases+(outpost.id to PlanetStock(outpost.id,3,0,100,200,300)))}
+        val initial=stocks().let {
+            val fleet = it.outfits.getValue(200).copy(commanderId = issuer.characterId, aideId = player.characterId)
+            it.copy(bases=it.bases+(outpost.id to PlanetStock(outpost.id,3,0,100,200,300)),
+                outfits = it.outfits + (fleet.id to fleet))
+        }
         fun command(request:StrategyActionRequest,inventory:PlanetStocks)=StrategyActions.evaluate(world,request,session,
             if(request.command==24)issuer else player,inventory)
         fun captured(inventory:PlanetStocks)=inventory.copy(bases=inventory.bases+(outpost.id to
@@ -72,6 +76,7 @@ class StrategicOperationsTest {
 
         val planned=assertNotNull(command(request(22),initial).takeIf {it.rejection==null}?.stocks)
         val issued=assertNotNull(command(request(24),planned).takeIf {it.rejection==null}?.stocks)
+        assertEquals(setOf(player.characterId, issuer.characterId), issued.strategic.operations.single().characters)
         val defense=request(22).copy(target=2487,value=StrategicPurpose.DEFEND.ordinal)
         assertEquals(StrategyActionRejection.MAXIMUM,command(defense,planned).rejection)
         assertEquals(StrategyActionRejection.LOCATION,command(request(24),captured(planned)).rejection)
@@ -83,11 +88,14 @@ class StrategicOperationsTest {
         val retaken=settled.copy(bases=initial.bases)
         assertNull(command(request(22),retaken).rejection)
 
-        val arrived=issued.copy(outfits=issued.outfits.mapValues {(_,fleet)->fleet.copy(position=OutfitPosition(outpost.grid))})
+        val arrived=issued.copy(outfits=issued.outfits.mapValues {(_,fleet)->
+            fleet.copy(position=OutfitPosition(outpost.grid), commanderId=10002, aideId=0)})
         val started=StrategicOperations.settle(world,captured(arrived),now+1)
         assertEquals(StrategicPlanState.STARTED,started.strategic.operations.single().state)
         val ended=StrategicOperations.settle(world,started,now+OperationPlanRules.DURATION_GAME_SECONDS)
         assertEquals(OperationOutcome.PARTIAL_SUCCESS,ended.strategic.operations.single().outcome)
+        assertEquals(setOf(player.characterId, issuer.characterId).associateWith { StrategicPerson(merit = 50) },
+            ended.strategic.people)
     }
 
     @Test fun defenseTargetLostToTheOtherFactionWithdrawsImmediately() {

@@ -123,7 +123,7 @@ class CountryOperationTest {
             val done=StrategicOperations.settle(galaxy,captured,now+OperationPlanRules.DURATION_GAME_SECONDS)
             assertEquals(OperationOutcome.FULL_SUCCESS,done.strategic.operations.single {it.id==51}.outcome)
             assertEquals(foreign,done.strategic.operations.single {it.id==50})
-            for(id in listOf(10000,10001,10002))assertEquals(100L,done.strategic.people.getValue(id).merit)
+            assertEquals(mapOf(10002 to StrategicPerson(merit = 100)), done.strategic.people)
             assertEquals(ShipStyleId("alliance"),done.outfits.getValue(200).shipStyle)
             assertEquals(done,StrategicOperations.settle(galaxy,done,now+OperationPlanRules.DURATION_GAME_SECONDS+1))
             val withdrawn=act(request(23,family),pending,family)
@@ -137,12 +137,12 @@ class CountryOperationTest {
         val initial=stock()
         val plan=StrategicOperation(1,10000,24,country,2487,StrategicForce.FLEET,StrategicPurpose.DEFEND,1,now,
             StrategicPlanState.STARTED,now,characters=setOf(10002),defended=setOf(1000),issuer=10001)
-        val people=(1..4095).associateWith {StrategicPerson()}+(10001 to StrategicPerson(merit=5))
+        val people=(1..4095).associateWith {StrategicPerson()}+(10002 to StrategicPerson(merit=5))
         val pending=initial.copy(strategic=initial.strategic.copy(operations=listOf(plan),people=people))
         val deadline=OperationPlanRules.endGameSeconds(now)
         val settled=StrategicOperations.settle(galaxy,pending,deadline)
         assertEquals(OperationOutcome.FULL_SUCCESS,settled.strategic.operations.single().outcome)
-        assertEquals(people+(10001 to StrategicPerson(merit=105)),settled.strategic.people)
+        assertEquals(people+(10002 to StrategicPerson(merit=105)),settled.strategic.people)
         assertEquals(settled,StrategicOperations.settle(galaxy,settled,deadline+1))
     }
 
@@ -175,7 +175,7 @@ class CountryOperationTest {
             assertEquals(fallen.copy(state = StrategicPlanState.WITHDRAWN), settled.strategic.operations.first())
             assertEquals(surviving.copy(state = StrategicPlanState.ENDED, outcome = OperationOutcome.FULL_SUCCESS),
                 settled.strategic.operations.last())
-            assertEquals(people + (10003..10005).associateWith { StrategicPerson(merit = 100) }, settled.strategic.people)
+            assertEquals(people + (10005 to StrategicPerson(merit = 100)), settled.strategic.people)
         }
     }
 
