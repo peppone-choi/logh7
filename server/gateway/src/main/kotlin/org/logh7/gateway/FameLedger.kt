@@ -75,7 +75,8 @@ class FameLedger private constructor(private val storage:Storage,private val wor
             listOf(before,after,finalFame-gained,finalFame)
         }
         require(values.size==4 && values.all {it>=0} && values[1]>=values[0] && values[3]>=values[2])
-        return SessionEndingMessages.Evaluation(values[0],values[1],values[2],values[3],0)
+        // The ledger keeps the full sum used for fame; the ending packet has a u32 evaluation field.
+        return SessionEndingMessages.Evaluation(values[0],minOf(values[1],0xffffffffL),values[2],values[3],0)
     }
     /** Returns the fame added per account, empty when this generation was already settled. */
     fun settle(snapshot:WorldSnapshot,characters:CharacterCreation):Map<String,Int> {
