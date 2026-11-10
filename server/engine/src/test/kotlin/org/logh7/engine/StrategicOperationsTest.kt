@@ -61,6 +61,35 @@ class StrategicOperationsTest {
         assertEquals(StrategicPlanState.WITHDRAWN,withdrawn.stocks?.strategic?.operations?.single()?.state)
         assertNull(act(22,assertNotNull(withdrawn.stocks)).rejection)
     }
+    @Test fun captureWithdrawsAnUnissuedOccupationAndReleasesCapacityButKeepsAnIssuedOccupation() {
+        val outpost=galaxy.bases.single {it.id==2050}.copy(id=2051,name="Outpost")
+        val world=Galaxy(galaxy.systems,galaxy.bases+outpost,galaxy.starts)
+        val initial=stocks().let {it.copy(bases=it.bases+(outpost.id to PlanetStock(outpost.id,3,0,100,200,300)))}
+        fun command(request:StrategyActionRequest,inventory:PlanetStocks)=StrategyActions.evaluate(world,request,session,
+            if(request.command==24)issuer else player,inventory)
+        fun captured(inventory:PlanetStocks)=inventory.copy(bases=inventory.bases+(outpost.id to
+            inventory.bases.getValue(outpost.id).copy(owner=Allegiance.fromLegacy(2))))
+
+        val planned=assertNotNull(command(request(22),initial).takeIf {it.rejection==null}?.stocks)
+        val issued=assertNotNull(command(request(24),planned).takeIf {it.rejection==null}?.stocks)
+        val defense=request(22).copy(target=2487,value=StrategicPurpose.DEFEND.ordinal)
+        assertEquals(StrategyActionRejection.MAXIMUM,command(defense,planned).rejection)
+        assertEquals(StrategyActionRejection.LOCATION,command(request(24),captured(planned)).rejection)
+
+        val settled=StrategicOperations.settle(world,captured(planned),now+1)
+        assertEquals(StrategicPlanState.WITHDRAWN,settled.strategic.operations.single().state)
+        assertEquals(planned.strategic.people,settled.strategic.people)
+        assertNull(command(defense,settled).rejection)
+        val retaken=settled.copy(bases=initial.bases)
+        assertNull(command(request(22),retaken).rejection)
+
+        val arrived=issued.copy(outfits=issued.outfits.mapValues {(_,fleet)->fleet.copy(position=OutfitPosition(outpost.grid))})
+        val started=StrategicOperations.settle(world,captured(arrived),now+1)
+        assertEquals(StrategicPlanState.STARTED,started.strategic.operations.single().state)
+        val ended=StrategicOperations.settle(world,started,now+OperationPlanRules.DURATION_GAME_SECONDS)
+        assertEquals(OperationOutcome.PARTIAL_SUCCESS,ended.strategic.operations.single().outcome)
+    }
+
     @Test fun defenseTargetLostToTheOtherFactionWithdrawsImmediately() {
         val q=request(22).copy(target=2487,value=StrategicPurpose.DEFEND.ordinal)
         val stored=assertNotNull(act(22,stocks(),r=q).stocks)
