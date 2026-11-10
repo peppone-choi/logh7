@@ -74,7 +74,7 @@ class CountryAllocationOfficeTest {
             val commit=request(country).copy(phase=LogisticsPhase.COMMIT,reservation=prepared.reservation,supplies=100)
             assertEquals(LogisticsRejection.ACCESS,logistics.apply(commit,session(country),player(country),production).rejection)
             assertEquals(baseline,production.snapshot(1))
-            assertNull(logistics.apply(commit.copy(phase=LogisticsPhase.CANCEL),session(country),player(country),production).rejection)
+            assertEquals(LogisticsRejection.PREPARATION,logistics.apply(commit.copy(phase=LogisticsPhase.CANCEL),session(country),player(country),production).rejection)
             assertFalse(logistics.blocksSupply(session(country),changed,setOf(1)))
         }
     }
