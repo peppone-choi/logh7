@@ -41,6 +41,9 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
                 .filter { (id, person) -> id >= 10_000 && person.deceasedAt > 0 }
                 .maxOfOrNull { it.key.toLong() }
             (retired ?: 9999) + 1
+        },
+        lotteryOpen = {
+            worldSnapshot()?.session?.let { it.generation == generation && it.ended == null } ?: true
         })
     /** U-27 carry-over (W p.11): writes this generation's qualifying characters into the next generation's store. */
     @Synchronized fun carryOver(snapshot: WorldSnapshot, countries: CountryCatalog = CountryCatalogLoader.current()): List<String> {
