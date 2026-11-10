@@ -33,15 +33,8 @@ internal object TacticalPostureOperations {
         val radius=maxOf(1.0,b.diameter.toDouble(),if(b.kind==0)8.0 else 0.5)
         return hypot((point.x-at.x).toDouble(),(point.y-at.y).toDouble())<=radius
     }
-    private fun pose(s:Ship,grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy):TacticalPose {
-        val posture=s.unit.posture?.takeIf {it.grid==grid && it.mode.requiresBase}
-        val base=posture?.let {state->galaxy.bases.singleOrNull {it.id==state.base && it.grid==grid}}
-        val motion=s.unit.tactical?.motion?.takeIf {it.grid==grid}
-        if(base!=null && (posture.mode==TacticalShipMode.STATIONED || motion==null))
-            return TacticalPose(TacticalBasePosition.at(base,now,stocks),motion?.origin?.direction ?: 0f)
-        return motion?.pose(now,posture,galaxy,stocks) ?:
-            TacticalDeployment.initial(s.unit.id,grid,players,stocks,galaxy)
-    }
+    private fun pose(s:Ship,grid:Int,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
+        s.unit.tacticalPose(grid,now,players,stocks,galaxy)
     private fun pose(p:Navigator,now:Long,players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy)=
         p.motion?.pose(now,p.posture,galaxy,stocks) ?: TacticalDeployment.initial(p.unitId,p.grid,players,stocks,galaxy)
     private fun owned(s:Ship,p:Navigator,galaxy:Galaxy,stocks:PlanetStocks)=s.unit.boats>0 && TacticalAuthority.commander(s.outfit,s.unit,stocks)==p.characterId &&

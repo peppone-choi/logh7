@@ -4,6 +4,39 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class TacticalSupportTest {
+    @Test fun supportUsesTheMovingBerthEvenWhenTheTargetHasNoSavedMotion() {
+        val mobile = Galaxy(galaxy.systems,galaxy.bases.map {it.copy(grid=2488,kind=1,mobile=true)},galaxy.starts)
+        val base = mobile.bases.single()
+        val berth = TacticalPosture(2488,TacticalShipMode.ANCHORED,base.id)
+        val start = TacticalPoint(80f,0f)
+        val stopped = TacticalMotion(2488,now,TacticalPose(start,0f),0f,0f,listOf(start))
+        val moving = TacticalMotion(2488,now,TacticalPose(start,0f),TacticalFortressMotion.VELOCITY,0f,
+            listOf(TacticalPoint(80f,20f)),waitSeconds=0)
+        for (sourceFollowsBerth in listOf(false,true)) {
+            val s = state()
+            s.players = s.players.mapValues {(_,p)->p.copy(motion=stopped)}
+            val own = s.stocks.outfits.getValue(1)
+            val ships = own.activeShips!!.values.map {
+                if(it.id==1)it.copy(posture=berth.takeIf {sourceFollowsBerth},
+                    tactical=NpcTacticalState(stopped,now,now))
+                else it.copy(posture=berth,tactical=null)
+            }
+            s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to own.copy(activeShips=ActiveShipUnits(ships))),
+                tacticalCommands=s.stocks.tacticalCommands.copy(fortresses=mapOf(base.id to TacticalFortressMotion(2488,moving))))
+            val navigation=Navigation(mobile,s.nav,NavigationPolicy())
+            val production=PlanetProduction(mobile,s.inventory,rules.startSeconds,PlanetProductionPolicy()).also {it.settle(1,now)}
+            val accepted=TacticalSupportOperations.accept(request(TacticalSupportAction.SUPPLY,2),session,mobile,navigation,
+                production,production.snapshot(1)!!,s.commit,24)
+            val ready=assertNotNull(accepted.supportReadyAt)
+            val events=mutableListOf<TacticalSupportResult>()
+            TacticalCombat.settle(session.copy(gameMillis=ready*1000),mobile,navigation,production,s.commit,onSupport=events::add)
+            assertEquals(!sourceFollowsBerth,events.single().cancelled)
+            val balance=OutfitSupplies.distribution(s.stocks.outfits.getValue(1))
+            assertEquals(if(sourceFollowsBerth)10000 else 0,balance.getValue(2))
+            assertEquals(10000,balance.values.sum())
+        }
+    }
+
     @Test fun supplyUsesCurrentOrbitalPositionsForCommanderSourceAndTargetAfterIndependentAnchorTimes() {
         val at=now+1000;val timed=session.copy(gameMillis=at*1000)
         val moving=Galaxy(galaxy.systems,galaxy.bases.map {it.copy(grid=2488,radius=20f,cycle=1000)},galaxy.starts)

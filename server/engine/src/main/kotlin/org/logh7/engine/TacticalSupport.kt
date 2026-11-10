@@ -31,8 +31,7 @@ internal object TacticalSupportOperations {
     private fun ship(id: Int, stocks: PlanetStocks): Ship? = stocks.outfits.values.mapNotNull {o ->
         o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)} }.singleOrNull()
     private fun pose(s: Ship, grid: Int, now: Long, players: Collection<Navigator>, stocks: PlanetStocks, galaxy: Galaxy) =
-        s.unit.tactical?.motion?.takeIf {it.grid==grid}?.pose(now,s.unit.posture,galaxy,stocks) ?:
-            TacticalDeployment.initial(s.unit.id,grid,players,stocks,galaxy)
+        s.unit.tacticalPose(grid,now,players,stocks,galaxy)
     private fun targetPoint(order: TacticalSupportOrder, player: Navigator, now: Long, players: Map<String,Navigator>, stocks: PlanetStocks, galaxy: Galaxy): TacticalPoint? {
         val id=order.target
         if(id>1_000_000) {
