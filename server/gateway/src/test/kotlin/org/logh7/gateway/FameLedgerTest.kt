@@ -11,6 +11,44 @@ import kotlin.test.*
 class FameLedgerTest {
     private fun character(id:Long,power:Int,rank:Int)=CharacterMessages.Generate(4,id,power,0,0,"N$id","Pilot",18,1,1,1000001,
         List(8){50},0,0,0,rank,3,0,"Ship$id",1)
+    @Test fun retiredCasualtiesKeepTheirRewardAfterReloadAndReplacementWithoutMergingRounding() {
+        val file=Files.createTempDirectory("fame-retired").resolve("characters.properties")
+        val original=CharacterCreation(file)
+        assertTrue(original.carry("replacement",character(10001,3,5)))
+        assertTrue(original.carry("fallen",character(10002,3,5)))
+        assertTrue(original.carry("unconfirmed",character(10003,3,5)))
+        assertTrue(original.retire("replacement",10001))
+        assertTrue(original.retire("fallen",10002))
+        assertTrue(original.retire("unconfirmed",10003))
+        assertTrue(CharacterCreation(file).carry("replacement",character(10004,3,9)))
+
+        val end=SessionEnd(EndReason.CAPITAL_CAPTURED,setOf(Power.ALLIANCE),123)
+        val result=SessionResults.assess(end,SessionStatistics(population=10),mapOf(
+            Power.EMPIRE to SessionStatistics(population=6),Power.ALLIANCE to SessionStatistics(population=4)),
+            VictoryConditions(true,true))
+        val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(
+            10001 to StrategicPerson(evaluation=1257,deceasedAt=50),
+            10002 to StrategicPerson(evaluation=30,deceasedAt=80),
+            10003 to StrategicPerson(evaluation=5000),
+            10004 to StrategicPerson(evaluation=99))))
+        val world=WorldSnapshot(0,0,SessionSimulation(SessionRules.load()).snapshot().copy(ended=end),planetStocks=stocks,result=result)
+        val stores=CharacterStores(file)
+        val current=stores.get(1)
+        assertEquals(mapOf("replacement" to 10004L),current.profiles().mapValues {it.value.character.id})
+        assertTrue(stores.carryOver(world).isEmpty())
+        assertTrue(stores.get(2).profiles().isEmpty())
+
+        // 2099 points from the casualty and 99 from the replacement are each divided by 100 first.
+        val expected=mapOf("replacement" to 20,"fallen" to 8)
+        assertEquals(expected,stores.fame.settle(world,current))
+        val reopened=CharacterStores(file)
+        assertEquals(expected,reopened.fame.fame())
+        assertEquals(20,reopened.get(2).fame("replacement"))
+        assertTrue(reopened.fame.settle(world,reopened.get(1)).isEmpty())
+        assertEquals(SessionEndingMessages.Evaluation(99,99,0,20,0),reopened.fame.evaluation(world,reopened.get(1),"replacement"))
+        assertEquals(SessionEndingMessages.Evaluation(30,872,0,8,0),reopened.fame.evaluation(world,reopened.get(1),"fallen"))
+        assertNull(reopened.fame.evaluation(world,reopened.get(1),"unconfirmed"))
+    }
     @Test fun aResultConvertsEvaluationAndRewardsOncePerGenerationIntoTheNextLottery() {
         val dir=Files.createTempDirectory("fame")
         val file=dir.resolve("characters.properties")

@@ -65,7 +65,11 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val pending = mutableMapOf<String, CharacterMessages.Generate>()
     private val bindings = mutableMapOf<String, Binding>()
     private val registered = mutableMapOf<String, CharacterProfile>()
+    internal data class RetiredCasualty(val account:String,val rank:Int) {
+        init {require(FileAccounts.validName(account) && rank in 0..20)}
+    }
     private var retiredOriginals = emptySet<Long>()
+    private val casualties = mutableMapOf<Int,RetiredCasualty>()
     private val applications = mutableMapOf<String, List<Long>>()
     private val applicationSelections = mutableMapOf<String, CountrySelection>()
     private var deadline = 0L
@@ -85,6 +89,14 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
                 val saved = it.substringAfter('=').toLong()
                 require(saved in 10_000L..(Int.MAX_VALUE.toLong() + 1))
                 nextId = saved
+            }
+            contents.lineSequence().takeWhile {it.startsWith('#')}.filter {it.startsWith("#casualty/")}.forEach {line->
+                val fields=line.removePrefix("#casualty/").split(':')
+                require(fields.size==3)
+                val id=fields[0].toInt()
+                require(id>0 && id.toString()==fields[0] && id !in casualties)
+                casualties[id]=RetiredCasualty(fields[1],fields[2].toInt())
+                nextId=maxOf(nextId,id.toLong()+1)
             }
             val properties = Properties().also { contents.reader().use(it::load) }
             for (account in properties.stringPropertyNames()) {
@@ -133,13 +145,18 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         ShipStyleId.fromLegacy(checkNotNull(Flagships.find(data.shipKind)).power))
     @Synchronized fun character(account: String): CharacterMessages.Generate? { resolveLottery(); return registered[account]?.character?.let(::displayed) }
     @Synchronized fun profiles():Map<String,CharacterProfile> { resolveLottery();return registered.toMap() }
+    @Synchronized internal fun fameParticipants():Pair<Map<String,CharacterProfile>,Map<Int,RetiredCasualty>> =
+        profiles() to casualties.toMap()
+
     /** U-11: a character that died in battle leaves the account, which may then create a new one. */
     @Synchronized fun retire(account: String, id: Long): Boolean {
         val character = registered[account]?.character?.takeIf { it.id == id } ?: return false
         val next = registered - account
         val retired = if (character.generated) retiredOriginals else retiredOriginals + id
-        save(next, retired = retired)
+        val casualty=Math.toIntExact(id) to RetiredCasualty(account,character.rank)
+        save(next, retired = retired, fallen = casualties+casualty)
         retiredOriginals = retired
+        casualties[casualty.first]=casualty.second
         registered.remove(account); pending.remove(account); bindings.remove(account); return true
     }
     /** Drops an unfinished creation; with an [owner], only the one that connection started. Registered characters
@@ -274,7 +291,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     }
     private fun normalized(value: String) = Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT)
     private fun save(values: Map<String, CharacterProfile>, entries: Map<String, List<Long>> = applications, closesAt: Long = deadline,
-        selections: Map<String, CountrySelection> = applicationSelections, retired: Set<Long> = retiredOriginals) {
+        selections: Map<String, CountrySelection> = applicationSelections, retired: Set<Long> = retiredOriginals,
+        fallen: Map<Int,RetiredCasualty> = casualties) {
         if (file == null) return
         val target = file.toAbsolutePath()
         Files.createDirectories(target.parent)
@@ -288,7 +306,11 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         }
         val temporary = Files.createTempFile(target.parent, "characters-", ".tmp")
         try {
-            Files.newBufferedWriter(temporary).use { properties.store(it, "LOGH7 local characters\nnext-id=$nextId") }
+            val comments=buildString {
+                append("LOGH7 local characters\nnext-id=$nextId")
+                for((id,casualty) in fallen)append("\ncasualty/$id:${casualty.account}:${casualty.rank}")
+            }
+            Files.newBufferedWriter(temporary).use { properties.store(it, comments) }
             Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } finally { Files.deleteIfExists(temporary) }
     }
