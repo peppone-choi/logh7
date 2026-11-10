@@ -316,9 +316,15 @@ class GameExchange(
             it.id==result.proposalId && it.reply==org.logh7.engine.Proposals.APPROVE
         }?.assignment ?: return emptyList()
         val map=world ?: return emptyList()
-        return listOf(map.warehouse(assignment.base,inventory),map.outfitWarehouse(assignment.base,assignment.outfit,
-            player.characterId,player.country?.value,inventory))
+        var limited = false
+        val onLimited = { limited = true }
+        val replies = listOf(map.warehouse(assignment.base,inventory,onLimited),
+            map.outfitWarehouse(assignment.base,assignment.outfit,player.characterId,player.country?.value,inventory,onLimited=onLimited))
+        return if (limited) replies + warehouseLimitNotice(player.characterId) else replies
     }
+    private fun warehouseLimitNotice(character: Int) = ChatMessages.spot(ChatMessages.Spot(character,
+        "[창고] 표시 한도를 초과해 일부 함선 재고만 표시합니다."),gameSeconds())
+
     private fun refreshTacticalOffice(generation:Long,outfit:Int) {
         if(outfit<=0)return
         val map=world ?: return
@@ -1498,18 +1504,20 @@ class GameExchange(
                             val player = checkNotNull(result.player) { "Assignment lost its authenticated character" }
                             publication = Publication(character,player,false)
                             val accepted = result.rejection == null
+                            var limited = false
+                            val onLimited = { limited = true }
                             val reply = if (accepted) {
                                 val stocks = checkNotNull(result.stocks)
                                 val base = stocks.bases.getValue(query.base)
                                 val warehouse = stocks.warehouses.getValue(stocks.outfits.getValue(query.outfit).warehouseId)
                                 org.logh7.protocol.LogisticsMessages.assignmentResponse(query,gameSeconds(),player.pcp,player.mcp,true,
-                                    world.assignmentInventory(base.units,base.spareShips),base.supplies,
-                                    world.assignmentInventory(warehouse.units,warehouse.spareShips),warehouse.supplies)
+                                    world.assignmentInventory(base.units,base.spareShips,onLimited),base.supplies,
+                                    world.assignmentInventory(warehouse.units,warehouse.spareShips,onLimited),warehouse.supplies)
                             } else org.logh7.protocol.LogisticsMessages.assignmentResponse(query,gameSeconds(),player.pcp,player.mcp,false)
                             listOf(reply,characterMessage(character,player,true)) +
                                 (if (accepted) listOf(world.warehouse(query.base,result.stocks),
                                     world.outfitWarehouse(query.base,query.outfit,character.id.toInt(),checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,checkNotNull(result.stocks)))
-                                else emptyList()) + result.recovery?.let { completedWork(it.copy(player=player),character) }.orEmpty()
+                                else emptyList()) + (if (limited) listOf(warehouseLimitNotice(player.characterId)) else emptyList()) + result.recovery?.let { completedWork(it.copy(player=player),character) }.orEmpty()
                         }
                         return null
                     }
@@ -1961,8 +1969,7 @@ class GameExchange(
                                     world.outfitWarehouse(base,outfit,character.id.toInt(),
                                         currentProfile(identity.account,character.id.toInt()).country?.value,checkNotNull(stored),
                                         reportUnavailable=true,onLimited=onLimited)
-                                if(!limited)listOf(packet) else listOf(packet,ChatMessages.spot(ChatMessages.Spot(character.id.toInt(),
-                                    "[창고] 표시 한도를 초과해 일부 함선 재고만 표시합니다."),gameSeconds()))
+                                if(!limited)listOf(packet) else listOf(packet,warehouseLimitNotice(character.id.toInt()))
                             }
                             return null
                         }

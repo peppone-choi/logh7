@@ -1061,9 +1061,6 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                             return@assignment reject(preview.rejection)
                         }
                         val next = checkNotNull(preview.stocks)
-                        try {
-                            StockAssignment.validateReply(next, request)
-                        } catch (_: IllegalArgumentException) { return@assignment reject(LogisticsRejection.STOCK) }
                         if (next == inventory) return@assignment StockAssignmentResult(before, inventory)
                         val payment = org.logh7.engine.strategy.CpPayment.charge(
                             org.logh7.engine.strategy.CpBalance(before.pcp.toLong(), before.mcp.toLong()),

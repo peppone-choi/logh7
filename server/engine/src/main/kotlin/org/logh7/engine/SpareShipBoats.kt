@@ -28,7 +28,7 @@ internal object ReplacementBoats {
     /** Storage-to-storage movement preserves grade and the actual boats of the last selectable unit. */
     fun moveStored(source: UnitInventory,sourceSpare: SpareShipBoats,destination: UnitInventory,
         destinationSpare: SpareShipBoats,transfer: UnitTransfer): StoredTransfer {
-        val moved=transfer.apply(selectable(source,sourceSpare),selectable(destination,destinationSpare))
+        val moved=UnitTransfer(troops=transfer.troops).apply(source,destination)
         val left=source.ships.toMutableMap();val right=destination.ships.toMutableMap()
         val leftSpare=sourceSpare.values.toMutableMap();val rightSpare=destinationSpare.values.toMutableMap()
         for ((stack,delta) in transfer.ships) {

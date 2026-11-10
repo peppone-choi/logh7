@@ -372,8 +372,9 @@ class WorldBootstrap(val galaxy: Galaxy,
         return rows
     }
     fun assignmentInventory(units: org.logh7.engine.UnitInventory,
-        spare: org.logh7.engine.SpareShipBoats = org.logh7.engine.SpareShipBoats()) = LogisticsMessages.Inventory(
-        warehouseShips(units.ships,spare.values).map { LogisticsMessages.ShipStock(it.kind,it.units,it.boats) },
+        spare: org.logh7.engine.SpareShipBoats = org.logh7.engine.SpareShipBoats(),
+        onLimited: (() -> Unit)? = null) = LogisticsMessages.Inventory(
+        warehouseShips(units.ships,spare.values,onLimited).map { LogisticsMessages.ShipStock(it.kind,it.units,it.boats) },
         units.troops.entries.sortedWith(compareBy({ it.key.kind },{ it.key.level }))
             .map { LogisticsMessages.TroopStock(1000+it.key.kind,it.key.level,it.value) })
     fun outfitWarehouse(base: Int, outfitId: Int, character: Int, countryId:Int?, stocks: org.logh7.engine.PlanetStocks,
