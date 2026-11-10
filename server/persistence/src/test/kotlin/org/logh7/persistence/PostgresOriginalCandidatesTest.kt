@@ -193,7 +193,21 @@ class PostgresOriginalCandidatesTest {
                 val fogelOfficer=assertNotNull(reopened.save(1105,0,fogel,empire))
                 assertNull(reopened.save(1106,0,fogel,empire))
                 assertNull(reopened.save(1105,1,fogel.copy(startingOffice=null),empire))
-                assertEquals(earlierOfficers+paettaOfficer+fogelOfficer,
+                val preV21Officers=earlierOfficers+paettaOfficer+fogelOfficer
+                val merkatz=commander.copy(surname="Merkatz",givenName="Admiral",rank=4,
+                    startingOffice=OriginalStartingOffice.MERKATZ_FLEET_3)
+                assertFalse(reopened.supportsMerkatzStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1106,0,merkatz,empire)}
+                migrate("V21__merkatz_original_starting_office.sql")
+                assertEquals(preV21Officers,reopened.load().filter {it.profile.startingOffice!=null}.toSet())
+                assertTrue(reopened.supportsMerkatzStartingOffice && reopened.supportsFogelStartingOffice &&
+                    reopened.supportsPaettaStartingOffice && reopened.supportsStadenStartingOffice && reopened.supportsAllianceStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1106,0,merkatz,alliance)}
+                assertFailsWith<IllegalArgumentException> {reopened.save(1106,0,merkatz.copy(rank=5),empire)}
+                val merkatzOfficer=assertNotNull(reopened.save(1106,0,merkatz,empire))
+                assertNull(reopened.save(1107,0,merkatz,empire))
+                assertNull(reopened.save(1106,1,merkatz.copy(startingOffice=null),empire))
+                assertEquals(preV21Officers+merkatzOfficer,
                     PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
                 connect().use {test->test.createStatement().use {
                     val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile
