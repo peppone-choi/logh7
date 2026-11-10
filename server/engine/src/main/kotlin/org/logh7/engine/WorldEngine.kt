@@ -1052,8 +1052,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
                         reservation.rejection?.let { return@native reject(it) }
                         if (request.mode == 0) {
                             try {
-                                return@native ReorganizationResult(before,inventory,
-                                    capacity=Reorganization.capacity(inventory,request.outfit,transfer))
+                                val capacity=Reorganization.capacity(inventory,request.outfit,transfer)
+                                val rejection=if(capacity.transportRoleOverflow)LogisticsRejection.STOCK else null
+                                return@native ReorganizationResult(before,inventory,rejection,capacity=capacity)
                             } catch (_: IllegalArgumentException) { return@native reject(LogisticsRejection.STOCK) }
                             finally {
                                 logistics.apply(prepare.copy(phase=LogisticsPhase.CANCEL,
