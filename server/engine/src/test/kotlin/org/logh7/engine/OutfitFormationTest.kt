@@ -343,6 +343,70 @@ class OutfitFormationTest {
         val replay=act(commit,assertNotNull(done.player),stock=assertNotNull(done.stocks))
         assertEquals(StrategyActionRejection.TARGET,replay.rejection);assertEquals(done.stocks,replay.stocks)
     }
+    @Test fun publishingDepartureReleasesTheBaseButKeepingTheSameAuthorityPreservesTheDraft() {
+        val service = OutfitFormationService { 0L }
+        val inventory = stocks()
+        val draft = service.evaluate(galaxy, request(), session, player, inventory)
+        assertTrue(draft.lease > 0)
+        service.expireIneligible(galaxy, mapOf("actor" to player.copy(mcp = 900)), inventory)
+        assertTrue(service.blocksBase(session, 1049))
+
+        service.expireIneligible(galaxy, mapOf("actor" to player.copy(baseId = 1050)), inventory)
+        assertFalse(service.blocksBase(session, 1049))
+    }
+
+    @Test fun dismissalThenReappointmentDoesNotRestoreTheOldFormationDraft() = runBlocking {
+        val role = checkNotNull(OrganizationOffices.of(24))
+        val superior = checkNotNull(OrganizationOffices.of(checkNotNull(role.authority)))
+        val superiorRank = superior.ranks.min()
+        val targetRank = role.ranks.first { role.eligible(superiorRank, it) }
+        val other = player.copy(characterId = 10001)
+        var players = mapOf("actor" to player, "other" to other)
+        val policy = OrganizationalOfficePolicy(galaxy)
+        var inventory = policy.set(stocks(), OfficeHolding(superior.card, 1049, other.characterId))
+        val navigation = object : NavigationStore {
+            override fun load() = players
+            override fun save(players: Map<String, Navigator>) = Unit
+        }
+        val stockStore = object : PlanetStockStore {
+            override fun load() = inventory
+            override fun save(stocks: PlanetStocks) { inventory = stocks }
+        }
+        val engine = WorldEngine(this, ticking = false, galaxy = galaxy, navigationStore = navigation, stockStore = stockStore,
+            worldStateCommitter = WorldStateCommitter { next, stock -> players = next; inventory = checkNotNull(stock) },
+            npcPolicy = NpcTacticalPolicy(enabled = false))
+        try {
+            for ((account, connection) in mapOf("actor" to "c", "other" to "d")) {
+                val reply = CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join(account, Power.EMPIRE, false, reply, connection, 1))
+                assertEquals(Admission.ACCEPTED, withTimeout(5000) { reply.await() })
+            }
+            suspend fun form(request: OutfitFormationRequest): OutfitFormationResult {
+                val reply = CompletableDeferred<OutfitFormationResult>()
+                engine.submit(WorldCommand.FormOutfit(request, reply))
+                return withTimeout(5000) { reply.await() }
+            }
+            val request = request()
+            val original = form(request)
+            assertNull(original.rejection)
+            assertEquals(original.lease, form(request).lease)
+
+            val dismissal = CompletableDeferred<OfficeDismissalResult>()
+            engine.submit(WorldCommand.DismissOffice(OfficeDismissalRequest("other", "d", other.characterId, Power.EMPIRE,
+                1, player.characterId, role.card, superiorRank, 2), dismissal))
+            assertTrue(withTimeout(5000) { dismissal.await() }.changed)
+            val appointment = CompletableDeferred<GarrisonAppointmentResult>()
+            engine.submit(WorldCommand.AppointGarrison(GarrisonAppointmentRequest("other", "d", other.characterId, Power.EMPIRE,
+                1, 1049, player.characterId, role.card, superiorRank, targetRank, 2), appointment))
+            assertTrue(withTimeout(5000) { appointment.await() }.changed)
+
+            assertEquals(StrategyActionRejection.TARGET, form(request.copy(phase = FormationPhase.REFRESH, target = original.lease)).rejection)
+            val fresh = form(request)
+            assertNull(fresh.rejection)
+            assertNotEquals(original.lease, fresh.lease)
+        } finally { engine.drainAndClose() }
+    }
+
     @Test fun worldActorDoesNotPublishCpUnitsOrIdsOnCommitFailure() = runBlocking {
         var savedPlayers=mapOf("actor" to player)
         var savedStocks=stocks().copy(outfits=mapOf(100 to OutfitStock(100,2,OutfitKind.FLEET,1049,200,10000)),
