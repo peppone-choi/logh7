@@ -14,9 +14,16 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
     /** U-27: account fame carried across generations. */
     val fame = sharedFame ?: FameLedger(file?.resolveSibling("${file.fileName}.fame"))
     private var cached: Pair<Long, CharacterCreation>? = null
+    private val memory = mutableMapOf<Long,CharacterCreation>()
     private fun path(generation: Long) = if (generation == 1L) file else file?.resolveSibling("${file.fileName}.session-$generation")
     @Synchronized fun get(generation: Long): CharacterCreation {
         require(generation > 0)
+        if(file==null) {
+            // Keep the two latest generations across rollover; late lookups cannot evict either.
+            val oldest=maxOf(generation,memory.keys.maxOrNull() ?: generation)-1
+            memory.keys.removeAll {it<oldest}
+            return if(generation<oldest)open(generation) else memory.getOrPut(generation) {open(generation)}
+        }
         cached?.takeIf { it.first == generation }?.let { return it.second }
         return open(generation).also { cached = generation to it }
     }
@@ -50,7 +57,9 @@ class CharacterStores(private val file: Path?,sharedFame:FameLedger?=null,
         val profiles=WorldCharacters.profiles(current.profiles(),snapshot)
         val carried = CharacterCarryOver.select(snapshot, profiles.filterValues {it.character.generated}.mapValues {it.value.character})
         if (carried.isEmpty()) return emptyList()
-        val next = cached?.takeIf { it.first == generation + 1 }?.second ?: open(generation + 1)
+        val nextGeneration=generation+1
+        val next=if(file==null)get(nextGeneration)
+            else cached?.takeIf {it.first==nextGeneration}?.second ?: open(nextGeneration)
         return carried.filter { (account, data) ->
             val profile=profiles.getValue(account)
             val kind=org.logh7.engine.Flagships.forType(profile.shipStyle.nativePower,data.shipType).kind
