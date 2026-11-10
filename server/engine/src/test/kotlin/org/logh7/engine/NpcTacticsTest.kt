@@ -4,6 +4,51 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class NpcTacticsTest {
+    @Test fun autonomousFireUsesTheCurrentMovingFortressPositionForAnchoredTargets() {
+        val home=galaxy.bases.single()
+        val fortress=home.copy(id=1001,grid=2488,kind=1,mobile=true)
+        val battle=Galaxy(galaxy.systems,galaxy.bases+fortress,galaxy.starts)
+        val near=TacticalPoint(-180f,-95f)
+        val far=TacticalPoint(180f,-95f)
+        val source=TacticalPoint(-178f,-95f)
+        val heading=(-Math.PI/2).toFloat()
+        val at=now+4000
+        val posture=TacticalPosture(2488,TacticalShipMode.ANCHORED,fortress.id)
+        fun stopped(point:TacticalPoint,seconds:Long=now,direction:Float=0f)=
+            TacticalMotion(2488,seconds,TacticalPose(point,direction),0f,direction,listOf(point))
+        for(targetType in listOf("flagship","ship","ship without motion"))for(approaches in listOf(false,true)) {
+            val state=state()
+            val origin=if(approaches)far else near
+            val destination=if(approaches)near else far
+            val moving=TacticalMotion(2488,now,TacticalPose(origin,0f),TacticalFortressMotion.VELOCITY,0f,
+                listOf(destination),waitSeconds=0)
+            val original=state.stocks.outfits.getValue(1)
+            val gunship=original.activeShips!!.values.single().copy(tactical=NpcTacticalState(stopped(source,at,heading),at+1,at))
+            val outfits=mutableMapOf(1 to original.copy(activeShips=ActiveShipUnits(listOf(gunship))))
+            val warehouses=state.stocks.warehouses.toMutableMap()
+            val players=mutableMapOf<String,Navigator>()
+            val targetId=if(targetType=="flagship") {
+                val flagship=state.players.getValue("pilot").copy(posture=posture,motion=stopped(origin))
+                players["pilot"]=flagship
+                flagship.unitId
+            } else {
+                val target=ActiveShipUnit(2,UnitStack(119),posture=posture,
+                    tactical=if(targetType=="ship")NpcTacticalState(stopped(origin),at,at) else null)
+                val ships=ActiveShipUnits(listOf(target))
+                outfits[2]=OutfitStock(2,3,OutfitKind.FLEET,fortress.id,11,
+                    units=UnitInventory(ships.quantities()),activeShips=ships,position=OutfitPosition(2488))
+                warehouses[11]=OutfitWarehouse(11,3,OutfitKind.FLEET,fortress.id,2)
+                target.id
+            }
+            val stocks=state.stocks.copy(outfits=outfits,warehouses=warehouses,nextShipId=3,
+                bases=state.stocks.bases+(fortress.id to PlanetStock(fortress.id,3,0,100,0,0)),
+                tacticalCommands=TacticalCommandState(fortresses=mapOf(fortress.id to TacticalFortressMotion(2488,moving))))
+            val impacts=mutableListOf<TacticalImpact>()
+            NpcTactics.advance(session.copy(gameMillis=at*1000),battle,players,stocks,NpcTacticalPolicy(),24,impacts,mutableListOf())
+            assertEquals(if(approaches)setOf(targetId) else emptySet(),impacts.map {it.hit.target}.toSet(),targetType)
+        }
+    }
+
     @Test fun weakenedFleetOnlyBeginsRetreatWhenAnEnemyIsInSight() {
         for(distance in listOf(501f,500f)) {
             val state=state(boats=75)

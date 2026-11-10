@@ -213,8 +213,7 @@ class GameExchange(
         val mine=policy.held(inventory,me.characterId).filter {it.country==country}.map {it.card}.filter {institution(it)!=null}.distinct()
         val players=navigation?.snapshot()?.navigators.orEmpty().values.filter {it.generation==me.generation &&
             it.characterId!=me.characterId && (recipientId==null || it.characterId==recipientId) &&
-            it.country==country && !it.cpPaused && it.grid==me.grid &&
-            (me.spotId==0 || it.baseId==me.baseId && it.spotId==me.spotId && it.spotOwner==me.spotOwner)}
+            org.logh7.engine.ProposalActions.recipientInRange(me,it)}
         return players.sortedBy {it.characterId}.mapNotNull {other ->
             val theirs=policy.held(inventory,other.characterId).filter {it.country==country}.map {it.card}.filter {institution(it)!=null}.distinct()
             mine.firstNotNullOfOrNull {card->theirs.firstOrNull {recipientCard(it) && (card==1 || institution(it)==institution(card))}?.let {Triple(other.characterId,card,it)}}

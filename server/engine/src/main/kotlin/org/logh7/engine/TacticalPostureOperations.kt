@@ -100,7 +100,9 @@ internal object TacticalPostureOperations {
             if(source==null)player=player.copy(posture=changed,attack=null,fire=player.fire?.copy(pending=null))
             else next=replace(next,source,source.unit.copy(posture=changed,attack=null,shot=null))
         }
-        player=player.copy(commandRange=checkNotNull(player.commandRange).reset(now))
+        if (command.units.any { it != player.unitId }) {
+            player = player.copy(commandRange = checkNotNull(player.commandRange).reset(now))
+        }
         val prepared=production.prepareReplacement(stocks,next)
         committer.saveWorld(players+(request.account to player),prepared)
         navigation.publishCommitted(players,players+(request.account to player),session.generation)
