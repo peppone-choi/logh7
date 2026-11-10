@@ -45,6 +45,7 @@ object GoalActions {
             return reject(SocialRejection.IDENTITY)
         if(i.country.value !in catalog.countries)return reject(SocialRejection.CARD)
         if(i.command !in commands)return reject(SocialRejection.COMMAND)
+        if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
         if(p.cpPaused || s.social.justice.detained(i.characterId))return reject(SocialRejection.BUSY)
         val own=i.country
         val cards=if(i.command==NATIONAL)nationalCards else governanceCards
