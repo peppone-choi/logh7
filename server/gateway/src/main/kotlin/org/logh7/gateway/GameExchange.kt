@@ -83,7 +83,7 @@ class GameExchange(
     private val lobbyCountries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>)?=null,
     private val countryEndings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>)?=null,
     private val originalCandidates:org.logh7.engine.PublishedOriginalCandidates?=null,
-    private val onTacticalPresence: ((Int, List<ByteArray>) -> Unit)? = null,
+    private val onTacticalPresence: ((Int, Int, List<ByteArray>) -> Unit)? = null,
 ) {
     enum class Role { LOGIN, SESSION }
     enum class State { KEY_EXCHANGE, AWAITING_AUTH, AUTHENTICATED, REJECTED, CLOSED }
@@ -715,10 +715,11 @@ class GameExchange(
             }
         }
     }
-    internal fun notifyWorld(messages: List<ByteArray>, tacticalGrid: Int? = null): OutboundBatch? = prepared {
+    internal fun notifyWorld(messages: List<ByteArray>, tacticalGrid: Int? = null, tacticalBase: Int = 0): OutboundBatch? = prepared {
         if(tacticalGrid!=null) {
             val player=navigation?.snapshot()?.navigators?.get(ticket?.account)
-            if(player==null || player.grid!=tacticalGrid || player.baseId!=0 || !player.cpPaused)return@prepared null
+            if(player==null || player.grid!=tacticalGrid || player.baseId!=tacticalBase ||
+                tacticalBase==0 && !player.cpPaused)return@prepared null
         }
         if (state == State.CLOSED || !gameStarted || obsolete() || sessionEndingAvailable()) null else {
             val current=deduplicateSameGridExit(tacticalPresence(messages))

@@ -545,9 +545,14 @@ class GameExchangeTest {
                     game.finishWorld(assertNotNull(game.takePendingWorld()).join())
                     assertNotNull(game.notifyWorld(queuedPresence),"Strategic initialization must resume normal presence updates")
                     if(outcome=="same-grid-return") {
+                        val baseSupport=listOf(TacticalBaseMessages.supplied(1000,player.unitId,100,200))
+                        assertNotNull(game.notifyWorld(baseSupport,tacticalGrid=2487,tacticalBase=1000))
+                        assertNull(game.notifyWorld(baseSupport,tacticalGrid=2487,tacticalBase=1001))
+                        assertNull(game.notifyWorld(baseSupport,tacticalGrid=2488,tacticalBase=1000))
                         player=player.copy(baseId=0,mode=5,cpPaused=true)
                         game.accept(0x30,encrypted(hex("0f02"),7))
                         assertNotNull(game.finishWorld(assertNotNull(game.takePendingWorld()).join()))
+                        assertNull(game.notifyWorld(baseSupport,tacticalGrid=2487,tacticalBase=1000))
                         assertNull(game.notifyWorld(listOf(TacticsMessages.notify(2487,false))),
                             "A queued exit must not close the reentered battlefield")
                         val staleExit=TacticsMessages.notify(2488,false)

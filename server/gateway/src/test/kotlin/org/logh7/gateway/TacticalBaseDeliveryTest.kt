@@ -65,12 +65,17 @@ class TacticalBaseDeliveryTest {
         for(command in listOf(0x41b,0x41c)) {
             val hub=GamePresence();val own=mutableListOf<List<ByteArray>>();val peer=mutableListOf<List<ByteArray>>()
             val tacticalGrids=mutableListOf<Int>()
-            hub.update(GamePresence.Member("one",person,player,{error("Expected battlefield-scoped delivery")}) {grid,packets->
+            hub.update(GamePresence.Member("one",person,player,{error("Expected battlefield-scoped delivery")}) {grid,base,packets->
+                assertEquals(0,base)
                 tacticalGrids+=grid
                 own+=packets
             })
             val docked=opposing.copy(baseId=1000,mode=4,cpPaused=false)
-            hub.update(GamePresence.Member("two",enemy,docked,peer::add) {_,_->error("Expected docked delivery")})
+            hub.update(GamePresence.Member("two",enemy,docked,{error("Expected base-scoped delivery")}) {grid,base,packets->
+                assertEquals(2487,grid)
+                assertEquals(1000,base)
+                peer+=packets
+            })
             own.clear();peer.clear()
             val order=TacticalQueuedCommand(10000,2487,100,120,TacticalCommand(command,listOf(1),base=1000))
             val event=TacticalCommandResult(1,order,120,mapOf(10000 to "one",10001 to "two"))

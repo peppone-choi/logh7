@@ -101,7 +101,7 @@ class TacticalPostureWireTest {
         val c=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,List(8){50},0,0,0,20,0,0,"Ship",1)
         val p=Navigator(1,10000,Power.EMPIRE,2487,1000,1000,900,cpPaused=true)
         val tacticalGrids=mutableListOf<Int>()
-        hub.update(GamePresence.Member("current",c,p,received::add) {grid,packets->
+        hub.update(GamePresence.Member("current",c,p,received::add) {grid,_,packets->
             tacticalGrids+=grid
             received+=packets
         });received.clear()
