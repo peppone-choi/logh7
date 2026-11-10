@@ -33,13 +33,13 @@ internal object FleetNavigation {
             inventory.copy(tacticalCommands=inventory.tacticalCommands.copy(
                 aiSwitches=inventory.tacticalCommands.aiSwitches+(player.characterId to mask)))
         } ?: inventory
-        fun endDepartedActivities(after: Navigator): PlanetStocks =
-            EspionageActions.endDepartedInfiltration(AcademyActions.endDepartedLecture(stocks, saved, after), saved, after)
+        fun endDepartedActivities(inventory: PlanetStocks, before: Navigator?, after: Navigator): PlanetStocks =
+            EspionageActions.endDepartedInfiltration(AcademyActions.endDepartedLecture(inventory, before, after), before, after)
         fun commitPersonal(result:NavigationResult, inventory: PlanetStocks? = null):NavigationResult {
             val after=result.player ?: return result
             if(committer==null)return NavigationResult(null,saved ?: after,NavigationRejection.DISABLED)
             val next=players+(request.account to after)
-            val settled=CivicActions.settle(galaxy,inventory ?: endDepartedActivities(after),session.gameMillis/1000,next.values)
+            val settled=CivicActions.settle(galaxy,inventory ?: endDepartedActivities(stocks, saved, after),session.gameMillis/1000,next.values)
             val updated=configured(settled,after)
             val withPerson=if(startingPerson!=null && result.rejection==null)
                 updated.copy(strategic=updated.strategic.copy(people=updated.strategic.people+(after.characterId to startingPerson)))
@@ -60,7 +60,7 @@ internal object FleetNavigation {
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
             val preview=navigation.apply(request,session,stocks,persist=false,movingUnits=movingUnits,soloShip=soloShip,
                 initialDock=startingFleet?.positionIn(galaxy))
-            val inventory=preview.player?.let(::endDepartedActivities) ?: stocks
+            val inventory=preview.player?.let { endDepartedActivities(stocks, saved, it) } ?: stocks
             if(!needsSharedCommit && inventory === stocks)
                 return navigation.apply(request,session,stocks,movingUnits=movingUnits,soloShip=soloShip)
             return commitPersonal(preview,inventory)
@@ -151,7 +151,10 @@ internal object FleetNavigation {
             .let { if (reservedPulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
             .let { if (immediatePulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
         val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to moving))
-        val settled=CivicActions.settle(galaxy,deployed,session.gameMillis/1000,next.values)
+        val departed = moved.entries.fold(endDepartedActivities(deployed, before, after)) { inventory, (account, follower) ->
+            endDepartedActivities(inventory, followers.getValue(account), follower)
+        }
+        val settled=CivicActions.settle(galaxy,departed,session.gameMillis/1000,next.values)
         val prepared = production.prepareReplacement(stocks,configured(settled,after))
         committer.saveWorld(next, prepared)
         navigation.publishCommitted(players, next, session.generation)
