@@ -323,8 +323,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                 sessionDirectory=sessionDirectory,sessionId=sessionId,sessionName=sessionName,bindHost=host,counters=counters,maintenance=maintenance,lobbyCountries=::lobbyCountries,countryEndings=::countryEndings,originalCandidates=originalCandidates,
                                 presence = presence, onPresence = { messages ->
                                         if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages)) }
-                                    }, onTacticalPresence = { grid, messages ->
-                                        if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages, grid)) }
+                                    }, onTacticalPresence = { grid, base, messages ->
+                                        if (ch.isActive) ch.eventLoop().execute { ch.pipeline().fireUserEventTriggered(PresenceNotification(messages, grid, base)) }
                                     })
                                 val updateExchange = UpdateExchange()
                                 if (capture != null) ch.pipeline().addLast(CaptureHandler(capture, "$port-${UUID.randomUUID()}"))
@@ -352,7 +352,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                     }
                                     private fun sendNotification(ctx: ChannelHandlerContext, event: PresenceNotification) {
                                         if (exchange.accountRecovered()) { exchange.close(); ctx.close(); return }
-                                        try { exchange.notifyWorld(event.messages, event.tacticalGrid)?.let { SecureWriter.write(ctx, exchange, it) } }
+                                        try { exchange.notifyWorld(event.messages, event.tacticalGrid, event.tacticalBase)?.let { SecureWriter.write(ctx, exchange, it) } }
                                         catch (_: Exception) { try { exchange.close() } finally { ctx.close() } }
                                     }
                                     private var lifecycleCheck: java.util.concurrent.ScheduledFuture<*>? = null

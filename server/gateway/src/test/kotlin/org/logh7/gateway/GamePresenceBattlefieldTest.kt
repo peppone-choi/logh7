@@ -48,7 +48,7 @@ class GamePresenceBattlefieldTest {
         val hub=GamePresence()
         val sent=mutableListOf<Pair<Int,List<Int>>>()
         hub.update(GamePresence.Member("viewer",character,player,{error("Office refresh must use guarded delivery")},
-            sendTactical={grid,packets->sent+=grid to packets.map(::opcode)}))
+            sendTactical={grid,_,packets->sent+=grid to packets.map(::opcode)}))
         fun refresh(current:Navigator) {
             hub.refreshTacticalOffice(1,1,world,{snapshot.copy(
                 planetStocks=inventory,navigators=mapOf("viewer" to current))}) {id->character.takeIf {it.id.toInt()==id}}
@@ -91,7 +91,7 @@ class GamePresenceBattlefieldTest {
         val unguarded = mutableListOf<List<ByteArray>>()
         val guarded = mutableListOf<Pair<Int, List<ByteArray>>>()
         hub.update(GamePresence.Member("viewer", character, player, unguarded::add,
-            sendTactical = { grid, packets -> guarded += grid to packets }))
+            sendTactical = { grid, _, packets -> guarded += grid to packets }))
         val motion = TacticalMotion(2487, 100, TacticalPose(TacticalPoint(0f, 0f), 0f),
             1f, 0f, listOf(TacticalPoint(0f, 10f)))
         val event = TacticalMovement(1, 1, 2487, 100, motion, recipients)
@@ -116,7 +116,7 @@ class GamePresenceBattlefieldTest {
         val unguarded = mutableListOf<List<ByteArray>>()
         val guarded = mutableListOf<Pair<Int, List<ByteArray>>>()
         val member = GamePresence.Member("viewer", character, player, unguarded::add,
-            sendTactical = { grid, packets -> guarded += grid to packets })
+            sendTactical = { grid, _, packets -> guarded += grid to packets })
         hub.update(member)
         val impact = TacticalImpact(1, 1010001, TacticalWeapon.BEAM,
             TacticalHit(1, 2487, 100, 1, 2), recipients)
