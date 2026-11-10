@@ -445,9 +445,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         if(BattleDeath.deceased(stocks,request.characterId))return navigation.apply(request,session,stocks)
         val player=navigation.snapshot(session.generation)[request.account]
         val now=session.gameMillis/1000
+        // Strategy command recovery still has to use live forces when settling a pending retreat.
         if(player?.warpReadyAt?.let {it<=now}!=true && player?.dockReadyAt?.let {it<=now}!=true)
-            return navigation.apply(request,session)
-        val galaxy=galaxy ?: return navigation.apply(request,session)
+            return navigation.apply(request,session,retreatStocks=stocks)
+        val galaxy=galaxy ?: return navigation.apply(request,session,retreatStocks=stocks)
         val production=production ?: return navigation.apply(request,session)
         val result=FleetNavigation.apply(request,session,galaxy,navigation,production,
             production.settle(session),worldStateCommitter) {
