@@ -411,7 +411,17 @@ internal object TacticalCombat {
         groundBattles.forEach(onGroundBattle)
         occupations.forEach(onOccupation)
         commands.forEach(onCommand)
-        fortressSunk.forEach(onFortressSunk)
-        return impacts
+        if (fortressSunk.isEmpty() && impacts.none { it.departed != null }) return impacts
+        // Occupation or coup settlement may clear the designation after recovery has chosen a safe dock.
+        val returned = recovered.values.associateBy { it.generation to it.characterId }
+        fun committedReturn(departed: Navigator): Navigator {
+            val current = returned[departed.generation to departed.characterId]
+            return current?.takeIf { it.returnBase == 0 && departed.copy(returnBase = 0) == it } ?: departed
+        }
+        fortressSunk.forEach { onFortressSunk(committedReturn(it)) }
+        return impacts.map { impact ->
+            impact.departed?.let(::committedReturn)?.takeIf { it != impact.departed }
+                ?.let { impact.copy(departed = it) } ?: impact
+        }
     }
 }

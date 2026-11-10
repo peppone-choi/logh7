@@ -142,6 +142,45 @@ class FortressArmorTest {
         assertEquals(listOf(10001),sunk.map {it.characterId});assertNotEquals(1002,players.getValue("a").baseId)
         assertEquals(enemy,players.getValue("e"))
     }
+    @Test fun fortressReturnPublishesTheDesignationClearedByTheSameSettlement() {
+        val session = SessionSimulation(SessionRules.load()).exportState()
+        val preferred = planet.copy(grid = 2490)
+        val origin = planet.copy(id = 1004, grid = 2491)
+        val galaxy = Galaxy(
+            listOf(GalaxySystem(3, fixed.grid, 4, "Battle", 3), GalaxySystem(4, preferred.grid, 4, "Preferred", 3),
+                GalaxySystem(5, origin.grid, 4, "Origin", 3)),
+            listOf(fixed, preferred, origin), Power.entries.associateWith { fixed.grid })
+        val ground = ActiveGroundUnits(listOf(ActiveGroundUnit(1, UnitStack(0), base = preferred.id)))
+        val before = FortressArmor.strike(fixed, PlanetStocks(1, 0,
+            listOf(fixed, preferred, origin).associate { it.id to PlanetStock(it.id, 3, 0, 0, 0, 0) },
+            mapOf(1 to OutfitStock(1, 2, OutfitKind.GROUND, preferred.id, 101,
+                units = UnitInventory(troops = ground.quantities()), activeGround = ground)),
+            mapOf(101 to OutfitWarehouse(101, 2, OutfitKind.PATROL, preferred.id)),
+            deploymentInitialized = true, nextShipId = 2), 20)
+        val defender = Navigator(1, 10001, Power.ALLIANCE.country, fixed.grid, 1000, 1000, 900,
+            baseId = fixed.id, mode = 4, returnBase = preferred.id, originBase = origin.id)
+        val navigation = Navigation(galaxy, object : NavigationStore {
+            override fun load() = mapOf("defender" to defender)
+            override fun save(players: Map<String, Navigator>) = error("expected a world save")
+        }, NavigationPolicy())
+        val production = PlanetProduction(galaxy, object : PlanetStockStore {
+            override fun load() = before
+            override fun save(stocks: PlanetStocks) = error("expected a world save")
+        }, session.gameMillis / 1000, PlanetProductionPolicy())
+        var saved: Navigator? = null
+        val sinkings = mutableListOf<Navigator>()
+        TacticalCombat.settle(session, galaxy, navigation, production,
+            WorldStateCommitter { players, _ -> saved = players.getValue("defender") },
+            onFortressSunk = sinkings::add)
+
+        val returned = assertNotNull(saved)
+        assertEquals(Power.EMPIRE.country, production.snapshot(1)!!.bases.getValue(preferred.id).country)
+        assertEquals(origin.id, returned.baseId)
+        assertEquals(0, returned.returnBase)
+        assertEquals(returned, navigation.snapshot(1).getValue("defender"))
+        assertEquals(listOf(returned), sinkings)
+    }
+
     @Test fun staleFlagshipsAndNonFortressDamageDoNotKeepBreachSettlementPending() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Here",2)),listOf(fixed,planet),Power.entries.associateWith {2487})
         val docked=Navigator(1,10001,Power.EMPIRE,2487,1000,1000,900,baseId=fixed.id,mode=4)
