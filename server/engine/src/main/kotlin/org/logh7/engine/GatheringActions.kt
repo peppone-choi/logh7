@@ -141,8 +141,9 @@ object GatheringActions {
         }
         when(i.value) {
             0 -> {
+                if(BattleDeath.deceased(s,guestId))return reject(SocialRejection.TARGET,view)
                 if(!hostInRoom(p))return reject(SocialRejection.LOCATION,view)
-        if(guest==null || guest.country!=p.country || guest.grid!=p.grid || guest.baseId!=p.baseId || guest.cpPaused)
+                if(guest==null || guest.country!=p.country || guest.grid!=p.grid || guest.baseId!=p.baseId || guest.cpPaused)
                     return reject(SocialRejection.LOCATION,view)
                 if(view.hostWait>0)return reject(SocialRejection.COOLDOWN,view)
                 if(CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),COST,CpPool.MCP) !is PaymentResult.Paid)
@@ -171,6 +172,7 @@ object GatheringActions {
         }
         // Accept: the host must still be in the invited room and the guest at the same base.
         if(invite==null || host==null || hostEntry.key==i.account)return reject(SocialRejection.STALE,view)
+        if(BattleDeath.deceased(s,hostId))return reject(SocialRejection.TARGET,view)
         if(host.country!=p.country || !hostInRoom(host) || host.baseId!=invite.base || host.spotId!=invite.spot || p.grid!=host.grid || p.baseId!=invite.base)
             return reject(SocialRejection.LOCATION,view)
         val outcome=outcome(i.command,hostId,guestId,host,s,live,friendship,now) ?: return reject(SocialRejection.CP,view)

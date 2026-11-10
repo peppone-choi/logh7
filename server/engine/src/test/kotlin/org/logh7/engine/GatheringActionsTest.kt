@@ -143,4 +143,41 @@ class GatheringActionsTest {
         val declined=invite(cold);assertNull(declined.rejection);assertEquals(1000,declined.player?.mcp,"no CP on a refusal")
         assertNull(assertNotNull(declined.gathering).grade);assertTrue(assertNotNull(declined.stocks).social.gatherings.invites.isEmpty())
     }
+
+    @Test fun deceasedGuestsCannotAutoAcceptAndPendingInvitesCannotRewardEitherDeceasedParticipant() {
+        val initial=stocks()
+        val invite=request("host",10000,10001,0,initial.social.nextId)
+        val offline=session.copy(participants=session.participants-"guest")
+        val deadGuest=BattleDeath.apply(initial,listOf(guest.characterId),now+1) {_,_->true}
+        fun unchanged(result:SocialResult,player:Navigator,before:PlanetStocks,reason:SocialRejection) {
+            assertEquals(reason,result.rejection)
+            assertEquals(player,result.player)
+            assertEquals(before,result.stocks)
+            assertFalse(result.changed)
+            assertTrue(result.navigators.isEmpty())
+        }
+        val later=session.copy(gameMillis=(now+1)*1000)
+        unchanged(act(invite,deadGuest,clock=later.copy(participants=offline.participants)),host,deadGuest,SocialRejection.TARGET)
+        unchanged(act(invite,deadGuest,clock=later),host,deadGuest,SocialRejection.TARGET)
+        assertEquals(680,act(invite,initial,clock=offline).player?.mcp)
+
+        val pending=assertNotNull(act(invite,initial).stocks)
+        val accept=request("guest",10001,10000,1,pending.social.nextId)
+        val deadHostPending=BattleDeath.apply(pending,listOf(host.characterId),now+1) {_,_->true}
+        val deadGuestPending=BattleDeath.apply(pending,listOf(guest.characterId),now+1) {_,_->true}
+        unchanged(act(accept.copy(ticket=initial.social.nextId),deadHostPending,clock=later),guest,deadHostPending,SocialRejection.STALE)
+        unchanged(act(accept,deadHostPending,clock=later),guest,deadHostPending,SocialRejection.TARGET)
+        unchanged(act(accept,deadGuestPending,clock=later),guest,deadGuestPending,SocialRejection.IDENTITY)
+        val expired=session.copy(gameMillis=(now+GatheringActions.INVITE_SECONDS)*1000)
+        unchanged(act(accept,deadHostPending,clock=expired),guest,deadHostPending,SocialRejection.STALE)
+
+        val decline=request("guest",10001,10000,2,pending.social.nextId)
+        val declined=act(decline,deadHostPending,clock=later)
+        assertNull(declined.rejection)
+        assertEquals(guest,declined.player)
+        assertTrue(declined.navigators.isEmpty())
+        val afterDecline=assertNotNull(declined.stocks)
+        assertEquals(pending.social.nextId+1,afterDecline.social.nextId)
+        assertTrue(afterDecline.social.gatherings.invites.isEmpty())
+    }
 }
