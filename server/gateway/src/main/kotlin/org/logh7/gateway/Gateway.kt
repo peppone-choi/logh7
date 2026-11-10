@@ -236,7 +236,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             }),accounts)
         successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById,
             {country->org.logh7.engine.CountryCatalogLoader.current().countries[country.value]?.name})}}
-        tidalSubscription=presence?.let {p->stock?.observeTides(p::tides)}
+        tidalSubscription=presence?.let {p->stock?.observeTides {event->
+            p.tides(event,navigation!!.snapshot(),world!!.galaxy,currentCharacters()::characterById)
+        }}
         fun settleResult(s:org.logh7.engine.WorldSnapshot) {s.session?.generation?.let {g->
             characterStores.fame.settle(s,characterStores.get(g))
             val countries=world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current()

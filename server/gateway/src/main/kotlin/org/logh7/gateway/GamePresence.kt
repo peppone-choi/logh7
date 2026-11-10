@@ -105,12 +105,26 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         for(member in recipients) send(member,listOf(ChatMessages.spot(ChatMessages.Spot(member.character.id.toInt(),line),seconds.coerceIn(0,0xffffffffL))))
         return recipients.size
     }
-    /** Black-hole tidal loss (design-blackhole-tactical-terrain.md §2.4): a spot chat line to each online member of the outfit. */
-    @Synchronized fun tides(event:org.logh7.engine.TidalLoss) {
+    /** Outfit members receive the notice. Current participants in the affected battle receive committed definitions. */
+    @Synchronized fun tides(event:org.logh7.engine.TidalLoss,snapshot:org.logh7.engine.WorldSnapshot?,
+        galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         for(character in event.characters) {
             val line=(if(event.pulled)"[중력] 워프 오차로 블랙홀 중력권에 끌려 들어가 함정 ${event.boats}척을 잃었습니다."
                 else "[중력] 블랙홀 중력으로 부대 함정 ${event.boats}척을 잃었습니다.").take(65)
             toCharacter(character,event.generation,listOf(ChatMessages.spot(ChatMessages.Spot(character,line),event.seconds.coerceIn(0,0xffffffffL))))
+        }
+        val grid=event.grid ?: return
+        val session=snapshot?.session ?: return
+        if(session.generation!=event.generation || session.ended!=null || snapshot.planetStocks?.generation!=event.generation)return
+        for(viewer in members.values) {
+            val player=viewer.player
+            if(event.tacticalRecipients[player.characterId]!=viewer.connection || player.generation!=event.generation ||
+                player.grid!=grid || !player.cpPaused || player.baseId!=0 || player.mode!=5)continue
+            val current=snapshot.navigators.values.singleOrNull {it.characterId==player.characterId} ?: continue
+            if(!sameBattlefield(player,current) || current.mode!=5)continue
+            val tactical=TacticalBootstrap(snapshot,galaxy,current,characterById)
+            send(viewer,listOf(org.logh7.protocol.TacticsMessages.definitions(grid,tactical.units,tactical.groundDefinitions),
+                org.logh7.protocol.TacticsMessages.corps(tactical.corps)),grid)
         }
     }
     /** Durable local duties update existing public conditions and authorized stock/party views. */

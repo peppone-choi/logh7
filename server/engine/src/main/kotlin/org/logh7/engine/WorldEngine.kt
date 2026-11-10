@@ -682,9 +682,26 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             for(observer in successionObservers)try {observer(event)}
             catch(failure:Exception){System.err.println("Succession delivery failed: ${failure.javaClass.simpleName}")}
         }
-        if(inventory!=null && old!=null)for(event in BlackHoleTides.losses(old,inventory,snapshot.session?.gameSeconds ?: 0L,galaxy)) {
-            for(observer in tidalObservers)try {observer(event)}
-            catch(failure:Exception){System.err.println("Tidal delivery failed: ${failure.javaClass.simpleName}")}
+        if(inventory!=null && old!=null && tidalObservers.isNotEmpty()) {
+            val losses=BlackHoleTides.losses(old,inventory,snapshot.session?.gameSeconds ?: 0L,galaxy)
+            if(losses.isNotEmpty()) {
+                val session=durableState?.session ?: simulation.exportState()
+                val refreshedGrids=mutableSetOf<Int>()
+                for(loss in losses) {
+                    val grid=loss.grid
+                    val recipients=if(grid==null || session.generation!=loss.generation || !refreshedGrids.add(grid))emptyMap()
+                    else session.participants.mapNotNull {(account,member)->
+                        val connection=member.connection?.takeIf {member.online} ?: return@mapNotNull null
+                        val player=snapshot.navigators[account]?.takeIf {
+                            it.generation==loss.generation && it.grid==grid && it.cpPaused && it.baseId==0 && it.mode==5
+                        } ?: return@mapNotNull null
+                        player.characterId to connection
+                    }.toMap()
+                    val event=loss.copy(tacticalRecipients=recipients)
+                    for(observer in tidalObservers)try {observer(event)}
+                    catch(failure:Exception){System.err.println("Tidal delivery failed: ${failure.javaClass.simpleName}")}
+                }
+            }
         }
         scheduleDeadline(snapshot)
     }
