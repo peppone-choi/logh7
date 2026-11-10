@@ -398,11 +398,13 @@ internal object TacticalCommandOperations {
                     authority=stocks.tacticalCommands.authority+c.units.associateWith {p.characterId},
                     formationLeaders=stocks.tacticalCommands.formationLeaders.filter {(id,leader)->id !in c.units && leader !in c.units}))
                 0x40d -> {
-                    motions.putAll(formationMotions(c,p.grid,now,players,stocks,g))
+                    val (formation,commands)=TacticalFleetMotion.withAirSlowdown(
+                        formationMotions(c,p.grid,now,players,stocks,g),stocks.tacticalCommands)
+                    motions.putAll(formation)
                     motions.forEach {(id,m)->motion(id,m,p.characterId)}
-                    stocks=stocks.copy(tacticalCommands=stocks.tacticalCommands.copy(formations=stocks.tacticalCommands.formations+(p.characterId to c.kind),
-                        formationLeaders=if(c.kind==7)stocks.tacticalCommands.formationLeaders.filterKeys {it !in c.units} else
-                            stocks.tacticalCommands.formationLeaders+c.units.associateWith {c.units.first()}))
+                    stocks=stocks.copy(tacticalCommands=commands.copy(formations=commands.formations+(p.characterId to c.kind),
+                        formationLeaders=if(c.kind==7)commands.formationLeaders.filterKeys {it !in c.units} else
+                            commands.formationLeaders+c.units.associateWith {c.units.first()}))
                 }
                 0x40e -> for(id in c.units) {
                     if(c.kind==2)removeWing(id) else {
