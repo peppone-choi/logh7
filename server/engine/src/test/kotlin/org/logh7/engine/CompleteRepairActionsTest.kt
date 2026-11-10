@@ -44,6 +44,39 @@ class CompleteRepairActionsTest {
         val replay=act(request().copy(navigators=nextPlayers),assertNotNull(result.stocks),assertNotNull(result.player))
         assertNull(replay.rejection);assertFalse(replay.changed);assertEquals(result.player,replay.player)
     }
+    @Test fun quoteAndRepairExcludeNearbyMembersFromTheOpposingCamp() {
+        val clock = session.copy(gameMillis = session.gameMillis + 1000)
+        val plot = Plot(offline.characterId, Power.EMPIRE.country, now, revolt = clock.gameMillis / 1000)
+        val original = stocks()
+        val contested = original.copy(social = original.social.copy(coup = CoupState(
+            plots = mapOf(offline.characterId to plot))))
+        val friendly = remote.copy(grid = player.grid, baseId = player.baseId, mode = player.mode)
+        val request = request().copy(navigators = players + ("remote" to friendly))
+        val preview = StrategyActions.evaluate(galaxy, request.copy(repairPreview = true), clock, player, contested)
+        assertNull(preview.rejection)
+        assertEquals(CompleteRepairQuote(99, 5, 2, org.logh7.engine.strategy.CpPool.MCP), preview.repairQuote)
+        assertSame(contested, preview.stocks)
+
+        val repaired = StrategyActions.evaluate(galaxy, request.copy(base = 99, argument = 1), clock, player, contested)
+        assertNull(repaired.rejection)
+        assertEquals(840, repaired.player?.mcp)
+        assertEquals(100, repaired.player?.hull?.hp)
+        assertEquals(setOf("remote"), repaired.navigators.keys)
+        assertEquals(100, repaired.navigators.getValue("remote").hull?.hp)
+        assertEquals(45, (request.navigators + repaired.navigators).getValue("offline").hull?.hp)
+        val after = assertNotNull(repaired.stocks)
+        val outfit = after.outfits.getValue(200)
+        assertEquals(0, outfit.supplies)
+        assertEquals(0, outfit.activeShips!!.values.single().damaged)
+
+        val replay = StrategyActions.evaluate(galaxy,
+            request.copy(navigators = request.navigators + repaired.navigators), clock, repaired.player, after)
+        assertNull(replay.rejection)
+        assertFalse(replay.changed)
+        assertEquals(840, replay.player?.mcp)
+        assertSame(after, replay.stocks)
+    }
+
     @Test fun captainRepairsOnlyTheirFlagshipAndConsumesTheirOwnSupplies() {
         val original=stocks();val result=act(request().copy(card=59,outfit=0),original)
         assertNull(result.rejection);assertEquals(100,result.player?.hull?.hp);assertEquals(0,result.player?.supplies)
