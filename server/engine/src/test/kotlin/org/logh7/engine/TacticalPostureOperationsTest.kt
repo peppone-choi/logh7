@@ -48,6 +48,72 @@ class TacticalPostureOperationsTest {
         }
     }
 
+    @Test fun spacePosturesDuringWarpPreparationPreserveFlagshipAndFleetRetreats() {
+        val flagship = 1010000
+        val now = this.now + 120
+        val retreat = TacticalRetreat(2587, now - 120, 120, 3600, membershipChecked = true)
+        for (mode in listOf(TacticalShipMode.BATTLE, TacticalShipMode.SAILING)) {
+            val state = state()
+            val initialMode = if (mode == TacticalShipMode.BATTLE) TacticalShipMode.SAILING else TacticalShipMode.BATTLE
+            val initialPosture = TacticalPosture(2487, initialMode)
+            val energy = TacticalEnergy(TacticalEnergy.ZERO.values.mapIndexed { index, value ->
+                if (index == 1) TacticalEnergy.WARP_MAX else value
+            })
+            state.players = state.players.mapValues { (_, player) ->
+                player.copy(retreat = retreat, motion = motion(251f), energy = energy,
+                    commandRange = TacticalCommandRange(retreat.acceptedAt, 12f), posture = initialPosture)
+            }
+            state.players += "enemy" to Navigator(1, 10001, Power.ALLIANCE, 2487, 1000, 1000, 900,
+                cpPaused = true, motion = motion(10f))
+            val outfit = state.stocks.outfits.getValue(1)
+            val ships = ActiveShipUnits(outfit.activeShips!!.values.map { ship ->
+                ship.copy(tactical = NpcTacticalState(motion(252f), now, now, retreat = retreat),
+                    motionCommander = 10000, posture = initialPosture)
+            })
+            state.stocks = state.stocks.copy(outfits = state.stocks.outfits + (1 to outfit.copy(activeShips = ships)))
+            val navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+            val production = production(state)
+            val command = request(mode)
+            fun issue(at: Long, request: NavigationRequest = command) = TacticalPostureOperations.accept(
+                request, session.copy(gameMillis = at * 1000), galaxy, navigation, production,
+                checkNotNull(production.snapshot(1)), state.commit, 24)
+
+            assertEquals(NavigationRejection.BUSY, issue(retreat.startsAt - 1).rejection)
+            assertEquals(NavigationRejection.BUSY, issue(retreat.completesAt).rejection)
+            assertEquals(NavigationRejection.BUSY, issue(now, request(TacticalShipMode.ANCHORED, 1000)).rejection)
+            assertEquals(0, state.saves)
+            val ready = assertNotNull(issue(now).postureReadyAt)
+            assertEquals(now + 240, ready)
+            assertEquals(retreat, state.players.getValue("pilot").retreat)
+            assertEquals(retreat, state.stocks.outfits.getValue(1).activeShips!!.values.first().tactical?.retreat)
+
+            val results = mutableListOf<TacticalPostureResult>()
+            settle(state, navigation, production, ready, results)
+            val player = state.players.getValue("pilot")
+            val ship = state.stocks.outfits.getValue(1).activeShips!!.values.first()
+            assertEquals(setOf(flagship, 1, 2), results.flatMap { it.units.keys }.toSet())
+            assertTrue(results.none { it.cancelled })
+            assertEquals(mode, player.posture?.mode)
+            assertEquals(mode, ship.posture?.mode)
+            assertEquals(retreat, player.retreat)
+            assertEquals(retreat, ship.tactical?.retreat)
+            assertEquals(10000, ship.motionCommander)
+
+            val lastPreparationSecond = retreat.completesAt - 1
+            settle(state, navigation, production, lastPreparationSecond, results)
+            navigation.settleRetreats(session.copy(gameMillis = lastPreparationSecond * 1000), state.stocks)
+            assertEquals(2487, state.players.getValue("pilot").grid)
+            assertEquals(OutfitPosition(2487), state.stocks.outfits.getValue(1).positionIn(galaxy))
+
+            settle(state, navigation, production, retreat.completesAt, results)
+            navigation.settleRetreats(session.copy(gameMillis = retreat.completesAt * 1000), state.stocks)
+            assertEquals(retreat.destination, state.players.getValue("pilot").grid)
+            assertNull(state.players.getValue("pilot").retreat)
+            assertEquals(OutfitPosition(retreat.destination), state.stocks.outfits.getValue(1).positionIn(galaxy))
+            assertTrue(state.stocks.outfits.getValue(1).activeShips!!.values.all { it.tactical?.retreat == null })
+        }
+    }
+
     @Test fun mixedSelectionWaitsTenRealSecondsReopensAndCompletesExactlyOnce() {
         val s=state();var n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val result=accept(s,n,p);assertNotNull(result.player);assertEquals(now+240,result.postureReadyAt)

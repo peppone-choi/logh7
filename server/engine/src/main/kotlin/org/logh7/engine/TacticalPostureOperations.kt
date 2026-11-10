@@ -85,8 +85,11 @@ internal object TacticalPostureOperations {
             if(source!=null && !owned(source,player,galaxy,stocks))return reject(NavigationRejection.CARD)
             val current=(if(source==null)player.posture else source.unit.posture)?.takeIf {it.grid==player.grid}
                 ?: TacticalPosture(player.grid)
+            val retreat = if (source == null) player.retreat else source.unit.tactical?.retreat
+            val retreatBlocks = retreat != null &&
+                (command.mode.requiresBase || now !in retreat.startsAt until retreat.completesAt)
             if(current.order!=null || (current.mode==TacticalShipMode.STATIONED)!=command.sortie ||
-                if(source==null)player.retreat!=null else source.unit.support!=null || source.unit.tactical?.retreat!=null)
+                source?.unit?.support != null || retreatBlocks)
                 return reject(NavigationRejection.BUSY)
             val targetBase=if(command.sortie)current.base else command.base
             if(current.mode==command.mode && current.base==targetBase)return reject(NavigationRejection.SAME_GRID)
@@ -130,7 +133,8 @@ internal object TacticalPostureOperations {
             val stopped=TacticalMotion(p.grid,if(order.mode.requiresBase)minOf(now,order.readyAt) else now,at,0f,at.direction,listOf(at.position))
             val changed=if(valid)TacticalPosture(p.grid,order.mode,order.base) else state.copy(order=null)
             var next=p.copy(posture=changed)
-            if(valid)next=next.copy(motion=stopped,retreat=null,attack=null,fire=next.fire?.copy(pending=null))
+            if(valid)next=next.copy(motion=stopped,retreat=p.retreat?.takeUnless {order.mode.requiresBase},
+                attack=null,fire=next.fire?.copy(pending=null))
             if(valid && order.mode==TacticalShipMode.STATIONED)next=next.copy(baseId=order.base,mode=4,cpPaused=false,
                 cpRecoveryAt=now,motion=null,charge=null,commandRange=null,fire=next.fire?.copy(pending=null),spotId=0,spotOwner=0)
             players[account]=next;results+=event(p.unitId,state.grid,order,
@@ -154,8 +158,9 @@ internal object TacticalPostureOperations {
             var unit=s.unit.copy(posture=changed)
             if(valid) {
                 val motion=TacticalMotion(state.grid,if(order.mode.requiresBase)minOf(now,order.readyAt) else now,at,0f,at.direction,listOf(at.position))
-                unit=unit.copy(tactical=s.unit.tactical?.copy(motion=motion,nextDecisionAt=now,target=0,retreat=null) ?: NpcTacticalState(motion,now,now),
-                    motionCommander=order.character,attack=null,shot=null,support=null)
+                val retreat = s.unit.tactical?.retreat?.takeUnless {order.mode.requiresBase}
+                unit=unit.copy(tactical=s.unit.tactical?.copy(motion=motion,nextDecisionAt=now,target=0,retreat=retreat) ?: NpcTacticalState(motion,now,now),
+                    motionCommander=if(retreat==null)order.character else s.unit.motionCommander,attack=null,shot=null,support=null)
             }
             stocks=replace(stocks,s,unit);results+=event(id,state.grid,order,
                 if(valid)checkNotNull(unit.tactical).motion.pose(now,changed,galaxy,stocks) else at,!valid).copy(
