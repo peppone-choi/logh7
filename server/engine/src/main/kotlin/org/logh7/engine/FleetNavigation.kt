@@ -132,9 +132,14 @@ internal object FleetNavigation {
             motion = departureBase?.let { TacticalDeployment.departure(it, now, stocks, slot++) },
             posture = player.posture.takeIf { departureBase == null && player.grid == after.grid }) }
         val next = players + moved + (request.account to after)
-        // A reserved warp whose error pulled the fleet into a black hole's gravity zone damages it on arrival.
-        val pulled = preview.completedWarp && before.warpTarget != null && after.grid != before.warpTarget &&
-            BlackHoleTides.inGravity(galaxy, after.grid)
+        fun pulled(target: Int?, arrival: Int) = target != null && target != arrival &&
+            BlackHoleTides.inGravity(galaxy, target) && BlackHoleTides.inGravity(galaxy, arrival)
+        // A new warp request can also settle a previously reserved leg; its previous state is that leg's arrival.
+        val nextOrigin = preview.previous?.grid ?: before.grid
+        val reservedArrival = if (request.destination == null) after.grid else nextOrigin
+        val reservedPulled = preview.completedWarp && preview.warpCancellation == null && pulled(before.warpTarget, reservedArrival)
+        val immediatePulled = preview.rejection == null && after.warpTarget == null && after.grid != nextOrigin &&
+            pulled(request.destination, after.grid)
         val ships = departureBase?.let { base ->
             outfit.activeShips?.values?.let { units -> ActiveShipUnits(units.map { unit ->
                 if (unit.boats == 0 || unit.posture?.let { it.grid == base.grid && it.base == base.id } == true) unit
@@ -143,7 +148,8 @@ internal object FleetNavigation {
             }) }
         } ?: outfit.activeShips
         val moving = outfit.copy(position = position, activeShips = ships)
-            .let { if (pulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
+            .let { if (reservedPulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
+            .let { if (immediatePulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
         val deployed=stocks.copy(outfits = stocks.outfits + (outfit.id to moving))
         val settled=CivicActions.settle(galaxy,deployed,session.gameMillis/1000,next.values)
         val prepared = production.prepareReplacement(stocks,configured(settled,after))
