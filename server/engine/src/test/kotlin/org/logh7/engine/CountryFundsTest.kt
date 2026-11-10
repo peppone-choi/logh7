@@ -36,7 +36,11 @@ class CountryFundsTest {
     }
 
     @Test fun confidenceAndSupportKeepCountryAndCandidateMembershipSeparate() {
-        val boxes=stock.copy(social=stock.social.copy(funds=FundState(confidence=mapOf(43 to (70L to 80L)))))
+        val policy=OrganizationalOfficePolicy(galaxy,catalog)
+        val capitals=stock.copy(strategic=stock.strategic.copy(capitals=mapOf(country to 1000,neighbor to 1002)))
+        val withEmperors=policy.set(policy.set(capitals,OfficeHolding(1,1000,10002,country)),
+            OfficeHolding(1,1002,10003,neighbor))
+        val boxes=withEmperors.copy(social=withEmperors.social.copy(funds=FundState(confidence=mapOf(43 to (70L to 80L)))))
         val result=act(FundActions.CONFIDENCE,2,boxes)
         assertNull(result.rejection)
         assertEquals(mapOf(42 to (0L to 1000L),43 to (70L to 80L)),result.stocks?.social?.funds?.confidence)

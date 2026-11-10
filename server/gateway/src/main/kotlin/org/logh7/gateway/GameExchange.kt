@@ -2398,8 +2398,10 @@ class GameExchange(
                                             val rows=when(query.value) {
                                                 0 -> org.logh7.engine.FundActions.governed(world.galaxy,stocks,character.id.toInt(),country).filter {it>query.target}
                                                     .map {id->org.logh7.protocol.StrategyActionMessages.Selection(id,world.galaxy.bases.singleOrNull {it.id==id}?.name?.take(12) ?: "$id")}
-                                                1 -> listOf(1 to "지지",2 to "불지지").filter {it.first>query.target}
-                                                    .map {org.logh7.protocol.StrategyActionMessages.Selection(it.first,it.second)}
+                                                1 -> if(org.logh7.engine.FundActions.hasConfidenceIncumbent(world.galaxy,stocks,country))
+                                                    listOf(1 to "지지",2 to "불지지").filter {it.first>query.target}
+                                                        .map {org.logh7.protocol.StrategyActionMessages.Selection(it.first,it.second)}
+                                                    else emptyList()
                                                 else -> characters.registeredCharacters().map {currentCharacterById(it.id.toInt()) ?: it}
                                                     .filter {it.id!=character.id && it.id>query.target && it.id.toInt() in peers}.sortedBy {it.id}
                                                     .map {org.logh7.protocol.StrategyActionMessages.Selection(it.id.toInt(),it.surname,it.rank)}
