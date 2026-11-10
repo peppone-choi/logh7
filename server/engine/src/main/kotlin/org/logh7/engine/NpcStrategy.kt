@@ -177,7 +177,8 @@ internal object NpcStrategy {
     private fun reliefRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
         stocks:PlanetStocks,destination:Int?=null):DepotRoute? {
         val position=outfit.positionIn(galaxy)
-        if(position.baseId!=0 || canDepart(stocks,outfit,galaxy) || TacticalContact.contested(forces[position.grid].orEmpty()))return null
+        if(canDepart(stocks,outfit,galaxy) || TacticalContact.contested(forces[position.grid].orEmpty()))return null
+        if(position.baseId!=0 && depot(stocks,outfit,galaxy)?.supplies!=0)return null
         return home(galaxy,forces,outfit,stocks,relief=true,firstStep=destination)?.takeIf {it.jumps>0}
     }
 
