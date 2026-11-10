@@ -41,6 +41,18 @@ object FundActions {
             !BattleDeath.deceased(stocks, candidate.id) &&
             CoupActions.camp(stocks, sender, country) == CoupActions.camp(stocks, candidate.id, country)
 
+    fun hasConfidenceIncumbent(galaxy: Galaxy, stocks: PlanetStocks, country: CountryId?,
+        countries: CountryCatalog = CountryCatalogLoader.current()): Boolean {
+        if (country == null) return false
+        val card = when (OrganizationOffices.system(country, countries)) {
+            2 -> PoliticianLadder.EMPEROR_CARD
+            3 -> PoliticianLadder.CHAIRMAN_CARD
+            else -> return false
+        }
+        return OrganizationalOfficePolicy(galaxy, countries).holders(stocks, card, country)
+            .count { !BattleDeath.deceased(stocks, it.character) } == 1
+    }
+
     fun evaluate(g:Galaxy,r:SocialRequest,session:SessionState,p:Navigator?,s:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):SocialResult {
         val i=r.identity
@@ -57,7 +69,8 @@ object FundActions {
         val own=i.country.value
         when(i.value) {
             LOCAL -> if(i.target !in governed(g,s,i.characterId,i.country,countries))return reject(SocialRejection.TARGET)
-            CONFIDENCE -> if(i.target !in 1..2)return reject(SocialRejection.TARGET)
+            CONFIDENCE -> if(i.target !in 1..2 || !hasConfidenceIncumbent(g,s,i.country,countries))
+                return reject(SocialRejection.TARGET)
             SUPPORT -> {
                 val candidate = i.identities.singleOrNull { it.id == i.target }
                 if (candidate == null || !canSupport(s, i.characterId, i.country, candidate))
