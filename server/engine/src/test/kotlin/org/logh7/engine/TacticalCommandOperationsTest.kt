@@ -944,6 +944,44 @@ class TacticalCommandOperationsTest {
         assertTrue(settled.tacticalCommands.merits.isEmpty())
         assertEquals(mapOf(10000 to (4 to 0L)),events.single().finishedMissions)
     }
+    @Test fun interceptionAndReconnaissanceEndWhenTheTargetsCountryFallsButTheBattleContinues() {
+        for(kind in 3..4) {
+            val s=state()
+            val fallen=Power.ALLIANCE.country
+            val third=CountryId(42)
+            val enemy=s.stocks.outfits.getValue(2)
+            val original=enemy.activeShips!!.values.single()
+            val target=original.copy(tactical=original.tactical!!.copy(motion=motion(0f,10f)))
+            val other=enemy.copy(id=3,country=third,warehouseId=30,activeShips=ActiveShipUnits(listOf(target.copy(id=98))))
+            val stock=s.stocks.copy(outfits=s.stocks.outfits+(2 to enemy.copy(activeShips=ActiveShipUnits(listOf(target))))+
+                (3 to other),warehouses=s.stocks.warehouses+
+                (30 to s.stocks.warehouses.getValue(20).copy(id=30,country=third,outfitId=3)),
+                tacticalCommands=TacticalCommandState(missions=mapOf(10000 to TacticalMissionState(10000,kind,1,target.id,now,grid=2488))))
+            val interval=TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS
+            val ongoing=session.copy(countries=session.countries+setOf(fallen,third))
+            val players=s.players.toMutableMap()
+            players["pilot"]=players.getValue("pilot").copy(motion=motion(0f,10f))
+            val events=mutableListOf<TacticalCommandResult>()
+            fun settle(at:Long,phase:SessionState,current:PlanetStocks)=TacticalCommandOperations.finishMissions(
+                phase.copy(gameMillis=at*1000),galaxy,players,current,1,events,mutableListOf(),emptySet())
+
+            val before=settle(now+interval,ongoing,stock)
+            assertFalse(before.tacticalCommands.missions.getValue(10000).completed)
+            val merit=if(kind==4)1L else 0L
+            assertEquals(merit,before.tacticalCommands.merits[10000] ?: 0L)
+            val defeated=ongoing.copy(eliminated=mapOf(fallen to CountryDefeat(EndReason.SYSTEMS_REDUCED,now+interval+1)))
+            assertTrue(TacticalContact.contested(GridForces.collect(galaxy,1,players.values,before,defeated.eliminated.keys)[2488].orEmpty()))
+            events.clear()
+            val after=settle(now+2*interval,defeated,before)
+            assertTrue(after.tacticalCommands.missions.getValue(10000).completed)
+            assertEquals(merit,after.tacticalCommands.merits[10000] ?: 0L)
+            assertEquals(mapOf(10000 to (kind to 0L)),events.single().finishedMissions)
+            events.clear()
+            assertEquals(after,settle(now+3*interval,defeated,after))
+            assertTrue(events.isEmpty())
+        }
+    }
+
     @Test fun reconnaissanceMeritRequiresCurrentSharedContactAndDoesNotBackfillHiddenChecks() {
         val s=state()
         val players=s.players.toMutableMap()

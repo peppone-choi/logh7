@@ -568,6 +568,15 @@ internal object TacticalCommandOperations {
                     finished[id] = m.mission to 0L
                     continue
                 }
+                if(m.mission in 3..4) {
+                    val targetCountry=if(m.target>1_000_000)players.values.singleOrNull {it.unitId==m.target}?.country
+                        else ship(m.target,stocks)?.outfit?.country
+                    if(targetCountry in session.eliminated) {
+                        missions[id]=m.copy(completed=true)
+                        finished[id]=m.mission to 0L
+                        continue
+                    }
+                }
                 val checks=TacticalMissionRules.completedCheckIntervals(m.checkedAt,now)
                 var reward=0L;var completed=false
                 if(m.mission!=5 && m.grid!=null && p.grid!=m.grid) {missions[id]=m.copy(completed=true);finished[id]=m.mission to 0L;continue}
