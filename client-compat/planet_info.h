@@ -141,7 +141,34 @@ static void __cdecl receivedPlanetConditions(void* world) {
     auto record = logh::findPlanetCondition(static_cast<BYTE*>(world) + 0x3facf4, info.ids[info.index], info.grid);
     if (record) { memcpy(info.condition, record, sizeof(info.condition)); info.conditionsReady = true; info.displayed = false; }
 }
+static logh::FacilityMenuRefresh facilityMenuRefresh;
+static bool strategyPlacesWorld(void* world) {
+    return world && world==*reinterpret_cast<void**>(0x7ccffc) && !at<BYTE>(world,0x126718) &&
+        planetInformationGrid(world)<5000;
+}
+// A fresh 0321 changes only the current base in 004c4170's strategy copy, then asks the native menu to rebuild.
+static void receivedStrategyPlaces(void* world) {
+    if (!strategyPlacesWorld(world)) return;
+    const unsigned base=at<unsigned>(at<void*>(world,8),0x358);
+    if (logh::replaceStrategyPlaces(static_cast<BYTE*>(world)+0x2b7078,static_cast<const BYTE*>(world)+0x3fb2f8,base))
+        facilityMenuRefresh.received(world,base);
+}
+// 004fd2fb calls 005909b0(menu,flag*) every frame with menu=esi+0xab8. After its click
+// handling, an open list (root [menu], visible root+4) is rebuilt like opening, with (1,1).
+static unsigned __fastcall facilityMenuFrame(void* menu,void*,void* flag) {
+    const unsigned result=reinterpret_cast<unsigned(__thiscall*)(void*,void*)>(0x5909b0)(menu,flag);
+    if (facilityMenuRefresh.pending) {
+        void* world=*reinterpret_cast<void**>(0x7ccffc);
+        const bool strategy=strategyPlacesWorld(world);
+        auto root=at<BYTE*>(menu,0);
+        if (facilityMenuRefresh.due(world,strategy ? at<unsigned>(at<void*>(world,8),0x358) : 0,strategy,
+                root && root[4],at<unsigned>(menu,0xa0c),at<unsigned>(menu,0xa28)))
+            reinterpret_cast<void(__thiscall*)(void*,int,int)>(0x591970)(menu,1,1);
+    }
+    return result;
+}
 static void __cdecl receivedPlanetPlaces(void* world) {
+    receivedStrategyPlaces(world);
     auto& info=planetInformation;
     if (!info.popup || info.world!=world || info.directoryVisible || !info.count) return;
     if (info.places.accept(static_cast<const BYTE*>(world)+0x3fb2f8,info.ids[info.index])) {
@@ -476,14 +503,19 @@ static int __cdecl planetInfoMenu(void* gui) {
 }
 
 static bool installPlanetInformation() {
-    const unsigned addresses[] = {0x54bc01, 0x4bae89, 0x4babc2, 0x4baeb4, 0x4bb4bd};
-    const BYTE expected[][5] = {{0xe8,0x7a,0x02,0,0}, {0xe9,0xa5,0x2e,0,0}, {0xe8,0x89,0x43,0,0}, {0xe9,0x7a,0x2e,0,0}, {0xe9,0x71,0x28,0,0}};
-    const void* functions[] = {&planetInfoMenu, &planetConditionsCopied, &receivedPlanetWarehouse, &planetPlacesCopied, &planetGovernorCopied};
+    const unsigned addresses[] = {0x54bc01, 0x4bae89, 0x4babc2, 0x4baeb4, 0x4bb4bd, 0x4fd2fb};
+    const BYTE expected[][5] = {{0xe8,0x7a,0x02,0,0}, {0xe9,0xa5,0x2e,0,0}, {0xe8,0x89,0x43,0,0}, {0xe9,0x7a,0x2e,0,0}, {0xe9,0x71,0x28,0,0},
+        {0xe8,0xb0,0x36,0x09,0}};
+    const void* functions[] = {&planetInfoMenu, &planetConditionsCopied, &receivedPlanetWarehouse, &planetPlacesCopied, &planetGovernorCopied,
+        &facilityMenuFrame};
     const unsigned gridDecoder=0x41c5f0;
     if (memcmp(reinterpret_cast<void*>(0x66c4b4),&gridDecoder,4)) return false;
-    for (unsigned i = 0; i < 5; ++i)
+    // 004fd2f4 lea ecx,[esi+0xab8]: the per-frame facility menu call passes that object.
+    const BYTE menuThis[] = {0x8d,0x8e,0xb8,0x0a,0,0};
+    if (memcmp(reinterpret_cast<void*>(0x4fd2f4),menuThis,sizeof(menuThis))) return false;
+    for (unsigned i = 0; i < 6; ++i)
         if (memcmp(reinterpret_cast<void*>(addresses[i]), expected[i], 5)) return false;
-    for (unsigned i = 0; i < 5; ++i) {
+    for (unsigned i = 0; i < 6; ++i) {
         auto target = reinterpret_cast<BYTE*>(addresses[i]);
         BYTE replacement[5]; replacement[0] = expected[i][0];
         *reinterpret_cast<LONG*>(replacement + 1) = static_cast<LONG>(static_cast<const BYTE*>(functions[i]) - target - 5);

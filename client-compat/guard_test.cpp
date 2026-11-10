@@ -2365,6 +2365,38 @@ static int runGuard(int argc, wchar_t** argv) {
     if (places.accept(placeReply,id) || places.count!=720) return 56;
     placeReply[0]=5;
     if (places.accept(placeReply,id)) return 57;
+    {
+        // 004c4170's strategy copy: only the current base's existing slot changes, once per change.
+        static unsigned char cache[4+4*0x2378],reply[4+4*0x2378];
+        cache[0]=2;memcpy(cache+4,&other,4);cache[4+4]=3;
+        auto slot=cache+4+0x2378;memcpy(slot,&id,4);
+        reply[0]=1;memcpy(reply+4,&id,4);reply[4+4]=1;memcpy(reply+4+8+4,&facilityId,4);
+        if (!logh::replaceStrategyPlaces(cache,reply,id) || slot[4]!=1 || logh::infoWord(slot,8+4)!=facilityId ||
+            logh::infoWord(cache,4)!=other || cache[4+4]!=3) return 7350;
+        if (logh::replaceStrategyPlaces(cache,reply,id)) return 7351; // Unchanged: no second rebuild.
+        if (logh::replaceStrategyPlaces(cache,reply,other) || cache[4+4]!=3) return 7352; // Another base.
+        reply[4+4]=37;
+        if (logh::replaceStrategyPlaces(cache,reply,id) || slot[4]!=1) return 7353; // Invalid record.
+        reply[4+4]=0; // Valid change: the facility is gone.
+        cache[0]=1;
+        if (logh::replaceStrategyPlaces(cache,reply,id) || slot[4]!=1) return 7354; // No existing slot.
+        cache[0]=5;
+        if (logh::replaceStrategyPlaces(cache,reply,id) || slot[4]!=1) return 7355;
+        cache[0]=2;
+        if (!logh::replaceStrategyPlaces(cache,reply,id) || slot[4] || logh::infoWord(slot,0)!=id) return 7356;
+        logh::FacilityMenuRefresh refresh;int world=0,otherWorld=0;
+        if (refresh.due(&world,id,true,true,3,1)) return 7357; // Nothing received.
+        refresh.received(&world,id);
+        if (refresh.due(&world,id,true,true,3,2) || refresh.due(&world,id,true,false,3,1) ||
+            refresh.due(&world,id,true,true,2,1) || refresh.due(&world,id,true,true,6,1) || !refresh.pending) return 7358; // Deferred.
+        if (!refresh.due(&world,id,true,true,5,1) || refresh.due(&world,id,true,true,5,1)) return 7359; // Exactly once.
+        refresh.received(&world,id);
+        if (refresh.due(&otherWorld,id,true,true,4,1) || refresh.pending) return 7360; // Another world.
+        refresh.received(&world,id);
+        if (refresh.due(&world,other,true,true,4,1) || refresh.pending) return 7361; // Moved to another base.
+        refresh.received(&world,id);
+        if (refresh.due(&world,id,false,true,4,1) || refresh.pending) return 7362; // Tactics.
+    }
     unsigned char governorReply[4+64*0x2d4]={};governorReply[0]=54;governorReply[2]=1;
     auto governor=governorReply+4;
     unsigned governorId=10000;memcpy(governor,&governorId,4);governor[0x7d]=1;

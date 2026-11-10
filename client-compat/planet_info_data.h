@@ -75,26 +75,62 @@ inline PlanetOfficeKinds planetOfficeKinds(const unsigned char* base,unsigned po
 }
 // 004167f0 decoded layout: four 0x2378-byte bases, 36 institutions,
 // twenty 12-byte spots each. Preserve IDs independently of display rows.
+// The 0321 reply (world+0x3fb2f8) and 004c4170's strategy copy (world+0x2b7078) share it.
+constexpr unsigned planetPlacesSize=0x2378;
+inline const unsigned char* findPlanetPlaces(const unsigned char* response, unsigned id) {
+    if (!response || response[0] > 4 || !id) return nullptr;
+    for (unsigned i=0;i<response[0];++i) {
+        auto candidate=response+4+i*planetPlacesSize;
+        if (infoWord(candidate,0)==id) return candidate;
+    }
+    return nullptr;
+}
+inline bool validPlanetPlaces(const unsigned char* base) {
+    if (!base || base[4]>36) return false;
+    for (unsigned i=0;i<base[4];++i) {
+        auto facility=base+8+i*0xfc;
+        if (infoShort(facility,0)>38 || !infoWord(facility,4) || facility[8]>20) return false;
+        for (unsigned j=0;j<facility[8];++j) {
+            auto spot=facility+12+j*12;
+            if (infoShort(spot,0)>104 || !infoWord(spot,4) || !infoShort(spot,8)) return false;
+        }
+    }
+    return true;
+}
+// Replace only the current base's existing strategy slot. Another base, a base absent from
+// either side, an invalid record or an unchanged copy leaves the cache alone (false).
+inline bool replaceStrategyPlaces(unsigned char* cache, const unsigned char* response, unsigned id) {
+    auto source=findPlanetPlaces(response,id);
+    auto slot=const_cast<unsigned char*>(findPlanetPlaces(cache,id));
+    if (!slot || !validPlanetPlaces(source) || !memcmp(slot,source,planetPlacesSize)) return false;
+    memcpy(slot,source,planetPlacesSize);
+    return true;
+}
+// One native facility-menu rebuild per changed copy. It waits for an open list in
+// mode 3/4/5 at click state 1 (modal/confirm states defer); another world, base or
+// tactics drops it.
+struct FacilityMenuRefresh {
+    const void* world=nullptr;
+    unsigned base=0;
+    bool pending=false;
+    void received(const void* changedWorld,unsigned changedBase) {
+        world=changedWorld;base=changedBase;pending=true;
+    }
+    bool due(const void* currentWorld,unsigned currentBase,bool strategic,bool visible,unsigned menuMode,unsigned clickState) {
+        if (!pending) return false;
+        if (currentWorld!=world || currentBase!=base || !strategic) {pending=false;return false;}
+        if (!visible || menuMode<3 || menuMode>5 || clickState!=1) return false;
+        pending=false;
+        return true;
+    }
+};
 struct PlanetPlaces {
     struct Row { unsigned institution, institutionKind, spot, spotKind, image; } rows[720] = {};
     unsigned count = 0, institutions = 0;
     bool accept(const unsigned char* response, unsigned id) {
-        if (response[0] > 4 || !id) return false;
-        const unsigned char* base = nullptr;
-        for (unsigned i=0;i<response[0];++i) {
-            auto candidate=response+4+i*0x2378;
-            if (infoWord(candidate,0)==id) { base=candidate;break; }
-        }
-        if (!base || base[4]>36) return false;
+        auto base=findPlanetPlaces(response,id);
         // Validate before changing a previously received snapshot.
-        for (unsigned i=0;i<base[4];++i) {
-            auto facility=base+8+i*0xfc;
-            if (infoShort(facility,0)>38 || !infoWord(facility,4) || facility[8]>20) return false;
-            for (unsigned j=0;j<facility[8];++j) {
-                auto spot=facility+12+j*12;
-                if (infoShort(spot,0)>104 || !infoWord(spot,4) || !infoShort(spot,8)) return false;
-            }
-        }
+        if (!validPlanetPlaces(base)) return false;
         count=0;institutions=base[4];
         for (unsigned i=0;i<institutions;++i) {
             auto facility=base+8+i*0xfc;

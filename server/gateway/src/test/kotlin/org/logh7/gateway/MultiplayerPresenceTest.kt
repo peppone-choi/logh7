@@ -10,6 +10,34 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class MultiplayerPresenceTest {
+    @Test fun facilityRefreshUsesTheCommittedClockAndOnlyReachesTheCurrentSystemAndGeneration() {
+        val base = GalaxyBase(1000, 2487, 80, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)), listOf(base),
+            Power.entries.associateWith { base.grid })
+        val world = WorldBootstrap(galaxy)
+        val production = ProductionState(built = mapOf(base.id to 500L), destroyed = setOf(base.id))
+        val stocks = PlanetStocks(1, 0, mapOf(base.id to PlanetStock(base.id, 2, 0, 0, 0, 0)),
+            social = SocialState(production = production))
+        val hub = GamePresence()
+        val received = List(3) { mutableListOf<List<ByteArray>>() }
+        val person = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Pilot", "One", 30, 1, 1, 1000001,
+            List(8) { 50 }, 0, 0, 0, 20, 0, 0, "Ship", 1)
+        for ((index, location) in listOf(1L to 2487, 1L to 2488, 2L to 2487).withIndex()) {
+            val id = 10000 + index
+            hub.update(GamePresence.Member("viewer-$index", person.copy(id = id.toLong()),
+                Navigator(location.first, id, Power.EMPIRE, location.second, 1000, 1000, 900), received[index]::add))
+        }
+        received.forEach { it.clear() }
+
+        hub.refreshBaseFacilities(world, stocks, listOf(base.id), 500L)
+
+        val packet = received[0].single().single()
+        assertEquals(0x0321, opcode(packet))
+        assertContentEquals(world.places(listOf(base.id), stocks, 500L), packet)
+        assertTrue(packet.size > world.places(listOf(base.id), stocks, 499L).size)
+        assertTrue(received.drop(1).all { it.isEmpty() })
+    }
+
     @Test fun tacticalEndOnlyReachesTheMatchingLiveBattlefieldConnection() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         val person=CharacterMessages.Generate(4,10000,2,0,0,"Pilot","One",30,1,1,1000001,
