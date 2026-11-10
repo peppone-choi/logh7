@@ -25,11 +25,23 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
     private var sequence = 0L
     init { require(leaseMillis in 1..3_600_000) }
 
-    private fun lostCommand(request:LogisticsRequest,outfit:OutfitStock?):Boolean =
-        request.mode==LogisticsMode.REORGANIZATION && outfit?.commanderId!=request.characterId
+    private fun allocationAllowed(stocks:PlanetStocks,request:LogisticsRequest,country:CountryId,outfit:OutfitStock)=
+        offices?.permits(stocks,request.characterId,country,outfit.kind)==true
 
-    fun expireFormerCommanders(stocks:PlanetStocks) {
-        reservations.removeAll {lock->lostCommand(lock.request,stocks.outfits[lock.request.outfitId])}
+    private fun lostAccess(lock:Reservation,stocks:PlanetStocks):Boolean {
+        val request=lock.request
+        val outfit=stocks.outfits[request.outfitId] ?: return true
+        val country=request.country ?: return true
+        if(outfit.baseId!=lock.base || outfit.warehouseId!=lock.warehouse || stocks.bases[lock.base]?.camp!=lock.camp ||
+            !TacticalAuthority.canAccessOutfitWarehouse(stocks,outfit,request.characterId,country))return true
+        return when(request.mode) {
+            LogisticsMode.ALLOCATION -> !allocationAllowed(stocks,request,country,outfit)
+            LogisticsMode.REORGANIZATION -> outfit.commanderId!=request.characterId
+        }
+    }
+
+    fun expireIneligible(stocks:PlanetStocks) {
+        reservations.removeAll {lostAccess(it,stocks)}
     }
 
     private fun expireReservations(session:SessionState,now:Long,stocks:PlanetStocks?) {
@@ -38,13 +50,7 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
             lock.expires<=now || request.generation!=session.generation || request.country in session.eliminated ||
                 session.participants[request.account]?.let {
                     !it.online || it.connection!=request.connection || it.country!=request.country
-                }!=false || stocks?.let {inventory->
-                    val outfit=inventory.outfits[request.outfitId]
-                    inventory.bases[lock.base]?.camp!=lock.camp ||
-                        CoupActions.camp(inventory,request.characterId,request.country)!=lock.camp ||
-                        outfit?.let {CoupActions.outfitCamp(inventory,it)}!=lock.camp ||
-                        lostCommand(request,outfit)
-                }==true
+                }!=false || stocks?.let {lostAccess(lock,it)}==true
         }
     }
 
@@ -88,8 +94,7 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
         if (!TacticalAuthority.canAccessOutfitWarehouse(stocks,outfit,request.characterId,country)) return reject(LogisticsRejection.ACCESS)
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         if (request.mode == LogisticsMode.ALLOCATION) {
-            val allowed=offices?.permits(stocks,request.characterId,country,outfit.kind)==true
-            if (!allowed) return reject(LogisticsRejection.ACCESS)
+            if (!allocationAllowed(stocks,request,country,outfit)) return reject(LogisticsRejection.ACCESS)
         } else {
             if (outfit.guard != null || outfit.commanderId != request.characterId) return reject(LogisticsRejection.ACCESS)
             if (player.baseId != outfit.baseId || (outfit.position?.baseId ?: outfit.baseId) != outfit.baseId ||
