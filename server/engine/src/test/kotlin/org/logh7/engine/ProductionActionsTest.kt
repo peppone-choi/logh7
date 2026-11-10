@@ -64,6 +64,30 @@ class ProductionActionsTest {
         val recruited=assertNotNull(act(ProductionActions.RECRUIT,stocks,troop.kind).stocks).bases.getValue(1049)
         assertEquals(1,recruited.units.troops[UnitStack(troop.kind)]);assertEquals(299_000,recruited.economy?.adults)
     }
+    @Test fun aPausedShipyardHoldsItsPaidOrderUntilItResumes() {
+        val ship = ProductionActions.kinds(2, true).first()
+        val ordered = act(ProductionActions.SHIP, stocks, ship.kind)
+        assertNull(ordered.rejection)
+        assertEquals(920, ordered.player?.mcp)
+        val pending = assertNotNull(ordered.stocks)
+        val order = pending.social.production.orders.getValue(1049)
+
+        val pause = act(ProductionActions.PAUSE, pending)
+        assertNull(pause.rejection)
+        val paused = assertNotNull(pause.stocks)
+        assertSame(paused, ProductionActions.settle(paused, order.readyAt))
+
+        val resume = act(ProductionActions.RESUME, paused)
+        assertNull(resume.rejection)
+        val resumed = assertNotNull(resume.stocks)
+        val delivered = ProductionActions.settle(resumed, order.readyAt + 1)
+        val warehouse = pending.bases.getValue(1049)
+        assertEquals(warehouse.copy(units = UnitInventory(ships = mapOf(UnitStack(ship.kind) to 1))),
+            delivered.bases.getValue(1049))
+        assertTrue(delivered.social.production.orders.isEmpty())
+        assertSame(delivered, ProductionActions.settle(delivered, order.readyAt + 2))
+    }
+
     @Test fun aFullStackKeepsTheOrderWaitingAndAFullTroopStackRefusesRecruiting() {
         val ship=ProductionActions.kinds(2,true).first();val troop=ProductionActions.kinds(2,false).first()
         val base=stocks.bases.getValue(1049)

@@ -163,7 +163,7 @@ object ProductionActions {
     /** Completes due manual ship orders into the base's stock. */
     fun settle(s:PlanetStocks,now:Long):PlanetStocks {
         val prod=s.social.production
-        val due=prod.orders.filterValues {it.readyAt<=now}
+        val due=prod.orders.filter { (base, order) -> base !in prod.paused && order.readyAt <= now }
         if(due.isEmpty())return s
         var bases=s.bases
         val done=mutableSetOf<Int>()
