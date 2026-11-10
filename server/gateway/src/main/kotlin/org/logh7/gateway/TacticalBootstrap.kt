@@ -61,9 +61,11 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     private val sources:List<Source> = run {
         val stocks=checkNotNull(snapshot.planetStocks)
         people.mapNotNull {p->characterById(p.characterId)?.let {c->
-            val fleet=stocks.outfits.values.singleOrNull {p.characterId in it.members() && it.positionIn(galaxy)==OutfitPosition(p.grid)}
+            val camp=TacticalAuthority.camp(p,stocks)
+            val fleet=stocks.outfits.values.singleOrNull {p.characterId in it.members() &&
+                TacticalAuthority.camp(it,stocks)==camp && it.positionIn(galaxy)==OutfitPosition(p.grid)}
             Source(p.unitId,p.hull?.kind ?: c.shipKind,fleet?.id ?: 0,p.characterId,p.supplies,p.cruise.toFloat(),
-                TacticalAuthority.camp(p,stocks),posture=p.posture?.takeIf {it.grid==viewer.grid})
+                camp,posture=p.posture?.takeIf {it.grid==viewer.grid})
         }} + stocks.outfits.values.filter {it.positionIn(galaxy)==OutfitPosition(viewer.grid)}.flatMap {fleet->
             val supplies=OutfitSupplies.distribution(fleet)
             val camp=TacticalAuthority.camp(fleet,stocks)
