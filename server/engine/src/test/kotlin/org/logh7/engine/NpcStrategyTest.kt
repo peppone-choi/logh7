@@ -656,6 +656,34 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun idleNpcRetriesPartialDockResupplyUntilItsCargoIsFull() {
+        val initial=stocks()
+        val depot=initial.bases.getValue(1000)
+        val fleet=initial.outfits.getValue(1).copy(position=OutfitPosition(2487))
+        val events=mutableListOf<NpcStrategicMovement>()
+        for(initialSupply in listOf(0,100)) {
+            val docked=advance(0,initial.copy(bases=mapOf(1000 to depot.copy(supplies=initialSupply)),
+                outfits=mapOf(1 to fleet)),mutableMapOf(),events)
+            assertEquals(OutfitPosition(2487,1000),docked.outfits.getValue(1).position)
+            assertEquals(initialSupply,docked.outfits.getValue(1).supplies)
+            assertTrue(docked.outfits.getValue(1).strategy!!.awaitingDockSupply)
+
+            val partial=advance(21600,docked.copy(bases=mapOf(1000 to depot.copy(supplies=200))),mutableMapOf(),events)
+            assertEquals(initialSupply+200,partial.outfits.getValue(1).supplies)
+            assertEquals(0,partial.bases.getValue(1000).supplies)
+            assertTrue(partial.outfits.getValue(1).strategy!!.awaitingDockSupply)
+
+            val stocked=advance(43200,partial.copy(bases=mapOf(1000 to depot.copy(supplies=4000))),mutableMapOf(),events)
+            assertEquals(3000,stocked.outfits.getValue(1).supplies)
+            assertEquals(1200+initialSupply,stocked.bases.getValue(1000).supplies)
+            assertFalse(stocked.outfits.getValue(1).strategy!!.awaitingDockSupply)
+            val repeated=advance(64800,stocked,mutableMapOf(),events)
+            assertEquals(3000,repeated.outfits.getValue(1).supplies)
+            assertEquals(stocked.bases,repeated.bases)
+            assertTrue(events.isEmpty())
+        }
+    }
+
     @Test fun idleNpcRetriesResupplyAfterDockingAtAnEmptyDepot() {
         val initial = stocks()
         val depot = initial.bases.getValue(1000)
