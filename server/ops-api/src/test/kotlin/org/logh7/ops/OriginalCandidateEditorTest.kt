@@ -17,10 +17,12 @@ class OriginalCandidateEditorTest {
         var office=true
         var allianceOffice=false
         var stadenOffice=false
+        var paettaOffice=false
         val saved=mutableMapOf<Long,OriginalCandidateEdit>()
         override val supportsStartingOffice get()=office
         override val supportsAllianceStartingOffice get()=allianceOffice
         override val supportsStadenStartingOffice get()=stadenOffice
+        override val supportsPaettaStartingOffice get()=paettaOffice
         override fun load()=saved.values.toList()
         override fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?):OriginalCandidateEdit? {
             if(expected!=(saved[id]?.revision ?: 0))return null
@@ -126,6 +128,7 @@ class OriginalCandidateEditorTest {
             assertTrue(v18.contains("<option value=\"${reinhard.key}\" data-country=\"2\" data-rank=\"5\">"))
             assertTrue(v18.contains("<option value=\"${staden.key}\" data-country=\"2\" data-rank=\"5\">$stadenLabel</option>"))
             assertFalse(v18.contains("V18"));assertFalse(v18.contains(OriginalStartingOffice.VUCOCK_FLEET_5.key))
+            assertFalse(v18.contains(OriginalStartingOffice.PAETTA_FLEET_2.key));assertFalse(v18.contains("V19"))
             val alliance=page("new=3")
             assertTrue(alliance.contains("value=\"${OriginalStartingOffice.VUCOCK_FLEET_5.key}\""));assertFalse(alliance.contains(staden.key))
             assertEquals(400,save(form+("rank" to "4")))
@@ -153,6 +156,65 @@ class OriginalCandidateEditorTest {
             assertEquals(400,save(edit+("startingOffice" to reinhard.key)))
             assertEquals(200,save(edit+("given" to "카를")))
             assertEquals(staden,store.saved.getValue(1003).profile.startingOffice)
+        }
+    }
+
+    @Test fun allianceOffersVucockAndPaettaSeparatelyAcrossV19() {
+        val store=Store().apply {allianceOffice=true;stadenOffice=true}
+        withEditor(store) {
+            val vucock=OriginalStartingOffice.VUCOCK_FLEET_5
+            val paetta=OriginalStartingOffice.PAETTA_FLEET_2
+            val paettaLabel="파에타 · 제2함대 사령관 (하이네센)"
+            val form=mapOf("operator" to "peppone","candidate" to "1003","revision" to "0","create" to "1","country" to "3",
+                "surname" to "파에타","given" to "후보","face" to "100001","rank" to "5","peerage" to "0",
+                "startingOffice" to paetta.key)+abilities.indices.associate {"ability$it" to "60"}
+
+            // Before V19: Vucock stays selectable, Paetta only asks for V19 and its save is refused.
+            val v18=page("new=3")
+            assertTrue(v18.contains("value=\"${vucock.key}\""));assertFalse(v18.contains("value=\"${paetta.key}\""))
+            assertTrue(v18.contains("시작 직책 ${paettaLabel}을 지정하려면 정의 DB V19을 적용"))
+            assertFalse(page("new=2").contains("V19"))
+            assertEquals(503,save(form));assertTrue(store.saved.isEmpty())
+            store.office=false
+            val v15=page("new=3")
+            assertTrue(v15.contains("정의 DB V16·V19을 적용"));assertTrue(v15.contains("정의 DB V16·V17을 적용"))
+            assertFalse(v15.contains("name=\"startingOffice\""))
+
+            // V19: one select offers both alliance offices, each bound to country 3 at rank 5; imperial offices stay on the empire side.
+            store.office=true;store.paettaOffice=true
+            val v19=page("new=3")
+            assertEquals(1,Regex("name=\"startingOffice\"").findAll(v19).count())
+            assertTrue(v19.contains("<option value=\"${vucock.key}\" data-country=\"3\" data-rank=\"5\">"))
+            assertTrue(v19.contains("<option value=\"${paetta.key}\" data-country=\"3\" data-rank=\"5\">$paettaLabel</option>"))
+            assertFalse(v19.contains("V19"))
+            assertFalse(v19.contains(OriginalStartingOffice.REINHARD_FLEET_2.key));assertFalse(v19.contains(OriginalStartingOffice.STADEN_FLEET_4.key))
+            val empire=page("new=2")
+            assertTrue(empire.contains("value=\"${OriginalStartingOffice.STADEN_FLEET_4.key}\""));assertFalse(empire.contains(paetta.key))
+            assertEquals(400,save(form+("rank" to "4")))
+            assertEquals(400,save(form+mapOf("country" to "2","face" to "1")))
+            assertEquals(400,save(form+mapOf("candidate" to "2","create" to "0")))
+            assertTrue(store.saved.isEmpty())
+            assertEquals(200,save(form))
+            assertEquals(paetta,store.saved.getValue(1003).profile.startingOffice)
+
+            // Paetta's holder does not block Vucock; once both are held the alliance form offers no office.
+            val held=page("new=3")
+            assertTrue(held.contains("시작 직책 ${paettaLabel}은 후보 1003에 이미 지정"))
+            assertTrue(held.contains("value=\"${vucock.key}\""));assertFalse(held.contains("value=\"${paetta.key}\""))
+            assertEquals(400,save(form+mapOf("candidate" to "1004")))
+            assertEquals(200,save(form+mapOf("candidate" to "1004","surname" to "뷰코크","startingOffice" to vucock.key)))
+            assertEquals(vucock,store.saved.getValue(1004).profile.startingOffice)
+            val full=page("new=3")
+            assertTrue(full.contains("후보 1003에 이미 지정"));assertTrue(full.contains("후보 1004에 이미 지정"))
+            assertFalse(full.contains("name=\"startingOffice\""))
+
+            // Bound Paetta stays fixed through later edits and cannot be swapped for Vucock.
+            val bound=page("candidate=1003")
+            assertTrue(bound.contains("<strong>$paettaLabel</strong>"));assertFalse(bound.contains("name=\"startingOffice\""))
+            val edit=form-"create"-"startingOffice"+("revision" to "1")
+            assertEquals(400,save(edit+("startingOffice" to vucock.key)))
+            assertEquals(200,save(edit+("given" to "클레멘트")))
+            assertEquals(paetta,store.saved.getValue(1003).profile.startingOffice)
         }
     }
 }

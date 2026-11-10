@@ -66,6 +66,45 @@ class TacticalRetreatTest {
             energy=TacticalEnergy.ZERO),session,stocks).player!!
         assertNull(energy.retreat)
     }
+    @Test fun leavingAnOuterBerthClearsItsPostureAndAllowsACommandInTheNextBattle() {
+        val destination = 2486
+        val source = galaxy.bases.single().copy(kind = 1, radius = 300f, angle = -90f)
+        val entry = TacticalDeployment.formation(0, Power.ALLIANCE).position
+        val target = source.copy(id = 1001, grid = destination, name = "Enemy", radius =
+            kotlin.math.hypot(entry.x, entry.y), angle = Math.toDegrees(kotlin.math.atan2(entry.x, entry.y).toDouble()).toFloat())
+        val world = Galaxy(galaxy.systems + GalaxySystem(4, destination, 4, "Enemy", 2), listOf(source, target), galaxy.starts)
+        val inventory = stocks.copy(bases = stocks.bases + (target.id to PlanetStock(target.id, 2, 0, 0, 0, 0)))
+        val anchored = pilot.copy(posture = TacticalPosture(pilot.grid, TacticalShipMode.ANCHORED, source.id))
+        val store = store(anchored)
+        val ally = pilot.copy(characterId = 10002, grid = destination, motion = null)
+        store.players = store.players + ("ally" to ally)
+        val navigation = Navigation(world, store, NavigationPolicy())
+        val queued = assertNotNull(navigation.apply(request, session, inventory).player)
+        val retreat = assertNotNull(queued.retreat)
+        assertEquals(destination, retreat.destination)
+        assertEquals(anchored.posture, queued.posture)
+
+        val due = session.copy(gameMillis = retreat.completesAt * 1000)
+        Navigation(world, store, NavigationPolicy()).settleRetreats(due, inventory)
+        val restored = Navigation(world, store, NavigationPolicy()).snapshot(1)
+        val arrived = restored.getValue("pilot")
+        assertEquals(destination, arrived.grid)
+        assertTrue(arrived.cpPaused)
+        assertNull(arrived.posture)
+        assertNull(arrived.retreat)
+
+        val command = StrategyActionRequest("pilot", "c", pilot.characterId, Power.ALLIANCE, 1,
+            OrbitalStrikeActions.STRIKE, 0, 1)
+        val quote = OrbitalStrikeActions.evaluate(world, SocialRequest(command, phase = OrbitalStrikeActions.QUOTE_PHASE),
+            due, arrived, inventory, restored.values)
+        assertNull(quote.rejection)
+        assertEquals(target.id, quote.found)
+        val strike = OrbitalStrikeActions.evaluate(world, SocialRequest(command.copy(base = quote.found,
+            argument = quote.outcome, value = OrbitalStrikeActions.SUPPLIES)), due, arrived, inventory, restored.values)
+        assertTrue(strike.changed)
+        assertEquals(arrived.supplies - OrbitalStrikeActions.SUPPLIES, strike.player?.supplies)
+    }
+
     @Test fun eliminatedFlagshipCancelsRestoredRetreatWithoutWarping() {
         val store=store()
         val prepared=Navigation(galaxy,store,NavigationPolicy()).apply(request,session,stocks).player!!

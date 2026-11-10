@@ -37,6 +37,31 @@ class CharacterCarryOverTest {
         assertEquals(CountryId(2),CharacterStores(file).get(1).profiles().getValue("veteran").country)
         assertTrue(stores.carryOver(world,catalog).isEmpty())
     }
+    @Test fun memoryCarryOverKeepsBothGenerationsWithoutRetainingOlderOnes() {
+        val stores=CharacterStores(null)
+        val veteran=character(10000,30)
+        assertTrue(stores.get(1).carry("veteran",veteran))
+        assertTrue(stores.get(1).carry("novice",character(10001,30)))
+        val end=SessionEnd(EndReason.TIME_LIMIT,emptySet(),100)
+        val result=SessionResults.assess(end,SessionStatistics(population=10),mapOf(
+            Power.EMPIRE to SessionStatistics(population=6),Power.ALLIANCE to SessionStatistics(population=4)),VictoryConditions(true,true))
+        val session=SessionSimulation(SessionRules.load()).snapshot().copy(ended=end)
+        val person=StrategicPerson(evaluation=CharacterCarryOver.MINIMUM_EVALUATION,rank=6)
+        val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(10000 to person)))
+        val world=WorldSnapshot(0,0,session,planetStocks=stocks,result=result)
+
+        assertEquals(listOf("veteran"),stores.carryOver(world))
+        val carried=assertNotNull(stores.get(2).character("veteran"))
+        assertEquals(6,carried.rank)
+        assertNull(stores.get(2).character("novice"))
+        assertEquals(veteran,stores.get(1).character("veteran"))
+        assertTrue(stores.carryOver(world).isEmpty())
+        assertEquals(carried,stores.get(2).character("veteran"))
+
+        assertNull(stores.get(3).character("veteran"))
+        assertNull(stores.get(1).character("veteran"))
+        assertEquals(carried,stores.get(2).character("veteran"))
+    }
     @Test fun qualifyingGeneratedCharactersMoveToTheNextGenerationWithAgeAbilitiesAndRank() {
         val dir=Files.createTempDirectory("carry")
         val file=dir.resolve("characters.properties")
@@ -56,7 +81,7 @@ class CharacterCarryOverTest {
         val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(10000 to strong,
             10001 to StrategicPerson(evaluation=CharacterCarryOver.MINIMUM_EVALUATION-1),10002 to strong,
             10003 to strong.copy(deceasedAt=50),10004 to strong)))
-        val session=SessionSimulation(SessionRules.load()).snapshot().copy(gameSeconds=twoYears,ended=end)
+        val session=SessionSimulation(SessionRules.load()).snapshot().copy(gameSeconds=twoYears,ended=end,elapsedGameSeconds=twoYears)
         val world=WorldSnapshot(0,0,session,planetStocks=stocks,result=result)
         val stores=CharacterStores(file)
         assertEquals(listOf("veteran"),stores.carryOver(world),"under the threshold, 60 at the end, dead or original stay behind")
@@ -66,5 +91,22 @@ class CharacterCarryOverTest {
         assertEquals(0L,next.evaluation);assertTrue(next.generated)
         assertNull(CharacterStores(file).get(2).character("novice"))
         assertNotNull(CharacterStores(file).get(1).character("veteran"),"the finished generation keeps its file")
+    }
+
+    @Test fun theCalendarEpochDoesNotAgeACharacterBeforeTheSessionHasRunAFullYear() {
+        val veteran=character(10000,59)
+        val stocks=PlanetStocks(1,0,emptyMap(),strategic=StrategicState(people=mapOf(
+            10000 to StrategicPerson(evaluation=CharacterCarryOver.MINIMUM_EVALUATION))))
+        val start=GameDate(796,1,1)
+        for((end,expectedAge) in listOf(GameDate(796,12,30,23,59,59) to 59,GameDate(797,1,1) to null)) {
+            val rules=SessionRules.load().copy(start=start,end=end)
+            val simulation=SessionSimulation(rules)
+            simulation.advance((rules.endSeconds-rules.startSeconds)*1000/rules.speed+1)
+            val session=simulation.snapshot()
+            assertEquals(EndReason.TIME_LIMIT,session.ended?.reason)
+            val world=WorldSnapshot(0,0,session,planetStocks=stocks)
+            val carried=CharacterCarryOver.select(world,mapOf("veteran" to veteran))
+            assertEquals(expectedAge,carried["veteran"]?.age)
+        }
     }
 }

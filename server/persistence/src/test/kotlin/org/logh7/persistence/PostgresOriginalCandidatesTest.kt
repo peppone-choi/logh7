@@ -163,7 +163,22 @@ class PostgresOriginalCandidatesTest {
                 val stadenOfficer=assertNotNull(reopened.save(1101,0,staden,empire))
                 assertNull(reopened.save(1102,0,staden,empire))
                 assertNull(reopened.save(1101,1,staden.copy(startingOffice=null),empire))
-                assertEquals(setOf(edited,allianceOfficer,stadenOfficer),
+                val earlierOfficers=setOf(edited,allianceOfficer,stadenOfficer)
+                assertEquals(earlierOfficers,
+                    PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
+
+                val paetta=vucock.copy(surname="Paetta",givenName="Admiral",startingOffice=OriginalStartingOffice.PAETTA_FLEET_2)
+                assertFalse(reopened.supportsPaettaStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1103,0,paetta,alliance)}
+                migrate("V19__paetta_original_starting_office.sql")
+                assertEquals(earlierOfficers,reopened.load().filter {it.profile.startingOffice!=null}.toSet())
+                assertTrue(reopened.supportsAllianceStartingOffice && reopened.supportsStadenStartingOffice && reopened.supportsPaettaStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1103,0,paetta,empire)}
+                assertFailsWith<IllegalArgumentException> {reopened.save(1103,0,paetta.copy(rank=6),alliance)}
+                val paettaOfficer=assertNotNull(reopened.save(1103,0,paetta,alliance))
+                assertNull(reopened.save(1104,0,paetta,alliance))
+                assertNull(reopened.save(1103,1,paetta.copy(startingOffice=null),alliance))
+                assertEquals(earlierOfficers+paettaOfficer,
                     PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
                 connect().use {test->test.createStatement().use {
                     val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile
