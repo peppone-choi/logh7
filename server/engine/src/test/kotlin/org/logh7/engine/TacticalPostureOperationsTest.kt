@@ -35,6 +35,19 @@ class TacticalPostureOperationsTest {
     private fun settle(s:State,n:Navigation,p:PlanetProduction,at:Long,out:MutableList<TacticalPostureResult>)=
         TacticalCombat.settle(session.copy(gameMillis=at*1000),galaxy,n,p,s.commit,onPosture=out::add)
 
+    @Test fun postureOrdersResetCommandRangeOnlyWhenTheyIncludeAFleetShip() {
+        for (units in listOf(listOf(1010000), listOf(1), listOf(1010000, 1))) {
+            val state = state()
+            val initialRange = TacticalCommandRange(now, 12f)
+            state.players = state.players.mapValues { (_, player) -> player.copy(commandRange = initialRange) }
+            val navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+            val result = accept(state, navigation, production(state), request(ids = units))
+            val expected = if (1 in units) initialRange.reset(now) else initialRange
+            assertEquals(expected, assertNotNull(result.player).commandRange)
+            assertEquals(expected, state.players.getValue("pilot").commandRange)
+        }
+    }
+
     @Test fun mixedSelectionWaitsTenRealSecondsReopensAndCompletesExactlyOnce() {
         val s=state();var n=Navigation(galaxy,s.nav,NavigationPolicy());val p=production(s)
         val result=accept(s,n,p);assertNotNull(result.player);assertEquals(now+240,result.postureReadyAt)
