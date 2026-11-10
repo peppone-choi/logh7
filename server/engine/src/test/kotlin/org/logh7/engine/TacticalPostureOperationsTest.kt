@@ -63,7 +63,7 @@ class TacticalPostureOperationsTest {
         assertEquals(setOf(1010000,1,2),out.flatMap {it.units.keys}.toSet())
         assertTrue(out.all {it.cancelled})
         val player=s.players.getValue("pilot")
-        assertEquals(0,player.baseId);assertTrue(player.cpPaused)
+        assertEquals(0,player.baseId);assertFalse(player.cpPaused)
         assertEquals(TacticalPosture(2487),player.posture)
         assertTrue(s.stocks.outfits.getValue(1).activeShips!!.values.all {it.posture==TacticalPosture(2487)})
     }

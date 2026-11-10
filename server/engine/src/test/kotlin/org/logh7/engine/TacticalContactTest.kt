@@ -107,8 +107,7 @@ class TacticalContactTest {
         val held=stocks.copy(social=stocks.social.copy(justice=JusticeState(detentions=mapOf(pilot.characterId to detention))))
         val saved=store.state
         assertEquals(NavigationRejection.BUSY,navigation.apply(request.copy(energy=TacticalEnergy.ZERO),session,held).rejection)
-        val beforeDetention=saved.getValue("pilot")
-        assertEquals(saved+("pilot" to beforeDetention.copy(cpPaused=false,charge=null,commandRange=null)),store.state)
+        assertEquals(saved,store.state)
         assertEquals(TacticalEnergy.ZERO,navigation.apply(request.copy(energy=TacticalEnergy.ZERO),session,stocks).player?.energy)
         assertEquals(TacticalEnergy.ZERO,store.state.getValue("pilot").energy)
         store.state=store.state-"enemy";navigation=Navigation(galaxy,store,NavigationPolicy())

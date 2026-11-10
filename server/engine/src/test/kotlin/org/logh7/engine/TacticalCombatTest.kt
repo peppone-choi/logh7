@@ -288,7 +288,8 @@ class TacticalCombatTest {
         assertNull(saved.attack)
         assertEquals(before.fire!!.copy(pending=null),saved.fire)
         assertEquals(0,saved.returnBase)
-        assertEquals(before.charge,saved.charge)
+        assertFalse(saved.cpPaused)
+        assertNull(saved.charge)
         assertEquals(before.supplies,saved.supplies)
         assertEquals(target,state.stocks.outfits.getValue(1))
     }
