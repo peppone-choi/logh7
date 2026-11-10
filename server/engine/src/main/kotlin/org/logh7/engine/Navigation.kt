@@ -112,7 +112,8 @@ data class NavigationRequest(val account: String, val characterId: Int, val coun
     val shipStyle:ShipStyleId?=null,
     val acknowledgedOfflineWarpCancellation: NavigationRejection? = null,
     /** Authenticated original-character bootstrap, never a client-selected placement. */
-    val initializeOriginal:Boolean=false,val startingOffice:OriginalStartingOffice?=null) {
+    val initializeOriginal:Boolean=false,val startingOffice:OriginalStartingOffice?=null,
+    val strategicSearch: Boolean = false) {
     /** Compatibility for old internal callers; membership checks use [country]. */
     constructor(account: String, characterId: Int, power: Power,
     connection: String, generation: Long, destination: Int? = null, unitId: Int? = null,
@@ -223,6 +224,7 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
         if (persist && !deceased) settleRetreats(session, retreatStocks)
         // U-11: a dead character's navigator gives way to the account's next character.
         val existing = players[request.account]?.takeIf { it.blocksFirstEntry(request,stocks) }
+        if (request.strategicSearch && (existing == null || deceased)) return reject(NavigationRejection.IDENTITY)
         if (existing != null && (existing.characterId != request.characterId || existing.country != request.country))
             return reject(NavigationRejection.IDENTITY)
         if(existing!=null && request.shipStyle!=null && existing.shipStyle!=request.shipStyle)
@@ -465,6 +467,19 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             val after = before.copy(returnBase = target)
             if (persist && after != before) commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock, completedWarp = completedWarp, warpCancellation = warpCancellation)
+        }
+        if (request.strategicSearch) {
+            if (wounded) return reject(NavigationRejection.WOUNDED)
+            if (detained) return reject(NavigationRejection.BUSY).copy(blockedByDetention = true)
+            if (before.cpPaused) return reject(NavigationRejection.TACTICAL)
+            if (TacticalAuthority.captainCard(before, countries) == null) return reject(NavigationRejection.CARD)
+            // Original constmsg.dat #126: 240 MCP, no wait, no execution duration.
+            val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), 240, CpPool.MCP)
+            if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
+            val after = before.paidWith(payment.balance)
+            if (persist) commit(request.account, after, session.generation)
+            return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock,
+                completedWarp = completedWarp, warpCancellation = warpCancellation)
         }
         val destination = request.destination
         if (destination == null && request.place == null && !request.supplyFuel) {
