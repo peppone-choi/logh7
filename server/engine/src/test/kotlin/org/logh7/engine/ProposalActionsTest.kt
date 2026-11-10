@@ -311,6 +311,60 @@ class ProposalActionsTest {
             value=ProposalActions.DISMISSAL,argument=19,base=10000,amount=17))
         assertEquals(SocialRejection.TARGET,SocialActions.evaluate(galaxy,r,session,a,stocks(),listOf(a,b),mapOf("a" to a,"b" to b)).rejection)
     }
+    @Test fun aPendingDismissalDoesNotFollowACommanderToAnotherFleet() {
+        val role = FleetOffice.EMPIRE_COMMANDER
+        val target = b.copy(characterId = 10002)
+        val initial = policy.set(policy.set(stocks(), OfficeHolding(1, 1049, a.characterId)),
+            OfficeHolding(role.authority, 1049, b.characterId))
+        val before = initial.copy(
+            outfits = mapOf(200 to OutfitStock(200, 2, OutfitKind.FLEET, 1049, 300, commanderId = target.characterId),
+                201 to OutfitStock(201, 2, OutfitKind.FLEET, 1049, 301)),
+            warehouses = mapOf(300 to OutfitWarehouse(300, 2, OutfitKind.FLEET, 1049, 200),
+                301 to OutfitWarehouse(301, 2, OutfitKind.FLEET, 1049, 201)),
+            strategic = initial.strategic.copy(people = initial.strategic.people + (b.characterId to StrategicPerson(rank = 2))))
+        val players = mutableMapOf("a" to a, "b" to b, "target" to target)
+        val open = SocialRequest(StrategyActionRequest("a", "a", a.characterId, Power.EMPIRE, 1,
+            ProposalActions.OPEN, 1, 0, target = b.characterId, value = ProposalActions.DISMISSAL,
+            argument = role.authority, base = target.characterId, amount = role.card.toLong()))
+        val opened = SocialActions.evaluate(galaxy, open, session, a, before, players.values, players)
+        assertNull(opened.rejection)
+        val sender = assertNotNull(opened.player)
+        players["a"] = sender
+        val pending = assertNotNull(opened.stocks)
+        val mail = pending.social.proposals.mails.single()
+        val departed = policy.set(pending, OfficeHolding(role.card, 200, target.characterId), remove = true)
+        val transferred = policy.set(departed, OfficeHolding(role.card, 201, target.characterId))
+        val reply = SocialRequest(StrategyActionRequest("b", "b", b.characterId, Power.EMPIRE, 1,
+            ProposalActions.REPLY, 0, 2, target = mail.id, value = Proposals.APPROVE))
+        val rejected = SocialActions.evaluate(galaxy, reply, session, b, transferred, players.values, players)
+        assertEquals(SocialRejection.CARD, rejected.rejection)
+        assertEquals(b, rejected.player)
+        assertEquals(transferred, rejected.stocks)
+        assertEquals(200, mail.seat)
+
+        val due = session.copy(gameMillis = (mail.createdAt + ProposalActions.ABSENT_ORDER_SECONDS) * 1000,
+            participants = session.participants + ("b" to session.participants.getValue("b").copy(online = false)))
+        assertEquals(transferred, ProposalActions.settle(galaxy, due, players, transferred))
+        assertEquals(b, players.getValue("b"))
+        val expired = ProposalActions.settle(galaxy, due.copy(gameMillis = mail.expiresAt * 1000), players, transferred)
+        assertTrue(expired.social.proposals.mails.isEmpty())
+        assertEquals(sender.copy(mcp = a.mcp), players.getValue("a"))
+        assertEquals(target.characterId, expired.outfits.getValue(201).commanderId)
+
+        val legacy = pending.copy(social = pending.social.copy(proposals = ProposalState(listOf(mail.copy(seat = 0)))))
+        val legacyPlayers = players.toMutableMap().also { it["a"] = sender }
+        assertEquals(legacy, ProposalActions.settle(galaxy, due, legacyPlayers, legacy))
+        assertEquals(b, legacyPlayers.getValue("b"))
+        val expiredLegacy = ProposalActions.settle(galaxy, due.copy(gameMillis = mail.expiresAt * 1000), legacyPlayers, legacy)
+        assertTrue(expiredLegacy.social.proposals.mails.isEmpty())
+        assertEquals(sender.copy(mcp = a.mcp), legacyPlayers.getValue("a"))
+        assertEquals(target.characterId, expiredLegacy.outfits.getValue(200).commanderId)
+
+        val approved = SocialActions.evaluate(galaxy, reply, session, b, pending, players.values, players)
+        assertNull(approved.rejection)
+        assertEquals(920, approved.player?.mcp)
+        assertEquals(0, assertNotNull(approved.stocks).outfits.getValue(200).commanderId)
+    }
     @Test fun anAppointmentAsksTheRecipientToAppointTheSenderToAVacancy() {
         // 10001 (a rank-4 general here) asks the minister 10000 for a vacancy 10000 may fill with 10001.
         val s=stocks().let {it.copy(strategic=it.strategic.copy(people=it.strategic.people+(10001 to StrategicPerson(rank=4,influence=10))))}

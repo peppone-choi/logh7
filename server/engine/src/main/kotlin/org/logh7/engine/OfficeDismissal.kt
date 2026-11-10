@@ -20,7 +20,9 @@ data class OfficeDismissalResult(val player:Navigator?,val stocks:PlanetStocks?,
 /** Native 0708 identifies the person and card kind, without a base/outfit identity. Author: Peppone Choi. */
 class OfficeDismissalPolicy(private val galaxy:Galaxy,private val countries:CountryCatalog=CountryCatalogLoader.current()) {
     data class Seat(val card:Int,val target:Int,val base:Int,val outfit:Int=0,
-        val country:CountryId=CountryId(requireNotNull(OrganizationOffices.of(card)).power))
+        val country:CountryId=CountryId(requireNotNull(OrganizationOffices.of(card)).power)) {
+        val id get()=if(outfit>0)outfit else base
+    }
     private val offices=OrganizationalOfficePolicy(galaxy,countries)
     fun seats(stocks:PlanetStocks,card:Int,country:CountryId?=null):List<Seat> {
         val owner=country ?: OrganizationOffices.of(card)?.let {CountryId(it.power)} ?: return emptyList()
@@ -34,16 +36,14 @@ class OfficeDismissalPolicy(private val galaxy:Galaxy,private val countries:Coun
     fun authorized(stocks:PlanetStocks,seat:Seat,actor:Int,power:Int,rank:Int):Boolean {
         if(BattleDeath.deceased(stocks,actor) || BattleDeath.deceased(stocks,seat.target))return false
         val role=offices.role(seat.card,seat.country) ?: return false
-        return seat.country.value==power && offices.authorized(stocks,role,
-            if(role.scope==OfficeScope.OUTFIT)seat.outfit else seat.base,actor,rank)
+        return seat.country.value==power && offices.authorized(stocks,role,seat.id,actor,rank)
     }
     fun available(stocks:PlanetStocks,actor:Int,power:Int,rank:Int):List<Seat> =
         (if(power>0)OrganizationOffices.forCountry(CountryId(power),countries) else emptyList())
         .filter {it.authority!=null}.flatMap {seats(stocks,it.card,it.country)}
         .groupBy {it.card to it.target}.values.filter {it.size==1}.map {it.single()}
         .filter {it.target!=actor && authorized(stocks,it,actor,power,rank)}.sortedWith(compareBy({it.target},{it.card}))
-    fun clear(stocks:PlanetStocks,seat:Seat)=offices.set(stocks,OfficeHolding(seat.card,
-        if(OrganizationOffices.of(seat.card)?.scope==OfficeScope.OUTFIT)seat.outfit else seat.base,seat.target,seat.country),remove=true)
+    fun clear(stocks:PlanetStocks,seat:Seat)=offices.set(stocks,OfficeHolding(seat.card,seat.id,seat.target,seat.country),remove=true)
 }
 internal object OfficeDismissal {
     fun evaluate(galaxy:Galaxy,r:OfficeDismissalRequest,session:SessionState,player:Navigator?,stocks:PlanetStocks,

@@ -11,7 +11,7 @@ data class ProposalMail(val id:Int,val sender:Int,val recipient:Int,val senderCa
     val order:Boolean,val createdAt:Long,val expiresAt:Long,val reply:Int=-1,val pcp:Int=0,val mcp:Int=0,
     /** A third person the command acts on (dismissal) and that person's card; 0 when the recipient itself is the subject. */
     val target:Int=0,val targetCard:Int=0,
-    /** Appointment: the seat (base or outfit id) the target is appointed to; 0 otherwise. */
+    /** Appointment or dismissal: the selected seat (base or outfit id); 0 for other commands or legacy dismissal. */
     val seat:Int=0,
     /** Null only in old records whose original 2/3 country is identified by the office card. */
     val country:CountryId?=null,
