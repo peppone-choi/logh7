@@ -1,5 +1,6 @@
 package org.logh7.engine
 
+import java.io.IOException
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -56,6 +57,52 @@ class AcademyActionsTest {
         assertEquals(20,ended.academy?.gained)
         assertEquals(SocialRejection.COOLDOWN,act(request(27,2,ticket=2,card=38,account="peer",id=10001),s,lecturer).rejection)
     }
+    @Test fun leavingAndReturningDoesNotRestoreTheLectureAndARejectedSaveMovesNeitherState() {
+        val opened = act(request(27, 1, card = 38, account = "peer", id = 10001), p = lecturer)
+        assertNull(opened.rejection)
+        var savedStocks = assertNotNull(opened.stocks)
+        var savedPlayers = mapOf("actor" to student, "peer" to assertNotNull(opened.player))
+        val navStore = object : NavigationStore {
+            override fun load() = savedPlayers
+            override fun save(players: Map<String, Navigator>) { savedPlayers = players }
+        }
+        val stockStore = object : PlanetStockStore {
+            override fun load() = savedStocks
+            override fun save(stocks: PlanetStocks) { savedStocks = stocks }
+        }
+        val navigation = Navigation(galaxy, navStore, NavigationPolicy())
+        val production = PlanetProduction(galaxy, stockStore, now, PlanetProductionPolicy())
+        production.settle(session)
+        val save = WorldStateCommitter { players, inventory ->
+            savedPlayers = players
+            savedStocks = checkNotNull(inventory)
+        }
+        fun move(spot: Int, committer: WorldStateCommitter = save): NavigationResult = FleetNavigation.apply(
+            NavigationRequest("peer", 10001, Power.EMPIRE, "d", 1, place = PlaceMove.Spot(spot, 0)),
+            session, galaxy, navigation, production, checkNotNull(production.snapshot(1)), committer) { false }
+
+        val lecture = savedStocks.social.academy.lectures.getValue(10001)
+        assertEquals(NavigationRejection.SPOT, move(classroom).rejection)
+        assertEquals(lecture, savedStocks.social.academy.lectures[10001])
+        assertNotNull(move(999999).rejection)
+        val before = savedPlayers
+        val inventory = savedStocks
+        assertFailsWith<IOException> { move(simulator, WorldStateCommitter { _, _ -> throw IOException("save failed") }) }
+        assertEquals(before, savedPlayers)
+        assertEquals(inventory, savedStocks)
+        assertEquals(before, navigation.snapshot(1))
+        assertEquals(inventory, production.snapshot(1))
+
+        assertNull(move(simulator).rejection)
+        assertEquals(simulator, savedPlayers.getValue("peer").spotId)
+        assertEquals(inventory.social.academy.copy(lectures = emptyMap()), savedStocks.social.academy)
+        assertNull(move(classroom).rejection)
+        val attendance = act(request(93, 0, ticket = savedStocks.social.nextId), savedStocks,
+            others = listOf(savedPlayers.getValue("peer")))
+        assertNull(attendance.rejection)
+        assertEquals(20, attendance.academy?.gained)
+    }
+
     @Test fun wargamesRunFiveTimesPerDayInTheSimulatorAndExperienceRaisesTheAbility() {
         var s=stocks().let {it.copy(social=it.social.copy(academy=AcademyState(experience=mapOf(10000 to listOf(0,0,0,0,98,0,0,0)))))}
         var p=student.copy(spotId=simulator);var ticket=1
