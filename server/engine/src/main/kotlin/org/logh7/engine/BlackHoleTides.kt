@@ -9,10 +9,10 @@ import kotlin.math.hypot
  * fleet into the zone, are the design approved 2026-10-30 (docs/server/design-blackhole-tactical-terrain.md
  * §2.4, evidence:guess). Flagship hulls are not damaged. Author: Peppone Choi.
  */
-/** Boats an outfit lost to the black-hole tide in one settlement, told to its members (design §2.4 notice). */
+/** Boats an outfit lost to the black-hole tide and the separate tactical refresh audience. */
 data class TidalLoss(val generation: Long, val outfit: Int, val characters: List<Int>, val boats: Int, val seconds: Long,
     /** A warp error pulled the outfit into the zone ([PULL_PERCENT]) rather than an hour of tide. */
-    val pulled: Boolean = false)
+    val pulled: Boolean = false, val grid: Int? = null, val tacticalRecipients: Map<Int, String> = emptyMap())
 
 object BlackHoleTides {
     const val TIDAL_PERCENT = 1
@@ -70,11 +70,12 @@ object BlackHoleTides {
         fun boats(o: OutfitStock) = o.activeShips?.values.orEmpty().sumOf { it.boats }
         return new.outfits.values.mapNotNull { outfit ->
             val before = old.outfits[outfit.id] ?: return@mapNotNull null
-            val pulled = galaxy != null && outfit.positionIn(galaxy).grid.let { grid ->
-                grid != before.positionIn(galaxy).grid && inGravity(galaxy, grid) }
+            val grid = galaxy?.let { outfit.positionIn(it).grid }
+            val inZone = galaxy != null && grid != null && inGravity(galaxy, grid)
+            val pulled = inZone && grid != before.positionIn(checkNotNull(galaxy)).grid
             val lost = boats(before) - boats(outfit)
-            if (!(tide || pulled) || lost <= 0 || outfit.members().isEmpty()) null
-            else TidalLoss(new.generation, outfit.id, outfit.members().toList(), lost, seconds, pulled)
+            if (lost <= 0 || !pulled && (!tide || galaxy != null && !inZone)) null
+            else TidalLoss(new.generation, outfit.id, outfit.members().toList(), lost, seconds, pulled, grid)
         }
     }
     /** The hour watermark is kept only while some outfit stays in a gravity zone, so a fleet entering the

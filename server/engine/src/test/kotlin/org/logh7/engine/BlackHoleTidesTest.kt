@@ -37,13 +37,15 @@ class BlackHoleTidesTest {
         assertEquals(listOf(295, 295), boats(later.outfits.getValue(1)))
         assertEquals(stocks.outfits.getValue(2), later.outfits.getValue(2))
         assertEquals(emptyList(), BlackHoleTides.losses(stocks, first, 5), "no loss before the first settled hour")
-        assertEquals(emptyList(), BlackHoleTides.losses(first, later, 5), "an outfit without members tells no one")
+        assertEquals(listOf(TidalLoss(1, 1, emptyList(), 10, 5, grid = 3061)), BlackHoleTides.losses(first, later, 5, galaxy))
+        val unrelated = later.copy(outfits = later.outfits + (2 to BlackHoleTides.loss(later.outfits.getValue(2), 1)))
+        assertEquals(BlackHoleTides.losses(first, later, 5, galaxy), BlackHoleTides.losses(first, unrelated, 5, galaxy))
         val led = { s: PlanetStocks -> s.copy(outfits = s.outfits + (1 to s.outfits.getValue(1).copy(commanderId = 10002))) }
         assertEquals(listOf(TidalLoss(1, 1, listOf(10002), 10, 7)),
             BlackHoleTides.losses(led(first), led(later), 7))
         val outside = led(first).let { s -> s.copy(outfits = s.outfits + (1 to s.outfits.getValue(1).copy(position = OutfitPosition(2487)))) }
         val arrived = led(first).let { s -> s.copy(outfits = s.outfits + (1 to BlackHoleTides.loss(s.outfits.getValue(1), BlackHoleTides.PULL_PERCENT))) }
-        assertEquals(listOf(TidalLoss(1, 1, listOf(10002), 18, 9, pulled = true)), BlackHoleTides.losses(outside, arrived, 9, galaxy))
+        assertEquals(listOf(TidalLoss(1, 1, listOf(10002), 18, 9, pulled = true, grid = 3061)), BlackHoleTides.losses(outside, arrived, 9, galaxy))
         assertEquals(emptyList(), BlackHoleTides.losses(outside, arrived, 9), "without the galaxy only tides count")
         val closed = BlackHoleTides.settle(galaxy, first, 1000 * 3600L)
         assertEquals(listOf(251, 251), boats(closed.outfits.getValue(1))) // at most 24 hours are applied
