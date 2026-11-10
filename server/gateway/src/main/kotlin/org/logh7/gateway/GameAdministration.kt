@@ -107,10 +107,11 @@ class EngineGameAdministration(private val engine: WorldEngine, private val scop
         if (player.mode !in 4..5) return 0
         val stocks = engine.snapshot().planetStocks ?: return 0
         if (stocks.generation != player.generation) return 0
-        // One unambiguous fleet office at the actual deployment, including space.
+        // One unambiguous fleet office in the player's current camp at the actual deployment.
+        val camp = TacticalAuthority.camp(player, stocks)
         return stocks.outfits.values.singleOrNull { player.characterId in it.members() &&
-            it.country == player.country &&
-                it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId } }?.id ?: 0
+            TacticalAuthority.camp(it, stocks) == camp &&
+            it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId } }?.id ?: 0
     }
     override fun transferGround(request: GroundTransferRequest): CompletableFuture<GroundTransferResult> {
         val future = CompletableFuture<GroundTransferResult>()
