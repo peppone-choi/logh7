@@ -5,6 +5,8 @@ import org.logh7.protocol.LobbyMessages.SelectionFailure
 import org.logh7.protocol.CountryImageMessages
 import org.logh7.protocol.SessionEndingMessages
 import org.logh7.engine.CandidatePortrait
+import org.logh7.engine.CharacterDeletionResult
+import java.util.concurrent.CompletableFuture
 
 /** One process may host several worlds; only their lobby descriptions and tickets are shared. */
 class GameSessionDirectory {
@@ -18,7 +20,8 @@ class GameSessionDirectory {
         val countries:((org.logh7.protocol.LobbyCountryMessages.Request)->List<ByteArray>?)?=null,
         val endings:((org.logh7.protocol.CountryEndingMessages.Request,String)->List<ByteArray>?)?=null,
         val countryEmblem: ((CountryImageMessages.LobbyRequest) -> List<ByteArray>?)? = null,
-        val portrait: ((String,Int)->CandidatePortrait?)?=null) {
+        val portrait: ((String,Int)->CandidatePortrait?)?=null,
+        val deleteCharacter: ((String,Long,Int)->CompletableFuture<CharacterDeletionResult>)?=null) {
         init {
             require(id in 1..65535 && port in 1..65535 && name.length in 1..12 &&
                 name.none {it.isISOControl() || it.isSurrogate()} && bindHosts.isNotEmpty())
@@ -43,6 +46,12 @@ class GameSessionDirectory {
         }}
     }
     @Synchronized private fun snapshot()=entries.toSortedMap().values.toList()
+    internal fun deletionGenerations(): Map<Int,Long> =
+        snapshot().filter { it.unavailableReason() == null }.associate { it.id to it.generation() }
+    internal fun deleteCharacter(id: Int, account: String, generation: Long, character: Int):
+        CompletableFuture<CharacterDeletionResult>? = snapshot()
+        .firstOrNull { it.id == id && it.unavailableReason() == null }
+        ?.deleteCharacter?.invoke(account, generation, character)
     fun sessions():List<SessionEndingMessages.Session> = snapshot().filter {it.unavailableReason()==null}.map {entry ->
         entry.information().also {require(it.id==entry.id && it.name==entry.name)}
     }

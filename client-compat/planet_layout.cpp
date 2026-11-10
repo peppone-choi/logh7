@@ -196,6 +196,7 @@ static void resetCountryEndings();
 #include "hud_recovery.h"
 #include "hud_text.h"
 #include "facility_labels.h"
+#include "home_spot_label.h"
 #include "tactical_command_range.h"
 #include "tactical_support.h"
 #include "tactical_energy.h"
@@ -717,6 +718,7 @@ static void install() {
     if (!installHudText()) { status = -3; return; }
     if (!installOwnPortrait()) { status = -3; return; }
     if (!installFacilityLabels()) { status = -3; return; }
+    if (!installHomeSpotLabel()) { status = -3; return; }
     if (!installTacticalCommandRange()) { status = -3; return; }
     BYTE spotJump[6] = {0xe9,0,0,0,0,0x90};
     *reinterpret_cast<LONG*>(spotJump + 1) = static_cast<LONG>(reinterpret_cast<BYTE*>(&filterSpot) - spotFilter - 5);

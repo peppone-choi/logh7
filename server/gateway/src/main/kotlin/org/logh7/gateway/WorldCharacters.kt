@@ -13,11 +13,16 @@ internal object WorldCharacters {
 
     /** A world checkpoint is authoritative after admission/defection. Match account, character and
      * generation so an old navigator can never supply a newly registered character's membership. */
-    fun profiles(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):Map<String,CharacterProfile> = stored.mapValues {(account,profile)->
-        val player=snapshot?.navigators?.get(account)?.takeIf {
-            it.characterId==profile.character.id.toInt() && it.generation==snapshot.session?.generation
+    fun profiles(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):Map<String,CharacterProfile> {
+        val deleted = snapshot?.planetStocks?.takeIf { it.generation == snapshot.session?.generation }?.deletedCharacters.orEmpty()
+        return stored.filterNot { (account, profile) ->
+            profile.character.generated && profile.character.id.toInt() in deleted[account].orEmpty()
+        }.mapValues { (account, profile) ->
+            val player = snapshot?.navigators?.get(account)?.takeIf {
+                it.characterId == profile.character.id.toInt() && it.generation == snapshot.session?.generation
+            }
+            if (player == null) profile else profile.copy(country = player.country, shipStyle = player.shipStyle)
         }
-        if(player==null)profile else profile.copy(country=player.country,shipStyle=player.shipStyle)
     }
     fun memberCounts(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):Map<CountryId,Int> =
         profiles(stored,snapshot).values.mapNotNull {it.country}.groupingBy {it}.eachCount()

@@ -30,7 +30,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates(),
     private val worldOccupiedOriginals: () -> Set<Long> = { emptySet() },
     private val worldGeneratedIdFloor: () -> Long = { 10_000L },
-    private val lotteryOpen: () -> Boolean = { true }) {
+    private val lotteryOpen: () -> Boolean = { true },
+    private val replacementCountryAllowed: (String, CountryId?) -> Boolean = { _, _ -> true }) {
     companion object {
         fun originalDefinitions()=OriginalCharacterMessages.localCandidates.map { candidate ->
             val data=KoreanDisplayNames.original(candidate.character)
@@ -176,6 +177,17 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         casualties[casualty.first]=casualty.second
         registered.remove(account); pending.remove(account); bindings.remove(account); return true
     }
+    /** Replays a committed world deletion without recording a battle casualty. */
+    @Synchronized internal fun reconcileVoluntaryDeletion(account: String, deletedIds: Set<Int>): Boolean {
+        val character = registered[account]?.character ?: return false
+        if (!character.generated || Math.toIntExact(character.id) !in deletedIds) return false
+        save(registered - account)
+        registered.remove(account)
+        pending.remove(account)
+        bindings.remove(account)
+        return true
+    }
+
     /** Drops an unfinished creation; with an [owner], only the one that connection started. Registered characters
      * and accepted lottery applications are kept. */
     @Synchronized fun cancelCreation(account:String,owner:String?=null):Boolean {
@@ -226,6 +238,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     @Synchronized fun entries(account: String): List<Long> { resolveLottery(); return applications[account].orEmpty().toList() }
     @Synchronized fun applicationSelection(account:String):CountrySelection? {resolveLottery();return applicationSelections[account]}
     fun hasEditedCandidates()=publishedOriginals.current().isNotEmpty()
+    internal fun canRegisterIn(account: String, country: CountryId?): Boolean = replacementCountryAllowed(account, country)
     @Synchronized fun candidates(account: String, selection: CountrySelection? = null): List<OriginalCharacterMessages.Candidate> {
         resolveLottery()
         if (account in registered || account in pending) return emptyList()
@@ -239,6 +252,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
             val id=candidate.character.id
             val country=edits[id]?.country
             candidate.minimumFame<=currentFame && id !in unavailable &&
+                canRegisterIn(account, country ?: CountryId(candidate.character.power)) &&
                 (selected==null || candidate.character.power==selected.creationPower) &&
                 (country==null || country==selected?.country || id in accepted)
         }.map {it.copy(character=KoreanDisplayNames.original(it.character))}
@@ -346,6 +360,9 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         resolveLottery()
         require(account !in applications) { "Original-character application pending" }
         require(message.power in 2..3 && message.gender in 0..1)
+        require(canRegisterIn(account, if (selection == null) CountryId(message.power) else selection.country)) {
+            "Replacement character must keep the account's country in this session"
+        }
         // The client's power byte must be the selected country's display code; never substituted with 2/3.
         require(selection == null || message.power == selection.creationPower) { "Power differs from the selected creation preset" }
         require(message.origin in if (message.power == 2) setOf(0, 1, 2, 4) else setOf(3, 4))

@@ -6,6 +6,8 @@ import java.util.concurrent.CompletableFuture
 
 fun interface GameStock {
     fun snapshot(generation: Long): CompletableFuture<PlanetStocks>
+    fun deleteGeneratedCharacter(account: String, generation: Long, character: Int, registeredRank: Int):
+        CompletableFuture<CharacterDeletionResult> = CompletableFuture.completedFuture(CharacterDeletionResult.UNAVAILABLE)
     fun observeBaseFacilities(observer: (PlanetStocks, List<Int>, Long) -> Unit): AutoCloseable = AutoCloseable {}
     fun observeCoupBases(observer:(PlanetStocks,List<Int>)->Unit):AutoCloseable = AutoCloseable {}
     fun observeCivic(observer:(CivicChange)->Unit):AutoCloseable = AutoCloseable {}
@@ -26,6 +28,20 @@ class EngineGameStock(private val engine: WorldEngine, private val scope: Corout
     override fun observeSessionResults(observer:(WorldSnapshot)->Unit)=engine.observeSessionResults(observer)
     override fun provideIdentities(supplier:()->List<org.logh7.engine.StrategicIdentity>)=engine.provideIdentities(supplier)
     override fun provideOriginalBerthClaims(supplier:(Long)->List<OriginalBerthClaim>)=engine.provideOriginalBerthClaims(supplier)
+    override fun deleteGeneratedCharacter(account: String, generation: Long, character: Int, registeredRank: Int):
+        CompletableFuture<CharacterDeletionResult> {
+        val future = CompletableFuture<CharacterDeletionResult>()
+        scope.launch {
+            try {
+                val result = CompletableDeferred<CharacterDeletionResult>()
+                engine.submit(WorldCommand.DeleteGeneratedCharacter(account, generation, character, registeredRank, result))
+                future.complete(result.await())
+            } catch (failure: Throwable) {
+                future.completeExceptionally(failure)
+            }
+        }.invokeOnCompletion { failure -> if (failure != null) future.completeExceptionally(failure) }
+        return future
+    }
     override fun snapshot(generation: Long): CompletableFuture<PlanetStocks> {
         val future = CompletableFuture<PlanetStocks>()
         scope.launch {

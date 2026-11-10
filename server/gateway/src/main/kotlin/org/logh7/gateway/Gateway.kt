@@ -212,6 +212,8 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                 val snapshot=navigation?.snapshot();val characters=currentCharacters()
                 val generation=snapshot?.session?.generation
                 if(!started || closed.get() || generation!=null && generation!=(admission?.generation ?: 1L))null else {
+                    snapshot?.planetStocks?.takeIf { it.generation == generation }?.deletedCharacters?.get(account)
+                        ?.let { characters.reconcileVoluntaryDeletion(account, it) }
                     if (snapshot?.session?.ended == null && admission?.running != false) {
                         characters.character(account)?.takeIf {org.logh7.engine.BattleDeath.deceased(snapshot?.planetStocks,it.id.toInt())}
                             ?.let {characters.retire(account,it.id)}
@@ -228,6 +230,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
             portrait={account,id->
                 currentCharacters().character(account)?.takeIf {it.id==id.toLong() && !it.generated}
                     ?.let {originalCandidates.portrait(it.id)}
+            }, deleteCharacter = { account, generation, character ->
+                val current = admission?.generation ?: 1L
+                deleteLobbyCharacter(account, generation, character, current, characterStores.get(current), stock)
             }),accounts)
         successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById,
             {country->org.logh7.engine.CountryCatalogLoader.current().countries[country.value]?.name})}}

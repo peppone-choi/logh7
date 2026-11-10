@@ -2,6 +2,7 @@
 // The 035a handler otherwise only hides the HUD. Author: Peppone Choi.
 #pragma once
 #include "session_ending_data.h"
+#include "lobby_deletion.h"
 static struct {void* world=nullptr;void* root=nullptr;void* gui=nullptr;bool active=false,lobby=false,partial=false;
     unsigned offset=0,countrySequence=0;ULONGLONG acceptAfter=0,pollAt=0;logh::SessionEndingData data;} sessionEnding;
 // Reuse allocated table labels. Native lookup does not bounds-check categories/slots;
@@ -182,7 +183,9 @@ static unsigned __fastcall lobbyEndingFrame(void* controller,void*) {
         if(sessionEnding.root)reinterpret_cast<void(__thiscall*)(void*,int)>(0x502ea0)(sessionEnding.root,0);
         sessionEnding={};
     }
-    if(world && gui && at<unsigned>(controller,4)==0x2a) {
+    // The delete path (stage 0x1b) reuses this panel; its rows never open the read-only view.
+    if(!sessionEnding.active && updateLobbyDeletion(controller))return 0;
+    if(world && gui && at<unsigned>(controller,4)==0x2a && !lobbyDeletion.armed) {
         auto root=at<void*>(gui,4+0x35*4);
         if(root)for(unsigned i=0;i<2;++i) {
             logh::SessionEndingData data;

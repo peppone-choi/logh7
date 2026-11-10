@@ -716,8 +716,10 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                 if (move.id != 0 && !available) return reject(NavigationRejection.BASE)
                 val facilities = if (available) galaxy.facilitiesAt(before.baseId, stocks, countries, now) else emptyList()
                 val target = facilities.singleOrNull { f -> f.spots.any { it.id == move.id } }
+                var spotOwner = move.owner
                 if (move.id == 0) {
                     if (move.owner != before.characterId || before.spotId == 0) return reject(NavigationRejection.SPOT)
+                    spotOwner = 0
                 } else {
                     val base = checkNotNull(condition)
                     val friendly = ownBase(before,stored?.owner ?: galaxy.initialOwners.getValue(base.baseId),
@@ -734,6 +736,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                             // resolved from the authenticated flagship, never from a client ID.
                             6 -> move.owner == 0 && request.unitId == before.unitId &&
                                 friendly
+                            // The CD sends zero for the residence template. Resolve the private room from the account.
+                            12 -> move.owner == 0 || move.owner == before.characterId
                             13 -> move.owner == before.characterId
                             // Own mansion rooms (U-18): the ballroom in a capital, the forest on one's own fief.
                             // The CD knows these rooms only with owner 0; entry itself checks the right (U-18).
@@ -752,11 +756,15 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                         }
                     }
                     if (!allowed) return reject(NavigationRejection.ACCESS)
+                    if (spot.kind == 12) {
+                        spotOwner = before.characterId
+                        if (move.id == before.spotId && spotOwner == before.spotOwner) return reject(NavigationRejection.SPOT)
+                    }
                 }
                 val origin = facilities.singleOrNull { f -> f.spots.any { it.id == before.spotId } }
                 cost = if (target != null && origin?.id == target.id) 5 else 10 // W p.69
                 pool = CpPool.PCP
-                after = before.copy(spotId = move.id, spotOwner = if (move.id == 0) 0 else move.owner)
+                after = before.copy(spotId = move.id, spotOwner = spotOwner)
             }
         }
         val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), cost, pool)
