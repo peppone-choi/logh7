@@ -551,6 +551,15 @@ internal object TacticalCommandOperations {
             val state=stocks.tacticalCommands;val missions=state.missions.toMutableMap();val merits=state.merits.toMutableMap()
             val finished=mutableMapOf<Int,Pair<Int,Long>>()
             val forces by lazy {GridForces.collect(g,session.generation,players.values,stocks,session.eliminated.keys)}
+            // Skirmish has no reward, but only overrides the default mission for its current battle.
+            missions.values.removeIf { mission ->
+                if(mission.mission!=0 || mission.completed)false
+                else players.entries.singleOrNull {it.value.characterId==mission.character}?.let {(account,p)->
+                    mission.character in defeated || (mission.grid!=null && mission.grid!=p.grid) ||
+                        !TacticalOfflineAi.missionEligible(session,account,p,stocks) ||
+                        !TacticalContact.contested(forces[p.grid].orEmpty())
+                } ?: true
+            }
             for((account,p) in players) {
                 val id=p.characterId
                 val existing=missions[id]
