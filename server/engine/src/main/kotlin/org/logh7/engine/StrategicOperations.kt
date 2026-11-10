@@ -51,7 +51,7 @@ internal object StrategicOperations {
         return when(purpose) {
             StrategicPurpose.OCCUPY->ids.isNotEmpty() && ids.all {stocks.bases[it]?.let {b->b.country!=null && b.country!=country && b.camp==0}==true}
             StrategicPurpose.DEFEND->owned(stocks,ids,country).isNotEmpty()
-            StrategicPurpose.SWEEP->galaxy.kind(grid)!=GridKind.IMPASSABLE
+            StrategicPurpose.SWEEP->galaxy.kind(grid)==GridKind.STAR_SYSTEM
         }
     }
     private fun sole(r:StrategyActionRequest,stocks:PlanetStocks)=r.navigators.values.filter {p->
@@ -204,7 +204,8 @@ internal object StrategicOperations {
                     !target(galaxy,stocks,plan.grid,plan.country,plan.purpose)
                     else ids.isEmpty() || ids.any {stocks.bases[it]?.let {b->b.country==null || b.camp!=0}!=false}
                 StrategicPurpose.DEFEND->ownership.isEmpty()
-                StrategicPurpose.SWEEP->false
+                StrategicPurpose.SWEEP->plan.state==StrategicPlanState.PLANNED &&
+                    !target(galaxy,stocks,plan.grid,plan.country,plan.purpose)
             }
             if(lost)return@map plan.copy(state=StrategicPlanState.WITHDRAWN)
             val issued=plan.issuedAt ?: return@map plan
