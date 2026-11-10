@@ -476,7 +476,8 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
             // Original constmsg.dat #126: 240 MCP, no wait, no execution duration.
             val payment = CpPayment.charge(CpBalance(before.pcp.toLong(), before.mcp.toLong()), 240, CpPool.MCP)
             if (payment !is PaymentResult.Paid) return reject(NavigationRejection.CP)
-            val after = before.paidWith(payment.balance)
+            val charged = before.paidWith(payment.balance)
+            val after = if (payment.substituted) charged.copy(pcpUsed = before.pcpUsed) else charged
             if (persist) commit(request.account, after, session.generation)
             return NavigationResult(after, before, completedFuel = completedFuel, completedDock = completedDock,
                 completedWarp = completedWarp, warpCancellation = warpCancellation)

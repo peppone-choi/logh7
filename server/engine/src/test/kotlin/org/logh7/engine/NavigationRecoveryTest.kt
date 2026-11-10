@@ -75,7 +75,7 @@ class NavigationRecoveryTest {
         assertEquals(initial.copy(mcp = 10, mcpUsed = 240), first)
         val reopened = Navigation(galaxy, store, NavigationPolicy())
         val second = assertNotNull(reopened.apply(search, at(0)).player)
-        assertEquals(first.copy(pcp = 0, pcpUsed = 480), second)
+        assertEquals(first.copy(pcp = 0), second)
         assertEquals(NavigationRejection.CP, reopened.apply(search, at(0)).rejection)
         assertEquals(second, store.players.getValue("pilot"))
         reopened.apply(request.copy(tactical = true), at(0))
