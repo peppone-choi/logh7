@@ -30,7 +30,7 @@ data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetSt
 object CompletenessSupply {
     /** Cargo and CP rules shared by the authorized directory and by the committing world actor. */
     fun quote(player: Navigator, from: OutfitStock, to: OutfitStock, stocks: PlanetStocks): CompletenessSupplyQuote {
-        if (player.cpPaused || player.navigationPending)
+        if (player.cpPaused || player.navigationPending || stocks.social.justice.detained(player.characterId))
             return CompletenessSupplyQuote(rejection = LogisticsRejection.BUSY)
         val sourceUnits = from.activeShips?.values
         val targetUnits = to.activeShips?.values
