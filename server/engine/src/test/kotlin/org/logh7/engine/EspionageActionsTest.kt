@@ -133,6 +133,45 @@ class EspionageActionsTest {
     @Test fun agitationNeedsAnotherSidesBase() {
         assertEquals(SocialRejection.TARGET,act(EspionageActions.AGITATE).rejection,"own base")
     }
+    @Test fun dailyDisguiseDetectionUsesRegisteredIntelligenceWithStoredPriorityAndDefault() {
+        val host=Capital.ALLIANCE
+        val base=galaxy.bases.single().copy(id=1177,grid=host.grid,name=host.baseName)
+        val world=Galaxy(galaxy.systems+GalaxySystem(4,host.grid,4,"Host",3),galaxy.bases+base,galaxy.starts)
+        val intruder=a.copy(grid=base.grid,baseId=base.id,spotId=base.id*10_000+1)
+        val start=session.gameMillis/1000+Justice.DAY
+        val due=(start..start+1000).first {EspionageActions.roll(a.characterId,2,it) in 10..19}
+        val disguise=Disguise(a.characterId,2,Power.ALLIANCE.country,due-Justice.DAY,due,Power.EMPIRE.country)
+        val initial=stocks()
+        for((registered,stored,detected) in listOf(Triple(90,null,false),Triple(null,null,true),Triple(90,10,true))) {
+            fun abilities(intelligence:Int)=List(8) {if(it==3)intelligence else 100-intelligence}
+            val people=stored?.let {mapOf(a.characterId to StrategicPerson(abilities=abilities(it)))}.orEmpty()
+            val inventory=initial.copy(bases=initial.bases+(base.id to PlanetStock(base.id,3,0,0,0,0)),
+                strategic=initial.strategic.copy(people=people),
+                social=initial.social.copy(justice=initial.social.justice.copy(disguises=mapOf(a.characterId to disguise))))
+            val nav=Navigation(world,object:NavigationStore {
+                override fun load()=mapOf("a" to intruder)
+                override fun save(players:Map<String,Navigator>)=Unit
+            },NavigationPolicy())
+            val production=PlanetProduction(world,null,rules.startSeconds,PlanetProductionPolicy(),restored=inventory)
+            production.settle(1,session.gameMillis/1000)
+            var loads=0
+            production.identities={
+                loads++
+                listOfNotNull(registered?.let {StrategicIdentity(a.characterId,2,9,0,abilities(it))})
+            }
+            val commit=WorldStateCommitter { _, _ -> }
+            TacticalCombat.settle(session.copy(gameMillis=(due-1)*1000),world,nav,production,commit)
+            assertEquals(0,loads)
+            assertEquals(disguise,production.snapshot(1)?.social?.justice?.disguises?.get(a.characterId))
+
+            TacticalCombat.settle(session.copy(gameMillis=due*1000),world,nav,production,commit)
+            val justice=assertNotNull(production.snapshot(1)).social.justice
+            assertEquals(if(stored==null)1 else 0,loads)
+            assertEquals(detected,justice.detained(a.characterId))
+            assertEquals(if(detected)null else disguise.copy(checkAt=due+Justice.DAY),justice.disguises[a.characterId])
+        }
+    }
+
     @Test fun anIntrusionCrossesIntoANearbyEnemyBaseUnderAForgedName() {
         val g=Galaxy(galaxy.systems+GalaxySystem(4,2490,4,"Far",3)+GalaxySystem(5,2499,4,"Out",3),galaxy.bases+GalaxyBase(1050,2490,80,0,"Far",0,20f,86400,0,0f,2f)+
             GalaxyBase(1051,2499,80,0,"Out",0,20f,86400,0,0f,2f),galaxy.starts)
