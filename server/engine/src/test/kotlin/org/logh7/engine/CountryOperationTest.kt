@@ -59,7 +59,10 @@ class CountryOperationTest {
 
     @Test fun sameDisplayAndOfficeNumberDoNotSharePlanLimitsOrdersOrRewards() {
         for(family in listOf("empire","alliance")) {
-            val s=stock(family);val foreign=StrategicOperation(50,10000,cards(family).first,other,2490,
+            val initial=stock(family)
+            // Both planners can target a third country's base; neither can plan to occupy its own.
+            val s=initial.copy(bases=initial.bases+(1001 to initial.bases.getValue(1001).copy(owner=Allegiance.Country(CountryId(2)))))
+            val foreign=StrategicOperation(50,10000,cards(family).first,other,2490,
                 StrategicForce.FLEET,StrategicPurpose.OCCUPY,999,now)
             val planned=act(request(22,family),s.copy(strategic=s.strategic.copy(operations=listOf(foreign))),family)
             assertNull(planned.rejection);assertEquals(720,planned.player?.mcp)

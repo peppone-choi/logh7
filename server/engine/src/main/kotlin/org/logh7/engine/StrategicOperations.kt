@@ -169,11 +169,12 @@ internal object StrategicOperations {
             if(!plan.live)return@map plan
             if (plan.country in eliminated) return@map plan.copy(state = StrategicPlanState.WITHDRAWN)
             val ids=bases(galaxy,plan.grid);val ownership=owned(stocks,ids,plan.country)
-            // Successful occupation must remain live until its result; it is no longer an
-            // enemy-only planning target after our first capture. Neutral/rebel takeover
-            // invalidates the target, while our own progress does not cancel the plan.
+            // Before issuance, an occupation still needs an enemy-only target. After
+            // issuance, capturing a base is progress and must survive until the result.
             val lost=when(plan.purpose) {
-                StrategicPurpose.OCCUPY->ids.isEmpty() || ids.any {stocks.bases[it]?.let {b->b.country==null || b.camp!=0}!=false}
+                StrategicPurpose.OCCUPY->if(plan.state==StrategicPlanState.PLANNED)
+                    !target(galaxy,stocks,plan.grid,plan.country,plan.purpose)
+                    else ids.isEmpty() || ids.any {stocks.bases[it]?.let {b->b.country==null || b.camp!=0}!=false}
                 StrategicPurpose.DEFEND->ownership.isEmpty()
                 StrategicPurpose.SWEEP->false
             }
