@@ -28,7 +28,8 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
     shipStyles:Map<Int,ShipStyleId>? = null,
     private val publishedOriginals:PublishedOriginalCandidates=PublishedOriginalCandidates(),
     private val worldOccupiedOriginals: () -> Set<Long> = { emptySet() },
-    private val worldGeneratedIdFloor: () -> Long = { 10_000L }) {
+    private val worldGeneratedIdFloor: () -> Long = { 10_000L },
+    private val lotteryOpen: () -> Boolean = { true }) {
     companion object {
         fun originalDefinitions()=OriginalCharacterMessages.localCandidates.map { candidate ->
             val data=KoreanDisplayNames.original(candidate.character)
@@ -235,7 +236,7 @@ class CharacterCreation(private val file: Path? = null, private val clock: Clock
         retiredOriginals + worldOccupiedOriginals() + registered.values.map { it.character.id }
 
     private fun resolveLottery() {
-        if (applications.isEmpty() || clock.millis() < deadline) return
+        if (applications.isEmpty() || clock.millis() < deadline || !lotteryOpen()) return
         val winners = registered.toMutableMap()
         val shipNames = (registered.values.map { it.character } + pending.values)
             .mapTo(mutableSetOf()) { normalized(it.shipName) }

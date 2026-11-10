@@ -540,6 +540,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val inventory=snapshot.planetStocks
         // Retire the old berth reservation even if the same commander is appointed again before the next logistics request.
         if(inventory!=null && inventory!==old)logistics.expireFormerCommanders(inventory)
+        if (galaxy != null && inventory != null) formations.expireIneligible(galaxy, snapshot.navigators, inventory)
         val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
             SessionResults.fromWorld(galaxy,snapshot) else null
         val previousResult=published.get().result
