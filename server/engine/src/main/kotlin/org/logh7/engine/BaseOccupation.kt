@@ -128,7 +128,8 @@ internal object BaseOccupationOperations {
                     else -> false
                 }
                 if(displaced && p.dockTarget==base.id)next=next.copy(dockTarget=null,strategy=null)
-                if(displaced && p.baseId==base.id && p.grid==base.grid) {
+                if (displaced && p.baseId == base.id && p.grid == base.grid &&
+                    stocks.social.justice.detentions[p.characterId]?.holdsAt(galaxy, p) != true) {
                     val centre=TacticalBasePosition.at(base,now,stocks)
                     val point=TacticalPoint(centre.x+base.diameter+2f+offset++*2f,centre.y)
                     val pose=TacticalPose(point,0f)

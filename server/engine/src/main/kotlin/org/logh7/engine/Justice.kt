@@ -17,6 +17,11 @@ data class Detention(val character:Int,val country:CountryId,val since:Long,val 
     /** Holding base, retained when its country's capital moves; 0 in legacy rows. */
     val base:Int=0) {
     init {require(character>0 && since in 0..releaseAt && releaseAt<=0xffffffffL && base in 0..65535)}
+
+    internal fun holdsAt(galaxy: Galaxy, player: Navigator): Boolean {
+        val prison = base.takeIf { it > 0 } ?: galaxy.bases.singleOrNull { Capital.of(it)?.power == country.value }?.id
+        return prison != null && player.baseId == prison && player.spotId == prison * 10_000 + 19 && player.spotOwner == 0
+    }
 }
 /** A watch (U-25) lasts until the target notices it; [checkAt] is the next daily detection roll. */
 data class Watch(val watcher:Int,val target:Int,val since:Long,val checkAt:Long,val country:CountryId?=null) {
