@@ -1,5 +1,9 @@
 package org.logh7.engine
 
+import java.io.IOException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 import org.logh7.engine.strategy.CpPool
@@ -95,6 +99,91 @@ class CompletenessSupplyTest {
         val replay = CompletenessSupply.evaluate(request, session, result.player, after)
         assertNull(replay.rejection); assertFalse(replay.changed)
         assertEquals(result.player, replay.player); assertEquals(after, replay.stocks)
+    }
+
+    @Test fun sequentialDeliveryAndReceiptUseTheLastCommittedShipBalances() {
+        val initial = stocks(source = 20, destination = 100)
+        val receivingTransport = initial.outfits.getValue(2).copy(kind = OutfitKind.TRANSPORT)
+        val unitIds = assertNotNull(receivingTransport.activeShips).values.map { it.id }.sorted()
+        val loaded = OutfitSupplies.withBalances(receivingTransport, unitIds.associateWith { 50 })
+        val recipient = initial.outfits.getValue(1).copy(id = 3, kind = OutfitKind.FLEET, warehouseId = 103,
+            commanderId = 0, activeShips = ActiveShipUnits(listOf(ActiveShipUnit(initial.nextShipId, UnitStack(32)))),
+            supplies = capacity - 40)
+        val inventory = initial.copy(outfits = initial.outfits + (2 to loaded) + (3 to recipient),
+            warehouses = initial.warehouses + (102 to initial.warehouses.getValue(102).copy(kind = OutfitKind.TRANSPORT)) +
+                (103 to OutfitWarehouse(103, 2, OutfitKind.FLEET, 1049, 3)), nextShipId = initial.nextShipId + 1)
+        val bothCaptains = SessionSimulation(SessionRules.load()).also {
+            it.join("pilot", Power.EMPIRE, false, "c")
+            it.join("aide", Power.EMPIRE, false, "a")
+        }.exportState()
+        val aide = player.copy(characterId = 10001)
+        val outbound = CompletenessSupply.evaluate(CompletenessSupplyRequest("aide", "a", 10001, Power.EMPIRE, 1, 2, 3),
+            bothCaptains, aide, inventory)
+        assertEquals(40, outbound.transferred)
+        assertEquals(840, outbound.player?.mcp)
+        val afterOutbound = assertNotNull(outbound.stocks)
+        val outgoingTransport = afterOutbound.outfits.getValue(2)
+        assertEquals(listOf(50, 10), assertNotNull(outgoingTransport.activeShips).values.map { it.supplies })
+        assertEquals(capacity, afterOutbound.outfits.getValue(3).supplies)
+
+        val inbound = CompletenessSupply.evaluate(request, bothCaptains, player, afterOutbound)
+        assertEquals(20, inbound.transferred)
+        assertEquals(840, inbound.player?.mcp)
+        val afterInbound = assertNotNull(inbound.stocks)
+        val stocked = afterInbound.outfits.getValue(2)
+        assertEquals(80, stocked.supplies)
+        assertEquals(listOf(70, 10), assertNotNull(stocked.activeShips).values.map { it.supplies })
+        assertEquals(listOf(70, 10), OutfitSupplies.distribution(stocked).values.toList())
+        assertEquals(inventory.outfits.values.sumOf { it.supplies }, afterInbound.outfits.values.sumOf { it.supplies })
+        assertEquals(inventory.warehouses, afterInbound.warehouses)
+    }
+
+    @Test fun failedWorldSaveDoesNotPublishBulkBalancesOrCp() = runBlocking {
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
+            listOf(GalaxyBase(1049, 2487, 80, 0, "Home", 0, 20f, 86400, 0, 0f, 2f),
+                GalaxyBase(1050, 2487, 81, 0, "Other", 0, 20f, 86400, 0, 0f, 2f)),
+            Power.entries.associateWith { 2487 })
+        val initial = stocks(source = 20, destination = 100)
+        val target = initial.outfits.getValue(2)
+        val explicit = OutfitSupplies.withBalances(target, assertNotNull(target.activeShips).values.associate { it.id to 50 })
+        var savedStocks = initial.copy(outfits = initial.outfits + (2 to explicit))
+        var savedPlayers = mapOf("pilot" to player.copy(cpRecoveryAt = SessionRules.load().startSeconds))
+        val nav = object : NavigationStore {
+            override fun load() = savedPlayers
+            override fun save(players: Map<String, Navigator>) { savedPlayers = players }
+        }
+        val stock = object : PlanetStockStore {
+            override fun load() = savedStocks
+            override fun save(stocks: PlanetStocks) { savedStocks = stocks }
+        }
+        var attempted = false
+        val engine = WorldEngine(this, ticking = false, galaxy = galaxy, navigationStore = nav, stockStore = stock,
+            npcPolicy = NpcTacticalPolicy(enabled = false), worldStateCommitter = WorldStateCommitter { players, inventory ->
+                assertEquals(840, players.getValue("pilot").mcp)
+                val staged = assertNotNull(inventory).outfits.getValue(2)
+                assertEquals(listOf(70, 50), assertNotNull(staged.activeShips).values.map { it.supplies })
+                attempted = true
+                throw IOException("injected supply save failure")
+            })
+        try {
+            val joined = CompletableDeferred<Admission>()
+            engine.submit(WorldCommand.Join("pilot", Power.EMPIRE, false, joined, "c", 1))
+            assertEquals(Admission.ACCEPTED, withTimeout(5000) { joined.await() })
+            val initialized = CompletableDeferred<NavigationResult>()
+            engine.submit(WorldCommand.Navigate(NavigationRequest("pilot", 10000, Power.EMPIRE, "c", 1), initialized))
+            assertNull(withTimeout(5000) { initialized.await() }.rejection)
+            val before = engine.snapshot()
+            val beforePlayers = savedPlayers
+            val beforeStocks = savedStocks
+            val result = CompletableDeferred<CompletenessSupplyResult>()
+            engine.submit(WorldCommand.SupplyOutfit(request, result))
+            assertFailsWith<IOException> { withTimeout(5000) { result.await() } }
+            assertTrue(attempted)
+            assertEquals(beforePlayers, savedPlayers)
+            assertEquals(beforeStocks, savedStocks)
+            assertEquals(before.navigators, engine.snapshot().navigators)
+            assertEquals(before.planetStocks, engine.snapshot().planetStocks)
+        } finally { engine.drainAndClose() }
     }
 
     @Test fun fullTargetAndEmptyCargoDoNotChargeAndLastGapDoesNotOverflow() {
