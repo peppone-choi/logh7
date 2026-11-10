@@ -155,7 +155,11 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     val stopped=EspionageActions.disabled(initialized,id,dayEnd) ||
                         bombs[id].orEmpty().any {EspionageActions.stopsProductionAt(it,dayEnd)}
                     val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
-                    val lord=initialized.strategic.fiefs[id]
+                    val lord=initialized.strategic.fiefs[id]?.takeIf {character->
+                        val death=initialized.strategic.people[character]?.deceasedAt ?: 0L
+                        // evidence:guess — resume remittance after death. Same-tick production precedes combat.
+                        death==0L || dayEnd<=death
+                    }
                     if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
                     else if(revenue.central>0) {
                         val country=checkNotNull(next.country)
