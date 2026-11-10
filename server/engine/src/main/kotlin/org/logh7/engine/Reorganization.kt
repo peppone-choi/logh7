@@ -21,7 +21,7 @@ data class ReorganizationResult(val player: Navigator?, val stocks: PlanetStocks
     val rejection: LogisticsRejection? = null, val changed: Boolean = false, val recovery: NavigationResult? = null,
     val capacity: ReorganizationCapacity? = null)
 data class ReorganizationCapacity(val additionalTroops: Int, val crew: Int, val crewDelta: Int,
-    val ships: List<ReorganizationShip>)
+    val ships: List<ReorganizationShip>,val transportRoleOverflow:Boolean=false)
 
 internal object Reorganization {
     const val COST = 160 // constmsg group 0, entry 130: MCP 160; no wait/duration.
@@ -59,7 +59,15 @@ internal object Reorganization {
     }
     fun capacity(stocks: PlanetStocks, outfitId: Int, transfer: UnitTransfer): ReorganizationCapacity {
         val outfit = stocks.outfits.getValue(outfitId)
-        val projected=ReplacementBoats.reorganize(stocks,outfitId,transfer).outfits.getValue(outfitId)
+        val projected=try {
+            ReplacementBoats.reorganize(stocks,outfitId,transfer).outfits.getValue(outfitId)
+        } catch (_:OutfitShipLimits.TransportRoleOverflow) {
+            require(transfer.ships.keys.all {key->ProductionUnits.definitions.any {
+                it.ship && it.kind==key.kind && it.power==outfit.shipStyle.nativePower
+            }})
+            val overflow=ReplacementBoats.reorganize(stocks,outfitId,transfer,projectTransportRoleOverflow=true).outfits.getValue(outfitId)
+            return ReorganizationCapacity(0,0,0,shipRows(overflow),transportRoleOverflow=true)
+        }
         val crew = ReplacementBoats.crewRequired(projected)
         val crewKinds=UnitSpecifications.crews.filter { it.power==outfit.shipStyle.nativePower && it.type==3 }.map { it.kind }.toSet()
         val baselineCrew=outfit.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
@@ -67,8 +75,11 @@ internal object Reorganization {
         // the absolute requirement doubles its crew limit.
         // Additional infantry transport capacity is not reconstructed yet.
         // Preserve the editor's existing infantry baseline, never invent slots.
-        val ships=checkNotNull(projected.activeShips).values.groupBy { it.stack.kind }.toSortedMap()
-            .map { (kind,units) -> ReorganizationShip(kind,units.size,units.sumOf { it.boats }) }
-        return ReorganizationCapacity(0,Math.toIntExact(crew),Math.toIntExact(crew-baselineCrew),ships)
+        return ReorganizationCapacity(0,Math.toIntExact(crew),Math.toIntExact(crew-baselineCrew),shipRows(projected))
     }
+
+    private fun shipRows(outfit:OutfitStock):List<ReorganizationShip> =
+        checkNotNull(outfit.activeShips).values.groupBy { it.stack.kind }.toSortedMap()
+            .map { (kind,units) -> ReorganizationShip(kind,units.size,units.sumOf { it.boats }) }
+            .also {rows->require(rows.size<=99 && rows.all {it.units in 1..127 && it.boats in 0..65535})}
 }

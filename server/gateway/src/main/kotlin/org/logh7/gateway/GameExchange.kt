@@ -1557,7 +1557,8 @@ class GameExchange(
                                 return@thenApply listOf(org.logh7.protocol.LogisticsMessages.reorganizationPreview(query,
                                     gameSeconds(),player.pcp,player.mcp,capacity?.additionalTroops ?: 0,capacity?.crewDelta ?: 0,
                                     supplies,accepted,capacity?.ships.orEmpty().map {
-                                        org.logh7.protocol.LogisticsMessages.ShipStock(it.kind,it.units,it.boats) }))
+                                        org.logh7.protocol.LogisticsMessages.ShipStock(it.kind,it.units,it.boats) },
+                                    showRejectedShipTotals=capacity?.transportRoleOverflow==true))
                             }
                             listOf(org.logh7.protocol.LogisticsMessages.reorganizationResponse(query, gameSeconds(),
                                 player.pcp, player.mcp, supplies, accepted), characterMessage(character, player, true)) +

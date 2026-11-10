@@ -48,12 +48,12 @@ internal object ReplacementBoats {
     }
 
     /** Move whole selectable units, including an understrength final unit, without refilling it. */
-    fun reorganize(stocks: PlanetStocks,outfitId: Int,transfer: UnitTransfer): PlanetStocks {
+    fun reorganize(stocks: PlanetStocks,outfitId: Int,transfer: UnitTransfer,projectTransportRoleOverflow:Boolean=false): PlanetStocks {
         val ready=ActiveShips.initialize(stocks)
         val outfit=ready.outfits.getValue(outfitId)
         val warehouse=ready.warehouses.getValue(outfit.warehouseId)
         val moved=transfer.apply(selectable(warehouse),outfit.units)
-        OutfitShipLimits.validate(outfit.kind,moved.destination)
+        OutfitShipLimits.validate(outfit.kind,moved.destination,projectTransportRoleOverflow)
         val next=ActiveShips.reorganize(ready,outfitId,moved.destination)
         val previous=checkNotNull(outfit.activeShips).values
         val previousIds=previous.map {it.id}.toSet()

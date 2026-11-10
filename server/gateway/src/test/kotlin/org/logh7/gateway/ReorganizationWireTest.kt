@@ -51,9 +51,9 @@ class ReorganizationWireTest {
             assertEquals(2,state.stocks.nextShipId)
         }
     }
-    @Test fun transportRoleOverflowIsRejectedEvenWhenTheTotalFits() {
+    @Test fun authorizedTransportRoleOverflowPreviewKeepsAbsoluteShipRowsAndStillRejectsCommit() {
         for ((movingKind,baselineKind,baselineCount,overflow) in listOf(
-                listOf(32,76,19,4),listOf(76,32,2,21))) {
+                listOf(32,76,19,4),listOf(76,32,3,21))) {
             val state=State(10000)
             fun crew(kind:Int)=UnitSpecifications.ships.single { it.kind==kind }
                 .number("必要乗組員ユニット数:必要乗組員ユニット数")
@@ -74,10 +74,31 @@ class ReorganizationWireTest {
                 client.send(LogisticsMessages.encode(change(overflow,0)))
                 val denied=client.receive();assertEquals(1,ByteBuffer.wrap(denied).int)
                 assertEquals(0x0c02,ByteBuffer.wrap(denied).getShort(4).toInt())
+                val projection=LogisticsMessages.reorganization(denied.copyOfRange(4,denied.size))
+                assertEquals(listOf(baselineKind to baselineCount,movingKind to overflow).sortedBy {it.first}.map {
+                    (kind,count)->LogisticsMessages.ShipMove(kind,count,count*300)
+                },projection.moves.ships)
+                assertEquals(0,projection.maxCrew)
+                assertEquals(1000,projection.header.mcp)
+                client.send(LogisticsMessages.encode(change(overflow+1,0)))
+                val missingStock=client.receive()
+                assertEquals(1,ByteBuffer.wrap(missingStock).int)
+                assertEquals(0x0c02,ByteBuffer.wrap(missingStock).getShort(4).toInt())
+                assertTrue(LogisticsMessages.reorganization(missingStock.copyOfRange(4,missingStock.size)).moves.ships.isEmpty())
                 response(client,change(overflow),false,1000)
                 assertEquals(before,state.stocks);assertEquals(paid,state.players);assertEquals(saves,state.saves)
                 response(client,change(overflow-1),true,840);client.expect(0x032f);client.expect(0x0327)
-                assertEquals(22,state.stocks.outfits.getValue(1).units.ships.values.sum())
+                assertEquals(baselineCount+overflow-1,state.stocks.outfits.getValue(1).units.ships.values.sum())
+            }
+            state.stocks=state.stocks.copy(outfits=mapOf(1 to original.copy(commanderId=10001)),warehouses=mapOf(101 to
+                state.stocks.warehouses.getValue(101).copy(units=UnitInventory(mapOf(UnitStack(movingKind) to overflow)))))
+            fixture(state,"foreign-roles-$movingKind").use {server ->
+                val client=server.join(server.account(0),true,false).client;start(client)
+                client.send(LogisticsMessages.encode(change(overflow,0)))
+                val denied=client.receive()
+                assertEquals(1,ByteBuffer.wrap(denied).int)
+                assertEquals(0x0c02,ByteBuffer.wrap(denied).getShort(4).toInt())
+                assertTrue(LogisticsMessages.reorganization(denied.copyOfRange(4,denied.size)).moves.ships.isEmpty())
             }
         }
     }
