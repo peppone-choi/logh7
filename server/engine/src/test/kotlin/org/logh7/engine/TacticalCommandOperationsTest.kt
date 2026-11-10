@@ -983,6 +983,49 @@ class TacticalCommandOperationsTest {
         }
     }
 
+    @Test fun explicitSkirmishOverridesDefaultDefenseOnlyForItsCurrentBattle() {
+        for(changeGrid in listOf(false,true)) {
+            val r=run()
+            val pilot=r.state.players.getValue("pilot")
+            val order=TacticalCommand(0x421,listOf(pilot.unitId),kind=0)
+            assertNotNull(accept(r,order).player)
+            val assignedAt=now+5
+            settle(r,assignedAt)
+            val issued=r.state.stocks
+            val skirmish=issued.tacticalCommands.missions.getValue(pilot.characterId)
+            assertEquals(0,skirmish.mission)
+            assertFalse(skirmish.defaultDefense)
+            val interval=TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS
+            val events=mutableListOf<TacticalCommandResult>()
+            val players=r.state.players.toMutableMap()
+            fun finish(at:Long,stocks:PlanetStocks)=TacticalCommandOperations.finishMissions(
+                session.copy(gameMillis=at*1000),galaxy,players,stocks,1,events,mutableListOf(),emptySet())
+
+            val active=finish(assignedAt+interval,issued)
+            assertEquals(skirmish,active.tacticalCommands.missions.getValue(pilot.characterId))
+            assertTrue(active.tacticalCommands.merits.isEmpty())
+            assertTrue(events.isEmpty())
+
+            players["pilot"]=if(changeGrid)pilot.copy(grid=pilot.grid+1,motion=null) else pilot
+            val departing=if(changeGrid)active else active.copy(outfits=active.outfits-2,warehouses=active.warehouses-20)
+            val ended=finish(assignedAt+interval+1,departing)
+            assertNull(ended.tacticalCommands.missions[pilot.characterId])
+            assertTrue(ended.tacticalCommands.merits.isEmpty())
+            assertTrue(events.isEmpty())
+
+            players.putAll(r.state.players)
+            val enteredAt=assignedAt+interval+2
+            val resumed=finish(enteredAt,ended.copy(outfits=active.outfits,warehouses=active.warehouses))
+            val defense=resumed.tacticalCommands.missions.getValue(pilot.characterId)
+            assertTrue(defense.defaultDefense)
+            assertEquals(pilot.grid,defense.grid)
+            assertEquals(enteredAt,defense.assignedAt)
+            assertTrue(resumed.tacticalCommands.merits.isEmpty())
+            assertEquals(1L,finish(enteredAt+interval,resumed).tacticalCommands.merits.getValue(pilot.characterId))
+        }
+    }
+
+
     @Test fun sameGridDefeatEndsDefenseWithoutCreditAtTheCheckBoundary() {
         val s=state()
         val mission=TacticalMissionState(10000,1,0,1000,now,grid=2488)
