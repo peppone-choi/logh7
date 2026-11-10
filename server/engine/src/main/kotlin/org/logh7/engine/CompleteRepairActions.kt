@@ -44,8 +44,9 @@ internal object CompleteRepairActions {
         if(ships.any {it.tactical!=null || it.support!=null || it.attack!=null || it.shot!=null} ||
             outfit?.activeGround?.values.orEmpty().any {it.order!=null})return reject(StrategyActionRejection.BUSY)
         val members=outfit?.members().orEmpty()
+        val camp = TacticalAuthority.camp(p, stocks)
         val nearby=r.navigators.filterValues {it.generation==r.generation && it.characterId in members &&
-            it.country==country && it.grid==p.grid && it.baseId==p.baseId}+(r.account to p)
+            it.grid==p.grid && it.baseId==p.baseId && TacticalAuthority.camp(it, stocks)==camp}+(r.account to p)
         if(nearby.values.any(::busy))return reject(StrategyActionRejection.BUSY)
         // update03: guard ships cannot be repaired. Their damage alone must not trigger a charge.
         val damagedShips=if(outfit?.guard==null)ships.filter {it.boats>0}.sumOf {it.damaged} else 0
