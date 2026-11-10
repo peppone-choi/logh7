@@ -573,6 +573,38 @@ class TacticalCombatTest {
         assertEquals(listOf(Triple(1L, setOf(1), 0)), notices)
     }
 
+    @Test fun aSinkingAndAnAbsentOrderDueOnTheSameTickResolveDeathBeforeApproval() {
+        for (fatal in listOf(false, true)) {
+            val state = state()
+            val point = TacticalPoint(180f, -95f)
+            val victim = Navigator(1, 10001, Power.EMPIRE, 2488, 1000, 960, 900, cpPaused = true,
+                hull = FlagshipHull(0, now, hp = 1, shields = List(6) { 0L }),
+                motion = TacticalMotion(2488, now, TacticalPose(point, 0f), 0f, 0f, listOf(point)))
+            val recipient = Navigator(1, 10002, Power.EMPIRE, 2487, 1000, 1000, 900, baseId = 1000, mode = 4)
+            val delay = ProposalActions.ABSENT_ORDER_SECONDS
+            val at = (now + delay..now + delay + 2000).first { BattleDeath.dies(victim.characterId, it) == fatal }
+            val mail = ProposalMail(1, victim.characterId, recipient.characterId, 40, 39, ProposalActions.RESIGNATION,
+                true, at - delay, at - delay + Proposals.LIFETIME, mcp = 40, country = victim.country)
+            state.players = state.players + ("victim" to victim) + ("recipient" to recipient) +
+                ("pilot" to state.players.getValue("pilot").copy(hull = FlagshipHull(89, now),
+                    fire = TacticalFire(1, TacticalPendingFire(1, 2488, 89, victim.unitId, now, at))))
+            val fleet = state.stocks.outfits.getValue(1).copy(commanderId = recipient.characterId, aideId = victim.characterId)
+            state.stocks = state.stocks.copy(outfits = mapOf(fleet.id to fleet),
+                social = state.stocks.social.copy(proposals = ProposalState(listOf(mail))))
+            val tick = session.copy(gameMillis = at * 1000, participants = session.participants +
+                ("recipient" to Participant(Power.EMPIRE, false, online = false)))
+            val navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+            val hits = TacticalCombat.settle(tick, galaxy, navigation, production(state), state.commit)
+
+            assertEquals(victim.characterId, hits.single().departed?.characterId)
+            assertEquals(fatal, BattleDeath.deceased(state.stocks, victim.characterId))
+            val saved = state.stocks.social.proposals.mails.single()
+            assertEquals(if (fatal) mail else mail.copy(reply = Proposals.APPROVE), saved)
+            assertEquals(if (fatal) recipient.characterId else 0, state.stocks.outfits.getValue(fleet.id).commanderId)
+            assertEquals(if (fatal) 1000 else 960, state.players.getValue("recipient").mcp)
+        }
+    }
+
     @Test fun aRebelFlagshipShootsARegularFlagshipOfItsOwnSide() {
         val state=state()
         // U-10: the pilot leads a revolt holding base 1000; the victim stays in the alliance's regular camp.
