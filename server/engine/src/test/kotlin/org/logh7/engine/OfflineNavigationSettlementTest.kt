@@ -135,6 +135,44 @@ class OfflineNavigationSettlementTest {
         } finally { engine.drainAndClose() }
     }
 
+    @Test fun anOfflineCaptainPublishesTheCommittedDockAndOnlyTheActualFollowers() = runBlocking {
+        val world = world()
+        val pilot = world.players.getValue("pilot").copy(baseId = 0, mode = 5, spotId = 0)
+        world.players = mapOf("pilot" to pilot, "aide" to pilot.copy(characterId = 10001),
+            "observer" to pilot.copy(characterId = 10002))
+        val outfit = world.stocks.outfits.getValue(1).copy(aideId = 10001, position = OutfitPosition(pilot.grid))
+        world.stocks = world.stocks.copy(outfits = mapOf(outfit.id to outfit))
+        val navigation = Navigation(fleetGalaxy, world.nav, NavigationPolicy())
+        val production = PlanetProduction(fleetGalaxy, world.inventory, rules.startSeconds, PlanetProductionPolicy())
+        val queued = FleetNavigation.apply(fleetRequest.copy(place = PlaceMove.Dock(1000, 4)),
+            fleetSession, fleetGalaxy, navigation, production, production.settle(1, start), world.commit) { false }
+        val due = assertNotNull(queued.player?.dockReadyAt)
+        val engine = WorldEngine(this, ticking = false, galaxy = fleetGalaxy, navigationStore = world.nav,
+            stockStore = world.inventory, worldStateCommitter = world.commit, npcPolicy = NpcTacticalPolicy(enabled = false))
+        val arrivals = mutableListOf<Triple<OfflineDockArrival, WorldSnapshot, Map<String, Navigator>>>()
+        engine.observeOfflineDockArrivals { arrivals += Triple(it, engine.snapshot(), world.players) }
+        try {
+            for (account in world.players.keys) {
+                val joined = CompletableDeferred<Admission>()
+                engine.submit(WorldCommand.Join(account, Power.ALLIANCE, false, joined, account, 1, profile))
+                assertEquals(Admission.ACCEPTED, joined.await())
+            }
+            engine.submit(WorldCommand.Disconnect("pilot", "pilot"))
+            val deadline = (due - start) * 1000 / rules.speed
+            engine.submit(WorldCommand.AdvanceTo(deadline))
+            engine.submit(WorldCommand.AdvanceTo(deadline + 1000))
+            engine.drainAndClose()
+            val (event, published, persisted) = arrivals.single()
+            assertEquals(setOf(10001), event.followers)
+            assertEquals(mapOf(10001 to "aide", 10002 to "observer"), event.recipients)
+            assertEquals(persisted, published.navigators)
+            assertEquals(persisted.getValue("pilot"), event.captain)
+            assertEquals(1000, persisted.getValue("aide").baseId)
+            assertEquals(0, persisted.getValue("observer").baseId)
+            assertEquals(OutfitPosition(pilot.grid, 1000), published.planetStocks!!.outfits.getValue(1).position)
+        } finally { engine.drainAndClose() }
+    }
+
     @Test fun aReservedFleetWarpWaitsForOfflineCommanderRecoveryAndThenNotifiesViewers() = runBlocking {
         val world = world()
         val reserved = reservedWarp(world)
