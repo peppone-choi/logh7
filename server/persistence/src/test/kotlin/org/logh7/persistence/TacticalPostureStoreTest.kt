@@ -42,10 +42,13 @@ class TacticalPostureStoreTest {
         FileNavigationStore(nav).use {it.save(mapOf("pilot" to player,"legacy" to player.copy(characterId=10001,posture=null)))}
         assertEquals("LOGH7-NAV-17",Files.readAllLines(nav).first())
         FileNavigationStore(nav).use {assertEquals(player,it.load().getValue("pilot"));assertNull(it.load().getValue("legacy").posture)}
-        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),posture=pending),ActiveShipUnit(2,UnitStack(32))))
+        val offlineAnchor=TacticalPosture(2017,order=TacticalPostureOrder(10000,TacticalShipMode.ANCHORED,1049,100,340,
+            issuedByOfflineAi=true))
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),posture=pending),ActiveShipUnit(2,UnitStack(32)),
+            ActiveShipUnit(3,UnitStack(32),posture=offlineAnchor)))
         val outfit=OutfitStock(1,2,OutfitKind.PATROL,1049,10,10000,UnitInventory(ships=ships.quantities()),activeShips=ships)
         val stock=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),mapOf(1 to outfit),
-            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.PATROL,1049)),nextShipId=3)
+            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.PATROL,1049)),nextShipId=4)
         val path=directory.resolve("stock")
         FilePlanetStockStore(path).use {it.save(stock)}
         assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-23\t"))

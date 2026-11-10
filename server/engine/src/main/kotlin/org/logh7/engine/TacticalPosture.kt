@@ -12,9 +12,10 @@ private fun validPosture(mode:TacticalShipMode,base:Int)=
 
 /** Accepted target, distinct from the current posture until the actor commits execution. */
 data class TacticalPostureOrder(val character:Int,val mode:TacticalShipMode,val base:Int,
-    val acceptedAt:Long,val readyAt:Long) {
+    val acceptedAt:Long,val readyAt:Long,val issuedByOfflineAi:Boolean=false) {
     init {require(character>0 && validPosture(mode,base) &&
-        acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL)}
+        acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL &&
+        (!issuedByOfflineAi || mode==TacticalShipMode.ANCHORED))}
 
     fun canBeExecutedBy(actor:Navigator,grid:Int,now:Long,stocks:PlanetStocks):Boolean =
         actor.characterId==character && actor.generation==stocks.generation && actor.grid==grid &&

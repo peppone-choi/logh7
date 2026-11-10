@@ -514,11 +514,35 @@ class TacticalOfflineAiTest {
         val start=plain.copy(bases=mapOf(1000 to PlanetStock(1000,3,0,100,0,0)),
             outfits=plain.outfits+(1 to outfit.copy(units=UnitInventory(outfit.units.ships,troops.quantities()),activeGround=troops)),
             tacticalCommands=plain.tacticalCommands.copy(missions=mapOf(10000 to TacticalMissionState(10000,2,1,1000,now,grid=2488))))
+        val stationedShip=outfit.activeShips!!.values.single().copy(posture=TacticalPosture(2488,TacticalShipMode.STATIONED,1000))
+        val stationedOutfit=start.outfits.getValue(1).copy(activeShips=ActiveShipUnits(listOf(stationedShip)))
+        val stationed=start.copy(outfits=start.outfits+(1 to stationedOutfit))
+        val stillStationed=TacticalOfflineAi.advance(offline,galaxy,players(),stationed,1,mutableListOf())
+        assertEquals(stationedOutfit,stillStationed.outfits.getValue(1))
         val anchored=TacticalOfflineAi.advance(offline,galaxy,players(),start,1,mutableListOf())
         val ship=anchored.outfits.getValue(1).activeShips!!.values.single()
         assertEquals(TacticalShipMode.ANCHORED,ship.posture!!.order!!.mode);assertEquals(1000,ship.posture!!.order!!.base)
         assertEquals(now+10,ship.posture!!.order!!.readyAt,"the player's 10-second stance wait")
+        val anchorOrder=assertNotNull(ship.posture.order)
+        assertTrue(anchorOrder.issuedByOfflineAi)
         assertTrue(anchored.outfits.getValue(1).activeGround!!.values.all {it.order==null},"no landing before the carrier is anchored")
+        val manualShip=ship.copy(posture=ship.posture.copy(order=anchorOrder.copy(issuedByOfflineAi=false)))
+        val manualOutfit=anchored.outfits.getValue(1).copy(activeShips=ActiveShipUnits(listOf(manualShip)))
+        val manualAnchor=anchored.copy(outfits=anchored.outfits+(1 to manualOutfit))
+        val aiOff=anchored.copy(tacticalCommands=anchored.tacticalCommands.copy(aiSwitches=emptyMap()))
+        val reassigned=anchored.copy(tacticalCommands=anchored.tacticalCommands.copy(missions=emptyMap()))
+        val captured=anchored.copy(bases=mapOf(1000 to anchored.bases.getValue(1000).copy(owner=Allegiance.Country(Power.EMPIRE.country))))
+        for((state,inventory,cancelled) in listOf(Triple(offline,anchored,false),Triple(baseSession,anchored,true),
+            Triple(offline,aiOff,true),Triple(offline,reassigned,true),Triple(offline,captured,true),
+            Triple(baseSession,manualAnchor,false))) {
+            val at=if(cancelled)now+1 else anchorOrder.readyAt
+            val events=mutableListOf<TacticalPostureResult>()
+            val result=TacticalPostureOperations.advance(state.copy(gameMillis=at*1000),galaxy,players(),inventory,events)
+            assertEquals(cancelled,events.single().cancelled)
+            val posture=result.outfits.getValue(1).activeShips!!.values.single().posture!!
+            assertNull(posture.order)
+            assertEquals(if(cancelled)TacticalShipMode.SAILING else TacticalShipMode.ANCHORED,posture.mode)
+        }
         // Once the stance order has executed, the next decision lands the admissible troops.
         val docked=anchored.copy(outfits=anchored.outfits+(1 to anchored.outfits.getValue(1).let {o->o.copy(activeShips=ActiveShipUnits(
             o.activeShips!!.values.map {it.copy(posture=TacticalPosture(2488,TacticalShipMode.ANCHORED,1000))}))}),
