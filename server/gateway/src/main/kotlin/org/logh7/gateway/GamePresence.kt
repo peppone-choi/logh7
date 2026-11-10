@@ -46,6 +46,18 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             send(viewer,packets)
     }
 
+    /** The original facility cache holds the current system; ownership uses its separate public map route. */
+    @Synchronized internal fun refreshBaseFacilities(world: WorldBootstrap, stocks: org.logh7.engine.PlanetStocks,
+        bases: List<Int>, seconds: Long) {
+        val byGrid = bases.groupBy { world.galaxy.conditions.getValue(it).grid }
+        for ((grid, ids) in byGrid) {
+            val viewers = members.values.filter { it.player.generation == stocks.generation && it.player.grid == grid }
+            if (viewers.isEmpty()) continue
+            val packets = ids.chunked(4).map { world.places(it, stocks, seconds) }
+            for (viewer in viewers) send(viewer, packets)
+        }
+    }
+
     /** Government approval is public base state; CP/influence peers use ordinary character publication. */
     @Synchronized fun refreshSocialBase(world:WorldBootstrap,stocks:org.logh7.engine.PlanetStocks,base:Int) {
         val grid=world.galaxy.bases.single {it.id==base}.grid

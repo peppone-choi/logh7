@@ -94,6 +94,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     fun observeCoupBases(observer:(PlanetStocks,List<Int>)->Unit):AutoCloseable {
         coupBaseObservers+=observer;return AutoCloseable {coupBaseObservers.remove(observer)}
     }
+    private val baseFacilityObservers = java.util.concurrent.CopyOnWriteArrayList<(PlanetStocks, List<Int>, Long) -> Unit>()
+    fun observeBaseFacilities(observer: (PlanetStocks, List<Int>, Long) -> Unit): AutoCloseable {
+        baseFacilityObservers += observer
+        return AutoCloseable { baseFacilityObservers.remove(observer) }
+    }
+
     private val coupDockCancellationObservers = java.util.concurrent.CopyOnWriteArrayList<(List<Navigator>) -> Unit>()
     fun observeCoupDockCancellations(observer: (List<Navigator>) -> Unit): AutoCloseable {
         coupDockCancellationObservers += observer
@@ -593,14 +599,15 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
 
     private fun publish(snapshot:WorldSnapshot,deferredCharacterRefresh:Set<Int> = emptySet()) {
-        val old=published.get().planetStocks
+        val previous = published.get()
+        val old=previous.planetStocks
         val inventory=snapshot.planetStocks
         // Retire ineligible logistics reservations before a later appointment can restore the holder's access.
         if(inventory!=null && inventory!==old)logistics.expireIneligible(inventory)
         if (galaxy != null && inventory != null) formations.expireIneligible(galaxy, snapshot.navigators, inventory)
         val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
             SessionResults.fromWorld(galaxy,snapshot) else null
-        val previousResult=published.get().result
+        val previousResult=previous.result
         published.set(snapshot.copy(result=result))
         if (inventory != null && old != null && old.generation == inventory.generation &&
             tacticalOfficeObservers.isNotEmpty() && old.tacticalCommands.entryAuthority != inventory.tacticalCommands.entryAuthority) {
@@ -615,6 +622,22 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val bases=inventory.bases.keys.filter {id->old.bases[id]?.camp!=inventory.bases.getValue(id).camp}
             if(bases.isNotEmpty())for(observer in coupBaseObservers)try {observer(inventory,bases)}
             catch(failure:Exception){System.err.println("Coup base refresh failed: ${failure.javaClass.simpleName}")}
+        }
+        val beforeSeconds = previous.session?.gameSeconds
+        val afterSeconds = snapshot.session?.gameSeconds
+        if (baseFacilityObservers.isNotEmpty() && galaxy != null && old != null && inventory != null &&
+            old.generation == inventory.generation && beforeSeconds != null && afterSeconds != null) {
+            val before = old.social.production
+            val after = inventory.social.production
+            val bases = (before.destroyed + after.destroyed + before.built.keys + after.built.keys).filter { id ->
+                ProductionActions.shipyardPresent(galaxy, old, id, beforeSeconds) !=
+                    ProductionActions.shipyardPresent(galaxy, inventory, id, afterSeconds)
+            }
+            if (bases.isNotEmpty()) for (observer in baseFacilityObservers) try {
+                observer(inventory, bases, afterSeconds)
+            } catch (failure: Exception) {
+                System.err.println("Base facility refresh failed: ${failure.javaClass.simpleName}")
+            }
         }
         // An imperial vacancy can be resolved on any settlement, before the next monthly personnel changes.
         if(inventory!=null && old!=null && inventory!==old && old.generation==inventory.generation) {
@@ -724,8 +747,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val npcWarpDeadline=if(npcPolicy.enabled && npcPolicy.strategic && worldStateCommitter!=null && session.ended==null)
             snapshot.planetStocks?.outfits?.values.orEmpty().mapNotNull {it.strategy?.arrivesAt?.takeIf {at->at>nowSeconds}}.minOrNull()
             else null
-        val shipProductionDeadlines=snapshot.planetStocks?.social?.production?.orders.orEmpty().values
-            .map {it.readyAt}.filter {it>nowSeconds}
+        val productionState = snapshot.planetStocks?.social?.production
+        val shipProductionDeadlines = (productionState?.orders.orEmpty().values.map { it.readyAt } +
+            productionState?.built.orEmpty().values).filter { it > nowSeconds }
         val operationDeadline=snapshot.planetStocks?.strategic?.operations.orEmpty().asSequence()
             .filter {it.live}.mapNotNull {it.issuedAt}.map(OperationPlanRules::endGameSeconds)
             .filter {it>nowSeconds}.minOrNull()

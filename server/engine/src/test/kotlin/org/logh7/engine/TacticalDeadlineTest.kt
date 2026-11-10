@@ -11,6 +11,65 @@ import kotlin.test.*
 /** Deadline ticks retain durable publication order and the ordinary economy cadence. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TacticalDeadlineTest {
+    @Test fun onlyCommittedShipyardDestructionRefreshesTheFacilityList() = runTest {
+        for (fails in listOf(false, true)) {
+            val rig = Rig(this, testScheduler, shipyardLifecycle = true)
+            val changes = mutableListOf<List<Int>>()
+            rig.engine.observeBaseFacilities { stocks, bases, seconds ->
+                assertEquals(stocks, rig.engine.snapshot().planetStocks)
+                assertEquals(seconds, rig.engine.snapshot().session!!.gameSeconds)
+                assertFalse(ProductionActions.shipyardPresent(rig.galaxy, stocks, 1000, seconds))
+                changes += bases
+            }.use {
+                try {
+                    val joined = CompletableDeferred<Admission>()
+                    rig.engine.submit(WorldCommand.Join("pilot", Power.EMPIRE, false, joined, "c", 1))
+                    assertEquals(Admission.ACCEPTED, joined.await())
+                    suspend fun command(id: Int): SocialResult {
+                        val result = CompletableDeferred<SocialResult>()
+                        val request = StrategyActionRequest("pilot", "c", 10000, Power.EMPIRE, 1, id, 66, 1)
+                        rig.engine.submit(WorldCommand.Social(SocialRequest(request), result))
+                        return result.await()
+                    }
+                    assertTrue(command(ProductionActions.PAUSE).changed)
+                    assertTrue(command(ProductionActions.RESUME).changed)
+                    assertTrue(changes.isEmpty())
+                    rig.fail = fails
+                    if (fails) {
+                        assertFailsWith<java.io.IOException> { command(ProductionActions.DESTROY) }
+                        assertTrue(changes.isEmpty())
+                        assertFalse(1000 in rig.engine.snapshot().planetStocks!!.social.production.destroyed)
+                    } else {
+                        assertTrue(command(ProductionActions.DESTROY).changed)
+                        assertFalse(command(ProductionActions.DESTROY).changed)
+                        assertTrue(command(ProductionActions.BUILD).changed)
+                        assertEquals(listOf(listOf(1000)), changes)
+                    }
+                } finally { rig.engine.drainAndClose() }
+            }
+        }
+    }
+
+    @Test fun restoredShipyardCompletionRefreshesOnceBetweenOrdinaryTicks() = runTest {
+        val rig = Rig(this, testScheduler, shipyardLifecycle = true, shipyardReadyIn = 15)
+        val changes = mutableListOf<Pair<List<Int>, Long>>()
+        rig.engine.observeBaseFacilities { stocks, bases, seconds ->
+            assertEquals(stocks, rig.engine.snapshot().planetStocks)
+            assertTrue(ProductionActions.shipyardPresent(rig.galaxy, stocks, 1000, seconds))
+            changes += bases to seconds
+        }.use {
+            try {
+                rig.engine.submit(WorldCommand.Probe); runCurrent()
+                advanceTimeBy(624); runCurrent()
+                assertTrue(changes.isEmpty())
+                advanceTimeBy(1); runCurrent()
+                assertEquals(listOf(listOf(1000) to rig.start + 15), changes)
+                advanceTimeBy(375); runCurrent()
+                assertEquals(1, changes.size)
+            } finally { rig.engine.drainAndClose() }
+        }
+    }
+
     @Test fun restoredPirateOccupationReducesPublicOrderOnceAtItsDailyDeadline() = runTest {
         val day=Justice.DAY
         val rig=Rig(this,testScheduler,resumedAt=day*1000/SessionRules.load().speed,pirateHarmDeadline=true)
@@ -567,7 +626,8 @@ class TacticalDeadlineTest {
         uncharged:Boolean=false,pirateDeadline:Boolean=false,pirateRegularTarget:Boolean=false,pirateStrategyDeadline:Boolean=false,
         pirateHarmDeadline:Boolean=false,retreatDeadline:Boolean=false,blockedRetreat:Boolean=false,fleetRetreat:Boolean=false,
         awaitIdentities:Boolean=false,mailDeadline:Boolean=false,orderDeadline:Boolean=false,justiceDeadline:Boolean=false,espionageDeadline:Boolean=false,tradeDeadline:Boolean=false,shipOrder:Boolean=false,fortressDeadline:Boolean=false,
-        operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false,dismissalOrder:Boolean=false,coupRevolt:Boolean=false) {
+        operationDeadline:Boolean=false,exchangeOffer:Boolean=false,coupDeadline:Boolean=false,dismissalOrder:Boolean=false,coupRevolt:Boolean=false,
+        shipyardLifecycle: Boolean = false, shipyardReadyIn: Long? = null) {
         private val rules=SessionRules.load()
         val start=rules.startSeconds
         var fail=false
@@ -586,6 +646,13 @@ class TacticalDeadlineTest {
                 GalaxyBase(1050,homeGrid,81,0,"Second base",0,20f,86400,0,0f,2f).takeIf { coupRevolt }),
             Power.entries.associateWith {homeGrid})
         init {
+            if (shipyardLifecycle) {
+                players = mapOf("pilot" to Navigator(1, 10000, Power.EMPIRE, homeGrid, 1000, 1000, 1000, baseId = 1000, mode = 4))
+                val production = if (shipyardReadyIn == null) ProductionState() else ProductionState(
+                    built = mapOf(1000 to start + shipyardReadyIn), destroyed = setOf(1000))
+                stocks = stocks.copy(bases = mapOf(1000 to PlanetStock(1000, 2, 0, 0, 0, 0, treasury = 200_000_000)),
+                    strategic = StrategicState(fiefs = mapOf(1000 to 10000)), social = stocks.social.copy(production = production))
+            }
             if(espionageDeadline) {
                 val pilot=players.getValue("pilot")
                 players=mapOf("pilot" to pilot.copy(baseId=1000,mode=4,spotId=10000019,cpPaused=false,motion=null,energy=null))
