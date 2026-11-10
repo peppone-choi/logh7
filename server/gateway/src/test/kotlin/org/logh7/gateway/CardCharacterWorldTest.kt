@@ -109,6 +109,25 @@ class CardCharacterWorldTest {
         assertFails { world.cardCharacters(54,stocks) { character.copy(power=3) } }
         assertFails { world.cardCharacters(59,stocks) { character } }
     }
+    @Test fun aDeceasedHolderInAnOldSaveDoesNotMaskLivingPlanetOfficers() {
+        val saved=stocks.copy(bases=mapOf(
+            1048 to stocks.bases.getValue(1048).copy(governorId=10001,garrisonCommanderId=10001),
+            1049 to stocks.bases.getValue(1049).copy(garrisonCommanderId=10000)),
+            strategic=StrategicState(people=mapOf(10001 to StrategicPerson(deceasedAt=1))))
+        for(card in listOf(54,55)) {
+            val response=ByteBuffer.wrap(world.cardCharacters(card,saved) { id ->
+                character.takeIf {it.id==id.toLong()}
+            })
+            assertEquals(0,response.getInt(0))
+            assertEquals(1,response.get(8).toInt())
+            assertEquals(10000,response.getInt(9))
+            assertEquals(1049,response.getInt(response.limit()-5))
+        }
+        val onlyDeceased=saved.copy(bases=saved.bases - 1049)
+        val response=ByteBuffer.wrap(world.cardCharacters(54,onlyDeceased) { error("No live holder") })
+        assertEquals(0,response.getInt(0))
+        assertEquals(0,response.get(8).toInt())
+    }
     @Test fun originalLimitsRejectTruncationInsteadOfReportingVacancies() {
         val manyPeople=stocks.copy(bases=(1..65).associateWith { PlanetStock(it,2,0,0,0,0,governorId=10000+it) })
         val capacityWorld=WorldBootstrap(Galaxy(galaxy.systems,(1..65).map { galaxy.bases.first().copy(id=it) },galaxy.starts))

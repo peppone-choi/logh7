@@ -1,6 +1,7 @@
 package org.logh7.gateway
 
 import org.logh7.engine.Galaxy
+import org.logh7.engine.BattleDeath
 import org.logh7.engine.Camp
 import org.logh7.engine.CoupActions
 import org.logh7.engine.TacticalAuthority
@@ -168,8 +169,10 @@ class WorldBootstrap(val galaxy: Galaxy,
         val holdings:List<Triple<Int,BootstrapMessages.OfficeCard,org.logh7.engine.CountryId?>> = if(role!=null)
             countries.countries.keys.sorted().map {org.logh7.engine.CountryId(it)}.flatMap {country ->
                 val actual=policy.role(card,country) ?: return@flatMap emptyList()
-                policy.holders(stocks,card,country).map {holding ->Triple(holding.character,
-                    BootstrapMessages.OfficeCard(card,policy.target(actual,holding.seat,stocks)),country)}
+                policy.holders(stocks,card,country)
+                    .filterNot {BattleDeath.deceased(stocks,it.character)}
+                    .map {holding ->Triple(holding.character,
+                        BootstrapMessages.OfficeCard(card,policy.target(actual,holding.seat,stocks)),country)}
             } else if(card in 60..65)
             stocks.strategic.people.filterValues {it.peerage?.ordinal==card-60}.keys.map {Triple(it,BootstrapMessages.OfficeCard(card,0),null)}
         else if(card==66)stocks.strategic.fiefs.map {(base,owner)->Triple(owner,BootstrapMessages.OfficeCard(66,base),null)} else emptyList()
