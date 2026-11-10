@@ -224,7 +224,28 @@ class PostgresOriginalCandidatesTest {
                 assertNull(reopened.save(1107,1,hawood.copy(startingOffice=null),alliance))
                 val lefebvreOfficer=assertNotNull(reopened.save(1108,0,lefebvre,alliance))
                 assertNull(reopened.save(1109,0,lefebvre,alliance))
-                assertEquals(preV22Officers+hawoodOfficer+lefebvreOfficer,
+                val preV23Officers=preV22Officers+hawoodOfficer+lefebvreOfficer
+                val fortressOffices=listOf(
+                    "Hildesheim" to OriginalStartingOffice.HILDESHEIM_FLEET_6,
+                    "Landsberg" to OriginalStartingOffice.LANDSBERG_FLEET_8,
+                    "Flegel" to OriginalStartingOffice.FLEGEL_FLEET_10)
+                    .map {(name,office)->commander.copy(surname=name,startingOffice=office)}
+                assertFalse(reopened.supportsImperialFortressStartingOffices)
+                for(profile in fortressOffices)assertFailsWith<IllegalArgumentException> {reopened.save(1109,0,profile,empire)}
+                migrate("V23__imperial_fortress_original_starting_offices.sql")
+                assertEquals(preV23Officers,reopened.load().filter {it.profile.startingOffice!=null}.toSet())
+                assertTrue(reopened.supportsImperialFortressStartingOffices && reopened.supportsLusianaStartingOffices &&
+                    reopened.supportsMerkatzStartingOffice)
+                val fortressHolders=fortressOffices.mapIndexed {index,profile->
+                    val id=1109L+index
+                    assertFailsWith<IllegalArgumentException> {reopened.save(id,0,profile,alliance)}
+                    assertFailsWith<IllegalArgumentException> {reopened.save(id,0,profile.copy(rank=4),empire)}
+                    val holder=assertNotNull(reopened.save(id,0,profile,empire))
+                    assertNull(reopened.save(1112,0,profile,empire))
+                    assertNull(reopened.save(id,1,profile.copy(startingOffice=null),empire))
+                    holder
+                }
+                assertEquals(preV23Officers+fortressHolders,
                     PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
                 connect().use {test->test.createStatement().use {
                     val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile
