@@ -384,6 +384,28 @@ class TacticalFleetShootTest {
         }
     }
 
+    @Test fun aDeceasedAlliedFlagshipDoesNotBlockFleetFireEvenWithSavedTacticalPosition() {
+        fun fire(deceased:Boolean) {
+            val s=state()
+            val ally=s.players.getValue("pilot").copy(characterId=10001,motion=ai(1.4f).motion)
+            s.players=s.players+("ally" to ally)
+            if(deceased)s.stocks=s.stocks.copy(strategic=s.stocks.strategic.copy(
+                people=mapOf(ally.characterId to StrategicPerson(deceasedAt=1))))
+            val nav=Navigation(galaxy,s.nav,NavigationPolicy())
+            val p=production(s)
+            val result=shoot(s,nav,p)
+            if(deceased) {
+                assertNull(result.rejection)
+                assertEquals(99,advance(s,nav,p,now+120).single().hit.target)
+            } else {
+                assertEquals(NavigationRejection.RANGE,result.rejection)
+                assertTrue(advance(s,nav,p,now+120).isEmpty())
+            }
+        }
+        fire(false)
+        fire(true)
+    }
+
     @Test fun everyWeaponDebitsOnlyFiringUnitsHealthyBoatsAndRejectsInsufficientSupply() {
         for(weapon in TacticalWeapon.entries) {
             val s=state();val own=s.stocks.outfits.getValue(1)
