@@ -69,6 +69,7 @@
 #include "hd_texture_data.h"
 #include "hud_system_label_data.h"
 #include "transport_plan_data.h"
+#include "warp_refusal_view_data.h"
 // Multi-item 輸送計画: single-item header kept, staged fixed 31-byte frames under one token, reply-gated flow (codes 1180+).
 static int transportPlanTest() {
     logh::TransportPlan plan={};unsigned value=0,argument=0,amount=0;
@@ -1176,6 +1177,66 @@ static bool groundLocationPageTest() {
     if(!page.read(wire,1,99) || page.count!=1)return false;
     wire[0]=0;return page.read(wire,1,999999) && !page.count && !page.last();
 }
+static bool warpRefusalViewTest() {
+    int world=0,other=0;logh::WarpRefusalView view;
+    // run-04, detained in Odin: decoded refused 0b01 (native argument 0) and the following 0b0b.
+    const BYTE refusedAck[0x24]={0x81,0x62,0x70,0x07,0,0,0,0,0x10,0x27,0,0,0x3b,0,0x61,0x07,0xe8,0x03,0,0,0xe8,0x03,0,0,
+        0xb7,0x09,0,0x08,0x19,0x04,0,0,0x04,0,0x6e,0};
+    const BYTE facilityArrival[0x20]={0x81,0x62,0x70,0x07,0x10,0x27,0,0,0x19,0x04,0,0,0x04,0,0,0,0xa3,0x10,0xa0,0,
+        0,0,0,0,0x01,0x03,0,0,0x10,0x27,0,0};
+    const unsigned spot=10490019;
+    auto put=[](BYTE* record,unsigned offset,unsigned value,unsigned size) {
+        for(unsigned i=0;i<size;++i)record[offset+i]=static_cast<BYTE>(value>>(i*8));
+    };
+    auto refuse=[&](const BYTE* ack,unsigned room,bool tactical) {view.refusedRecord(&world,ack,10000,2487,room,tactical);};
+    auto confirm=[&](const BYTE* arrival) {view.moved(&world,10000);view.arrivedRecord(&world,arrival,100);};
+    refuse(refusedAck,spot,false);confirm(facilityArrival);
+    // Once: the next frame (a manual map view) is left alone.
+    if(!view.take(&world,10000,2487,spot,false,200) || view.take(&world,10000,2487,spot,false,201))return false;
+    // Accepted/reserved ACKs (base 0, mode 5), a partial facility origin and an unmeasured mode never arm.
+    const unsigned origins[][2]={{0,5},{1049,5},{0,4},{1049,3},{1049,8}};
+    for(const auto& origin:origins) {
+        BYTE ack[sizeof(refusedAck)];memcpy(ack,refusedAck,sizeof(ack));
+        put(ack,0x1c,origin[0],4);put(ack,0x20,origin[1],2);
+        refuse(ack,spot,false);confirm(facilityArrival);
+        if(view.take(&world,10000,2487,spot,false,200))return false;
+    }
+    // Another character's ACK, a foreign origin grid, a space position and tactical never arm.
+    for(int c=0;c<4;++c) {
+        BYTE ack[sizeof(refusedAck)];memcpy(ack,refusedAck,sizeof(ack));
+        if(c==0)put(ack,8,10001,4);
+        if(c==1)put(ack,0x18,2488,2);
+        refuse(ack,c==2 ? 0 : spot,c==3);confirm(facilityArrival);
+        if(view.take(&world,10000,2487,spot,false,200))return false;
+    }
+    // 0b0b must confirm the same base, mode and spot.
+    const unsigned arrivals[][3]={{12,5,2},{8,1050,4},{16,spot+1,4}};
+    for(const auto& change:arrivals) {
+        BYTE arrival[sizeof(facilityArrival)];memcpy(arrival,facilityArrival,sizeof(arrival));
+        put(arrival,change[0],change[1],change[2]);
+        refuse(refusedAck,spot,false);confirm(arrival);
+        if(view.take(&world,10000,2487,spot,false,200))return false;
+    }
+    // Each step is required and keyed to the same world and character.
+    refuse(refusedAck,spot,false);view.arrivedRecord(&world,facilityArrival,100);view.moved(&world,10000);
+    if(view.take(&world,10000,2487,spot,false,200))return false;        // 0b0b before 0b07.
+    refuse(refusedAck,spot,false);view.moved(&other,10000);view.moved(&world,10001);
+    view.arrivedRecord(&world,facilityArrival,100);
+    if(view.take(&world,10000,2487,spot,false,200))return false;        // 0b07 for someone else.
+    refuse(refusedAck,spot,false);view.moved(&world,10000);confirm(facilityArrival);
+    if(view.take(&world,10000,2487,spot,false,200))return false;        // A second 0b07 is a real move.
+    // The frame must still show the refused facility, outside tactical, soon after 0b0b.
+    const struct {const void* scene;unsigned id,cell,room;bool tactical;unsigned long long tick;} frames[]={
+        {&other,10000,2487,spot,false,200},{&world,10001,2487,spot,false,200},{&world,10000,2488,spot,false,200},
+        {&world,10000,2487,spot+1,false,200},{&world,10000,2487,spot,true,200},{&world,10000,2487,spot,false,3101}};
+    for(const auto& frame:frames) {
+        refuse(refusedAck,spot,false);confirm(facilityArrival);
+        if(view.take(frame.scene,frame.id,frame.cell,frame.room,frame.tactical,frame.tick) ||
+            view.take(&world,10000,2487,spot,false,200))return false;    // A mismatch also consumes it.
+    }
+    refuse(refusedAck,spot,false);confirm(facilityArrival);
+    return view.take(&world,10000,2487,spot,false,3100);
+}
 static bool sessionEndingDataTest() {
     BYTE record[0x434]={};unsigned id=10000;memcpy(record,&id,4);record[4]=2;record[0x2ea]=3;
     record[0x2eb]=2;record[0x2ec]='A';record[0x390]=3;record[0x3d8]=2;
@@ -1959,6 +2020,7 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::systemEmblemAffiliation(10,2)!=10 || logh::systemEmblemAffiliation(11,3)!=11)return 81;
     if(!sessionEndingDataTest())return 86;
     if (!groundLocationPageTest()) return 85;
+    if (!warpRefusalViewTest()) return 1250;
     if (!groundTransferReasonTest()) return 915;
     if (!groundOrderResultTest()) return 916;
     if (!tacticalMotionOriginsTest()) return 81;

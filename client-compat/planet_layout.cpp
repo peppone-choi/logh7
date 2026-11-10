@@ -549,7 +549,12 @@ static void __fastcall drawLayout(void* map, void*, char) {
     const bool inSpot = at<int>(world, 0x4c) > 0; // own character slot +0x0c, spot +0x40
     const bool enteredSpot = inSpot && !wasInSpot;
     wasInSpot = inSpot;
-    if (ownGrid != lastGrid || enteredSpot) {
+    // A refused warp from a facility leaves the destination map up without a grid or spot change.
+    void* own = at<void*>(world, 8);
+    const bool present = own && at<BYTE>(own, 0);
+    const bool refusedInSpot = warpRefusalView.take(world, present ? at<unsigned>(own, 0x24) : 0, static_cast<unsigned>(ownGrid),
+        present ? at<unsigned>(own, 0x40) : 0, at<BYTE>(world, 0x3579cc) != 0, GetTickCount64()) && inSpot;
+    if (ownGrid != lastGrid || enteredSpot || refusedInSpot) {
         lastGrid = ownGrid;
         autoViewAt = GetTickCount64() + 750;
     }
