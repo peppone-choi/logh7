@@ -62,11 +62,11 @@ internal object StrategicOperations {
     }
     private fun hasLiveFlagship(player:Navigator,stocks:PlanetStocks)=
         !BattleDeath.deceased(stocks,player.characterId) && player.hull?.hp?.let {it>0}==true
+    private fun soloParticipant(plan: StrategicOperation, stocks: PlanetStocks, player: Navigator) =
+        player.generation == stocks.generation && player.characterId in plan.characters &&
+            TacticalAuthority.camp(player, stocks) == Camp(plan.country) && hasLiveFlagship(player, stocks)
     private fun soloReached(plan: StrategicOperation, stocks: PlanetStocks, navigators: Collection<Navigator>) =
-        plan.force == StrategicForce.SOLO && navigators.any {
-            it.generation == stocks.generation && it.characterId in plan.characters && it.grid == plan.grid &&
-                TacticalAuthority.camp(it, stocks) == Camp(plan.country) && hasLiveFlagship(it, stocks)
-        }
+        plan.force == StrategicForce.SOLO && navigators.any { it.grid == plan.grid && soloParticipant(plan, stocks, it) }
     fun evaluate(galaxy:Galaxy,r:StrategyActionRequest,s:SessionState,p:Navigator,stocks:PlanetStocks,
         countries:CountryCatalog=CountryCatalogLoader.current()):StrategyActionResult {
         fun reject(reason:StrategyActionRejection)=StrategyActionResult(p,stocks,reason)
@@ -164,6 +164,22 @@ internal object StrategicOperations {
         return if (updated == operations) stocks else stocks.copy(strategic = stocks.strategic.copy(operations = updated))
     }
 
+    fun startOnWarp(stocks: PlanetStocks, grid: Int, seconds: Long, navigators: Collection<Navigator>,
+        fleet: OutfitStock?, eliminated: Set<CountryId>): PlanetStocks {
+        val operations = stocks.strategic.operations
+        val updated = operations.map { plan ->
+            val issued = plan.issuedAt
+            if (plan.state != StrategicPlanState.ISSUED || plan.grid != grid || plan.country in eliminated ||
+                issued == null || seconds !in issued until OperationPlanRules.endGameSeconds(issued)) return@map plan
+            val assignedArrival = if (plan.force == StrategicForce.SOLO)
+                navigators.any { soloParticipant(plan, stocks, it) }
+            else fleet != null && fleet.id in plan.outfits &&
+                TacticalAuthority.camp(fleet, stocks) == Camp(plan.country) && shipUnits(fleet) > 0
+            if (assignedArrival) plan.copy(state = StrategicPlanState.STARTED) else plan
+        }
+        return if (updated == operations) stocks else stocks.copy(strategic = stocks.strategic.copy(operations = updated))
+    }
+
     fun awardSweep(stocks:PlanetStocks,shooter:Navigator,grid:Int,seconds:Long,destroyed:Int):PlanetStocks {
         if(destroyed<=0 || CoupActions.rebel(stocks,shooter.characterId,shooter.country))return stocks
         if(stocks.strategic.operations.none {plan->
@@ -186,8 +202,7 @@ internal object StrategicOperations {
         val regular=Camp(plan.country)
         return plan.outfits.any {stocks.outfits[it]?.let {o->TacticalAuthority.camp(o,stocks)==regular &&
             o.positionIn(galaxy).grid==plan.grid && shipUnits(o)>0}==true} ||
-            (plan.force==StrategicForce.SOLO && navigators.orEmpty().any {it.generation==stocks.generation && TacticalAuthority.camp(it,stocks)==regular &&
-                it.characterId in plan.characters && it.grid==plan.grid && hasLiveFlagship(it,stocks)})
+            soloReached(plan,stocks,navigators.orEmpty())
     }
 
     fun recordDefenseOccupation(galaxy: Galaxy, stocks: PlanetStocks, navigators: Collection<Navigator>,
