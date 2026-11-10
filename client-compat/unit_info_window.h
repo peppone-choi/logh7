@@ -70,20 +70,32 @@ static logh::TacticalInspectView inspectView(BYTE* world,const BYTE* unit) {
     const unsigned relation=ownRecord ? liveTacticalRelation(world,ownRecord,logh::infoWord(unit,4),0x1000) : 0x1000;
     return logh::tacticalInspectView(relation,logh::tacticalInspectUndetected(unit,own ? at<unsigned>(own,0x48) : 0));
 }
+constexpr unsigned tacticalShipRows=600;
+static unsigned tacticalShipRowOf(const BYTE* world,unsigned id) {
+    if (id) for (unsigned i=0;i<tacticalShipRows;++i) {
+        auto unit=tacticalShipRow(world,i);
+        if (unit && logh::infoWord(unit,4)==id) return i;
+    }
+    return tacticalShipRows;
+}
 // The approved basic view is exactly a detected ship of another camp, so own, allied and undetected ships never page in.
+static bool detectedEnemyRow(BYTE* world,unsigned i) {
+    auto unit=tacticalShipRow(world,i);
+    return unit && inspectView(world,unit)==logh::TacticalInspectView::basic;
+}
 static unsigned nextDetectedEnemy(BYTE* world,unsigned current,bool forward) {
     if (!at<BYTE*>(world,8) || !ownTacticalRecord(world)) return 0;
-    constexpr unsigned rows=600;
-    unsigned start=forward ? rows-1 : 0;
-    if (current) for (unsigned i=0;i<rows;++i) {
-        auto unit=tacticalShipRow(world,i);
-        if (unit && logh::infoWord(unit,4)==current) {start=i;break;}
-    }
-    const unsigned row=logh::nextInspectRow(rows,start,forward,[&](unsigned i) {
-        auto unit=tacticalShipRow(world,i);
-        return unit && inspectView(world,unit)==logh::TacticalInspectView::basic;
-    });
-    return row<rows ? logh::infoWord(tacticalShipRow(world,row),4) : 0;
+    const unsigned found=tacticalShipRowOf(world,current);
+    const unsigned start=found<tacticalShipRows ? found : forward ? tacticalShipRows-1 : 0;
+    const unsigned row=logh::nextInspectRow(tacticalShipRows,start,forward,[&](unsigned i) {return detectedEnemyRow(world,i);});
+    return row<tacticalShipRows ? logh::infoWord(tacticalShipRow(world,row),4) : 0;
+}
+// An open lookup must not hold a ship that left detection or the table: keep it while detected, else move to the
+// next detected enemy, and with none left show the empty lookup text.
+static unsigned keepDetectedEnemy(BYTE* world,unsigned current) {
+    if (!at<BYTE*>(world,8) || !ownTacticalRecord(world)) return 0;
+    const unsigned row=logh::keepInspectRow(tacticalShipRows,tacticalShipRowOf(world,current),[&](unsigned i) {return detectedEnemyRow(world,i);});
+    return row<tacticalShipRows ? logh::infoWord(tacticalShipRow(world,row),4) : 0;
 }
 static bool updateUnitWindow() {
     auto& w=unitWindow;
@@ -99,6 +111,7 @@ static bool updateUnitWindow() {
         closeUnitWindow();return false;
     }
     if (w.index>=count) w.index=0;
+    if (w.browsing && w.inspect) w.inspect=keepDetectedEnemy(world,w.inspect);
     const unsigned shown=inspecting ? w.inspect : selectedUnitId(w.index);
     auto unit=shown ? tacticalUnit(world,shown) : nullptr;
     const auto view=unit && inspecting ? inspectView(world,unit) : logh::TacticalInspectView::full;

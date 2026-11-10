@@ -37,6 +37,12 @@ template<class Accept> inline unsigned nextInspectRow(unsigned rows,unsigned sta
     }
     return rows;
 }
+// Keeps a still-accepted current row, else pages forward from it (from the top when it is gone, current>=rows).
+// rows means none is left.
+template<class Accept> inline unsigned keepInspectRow(unsigned rows,unsigned current,Accept accept) {
+    if(current<rows && accept(current))return current;
+    return nextInspectRow(rows,current<rows ? current : rows-1,true,accept);
+}
 // spec = world+0x2c1a78+kind*0x2a8. The rated float is spec+0x258, the effective integer unit+0x958.
 inline bool tacticalInspectRated(const BYTE* spec,float& rated) {
     std::memcpy(&rated,spec+0x258,sizeof(rated));
