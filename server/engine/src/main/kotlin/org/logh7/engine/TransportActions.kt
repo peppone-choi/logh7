@@ -63,24 +63,50 @@ object TransportActions {
 
     /** A tactical detachment divides surviving cargo without treating the separation as a casualty. */
     internal fun splitRetreatCargo(state:StrategicState,original:OutfitStock,left:OutfitStock,moved:OutfitStock):StrategicState? {
-        if(original.kind!=OutfitKind.TRANSPORT || state.transports.none {it.carrier==original.id})return state
+        if(original.kind!=OutfitKind.TRANSPORT)return state
+        val cargo=carriedCargo(original,state.transports)
+        if(cargo.isEmpty())return state
         val originalBoats=boats(original)
         val movedBoats=boats(moved)
         val leftBoats=boats(left)
+        fun supplyRoom(outfit:OutfitStock)=OutfitSupplies.capacity(outfit)-outfit.supplies.toLong()
+        fun unitRoom(outfit:OutfitStock)=freeUnitSlots(outfit,0).toLong()
+
+        fun allocate(amounts:List<Int>,leftRoom:Long,movedRoom:Long):IntArray? {
+            val total=amounts.sumOf {it.toLong()}
+            val minimum=(total-leftRoom.coerceAtLeast(0)).coerceAtLeast(0)
+            val maximum=minOf(total,movedRoom.coerceAtLeast(0))
+            if(minimum>maximum)return null
+            val preferred=IntArray(amounts.size) {i->(amounts[i].toLong()*movedBoats/originalBoats).toInt()}
+            val preferredTotal=preferred.sumOf {it.toLong()}
+            // Preserve every proportional share unless one side needs to give up cargo.
+            var shift=preferredTotal.coerceIn(minimum,maximum)-preferredTotal
+            for(i in preferred.indices) {
+                if(shift==0L)break
+                val adjustment=shift.coerceIn(-preferred[i].toLong(),amounts[i].toLong()-preferred[i]).toInt()
+                preferred[i]+=adjustment
+                shift-=adjustment
+            }
+            return preferred
+        }
+
+        val supplies=allocate(cargo.map {it.first},supplyRoom(left),supplyRoom(moved)) ?: return null
+        val units=allocate(cargo.flatMap {(_,units)->units.ships.values+units.troops.values},
+            unitRoom(left),unitRoom(moved))?.iterator() ?: return null
         var lastId=state.transportIdFloor
+        var cargoIndex=0
         val packages=mutableListOf<TransportPackage>()
         for(pack in state.transports) {
             if(pack.carrier!=original.id) {
                 packages+=pack
                 continue
             }
-            val (supplies,units)=delivered(pack,originalBoats)
-            fun movedShare(amount:Int)=(amount.toLong()*movedBoats/originalBoats).toInt()
-            val movedSupplies=movedShare(supplies)
-            val movedUnits=UnitInventory(units.ships.mapValues {movedShare(it.value)}.filterValues {it>0},
-                units.troops.mapValues {movedShare(it.value)}.filterValues {it>0})
-            val leftUnits=minus(units,movedUnits)
-            val leftSupplies=supplies-movedSupplies
+            val (originalSupplies,originalUnits)=cargo[cargoIndex]
+            val movedSupplies=supplies[cargoIndex++]
+            val movedUnits=UnitInventory(originalUnits.ships.mapValues {units.nextInt()}.filterValues {it>0},
+                originalUnits.troops.mapValues {units.nextInt()}.filterValues {it>0})
+            val leftUnits=minus(originalUnits,movedUnits)
+            val leftSupplies=originalSupplies-movedSupplies
             val hasLeft=leftSupplies>0 || unitCount(leftUnits)>0
             val hasMoved=movedSupplies>0 || unitCount(movedUnits)>0
             if(hasLeft)packages+=pack.copy(supplies=leftSupplies,units=leftUnits,carrierBoats=leftBoats,survivingBoats=leftBoats)
@@ -90,13 +116,7 @@ object TransportActions {
                     carrier=moved.id,carrierBoats=movedBoats,survivingBoats=movedBoats)
             }
         }
-        fun fits(outfit:OutfitStock):Boolean {
-            val cargo=packages.filter {it.carrier==outfit.id}
-            if(cargo.isEmpty())return true
-            return cargo.sumOf {it.supplies.toLong()}<=OutfitSupplies.capacity(outfit)-outfit.supplies.toLong() &&
-                cargo.sumOf {unitCount(it.units).toLong()}<=unitSlots(outfit)-outfit.activeGround?.values.orEmpty().count {it.carrier>0}
-        }
-        if(packages.size>4096 || !fits(left) || !fits(moved))return null
+        if(packages.size>4096)return null
         return state.copy(transports=packages,lastTransportId=lastId)
     }
 

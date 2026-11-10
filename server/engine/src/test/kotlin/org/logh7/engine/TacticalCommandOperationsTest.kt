@@ -1729,6 +1729,57 @@ class TacticalCommandOperationsTest {
         assertEquals(21,s.stocks.strategic.lastTransportId)
     }
 
+    @Test fun mixedTransportRetreatRebalancesCargoToActualResidualCapacity() {
+        val s=state()
+        s.players=s.players+("pilot" to s.players.getValue("pilot").copy(motion=motion(260f)))
+        val outfit=s.stocks.outfits.getValue(1)
+        val escort=UnitStack(32)
+        val transport=UnitStack(ProductionUnits.definitions.first {it.ship && it.power==2 && it.name.startsWith("輸送艦")}.kind)
+        val escortSupplies=OutfitSupplies.unitCapacity(escort.kind)-20
+        val ships=ActiveShipUnits(outfit.activeShips!!.values.map {
+            it.copy(stack=if(it.id==1)escort else transport,supplies=if(it.id==1)escortSupplies else 0,
+                tactical=NpcTacticalState(motion(260f,it.id*.4f),now,now))
+        })
+        val troop=UnitStack(0)
+        val cargo=TransportPackage(10,outfit.country,1000,1001,100,
+            UnitInventory(troops=mapOf(troop to 11)),1,600)
+        val small=cargo.copy(id=11,supplies=0,units=UnitInventory(ships=mapOf(escort to 1)))
+        val unrelated=TransportPackage(12,s.stocks.outfits.getValue(2).country,1001,1000,73,carrier=2,carrierBoats=300)
+        s.stocks=s.stocks.copy(outfits=s.stocks.outfits+(1 to outfit.copy(kind=OutfitKind.TRANSPORT,
+            activeShips=ships,units=UnitInventory(ships.quantities()),supplies=escortSupplies)),
+            warehouses=s.stocks.warehouses+(10 to s.stocks.warehouses.getValue(10).copy(kind=OutfitKind.TRANSPORT)),
+            strategic=s.stocks.strategic.copy(transports=listOf(cargo,small,unrelated),lastTransportId=20),
+            outfitSequence=OutfitSequence(50,60))
+        val r=run(s)
+        val req=request(TacticalCommand(0x40d,listOf(1))).copy(tacticalCommand=null,tacticalRetreat=listOf(1))
+        assertNotNull(TacticalFleetRetreat.accept(req,session,galaxy,r.navigation,r.production,r.production.snapshot(1)!!,s.commit,1).player)
+        settle(r,now+5)
+        val before=s.stocks
+        val over=cargo.copy(units=UnitInventory(troops=mapOf(troop to 12)))
+        val insufficient=before.copy(strategic=before.strategic.copy(transports=listOf(over,small,unrelated)))
+        val movements=mutableListOf<TacticalMovement>()
+        assertEquals(insufficient,TacticalFleetRetreat.advance(session.copy(gameMillis=(now+155)*1000),
+            galaxy,s.players.toMutableMap(),insufficient,movements))
+        assertTrue(movements.isEmpty())
+
+        s.fail=true
+        assertFailsWith<java.io.IOException> {settle(r,now+155)}
+        assertSame(before,s.stocks)
+        s.fail=false
+        settle(r,now+155)
+        assertEquals(transport,s.stocks.outfits.getValue(1).activeShips!!.values.single().stack)
+        val detached=s.stocks.outfits.getValue(50)
+        assertEquals(escort,detached.activeShips!!.values.single().stack)
+        assertEquals(escortSupplies,detached.supplies)
+        assertEquals(listOf(
+            cargo.copy(supplies=80,units=UnitInventory(troops=mapOf(troop to 9)),carrierBoats=300,survivingBoats=300),
+            cargo.copy(id=21,supplies=20,units=UnitInventory(troops=mapOf(troop to 2)),carrier=50,carrierBoats=300,survivingBoats=300),
+            small.copy(carrierBoats=300,survivingBoats=300),
+            unrelated,
+        ),s.stocks.strategic.transports)
+        assertEquals(21,s.stocks.strategic.lastTransportId)
+    }
+
     @Test fun retreatOfLastSurvivingTransportKeepsOutfitAndCargo() {
         val s=state()
         s.players=s.players+("pilot" to s.players.getValue("pilot").copy(motion=motion(260f)))
