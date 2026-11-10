@@ -48,11 +48,18 @@ object PirateActions {
     fun frontier(g:Galaxy,s:PlanetStocks)=g.systems.map {it.grid}.filter {grid->
         g.bases.none {b->b.grid==grid && s.bases[b.id]?.country!=null}}.distinct().sorted()
 
-    internal fun engaged(g:Galaxy,s:PlanetStocks,players:Collection<Navigator>,grid:Int):Boolean =
-        players.any {it.grid==grid && it.baseId==0 && it.mode==5 && it.cpPaused && it.hull!=null} ||
-            s.outfits.values.any {outfit->outfit.positionIn(g)==OutfitPosition(grid) &&
-                outfit.activeShips?.values.orEmpty().any {ship->ship.boats>0 &&
-                    ship.posture?.takeIf {it.grid==grid}?.mode!=TacticalShipMode.STATIONED}}
+    private fun activeOpponents(g:Galaxy,s:PlanetStocks,players:Collection<Navigator>,grid:Int,
+        eliminated:Set<CountryId>):Sequence<Int> =
+        players.asSequence().filter {it.generation==s.generation && it.country !in eliminated && it.grid==grid &&
+            it.baseId==0 && it.mode==5 && it.cpPaused && it.hull!=null && !BattleDeath.deceased(s,it.characterId)}
+            .map {it.unitId} +
+            s.outfits.values.asSequence().filter {it.country !in eliminated && it.positionIn(g)==OutfitPosition(grid)}
+                .flatMap {outfit->outfit.activeShips?.values.orEmpty().asSequence()}
+                .filter {ship->ship.boats>0 && ship.posture?.takeIf {it.grid==grid}?.mode!=TacticalShipMode.STATIONED}
+                .map {it.id}
+
+    internal fun engaged(g:Galaxy,s:PlanetStocks,players:Collection<Navigator>,grid:Int,
+        eliminated:Set<CountryId>):Boolean = activeOpponents(g,s,players,grid,eliminated).any()
 
     /** U-32 strategic movement: fleets not in battle drift to a nearby frontier grid, preferring trade-route ends. */
     fun move(g:Galaxy,s:PlanetStocks,now:Long,engaged:Set<Int>):PlanetStocks {
@@ -79,15 +86,12 @@ object PirateActions {
         impacts:MutableList<TacticalImpact>):PlanetStocks {
         var s=start
         for(fleet in start.social.pirates.fleets.values.filter {it.alive && now-it.firedAt>=FIRE_SECONDS}.sortedBy {it.id}) {
-            if(!engaged(g,s,players.values,fleet.grid))continue
+            if(!engaged(g,s,players.values,fleet.grid,session.eliminated.keys))continue
             val observers=fleet.units.filter {it.boats>0}.mapNotNull {pose(s,it.id)?.position}
             for(unit in fleet.units.filter {it.boats>0}) {
                 val origin=pose(s,unit.id) ?: continue
-                val candidates=players.values.filter {it.cpPaused && it.grid==fleet.grid && it.baseId==0 && it.hull!=null}.map {it.unitId} +
-                    s.outfits.values.filter {it.positionIn(g)==OutfitPosition(fleet.grid)}.flatMap {o->o.activeShips?.values.orEmpty()
-                        .filter {it.boats>0}.map {it.id}}
-                val victim=candidates.mapNotNull {id->
-                    TacticalCombat.target(id,fleet.grid,Camp.PIRATES,s,g,players)?.let {t->
+                val victim=activeOpponents(g,s,players.values,fleet.grid,session.eliminated.keys).mapNotNull {id->
+                    TacticalCombat.target(id,fleet.grid,Camp.PIRATES,s,g,players,session.eliminated.keys)?.let {t->
                         val at=t.personal?.second?.let {p->p.motion?.pose(now,p.posture,g,s)?.position ?:
                             TacticalDeployment.initial(p.unitId,p.grid,players.values,s,g).position} ?:
                             t.regular?.second?.tactical?.motion?.pose(now,t.regular.second.posture,g,s)?.position ?:

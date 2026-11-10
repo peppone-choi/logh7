@@ -733,7 +733,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         val pirateDeadlines=if(galaxy==null || session.ended!=null)emptyList() else snapshot.planetStocks?.let {stocks->
             val pirates=stocks.social.pirates
             val fleetDeadlines=pirates.fleets.values.filter {it.alive}.map {fleet->
-                if(PirateActions.engaged(galaxy,stocks,snapshot.navigators.values,fleet.grid))
+                if(PirateActions.engaged(galaxy,stocks,snapshot.navigators.values,fleet.grid,session.eliminated.keys))
                     fleet.firedAt+PirateActions.FIRE_SECONDS
                 else fleet.since+PirateActions.SPAWN_DAYS*Justice.DAY
             }
