@@ -137,7 +137,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val national = initialized.nationalTreasuries.toMutableMap()
         // U-20: the 封土 card text (constmsg, evidence:client) gives a fief's taxes to its lord,
         // so the whole collected amount goes to the lord's private money, not the treasuries.
-        val lords = linkedMapOf<Int, Long>()
+        val lordBalances = linkedMapOf<Int, Long>()
         val capitals = CapitalProvisioning.capitals(galaxy, initialized)
         val result = if (days <= initialized.producedDays) initialized else {
             val bases=initialized.bases.toMutableMap()
@@ -161,8 +161,11 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                         // evidence:guess — resume remittance after death. Same-tick production precedes combat.
                         death==0L || dayEnd<=death
                     }
-                    if(lord!=null)lords[lord]=Math.addExact(lords[lord] ?: 0,revenue.collected)
-                    else if(revenue.central>0) {
+                    if(lord!=null) {
+                        val held=lordBalances[lord] ?: initialized.strategic.people[lord]?.money ?: 0L
+                        // Cap each credit so catch-up never sums income that a daily settlement would discard.
+                        lordBalances[lord]=minOf(0xffffffffL,held+revenue.collected)
+                    } else if(revenue.central>0) {
                         val country=checkNotNull(next.country)
                         national[country]=Math.addExact(national[country] ?: 0,revenue.central)
                     }
@@ -184,9 +187,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 }
             }
             initialized.copy(producedDays=days,bases=bases,nationalTreasuries=national).let {produced ->
-                if(lords.isEmpty())produced else produced.copy(strategic=produced.strategic.copy(people=produced.strategic.people+
-                    lords.mapValues {(lord,amount)->(produced.strategic.people[lord] ?: StrategicPerson()).let {
-                        it.copy(money=minOf(0xffffffffL,it.money+amount))}}))
+                if(lordBalances.isEmpty())produced else produced.copy(strategic=produced.strategic.copy(people=produced.strategic.people+
+                    lordBalances.mapValues {(lord,balance)->(produced.strategic.people[lord] ?: StrategicPerson()).copy(money=balance)}))
             }
         }
         // Personnel rules run once per crossed 30-day boundary, in order.
