@@ -46,13 +46,54 @@ class SupplementWireTest {
         LogisticsMessages.Header(-1,10000,Int.MAX_VALUE,Int.MAX_VALUE),mode,1049,1,0,
         listOf(SupplementMessages.Units(32,listOf(id))),listOf(LogisticsMessages.TroopMove(1007,3,32767)),supplies,
         LogisticsMessages.Inventory(listOf(LogisticsMessages.ShipStock(32,255,65535)),emptyList()),Int.MAX_VALUE,Int.MAX_VALUE,Int.MAX_VALUE)
-    private fun receive(c: SyntheticClient,mode: Int=1,accepted: Boolean=true): SupplementMessages.Query {
+    private fun receive(c: SyntheticClient, mode: Int = 1, accepted: Boolean = true,
+        expectedRoom: Int? = null): SupplementMessages.Query {
         val raw=c.receive();assertEquals(0x0c05,ByteBuffer.wrap(raw).getShort(4).toInt())
         assertEquals(if(accepted)0 else 1,ByteBuffer.wrap(raw).int)
         val result=SupplementMessages.query(raw.copyOfRange(4,raw.size))
-        if(mode==1){c.expect(0x0356);if(accepted){c.expect(0x032f);c.expect(0x0327)}}
+        if (mode == 1) {
+            c.expect(0x0356)
+            if (accepted) {
+                val party = c.expect(0x032f)
+                if (expectedRoom != null) {
+                    val input = ByteBuffer.wrap(party, party.size - 17, 8)
+                    assertEquals(result.resultSupplies, input.int)
+                    assertEquals(expectedRoom, input.int)
+                }
+                c.expect(0x0327)
+            }
+        }
         return result
     }
+    @Test fun supplyResponseAndPartyShowTheSameCapacityAfterCarriedCargo() {
+        val state = State()
+        val kind = OutfitKind.TRANSPORT
+        val outfit = state.stocks.outfits.getValue(1).copy(kind = kind, supplies = 100)
+        val warehouse = state.stocks.warehouses.getValue(101).copy(kind = kind)
+        val cargo = TransportPackage(1, outfit.country, 1049, 1050, OutfitSupplies.capacity(outfit) - 102,
+            carrier = outfit.id, carrierBoats = 290)
+        state.stocks = state.stocks.copy(outfits = mapOf(outfit.id to outfit), warehouses = mapOf(warehouse.id to warehouse),
+            strategic = state.stocks.strategic.copy(transports = listOf(cargo), lastTransportId = cargo.id))
+        fixture(state, "carried-cargo").use { server ->
+            val client = server.join(server.account(0), true, false).client
+            start(client)
+            val request = query(mode = 0, supplies = 1).copy(kind = kind.wire, units = emptyList())
+            client.send(SupplementMessages.encode(request))
+            val preview = receive(client, mode = 0)
+            assertEquals(101, preview.resultSupplies)
+            assertEquals(102, preview.maxSupplies)
+            assertEquals(1000, preview.header.mcp)
+            assertEquals(0, state.saves)
+
+            client.send(SupplementMessages.encode(request.copy(mode = 1)))
+            val result = receive(client, expectedRoom = 1)
+            assertEquals(101, result.resultSupplies)
+            assertEquals(102, result.maxSupplies)
+            assertEquals(840, result.header.mcp)
+            assertEquals(1, state.saves)
+        }
+    }
+
     @Test fun authenticatedPreviewAndCommitIgnoreForgedOutcomesAndReconnectDoesNotRefillOrRecharge() {
         val state=State()
         fixture(state,"first").use {server ->

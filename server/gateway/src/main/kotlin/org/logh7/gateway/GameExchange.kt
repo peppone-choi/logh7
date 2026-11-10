@@ -1578,7 +1578,7 @@ class GameExchange(
                             listOf(org.logh7.protocol.SupplementMessages.response(query,gameSeconds(),player.pcp,player.mcp,accepted,
                                 result.troops.map {org.logh7.protocol.LogisticsMessages.TroopMove(1000+it.key.kind,it.key.level,it.value)},
                                 result.supplies,inventory,outfit?.supplies ?: 0,result.maxCrew,
-                                outfit?.let {org.logh7.engine.OutfitSupplies.capacity(it.units)} ?: 0))+
+                                outfit?.let {org.logh7.engine.OutfitSupplies.visibleCapacity(it, stored.strategic.transports)} ?: 0))+
                                 (if(query.mode==1)listOf(characterMessage(character,player,true)) else emptyList())+
                                 (if(accepted && query.mode==1)listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
                                     query.outfit,query.base,0),checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value,stored,characterById=::currentCharacterById),
