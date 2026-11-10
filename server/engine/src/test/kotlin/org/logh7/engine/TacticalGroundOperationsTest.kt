@@ -279,6 +279,15 @@ class TacticalGroundOperationsTest {
         val reservedOutfit=reserved.outfits.getValue(1)
         val active=assertNotNull(reservedOutfit.activeGround).values
         val order=assertNotNull(active.first().order)
+        val second=request(TacticalGroundAction.WITHDRAW,listOf(4))
+        assertEquals(NavigationRejection.UNIT,accept(s,n,p,second).rejection)
+        s.stocks=reserved.copy(tacticalCommands=reserved.tacticalCommands.copy(morale=mapOf(1 to 15)))
+        assertNotNull(accept(s,Navigation(galaxy,s.nav,NavigationPolicy()),production(s),second).player)
+        val invalid=mutableListOf<TacticalGroundResult>()
+        val afterInvalid=TacticalGroundOperations.advance(session.copy(gameMillis=(now+600)*1000),galaxy,s.players,s.stocks,invalid)
+        assertEquals(listOf(true,false),invalid.map {it.cancelled})
+        assertEquals(listOf(0,4),afterInvalid.outfits.getValue(1).activeGround!!.values.map {it.carrier})
+
         val overbooked=ActiveGroundUnits(listOf(active.first(),active.last().copy(order=order.copy(carrier=4))))
         s.stocks=reserved.copy(outfits=mapOf(1 to reservedOutfit.copy(activeGround=overbooked)))
 
