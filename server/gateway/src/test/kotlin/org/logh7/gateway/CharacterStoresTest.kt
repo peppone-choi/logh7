@@ -76,7 +76,8 @@ class CharacterStoresTest {
         assertFalse(reopened.reconcileVoluntaryDeletion("pilot", setOf(10000)))
         assertEquals(10001L, reopened.fameParticipants().first.getValue("pilot").character.id)
 
-        val session = SessionSnapshot(1, 0, 0, 0, emptyMap(), 0, 0, null)
+        val session = SessionSnapshot(1, 0, 0, 0, emptyMap(), 0, 0, null,
+            participantCountries = mapOf("pilot" to CountryId(2)))
         val stocks = PlanetStocks(1, 0, emptyMap(), deletedCharacters = mapOf("pilot" to setOf(10020)))
         val world = WorldSnapshot(0, 0, session, planetStocks = stocks)
         val unpruned = CharacterStores(null).get(1)
@@ -85,6 +86,14 @@ class CharacterStoresTest {
         assertEquals(unpruned.profiles(), WorldCharacters.profiles(unpruned.profiles(),
             world.copy(session = session.copy(generation = 2))))
         val recovered = CharacterStores(null, worldSnapshot = { world }).get(1)
+        assertTrue(recovered.canRegisterIn("pilot", CountryId(2)))
+        assertFalse(recovered.canRegisterIn("pilot", CountryId(3)))
+        assertFalse(recovered.canRegisterIn("pilot", null))
+        assertTrue(recovered.canRegisterIn("other", CountryId(3)))
+        assertEquals(listOf(1001L), recovered.candidates("pilot").map { it.character.id })
+        assertFailsWith<IllegalArgumentException> {
+            recovered.accept("pilot", profile.copy(category = 0, id = 0, power = 3, origin = 3))
+        }
         val next = recovered.accept("pilot", profile.copy(category = 0, id = 0))
         assertEquals(10021L, CharacterMessages.generate(next.copyOfRange(4, next.size)).id)
     }

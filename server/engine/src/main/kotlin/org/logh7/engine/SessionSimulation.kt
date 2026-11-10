@@ -30,7 +30,8 @@ data class SessionSnapshot(val generation: Long, val gameSeconds: Long, val stra
     val cpRecoveryEvents: Long, val tacticalTicks: Map<String, Long>, val participants: Int, val online: Int,
     val ended: SessionEnd?, val countries: Set<CountryId> = emptySet(),
     val eliminated: Map<CountryId, CountryDefeat> = emptyMap(),
-    val elapsedGameSeconds: Long = gameSeconds)
+    val elapsedGameSeconds: Long = gameSeconds,
+    val participantCountries: Map<String, CountryId?> = emptyMap())
 sealed interface WorldEvent {
     data class StrategyTicks(val first: Long, val count: Long) : WorldEvent
     data class TacticalTicks(val instance: String, val first: Long, val count: Long) : WorldEvent
@@ -103,7 +104,8 @@ class SessionSimulation(private val rules: SessionRules, private var generation:
     }
     fun snapshot() = SessionSnapshot(generation, gameMillis / 1000, strategyTicks, recoveries,
         battles.mapValues { it.value.ticks }, participants.size, participants.values.count { it.online }, ended?.detached(),
-        countries.toSet(), eliminated.toMap(), elapsedGameSeconds = gameMillis / 1000 - rules.startSeconds)
+        countries.toSet(), eliminated.toMap(), elapsedGameSeconds = gameMillis / 1000 - rules.startSeconds,
+        participantCountries = participants.mapValues { it.value.country })
     fun join(account: String, power: Power, original: Boolean, connection: String? = null): Admission {
         return join(account, power.country, original, connection)
     }

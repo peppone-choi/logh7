@@ -1664,6 +1664,7 @@ class GameExchange(
                                                 it.country == available.country && it.nativePower == available.nativePower
                                         }
                                     }
+                                    selected = selected?.takeIf { characters.canRegisterIn(identity.account, it.country) }
                                     if(selected!=null) {
                                         characters.cancelCreation(identity.account,connection)
                                         countrySelection=selected;countrySelectionMode=request.query.mode;accepted=true
@@ -3191,6 +3192,24 @@ class GameExchange(
                         SessionEndingReport.information(navigation?.snapshot(),characterProvider().profiles(),
                             sessionId,sessionName,admission?.generation ?: 1L)) }
                 0x032e -> {
+                    if (body.size == 11 && (body[10].toInt() and 255) == LOBBY_DELETE_MODE) {
+                        check(lobbyLoggedIn)
+                        val query = org.logh7.protocol.OutfitPartyMessages.query(body)
+                        val expected = lobbyDeletionGenerations[query.base] ?: return null
+                        lobbyDeletionGenerations = lobbyDeletionGenerations - query.base
+                        val operation = if (sessionDirectory != null)
+                            sessionDirectory.deleteCharacter(query.base, identity.account, expected, query.outfit)
+                        else if (query.base == sessionId && admission?.running != false && maintenance?.closed() != true)
+                            deleteLobbyCharacter(identity.account, expected, query.outfit, admission?.generation ?: 1L,
+                                characterProvider(), stock)
+                        else null
+                        pendingWorld = operation?.handle { _, failure ->
+                            if (failure != null) System.err.println("Lobby deletion failed: ${failure.javaClass.simpleName}")
+                            emptyList()
+                        }
+                        // The DLL immediately asks for 2003. The gateway defers it until this commit completes.
+                        return null
+                    }
                     if(body.size==11 && (body[10].toInt() and 255)==org.logh7.protocol.CountryEndingMessages.MODE) {
                         check(lobbyLoggedIn)
                         val request=org.logh7.protocol.CountryEndingMessages.Request(org.logh7.protocol.OutfitPartyMessages.query(body))
@@ -3223,27 +3242,6 @@ class GameExchange(
                     val frames=if(sessionDirectory!=null)sessionDirectory.countries(request)
                         else if(request.sessionId==sessionId && admission?.running!=false)lobbyCountries?.invoke(request) else null
                     return handshake.stageAll(frames ?: LobbyCountryCatalogue.empty(request),clearHeader=0)
-                }
-                0x2008 -> {
-                    check(lobbyLoggedIn && body.size == 8)
-                    // CD compatibility extension. The original name is known, but this payload is project-defined.
-                    val fields = java.nio.ByteBuffer.wrap(body, 2, 6)
-                    val selected = fields.short.toInt() and 0xffff
-                    val character = fields.int
-                    val expected = lobbyDeletionGenerations[selected] ?: return null
-                    lobbyDeletionGenerations = lobbyDeletionGenerations - selected
-                    val operation = if (sessionDirectory != null)
-                        sessionDirectory.deleteCharacter(selected, identity.account, expected, character)
-                    else if (selected == sessionId && admission?.running != false && maintenance?.closed() != true)
-                        deleteLobbyCharacter(identity.account, expected, character, admission?.generation ?: 1L,
-                            characterProvider(), stock)
-                    else null
-                    pendingWorld = operation?.handle { _, failure ->
-                        if (failure != null) System.err.println("Lobby deletion failed: ${failure.javaClass.simpleName}")
-                        emptyList()
-                    }
-                    // The DLL immediately asks for 2003. The gateway defers it until this commit completes.
-                    return null
                 }
                 0x2009 -> {
                     check(lobbyLoggedIn)

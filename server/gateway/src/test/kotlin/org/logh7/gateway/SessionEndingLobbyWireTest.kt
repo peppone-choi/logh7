@@ -36,7 +36,8 @@ class SessionEndingLobbyWireTest {
         var inventory = PlanetStocks(1, 0, mapOf(
             1000 to PlanetStock(1000, 2, 0, 0, 0, 0),
             1001 to PlanetStock(1001, 3, 0, 0, 0, 0)), deploymentInitialized = true)
-        fun request() = ByteBuffer.allocate(8).putShort(0x2008).putShort(1).putInt(character).array()
+        fun request() = ByteBuffer.allocate(11).putShort(0x032e).putInt(character).putInt(1)
+            .put(LOBBY_DELETE_MODE.toByte()).array()
         val refresh = SyntheticClient.opcode(0x2003)
         LoadFixture(directory, 2, LoadMetrics(), galaxy, ticking = false,
             navigationStore = object : NavigationStore {

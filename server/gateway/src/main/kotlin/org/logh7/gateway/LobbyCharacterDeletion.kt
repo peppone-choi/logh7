@@ -3,6 +3,9 @@ package org.logh7.gateway
 import org.logh7.engine.CharacterDeletionResult
 import java.util.concurrent.CompletableFuture
 
+// The CD's ordinary 032e encoder is available in the lobby. 2008 has no confirmed encoder.
+internal const val LOBBY_DELETE_MODE = 24
+
 /** The caller supplies the authenticated account. Generation and character must match the confirmed lobby selection. */
 internal fun deleteLobbyCharacter(account: String, generation: Long, character: Int, currentGeneration: Long,
     characters: CharacterCreation, stock: GameStock?): CompletableFuture<CharacterDeletionResult> {
