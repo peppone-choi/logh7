@@ -150,7 +150,7 @@ internal object NpcStrategy {
             val required=maxOf(unit.boats*2,(home?.let {it.jumps*unit.boats+shot} ?: 0))
             balances.getValue(unit.id)<required
         }
-        if(candidates.isNotEmpty() && beatable(origin) && !short) {
+        if(candidates.isNotEmpty() && beatable(origin) && !short && (position.baseId!=0 || home!=null)) {
             if(origin in candidates)return null
             // Revalidate a reserved route first, then try other enemies in distance order.
             val goals=candidates.sortedWith(compareBy<Int> {
