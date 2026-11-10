@@ -245,9 +245,11 @@ class TransportActionsTest {
         assertEquals(historical,atLimit.strategic.transports.filter {it.country==Power.ALLIANCE.country})
         assertEquals(TransportActions.PER_BASE,atLimit.strategic.transports.count {it.country==Power.EMPIRE.country})
 
-        val rejected=act(request,atLimit)
+        val loaded=assertNotNull(act(load(atLimit.strategic.lastTransportId),atLimit).stocks)
+        assertEquals(200,loaded.strategic.transports.last().carrier)
+        val rejected=act(request,loaded)
         assertEquals(StrategyActionRejection.MAXIMUM,rejected.rejection)
-        assertEquals(atLimit,rejected.stocks)
+        assertEquals(loaded,rejected.stocks)
         assertEquals(officer,rejected.player)
     }
 
