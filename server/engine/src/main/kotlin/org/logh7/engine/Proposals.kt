@@ -11,7 +11,7 @@ data class ProposalMail(val id:Int,val sender:Int,val recipient:Int,val senderCa
     val order:Boolean,val createdAt:Long,val expiresAt:Long,val reply:Int=-1,val pcp:Int=0,val mcp:Int=0,
     /** A third person the command acts on (dismissal) and that person's card; 0 when the recipient itself is the subject. */
     val target:Int=0,val targetCard:Int=0,
-    /** Appointment or dismissal: the selected seat (base or outfit id); 0 for other commands or legacy dismissal. */
+    /** Appointment, dismissal or local resignation: the selected seat (base or outfit id); 0 if unbound. */
     val seat:Int=0,
     /** Null only in old records whose original 2/3 country is identified by the office card. */
     val country:CountryId?=null,
@@ -22,7 +22,8 @@ data class ProposalMail(val id:Int,val sender:Int,val recipient:Int,val senderCa
     val assignmentExpired: Boolean = false) {
     init {require(id>0 && sender>0 && recipient>0 && sender!=recipient && senderCard in 0..260 && card in 1..260 &&
         command in 0..0xffff && createdAt in 0..expiresAt && expiresAt<=0xffffffffL && reply in -1..3 && pcp>=0 && mcp>=0 &&
-        target>=0 && targetCard in 0..260 && (if(ProposalActions.rankChange(command)) target>0 && targetCard==0 else (target==0)==(targetCard==0)) && seat>=0 && (seat==0 || target>0) &&
+        target>=0 && targetCard in 0..260 && (if(ProposalActions.rankChange(command)) target>0 && targetCard==0 else (target==0)==(targetCard==0)) &&
+        seat>=0 && (seat==0 || target>0 || command==ProposalActions.RESIGNATION && country!=null) &&
         (rankChangeMailRank==null || ProposalActions.rankChange(command) && reply==Proposals.APPROVE && rankChangeMailRank in 2..19) &&
         (if (assignment == null) command != ProposalActions.ASSIGNMENT && assignmentOriginalRecipient == 0 && !assignmentExpired
         else command == ProposalActions.ASSIGNMENT && assignmentOriginalRecipient > 0 && assignmentOriginalRecipient != sender &&

@@ -181,9 +181,11 @@ class SocialStoreTest {
         assertEquals(listOf(12,14,15),oldText.split('|')[7].substringBefore('/').split(',').map {it.split(':').size})
         assertEquals(old,SocialStateCodec.decode(oldText));assertEquals(oldText,SocialStateCodec.encode(SocialStateCodec.decode(oldText)))
         assertTrue(SocialStateCodec.decode(oldText).proposals.mails.all {it.originCountry==CountryId(2) && it.country==null})
-        val actual=old.copy(proposals=ProposalState(original.mapIndexed {i,m->
+        val boundResignation=ProposalMail(4,10000,10001,1,39,ProposalActions.RESIGNATION,true,now,now+86400,
+            mcp=40,seat=200,country=CountryId(2))
+        val actual=old.copy(nextId=5,proposals=ProposalState(original.mapIndexed {i,m->
             m.copy(country=CountryId(if(i==2)43 else 42),seat=if(i==1)1049 else m.seat)
-        }))
+        }+boundResignation))
         val encoded=SocialStateCodec.encode(actual)
         assertTrue(encoded.split('|')[7].substringBefore('/').split(',').all {it.split(':').size==16})
         assertEquals(actual,SocialStateCodec.decode(encoded))

@@ -365,6 +365,54 @@ class ProposalActionsTest {
         assertEquals(920, approved.player?.mcp)
         assertEquals(0, assertNotNull(approved.stocks).outfits.getValue(200).commanderId)
     }
+    @Test fun aResignationOrderStaysWithItsOriginalFleetSeat() {
+        val role=FleetOffice.EMPIRE_COMMANDER
+        val initial=policy.set(stocks(),OfficeHolding(1,1049,a.characterId)).copy(
+            outfits=mapOf(200 to OutfitStock(200,2,OutfitKind.FLEET,1049,300,commanderId=b.characterId),
+                201 to OutfitStock(201,2,OutfitKind.FLEET,1049,301)),
+            warehouses=mapOf(300 to OutfitWarehouse(300,2,OutfitKind.FLEET,1049,200),
+                301 to OutfitWarehouse(301,2,OutfitKind.FLEET,1049,201)))
+        val opened=act("a",ProposalActions.OPEN,1,b.characterId,ProposalActions.RESIGNATION,role.card,initial)
+        assertNull(opened.rejection)
+        val pending=assertNotNull(opened.stocks)
+        val mail=pending.social.proposals.mails.single()
+        val vacant=policy.set(pending,OfficeHolding(role.card,200,b.characterId),remove=true)
+        val transferred=policy.set(vacant,OfficeHolding(role.card,201,b.characterId))
+        val denied=act("b",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,transferred)
+        assertEquals(SocialRejection.CARD,denied.rejection)
+        assertEquals(transferred,denied.stocks)
+        assertEquals(b,denied.player)
+        assertEquals(200,mail.seat)
+
+        val due=session.copy(gameMillis=(mail.createdAt+ProposalActions.ABSENT_ORDER_SECONDS)*1000,
+            participants=session.participants+("b" to session.participants.getValue("b").copy(online=false)))
+        val successor=b.copy(characterId=10002)
+        val sender=assertNotNull(opened.player)
+        val players=mutableMapOf("a" to sender,"b" to b,"successor" to successor)
+        assertEquals(transferred,ProposalActions.settle(galaxy,due,players,transferred))
+        assertEquals(b,players.getValue("b"))
+
+        val unrelated=policy.set(vacant,OfficeHolding(role.card,201,successor.characterId))
+        assertEquals(unrelated,ProposalActions.settle(galaxy,due,players,unrelated))
+        assertEquals(successor,players.getValue("successor"))
+
+        val replaced=policy.set(transferred,OfficeHolding(role.card,200,successor.characterId))
+        val completed=ProposalActions.settle(galaxy,due,players,replaced)
+        val reply=completed.social.proposals.mails.single()
+        assertEquals(successor.characterId,reply.recipient)
+        assertEquals(Proposals.APPROVE,reply.reply)
+        assertEquals(0,completed.outfits.getValue(200).commanderId)
+        assertEquals(b.characterId,completed.outfits.getValue(201).commanderId)
+        assertEquals(960,players.getValue("successor").mcp)
+        assertEquals(b,players.getValue("b"))
+
+        val legacy=transferred.copy(social=transferred.social.copy(proposals=ProposalState(listOf(mail.copy(seat=0)))))
+        assertEquals(legacy,ProposalActions.settle(galaxy,due,players,legacy))
+        val expired=ProposalActions.settle(galaxy,due.copy(gameMillis=mail.expiresAt*1000),players,legacy)
+        assertTrue(expired.social.proposals.mails.isEmpty())
+        assertEquals(a.mcp,players.getValue("a").mcp)
+        assertEquals(b.characterId,expired.outfits.getValue(201).commanderId)
+    }
     @Test fun anAppointmentAsksTheRecipientToAppointTheSenderToAVacancy() {
         // 10001 (a rank-4 general here) asks the minister 10000 for a vacancy 10000 may fill with 10001.
         val s=stocks().let {it.copy(strategic=it.strategic.copy(people=it.strategic.people+(10001 to StrategicPerson(rank=4,influence=10))))}

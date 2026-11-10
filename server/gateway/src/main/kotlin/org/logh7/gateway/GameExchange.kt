@@ -529,7 +529,7 @@ class GameExchange(
         if (stocks.tacticalCommands.ai(player.characterId)[3] == 0) return null
         val seconds = gameSeconds()
         val count = communication?.pendingOfficeMailCount(stocks.social.proposals, player,
-            offices(character, player).map { it.kind }, seconds) ?: return null
+            offices(character, player), seconds) ?: return null
         return if (count > 0) ChatMessages.spot(ChatMessages.Spot(player.characterId, ProposalNotice.pending(count)), seconds)
             else null
     }

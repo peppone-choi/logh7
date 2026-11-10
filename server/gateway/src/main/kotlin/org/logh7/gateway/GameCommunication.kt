@@ -2,6 +2,7 @@ package org.logh7.gateway
 
 import org.logh7.engine.*
 import org.logh7.persistence.FileCommunicationStore
+import org.logh7.protocol.BootstrapMessages.OfficeCard
 import org.logh7.protocol.CharacterMessages
 import org.logh7.protocol.MailMessages as Wire
 import java.nio.ByteBuffer
@@ -78,13 +79,15 @@ class GameCommunication(private val presence:GamePresence,private val generation
     }
     private companion object {const val REPLY_ROWS=true}
     private fun officePost(post:Int)=post>0 && OrganizationOffices.of(post)!=null
-    private fun pendingRecipient(mail:ProposalMail,character:Int,country:CountryId)=
-        mail.pending && mail.recipient==character && mail.originCountry==country
+    private fun pendingRecipient(mail:ProposalMail,character:Int,country:CountryId,offices:Collection<OfficeCard>)=
+        mail.pending && mail.recipient==character && mail.originCountry==country && offices.any {
+            it.kind==mail.card && (mail.command!=ProposalActions.RESIGNATION || mail.seat==0 || it.target==mail.seat)
+        }
 
-    internal fun pendingOfficeMailCount(state:ProposalState,player:Navigator,posts:Collection<Int>,seconds:Long):Int {
+    internal fun pendingOfficeMailCount(state:ProposalState,player:Navigator,posts:Collection<OfficeCard>,seconds:Long):Int {
         val country=player.country ?: return 0
-        val held=posts.filter(::officePost).toSet()
-        return state.mails.count {it.card in held && it.expiresAt>seconds && pendingRecipient(it,player.characterId,country)}
+        val held=posts.filter {officePost(it.kind)}
+        return state.mails.count {it.expiresAt>seconds && pendingRecipient(it,player.characterId,country,held)}
     }
     /** The row's command field picks the command-name table (constmsg group 18), so it is the manual command number. */
     private fun commandNumber(mail:ProposalMail)=when(mail.command) {ProposalActions.RESIGNATION -> 7;ProposalActions.DISMISSAL -> 6;ProposalActions.APPOINTMENT -> 5;ProposalActions.DEMOTION -> 2;ProposalActions.SPECIAL_PROMOTION -> 1;ProposalActions.ASSIGNMENT -> 67;else -> 0}
@@ -122,7 +125,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
             (ProposalActions.costs.getValue(mail.command)/2).toInt(),true)
     }
     /** Office rows: received pending 0x0f13, replies to own proposals as 0x0f14 (reply+1 picks 22/78..81), sent pending 0x0f13. */
-    private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean):List<ByteArray> {
+    private fun proposalRows(expected:Long,owner:MailIdentity,post:Int,received:Boolean,offices:Collection<OfficeCard>):List<ByteArray> {
         // Only office cards own proposal rows; a peerage or fief card row crashed the CD's row builder (0053c933).
         if(!officePost(post))return emptyList()
         val state=proposals(expected) ?: return emptyList()
@@ -134,7 +137,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
         for(mail in state.mails.sortedBy {it.id}) {
             if(mail.originCountry!=membership || mail.assignmentExpired)continue
             val type=if(mail.order)1 else 0
-            if(received && mail.card==post && pendingRecipient(mail,owner.character,membership))
+            if(received && mail.card==post && pendingRecipient(mail,owner.character,membership,offices))
                 rows+=listOf(Wire.suggest(Wire.Suggest(mail.id,0,0,who(mail.sender,mail.senderCard),self,mail.createdAt,
                     commandNumber(mail),type,1,mail.pcp,mail.mcp)),paired(mail,expected))
             // Reply rows need the compatibility DLL's 0053c933 null fix (proposal_approval.h). +0x25b 0 shows 22/77 承諾,
@@ -218,7 +221,7 @@ class GameCommunication(private val presence:GamePresence,private val generation
                 if(!holds(actor,post))return listOf(Wire.begin(query),Wire.end())
                 if(post==0)views[connection]=query.inbox
                 val listed=inbox(engine,owner,query.inbox,query.all,post)
-                listed.dropLast(1)+proposalRows(expected,owner,post,query.inbox)+listed.last()
+                listed.dropLast(1)+proposalRows(expected,owner,post,query.inbox,actor.offices)+listed.last()
             }
             0x0f0b -> {
                 val command=Wire.exchange(body)

@@ -79,6 +79,26 @@ class GameCommunicationTest {
             assertTrue(rows().none {opcode(it)==0x0f13})
         }
     }
+    @Test fun boundResignationIsNotListedUnderTheSameCardForAnotherFleet() {
+        val hub=GamePresence()
+        val post=FleetOffice.EMPIRE_COMMANDER.card
+        val mail=ProposalMail(1,b.character,a.character,1,post,ProposalActions.RESIGNATION,true,100,86500,
+            mcp=40,seat=200,country=checkNotNull(a.country))
+        val state=ProposalState(listOf(mail))
+        fun officer(seat:Int)=member(a,"first",mutableListOf()).copy(
+            offices=listOf(org.logh7.protocol.BootstrapMessages.OfficeCard(post,seat)))
+        val query=body(Wire.begin(Wire.Query(peer(a).copy(extra=listOf(0,0,post)),true,true)))
+        GameCommunication(hub,{7},{_,id->listOf(a,b).singleOrNull {it.character==id}},{false},{Store()},proposals={state}).use {service->
+            val original=officer(200)
+            hub.update(original)
+            assertEquals(1,service.handle("first",a,7,query,200).count {opcode(it)==0x0f13})
+            assertEquals(1,service.pendingOfficeMailCount(state,original.player,original.offices,200))
+            val moved=officer(201)
+            hub.update(moved)
+            assertTrue(service.handle("first",a,7,query,200).none {opcode(it)==0x0f13})
+            assertEquals(0,service.pendingOfficeMailCount(state,moved.player,moved.offices,200))
+        }
+    }
     @Test fun consentThenKoreanMailOfflineDeliveryReadDeleteAndReconnectUseRealCodecs() {
         val hub=GamePresence();val messagesA=mutableListOf<List<ByteArray>>();val messagesB=mutableListOf<List<ByteArray>>()
         val first=member(a,"first",messagesA);val second=member(b,"second",messagesB)
