@@ -18,11 +18,13 @@ class OriginalCandidateEditorTest {
         var allianceOffice=false
         var stadenOffice=false
         var paettaOffice=false
+        var fogelOffice=false
         val saved=mutableMapOf<Long,OriginalCandidateEdit>()
         override val supportsStartingOffice get()=office
         override val supportsAllianceStartingOffice get()=allianceOffice
         override val supportsStadenStartingOffice get()=stadenOffice
         override val supportsPaettaStartingOffice get()=paettaOffice
+        override val supportsFogelStartingOffice get()=fogelOffice
         override fun load()=saved.values.toList()
         override fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?):OriginalCandidateEdit? {
             if(expected!=(saved[id]?.revision ?: 0))return null
@@ -215,6 +217,65 @@ class OriginalCandidateEditorTest {
             assertEquals(400,save(edit+("startingOffice" to vucock.key)))
             assertEquals(200,save(edit+("given" to "클레멘트")))
             assertEquals(paetta,store.saved.getValue(1003).profile.startingOffice)
+        }
+    }
+
+    @Test fun empireOffersFogelAlongsideReinhardAndStadenAcrossV20() {
+        val store=Store().apply {allianceOffice=true;stadenOffice=true;paettaOffice=true}
+        withEditor(store) {
+            val reinhard=OriginalStartingOffice.REINHARD_FLEET_2
+            val staden=OriginalStartingOffice.STADEN_FLEET_4
+            val fogel=OriginalStartingOffice.FOGEL_FLEET_5
+            val fogelLabel="포겔 · 제5함대 사령관 (하펜)"
+            val form=mapOf("operator" to "peppone","candidate" to "1003","revision" to "0","create" to "1","country" to "2",
+                "surname" to "포겔","given" to "후보","face" to "1","rank" to "5","peerage" to "0",
+                "startingOffice" to fogel.key)+abilities.indices.associate {"ability$it" to "60"}
+
+            // Before V20: Reinhard and Staden stay selectable, Fogel only asks for V20 and its save is refused.
+            val v19=page("new=2")
+            assertTrue(v19.contains("value=\"${reinhard.key}\""));assertTrue(v19.contains("value=\"${staden.key}\""))
+            assertFalse(v19.contains("value=\"${fogel.key}\""))
+            assertTrue(v19.contains("시작 직책 ${fogelLabel}을 지정하려면 정의 DB V20을 적용"))
+            assertFalse(page("new=3").contains("V20"))
+            assertEquals(503,save(form));assertTrue(store.saved.isEmpty())
+            store.office=false
+            val v15=page("new=2")
+            assertTrue(v15.contains("정의 DB V16·V20을 적용"));assertTrue(v15.contains("정의 DB V16·V18을 적용"))
+            assertFalse(v15.contains("name=\"startingOffice\""))
+
+            // V20: one select offers all three imperial offices at country 2 rank 5 (중장); alliance offices stay apart.
+            store.office=true;store.fogelOffice=true
+            val v20=page("new=2")
+            assertEquals(1,Regex("name=\"startingOffice\"").findAll(v20).count())
+            assertTrue(v20.contains("<option value=\"${reinhard.key}\" data-country=\"2\" data-rank=\"5\">"))
+            assertTrue(v20.contains("<option value=\"${staden.key}\" data-country=\"2\" data-rank=\"5\">"))
+            assertTrue(v20.contains("<option value=\"${fogel.key}\" data-country=\"2\" data-rank=\"5\">$fogelLabel</option>"))
+            assertTrue(v20.contains("시작 계급이 중장일 때만"));assertFalse(v20.contains("V20"))
+            assertFalse(v20.contains(OriginalStartingOffice.VUCOCK_FLEET_5.key));assertFalse(v20.contains(OriginalStartingOffice.PAETTA_FLEET_2.key))
+            assertFalse(page("new=3").contains(fogel.key))
+            assertEquals(400,save(form+("rank" to "4")))
+            assertEquals(400,save(form+mapOf("country" to "3","face" to "100001")))
+            assertEquals(400,save(form+mapOf("candidate" to "1","create" to "0")))
+            assertTrue(store.saved.isEmpty())
+            assertEquals(200,save(form))
+            assertEquals(fogel,store.saved.getValue(1003).profile.startingOffice)
+
+            // Fogel's holder blocks only Fogel; Staden at the same base stays selectable.
+            val held=page("new=2")
+            assertTrue(held.contains("시작 직책 ${fogelLabel}은 후보 1003에 이미 지정"))
+            assertTrue(held.contains("value=\"${staden.key}\""));assertFalse(held.contains("value=\"${fogel.key}\""))
+            assertEquals(400,save(form+mapOf("candidate" to "1004")))
+            assertEquals(200,save(form+mapOf("candidate" to "1004","surname" to "슈타덴","startingOffice" to staden.key)))
+            assertEquals(staden,store.saved.getValue(1004).profile.startingOffice)
+
+            // Bound Fogel stays fixed through later edits and cannot be swapped for Reinhard.
+            val bound=page("candidate=1003")
+            assertTrue(bound.contains("<strong>$fogelLabel</strong>"));assertTrue(bound.contains("시작 계급(중장)"))
+            assertFalse(bound.contains("name=\"startingOffice\""))
+            val edit=form-"create"-"startingOffice"+("revision" to "1")
+            assertEquals(400,save(edit+("startingOffice" to reinhard.key)))
+            assertEquals(200,save(edit+("given" to "변경")))
+            assertEquals(fogel,store.saved.getValue(1003).profile.startingOffice)
         }
     }
 }

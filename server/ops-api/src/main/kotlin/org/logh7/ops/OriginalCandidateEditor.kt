@@ -21,6 +21,7 @@ private fun OriginalStartingOffice.label()=when(this) {
     OriginalStartingOffice.VUCOCK_FLEET_5 -> "뷰코크 · 제5함대 사령관 (산타 아나)"
     OriginalStartingOffice.STADEN_FLEET_4 -> "슈타덴 · 제4함대 사령관 (하펜)"
     OriginalStartingOffice.PAETTA_FLEET_2 -> "파에타 · 제2함대 사령관 (하이네센)"
+    OriginalStartingOffice.FOGEL_FLEET_5 -> "포겔 · 제5함대 사령관 (하펜)"
 }
 
 /** The definition DB migrations still missing before [office] can be stored, or null when the store accepts it. */
@@ -31,6 +32,7 @@ private fun missingOfficeMigration(store:OriginalCandidateStore?,office:Original
         OriginalStartingOffice.VUCOCK_FLEET_5 -> "V17" to (store?.supportsAllianceStartingOffice==true)
         OriginalStartingOffice.STADEN_FLEET_4 -> "V18" to (store?.supportsStadenStartingOffice==true)
         OriginalStartingOffice.PAETTA_FLEET_2 -> "V19" to (store?.supportsPaettaStartingOffice==true)
+        OriginalStartingOffice.FOGEL_FLEET_5 -> "V20" to (store?.supportsFogelStartingOffice==true)
     }
     return when {
         store?.supportsStartingOffice!=true -> listOfNotNull("V16",migration).joinToString("·")
@@ -204,7 +206,7 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
         val rankName=officeRank(boundOffice)?.let {militaryRanks[it-2]}
         append("<p>시작 직책 <strong>${boundOffice.label()}</strong> · 게시 후에는 변경할 수 없습니다. 응모 국가나 시작 계급${rankName?.let {"($it)"}.orEmpty()}을 바꾸면 저장되지 않습니다.</p>")
     } else {
-        // Each creation side offers the offices its native country accepts: Reinhard and Staden for the empire,
+        // Each creation side offers the offices its native country accepts: Reinhard, Staden and Fogel for the empire,
         // Vucock and Paetta for the alliance. Every office keeps its own migration and holder state.
         val sideCountry=(if(empire)Power.EMPIRE else Power.ALLIANCE).country
         val newCandidate=creating || (selected!=null && selected !in definitions && selected in PublishedOriginalCandidates.NEW_IDS)
