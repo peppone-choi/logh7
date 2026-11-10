@@ -20,6 +20,32 @@ class GuardUnitActionsTest {
         argument=argument,identities=identities,navigators=mapOf("actor" to player))
     private fun act(r:StrategyActionRequest=request(),s:PlanetStocks=stocks(),p:Navigator=player)=StrategyActions.evaluate(galaxy,r,session,p,s)
 
+    @Test fun aPurchasedGuardCannotReserveReorganizationOrBlockARegularOutfit() {
+        val bought = act()
+        assertNull(bought.rejection)
+        val purchased = assertNotNull(bought.stocks)
+        val guard = assertNotNull(GuardUnitActions.guardOf(purchased, player.characterId))
+        val regular = OutfitStock(10, 2, OutfitKind.PATROL, 1049, guard.warehouseId, player.characterId, number = 1)
+        val initial = purchased.copy(outfits = purchased.outfits + (regular.id to regular))
+        var writes = 0
+        val store = object : PlanetStockStore {
+            override fun load() = initial
+            override fun save(stocks: PlanetStocks) { writes++ }
+        }
+        val production = PlanetProduction(galaxy, store, now, PlanetProductionPolicy())
+        val before = production.settle(session)
+        val priorWrites = writes
+        val logistics = OutfitLogistics(clock = { 0L }, galaxy = galaxy)
+        val prepare = LogisticsRequest("actor", "c", player.characterId, Power.EMPIRE, 1, guard.id,
+            LogisticsMode.REORGANIZATION, LogisticsPhase.PREPARE)
+        val denied = logistics.apply(prepare, session, bought.player, production)
+        assertEquals(LogisticsRejection.ACCESS, denied.rejection)
+        assertNull(denied.reservation)
+        assertEquals(before, production.snapshot(1))
+        assertNotNull(logistics.apply(prepare.copy(outfitId = regular.id), session, bought.player, production).reservation)
+        assertEquals(priorWrites, writes)
+    }
+
     @Test fun newGuardsUseCountryModelsAndExistingGuardsKeepTheirModelsAfterADefinitionChange() {
         val before=stocks()
         val foreign=OutfitWarehouse(6,CountryId(42),OutfitKind.PATROL,1049,shipStyle=ShipStyleId("alliance"))

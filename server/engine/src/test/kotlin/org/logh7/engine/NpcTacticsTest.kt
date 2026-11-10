@@ -81,6 +81,33 @@ class NpcTacticsTest {
         }
     }
 
+    @Test fun aDeceasedFlagshipInAnOlderSaveCannotDrawAutonomousFireOrRetreat() {
+        fun pose(x:Float,y:Float,heading:Float=0f):TacticalMotion {
+            val point=TacticalPoint(x,y)
+            return TacticalMotion(2488,now,TacticalPose(point,heading),0f,heading,listOf(point))
+        }
+        for(withLivingEnemy in listOf(true,false)) {
+            val state=state(boats=if(withLivingEnemy)300 else 75)
+            val fleet=state.stocks.outfits.getValue(1)
+            val ship=fleet.activeShips!!.values.single()
+            val ready=ship.copy(tactical=NpcTacticalState(pose(-178f,-95f,(-Math.PI/2).toFloat()),now,now))
+            val pilot=state.players.getValue("pilot")
+            val deceased=pilot.copy(motion=pose(-180f,-94.6f))
+            val living=pilot.copy(characterId=10001,motion=pose(-182.5f,-95f))
+            val players=mutableMapOf("deceased" to deceased)
+            if(withLivingEnemy)players["living"]=living
+            val stock=state.stocks.copy(outfits=mapOf(1 to fleet.copy(activeShips=ActiveShipUnits(listOf(ready)))),
+                strategic=StrategicState(people=mapOf(deceased.characterId to StrategicPerson(deceasedAt=1))))
+            val hits=mutableListOf<TacticalImpact>()
+            val after=NpcTactics.advance(session,galaxy,players,stock,NpcTacticalPolicy(),24,hits,mutableListOf())
+            val tactical=assertNotNull(after.outfits.getValue(1).activeShips!!.values.single().tactical)
+            assertEquals(if(withLivingEnemy)living.unitId else 0,tactical.target)
+            assertEquals(if(withLivingEnemy)setOf(living.unitId) else emptySet(),hits.map {it.hit.target}.toSet())
+            assertNull(tactical.retreat)
+            assertEquals(deceased,players.getValue("deceased"))
+        }
+    }
+
     @Test fun aStarHidesTargetsFromOutsideObserversButAllowsFireInsideTheSensorCircle() {
         val world=Galaxy(galaxy.systems.map { if(it.grid==2488)it.copy(star=0) else it },galaxy.bases,galaxy.starts)
         val heading=(-Math.PI/2).toFloat()
@@ -411,6 +438,35 @@ class NpcTacticsTest {
             assertEquals(10000-(300-disabled)*6,state.stocks.outfits.getValue(1).supplies)
         }
     }
+    @Test fun anAnchoredPeerPreventsFleetRetreatButLeavesMobileShipsInCombat() {
+        val anchorBase=galaxy.bases.single().copy(id=1001,grid=2488,name="Anchor")
+        val world=Galaxy(galaxy.systems,galaxy.bases+anchorBase,galaxy.starts)
+        val point=TacticalPoint(-178f,-95f)
+        val heading=(-Math.PI/2).toFloat()
+        val motion=TacticalMotion(2488,now,TacticalPose(point,heading),0f,heading,listOf(point))
+        for(retreat in listOf(null,TacticalRetreat(2487,now,120,3600))) {
+            val state=state(75)
+            val outfit=state.stocks.outfits.getValue(1)
+            val mobile=outfit.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion,now,now,retreat=retreat))
+            val anchored=mobile.copy(id=2,tactical=null,posture=TacticalPosture(2488,TacticalShipMode.ANCHORED,1001))
+            val fleet=outfit.copy(units=UnitInventory(mapOf(mobile.stack to 2)),activeShips=ActiveShipUnits(listOf(mobile,anchored)))
+            val stocks=state.stocks.copy(outfits=mapOf(1 to fleet),nextShipId=3,
+                bases=state.stocks.bases+(1001 to PlanetStock(1001,3,0,0,0,0)))
+            val players=state.players.toMutableMap()
+            val movements=mutableListOf<TacticalMovement>()
+            val impacts=mutableListOf<TacticalImpact>()
+            val after=NpcTactics.advance(session,world,players,stocks,NpcTacticalPolicy(),24,impacts,movements)
+            val retained=after.outfits.getValue(1)
+            val ships=retained.activeShips!!.values.associateBy {it.id}
+            assertEquals(OutfitPosition(2488),retained.position)
+            assertNull(ships.getValue(1).tactical?.retreat)
+            assertEquals(anchored.posture,ships.getValue(2).posture)
+            assertNull(ships.getValue(2).tactical)
+            assertTrue(movements.none {it.unit==2 || it.destination!=null})
+            assertTrue(impacts.isNotEmpty() && impacts.all {it.source==1})
+        }
+    }
+
     @Test fun damagedOutfitMovesOutsideRadarPreparesAndExitsToLegalAdjacentGrid() {
         val state=state(75);val nav=Navigation(galaxy,state.nav,NavigationPolicy());val stock=production(state);val moves=mutableListOf<TacticalMovement>()
         settle(now,nav,stock,state,moves)

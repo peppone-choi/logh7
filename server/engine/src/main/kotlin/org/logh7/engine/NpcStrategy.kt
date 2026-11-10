@@ -278,6 +278,9 @@ internal object NpcStrategy {
                 if(outfit.strategy!=null)stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=null)))
                 continue
             }
+            val hasTacticalBerth=position.baseId==0 && outfit.activeShips!!.values.any {unit->
+                unit.boats>0 && unit.posture?.let {it.grid==position.grid && it.mode.requiresBase}==true
+            }
             val pending=outfit.strategy
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
@@ -286,6 +289,10 @@ internal object NpcStrategy {
                 val planned=relief?.let {OutfitPosition(it.next,if(it.jumps==1)it.base.id else 0)} ?: normal
                 if(planned?.grid==position.grid) {
                     dockLocally(outfit,planned)
+                    continue
+                }
+                if(hasTacticalBerth) {
+                    stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=NpcStrategicState(now+21600))))
                     continue
                 }
                 // Re-evaluate source hostility as well as destination capacity after earlier arrivals.
@@ -348,7 +355,7 @@ internal object NpcStrategy {
                 if(relief==null && destination?.grid==position.grid) {
                     dockLocally(outfit,destination)
                 } else {
-                    val grid=relief?.next ?: destination?.grid?.takeIf {canDepart(stocks,outfit,galaxy)}
+                    val grid=if(hasTacticalBerth)null else relief?.next ?: destination?.grid?.takeIf {canDepart(stocks,outfit,galaxy)}
                     val next=if(grid==null)NpcStrategicState(now+21600) else NpcStrategicState(now+21600,grid,now+3600)
                     stocks=stocks.copy(outfits=stocks.outfits+(id to outfit.copy(strategy=next)))
                 }

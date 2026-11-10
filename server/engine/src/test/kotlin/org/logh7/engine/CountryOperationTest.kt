@@ -98,6 +98,39 @@ class CountryOperationTest {
         assertEquals(settled,StrategicOperations.settle(galaxy,settled,deadline+1))
     }
 
+    @Test fun bothSettlementPathsWithdrawEliminatedOperationsWithoutPayingMerit() {
+        val initial = stock()
+        val fallen = StrategicOperation(1, 10000, 24, country, 2487, StrategicForce.FLEET, StrategicPurpose.DEFEND, 1, now,
+            StrategicPlanState.STARTED, now, characters = setOf(10002), defended = setOf(1000), issuer = 10001)
+        val surviving = fallen.copy(id = 2, country = other, grid = 2490, defended = setOf(1001),
+            planner = 10003, issuer = 10004, characters = setOf(10005))
+        val people = mapOf(10000 to StrategicPerson(merit = 7))
+        val pending = initial.copy(strategic = initial.strategic.copy(operations = listOf(fallen, surviving), people = people))
+        val deadline = OperationPlanRules.endGameSeconds(now)
+        val defeated = mapOf(country to CountryDefeat(EndReason.SYSTEMS_REDUCED, now + 1))
+
+        val early = StrategyActions.settle(pending, now + 1, galaxy, eliminated = defeated.keys)
+        assertEquals(listOf(fallen.copy(state = StrategicPlanState.WITHDRAWN), surviving), early.strategic.operations)
+        assertEquals(people, early.strategic.people)
+
+        val normal = StrategyActions.settle(pending, deadline, galaxy, eliminated = defeated.keys)
+        var committed = pending
+        val production = PlanetProduction(galaxy, object : PlanetStockStore {
+            override fun load() = committed
+            override fun save(stocks: PlanetStocks) { committed = stocks }
+        }, now, PlanetProductionPolicy()).also { it.settle(1, now) }
+        val combat = session.copy(gameMillis = deadline * 1000, eliminated = defeated,
+            countries = setOf(country, other, Power.EMPIRE.country))
+        TacticalCombat.settle(combat, galaxy, Navigation(galaxy, null, NavigationPolicy()), production,
+            WorldStateCommitter { _, stocks -> committed = assertNotNull(stocks) }, npcPolicy = NpcTacticalPolicy(enabled = true))
+        for (settled in listOf(normal, committed)) {
+            assertEquals(fallen.copy(state = StrategicPlanState.WITHDRAWN), settled.strategic.operations.first())
+            assertEquals(surviving.copy(state = StrategicPlanState.ENDED, outcome = OperationOutcome.FULL_SUCCESS),
+                settled.strategic.operations.last())
+            assertEquals(people + (10003..10005).associateWith { StrategicPerson(merit = 100) }, settled.strategic.people)
+        }
+    }
+
     @Test fun expiredOperationsCannotBeWithdrawnOrAssignedBeforeSettlement() {
         val initial=stock()
         val plan=StrategicOperation(1,10000,24,country,2490,StrategicForce.FLEET,StrategicPurpose.OCCUPY,1,now,

@@ -367,7 +367,7 @@ internal object TacticalCombat {
         val fortressSunk=mutableListOf<Navigator>()
         inventory=FortressArmor.advance(session,galaxy,players,inventory,fortressSunk)
         inventory=BaseOccupationOperations.advance(session,galaxy,players,inventory,production.maximumStock,scale,occupations,commands)
-        inventory=StrategicOperations.settle(galaxy,inventory,now,players.values)
+        inventory=StrategicOperations.settle(galaxy,inventory,now,players.values,session.eliminated.keys)
         val departedIds=impacts.mapNotNull {it.departed?.characterId}+fortressSunk.map {it.characterId}
         inventory=TacticalCommandOperations.finishMissions(session,galaxy,players,inventory,scale,commands,impacts,departedIds.toSet())
         val sunkFlagships=impacts.mapNotNull {if(it.hit.destroyed>0)it.departed else null}+fortressSunk

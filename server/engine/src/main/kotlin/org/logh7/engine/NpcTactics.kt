@@ -48,7 +48,7 @@ internal object NpcTactics {
 
     private fun contacts(outfit:OutfitStock,grid:Int,now:Long,players:Map<String,Navigator>,stocks:PlanetStocks,
         galaxy:Galaxy,eliminated:Set<CountryId>):List<Contact> = players.values.filter {it.country !in eliminated &&
-        it.grid==grid && it.baseId==0 && it.cpPaused &&
+        !BattleDeath.deceased(stocks,it.characterId) && it.grid==grid && it.baseId==0 && it.cpPaused &&
         TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) && it.hull!=null}.map {p -> Contact(p.unitId,p.motion?.pose(now,p.posture,galaxy) ?:
             TacticalDeployment.initial(p.unitId,grid,players.values,stocks,galaxy))} +
         stocks.outfits.values.filter {it.country !in eliminated && TacticalAuthority.camp(it,stocks)!=TacticalAuthority.camp(outfit,stocks) &&
@@ -109,7 +109,8 @@ internal object NpcTactics {
                 outfit=outfit.copy(activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(motionCommander=0)}))
                 stocks=stocks.copy(outfits=stocks.outfits+(outfitId to outfit))
             }
-            val live=outfit.activeShips?.values.orEmpty().filter {it.boats>0 && it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
+            val surviving=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
+            val live=surviving.filter {it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
             if(live.isEmpty())continue
             val behavior=policy.behavior(session.generation,outfitId)
             val camp=TacticalAuthority.camp(outfit,stocks)
@@ -128,10 +129,13 @@ internal object NpcTactics {
                 live.all {stocks.tacticalCommands.confused(it.id)} ||
                 (returnJumps!=null && returnJumps>0 && live.any {cargo.getValue(it.id)<it.boats}) ||
                 live.all {u->TacticalWeapon.entries.all {TacticalArmaments.mount(UnitSpecifications.ships.single {it.kind==u.stack.kind},it).power==0}}
-            val withdrawal=retreat?.takeIf {now<it.completesAt || canEnter(galaxy,outfit,it.destination,forces())}
-                ?: if(retreat!=null || critical && detectsEnemies) exit(galaxy,outfit,position.grid,forces())?.let {
-                    TacticalRetreat(it,now,5*scale,150*scale)
-                } else null
+            // Retreat moves the whole outfit, including ships that are not under autonomous movement.
+            val withdrawal=if(live.size==surviving.size) {
+                retreat?.takeIf {now<it.completesAt || canEnter(galaxy,outfit,it.destination,forces())}
+                    ?: if(retreat!=null || critical && detectsEnemies) exit(galaxy,outfit,position.grid,forces())?.let {
+                        TacticalRetreat(it,now,5*scale,150*scale)
+                    } else null
+            } else null
             for(id in live.map {it.id}) {
                 outfit=stocks.outfits.getValue(outfitId)
                 var unit=outfit.activeShips!!.values.single {it.id==id}
