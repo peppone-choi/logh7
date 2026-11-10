@@ -65,7 +65,8 @@ object PoliticianLadder {
             if(!chairmanVacant(galaxy,next,country,catalog))continue
             val people=next.strategic.people;val support=next.social.funds.support
             val candidates=identities.filter {it.country==country && (people[it.id]?.rank ?: it.rank)==POLITICIAN && (people[it.id]?.deceasedAt ?: 0)==0L && !CoupActions.rebel(next,it.id,country)}
-            val winner=candidates.sortedWith(compareByDescending<StrategicIdentity> {support[it.id] ?: 0L}
+            val winner=candidates.filterNot {next.social.justice.detained(it.id)}
+                .sortedWith(compareByDescending<StrategicIdentity> {support[it.id] ?: 0L}
                 .thenByDescending {people[it.id]?.merit ?: 0L}.thenBy {it.id}).firstOrNull() ?: continue
             val policy=OrganizationalOfficePolicy(galaxy,catalog)
             val capital=checkNotNull(policy.capital(next,country))

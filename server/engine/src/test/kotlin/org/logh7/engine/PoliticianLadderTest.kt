@@ -55,6 +55,32 @@ class PoliticianLadderTest {
         assertEquals(listOf(11),OrganizationalOfficePolicy(galaxy).holders(ladder,132).map {it.character},"no support: the ladder top")
         assertSame(ladder,PoliticianLadder.election(galaxy,ladder,ids),"a filled seat stays")
     }
+    @Test fun detentionExcludesTheTopChairCandidateUntilRelease() {
+        val policy = OrganizationalOfficePolicy(galaxy)
+        val country = Power.ALLIANCE.country
+        val people = mapOf(11 to StrategicPerson(rank = 1, merit = 90), 12 to StrategicPerson(rank = 1, merit = 10))
+        val support = mapOf(11 to 5000L, 12 to 500L)
+        val occupied = policy.set(stocks.copy(strategic = StrategicState(people = people),
+            social = stocks.social.copy(funds = FundState(support = support))), OfficeHolding(132, 1177, 11))
+        val players = mutableMapOf("held" to Navigator(1, 11, Power.ALLIANCE, 2015, 1000, 1000, 1000, baseId = 1177, mode = 4))
+        val now = SessionRules.load().startSeconds + 30 * Justice.DAY
+        val held = assertNotNull(JusticeActions.detain(galaxy, occupied, players, 11, country, now))
+        assertTrue(policy.holders(held, 132).isEmpty())
+
+        val elected = PoliticianLadder.monthly(galaxy, held, listOf(id(11, 3), id(12, 3)), 1)
+        assertEquals(listOf(12), policy.holders(elected, 132).map { it.character })
+        assertTrue(elected.social.funds.support.isEmpty(), "a completed election still clears the support box")
+        val vacant = PoliticianLadder.election(galaxy, held, listOf(id(11, 3)))
+        assertEquals(held, vacant, "a failed election leaves the seat vacant and preserves support")
+
+        val releasedAt = held.social.justice.detentions.getValue(11).releaseAt
+        val session = SessionSimulation(SessionRules.load()).exportState().copy(gameMillis = releasedAt * 1000)
+        val released = JusticeActions.settle(galaxy, session, players, vacant)
+        assertFalse(released.social.justice.detained(11))
+        val afterRelease = PoliticianLadder.election(galaxy, released, listOf(id(11, 3)))
+        assertEquals(listOf(11), policy.holders(afterRelease, 132).map { it.character })
+    }
+
     @Test fun forcedMilitaryConversionVacatesTheChairAndElectsAnEligiblePolitician() {
         val policy=OrganizationalOfficePolicy(galaxy)
         val before=stocks.copy(strategic=StrategicState(people=mapOf(11 to StrategicPerson(rank=1),
