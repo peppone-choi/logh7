@@ -3,6 +3,7 @@
 #pragma once
 #include "navigation_hud_data.h"
 #include "country_metadata.h"
+#include "warp_refusal_view_data.h"
 
 static struct DockingStatus {
     void* world;
@@ -16,6 +17,7 @@ static struct WarpStatus {
     unsigned character, grid;
     unsigned long long deadline;
 } warpStatus = {};
+static logh::WarpRefusalView warpRefusalView;
 
 static void refreshNavigationHud(BYTE* world,BYTE* own) {
     unsigned character=at<unsigned>(own,0x24);
@@ -74,11 +76,21 @@ static void __fastcall acceptedWarp(void* world, void*, void* message, int resul
             warpStatus = {world, at<unsigned>(message, 8), grid,
                 static_cast<unsigned long long>(at<unsigned>(message, 0)) + wait};
     }
+    if (world && message) {
+        // The native argument stays 0 for a refused ACK (run-04). Accepted and reserved ACKs carry
+        // base 0 / mode 5; a refusal from a facility keeps the current base (+0x1c) and mode (+0x20).
+        auto own = at<BYTE*>(world, 8);
+        const bool present = own && at<BYTE>(own, 0);
+        warpRefusalView.refusedRecord(world, static_cast<const unsigned char*>(message),
+            present ? at<unsigned>(own, 0x24) : 0, at<BYTE>(world, 0x2b6a6c) ? at<unsigned>(world, 0x2b6a70) : 5000,
+            present ? at<unsigned>(own, 0x40) : 0, at<BYTE>(world, 0x3579cc) != 0);
+    }
     reinterpret_cast<void(__thiscall*)(void*, void*, int)>(0x4bea90)(world, message, result);
 }
 static void __fastcall movedGrid(void* world, void*, void* message) {
     if (warpStatus.world == world && at<unsigned>(message, 4) == warpStatus.character)
         warpStatus = {};
+    warpRefusalView.moved(world, at<unsigned>(message, 4));
     reinterpret_cast<void(__thiscall*)(void*, void*)>(0x4bee20)(world, message);
 }
 
@@ -99,6 +111,7 @@ static void __fastcall acceptedDock(void* world, void*, void* message, int resul
 static void __fastcall arrivedDock(void* world, void*, void* message) {
     if (dockingStatus.world == world && at<unsigned>(message, 4) == dockingStatus.character)
         dockingStatus = {};
+    warpRefusalView.arrivedRecord(world, static_cast<const unsigned char*>(message), GetTickCount64());
     reinterpret_cast<void(__thiscall*)(void*, void*)>(0x4bee60)(world, message);
 }
 static void drawNavigationNotice(const wchar_t* title,const wchar_t* time) {
