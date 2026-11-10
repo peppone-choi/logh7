@@ -17,7 +17,8 @@ data class GalaxyBase(val id: Int, val grid: Int, val model: Int, val kind: Int,
 class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, starts: Map<Power, Int>,
     val defaultCell: Int = 1, terrain: List<String>? = null,
     countryStarts:Map<CountryId,Int> = emptyMap(),initialOwners:Map<Int,Allegiance> = emptyMap(),
-    val unaffiliatedStart:UnaffiliatedStart?=null) {
+    val unaffiliatedStart:UnaffiliatedStart?=null,sargassoCells:Set<Int> = emptySet()) {
+    private val sargassoCells = sargassoCells.toSet()
     /** Keep existing two-country consumers consistent when their own starts are explicitly edited. */
     val starts:Map<Power,Int> = starts.mapValues {(power,grid)->countryStarts[power.country] ?: grid}
     /** Per-world spawn locations; an additional country never inherits another country's start. */
@@ -59,12 +60,22 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
         }
         val map = terrain?.let(::terrainCells)
         if (map != null) require(systems.all { map[it.grid] == SPACE_CELL }) { "A star system lies outside the navigable terrain" }
-        cells = MutableList(5000) { map?.get(it) ?: defaultCell }.also { values -> systems.forEach { values[it.grid] = it.kind } }.toList()
+        require(this.sargassoCells.all { it in 0..4999 && it !in locations && (map?.get(it) ?: defaultCell) == SPACE_CELL }) {
+            "Sargasso cells must replace ordinary space"
+        }
+        cells = MutableList(5000) { map?.get(it) ?: defaultCell }.also { values ->
+            // The original client's distinct Sargasso cell code is unconfirmed.
+            this.sargassoCells.forEach { values[it] = IMPASSABLE_CELL }
+            systems.forEach { values[it.grid] = it.kind }
+        }.toList()
     }
     /** Black holes; Null_galaxy.mdx bh_01..03 (evidence:client). */
     val blackHoles: List<Int> by lazy { cells.indices.filter { cells[it] == BLACK_HOLE_CELL } }
-    fun terrain(grid: Int): GridTerrain = if (grid in cells.indices && cells[grid] == PLASMA_STORM_CELL) GridTerrain.PLASMA_STORM
-        else GridTerrain.NONE
+    fun terrain(grid: Int): GridTerrain = when {
+        grid in sargassoCells -> GridTerrain.SARGASSO_SPACE
+        cells.getOrNull(grid) == PLASMA_STORM_CELL -> GridTerrain.PLASMA_STORM
+        else -> GridTerrain.NONE
+    }
     /** Room identities and backgrounds follow the saved owner after conquest. */
     fun facilitiesAt(baseId: Int, stocks: PlanetStocks? = null,countries:CountryCatalog=CountryCatalogLoader.current()): List<PlanetFacility> {
         val base=bases.single {it.id==baseId}
@@ -158,8 +169,10 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
                 UnaffiliatedStart(int("start.unaffiliated"),ShipStyleId(requireNotNull(p.getProperty("start.unaffiliated.style"))))
             } else null
             require(schema!="4" || unaffiliated!=null) {"World schema 4 requires an unaffiliated start"}
+            val sargasso = p.getProperty("terrain.sargasso").orEmpty().trim().takeIf { it.isNotEmpty() }
+                ?.split(',')?.map { it.trim().toInt() }?.toSet().orEmpty()
             return Galaxy(systems, bases, mapOf(Power.EMPIRE to int("start.empire"), Power.ALLIANCE to int("start.alliance")),
-                terrain = terrain,countryStarts=countryStarts,initialOwners=owners,unaffiliatedStart=unaffiliated)
+                terrain = terrain,countryStarts=countryStarts,initialOwners=owners,unaffiliatedStart=unaffiliated,sargassoCells=sargasso)
         }
     }
 }

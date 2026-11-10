@@ -34,6 +34,29 @@ $extra
         assertEquals(mapOf(CountryId(2) to 2487,CountryId(3) to 2490),galaxy.countryStarts)
         assertNull(galaxy.countryStarts[CountryId(42)])
     }
+    @Test fun configuredSargassoBlocksWarpWithoutChargingTheCaptain() {
+        val galaxy = world("1", "terrain.sargasso=2488, 2587")
+        assertEquals(GridTerrain.SARGASSO_SPACE, galaxy.terrain(2488))
+        assertEquals(Galaxy.IMPASSABLE_CELL, galaxy.cells[2488])
+        assertEquals(GridKind.IMPASSABLE, galaxy.kind(2587))
+        assertEquals(GridKind.SPACE, galaxy.kind(2489))
+        for (invalid in listOf("2487", "5000", "-1", "unknown")) {
+            assertFailsWith<IllegalArgumentException> { world("1", "terrain.sargasso=$invalid") }
+        }
+
+        val simulation = SessionSimulation(SessionRules.load()).also {
+            it.join("pilot", Power.EMPIRE, false, "connection")
+        }
+        val session = simulation.exportState()
+        val pilot = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000,
+            cpRecoveryAt = session.gameMillis / 1000)
+        val navigation = Navigation(galaxy, null, NavigationPolicy(), restored = mapOf("pilot" to pilot))
+        val request = NavigationRequest("pilot", 10000, Power.EMPIRE, "connection", 1,
+            destination = 2488, unitId = pilot.unitId, captainCard = 59)
+        assertEquals(NavigationRejection.GRID, navigation.apply(request, session).rejection)
+        assertEquals(pilot, navigation.snapshot(1).getValue("pilot"))
+        assertNull(navigation.apply(request.copy(destination = 2588), session).rejection)
+    }
     @Test fun schemaTwoSupportsPerCountryStartsWithoutChangingTheLegacyProjection() {
         val galaxy=world("2","start.country.42=2490\nstart.country.2=2490")
         assertEquals(2490,galaxy.countryStarts[CountryId(42)]);assertEquals(2490,galaxy.countryStarts[CountryId(2)])
