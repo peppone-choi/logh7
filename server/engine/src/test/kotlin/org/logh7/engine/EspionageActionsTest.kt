@@ -1,5 +1,6 @@
 package org.logh7.engine
 
+import java.io.IOException
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -59,6 +60,56 @@ class EspionageActionsTest {
             }
         }
     }
+    @Test fun leavingByNormalMovementEndsInfiltrationWithoutRemovingTheBomb() {
+        val room = galaxy.facilitiesAt(1049).single { it.kind == 0 }.spots.single { it.kind == 2 }.id
+        val start = session.gameMillis / 1000
+        val seconds = (start..start + 100).first { EspionageActions.roll(a.characterId, room, it) < EspionageActions.threshold(50, 1) }
+        val at = session.copy(gameMillis = seconds * 1000)
+        val entered = act(EspionageActions.INFILTRATE, base = room, s = stocks().copy(deploymentInitialized = true), at = at)
+        assertEquals(1, entered.outcome)
+        val armed = act(EspionageActions.SABOTAGE, s = assertNotNull(entered.stocks), p = assertNotNull(entered.player), at = at)
+        assertEquals(1, armed.outcome)
+        var savedStocks = assertNotNull(armed.stocks)
+        var savedPlayers = mapOf("a" to assertNotNull(armed.player))
+        val navigation = Navigation(galaxy, object : NavigationStore {
+            override fun load() = savedPlayers
+            override fun save(players: Map<String, Navigator>) { savedPlayers = players }
+        }, NavigationPolicy())
+        val production = PlanetProduction(galaxy, object : PlanetStockStore {
+            override fun load() = savedStocks
+            override fun save(stocks: PlanetStocks) { savedStocks = stocks }
+        }, start, PlanetProductionPolicy())
+        production.settle(at)
+        val save = WorldStateCommitter { players, inventory ->
+            savedPlayers = players
+            savedStocks = checkNotNull(inventory)
+        }
+        fun move(spot: Int, committer: WorldStateCommitter = save): NavigationResult = FleetNavigation.apply(
+            NavigationRequest("a", a.characterId, Power.EMPIRE, "a", 1, place = PlaceMove.Spot(spot, 0)),
+            at, galaxy, navigation, production, checkNotNull(production.snapshot(1)), committer) { false }
+
+        assertEquals(NavigationRejection.SPOT, move(room).rejection)
+        val before = savedPlayers
+        val inventory = savedStocks
+        assertFailsWith<IOException> { move(a.spotId, WorldStateCommitter { _, _ -> throw IOException("save failed") }) }
+        assertEquals(before, savedPlayers)
+        assertEquals(inventory, savedStocks)
+        assertEquals(before, navigation.snapshot(1))
+        assertEquals(inventory, production.snapshot(1))
+
+        assertNull(move(a.spotId).rejection)
+        assertEquals(a.spotId, savedPlayers.getValue("a").spotId)
+        assertEquals(inventory.social.justice.copy(infiltrations = emptyMap()), savedStocks.social.justice)
+        assertNull(move(room).rejection)
+        val returned = savedPlayers.getValue("a")
+        for (command in listOf(EspionageActions.INTELLIGENCE, EspionageActions.SABOTAGE, EspionageActions.ESCAPE)) {
+            val result = act(command, s = savedStocks, p = returned, at = at)
+            assertEquals(SocialRejection.STALE, result.rejection)
+            assertEquals(returned, result.player)
+            assertEquals(savedStocks, result.stocks)
+        }
+    }
+
     @Test fun agitationNeedsAnotherSidesBase() {
         assertEquals(SocialRejection.TARGET,act(EspionageActions.AGITATE).rejection,"own base")
     }

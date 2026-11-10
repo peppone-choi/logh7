@@ -73,6 +73,27 @@ class PlanetProductionTest {
         assertFailsWith<UnsupportedOperationException> { (state.groundTargets as MutableMap).clear() }
     }
 
+    @Test fun productionFocusRespectsTheStockLimitWithoutReducingLegacyStockOrOverflowing() {
+        for ((cap, initialSupplies, expected) in listOf(
+            Triple(100_100, 100_000, 100_100),
+            Triple(Int.MAX_VALUE, Int.MAX_VALUE - 100, Int.MAX_VALUE),
+            Triple(100_100, 110_000, 110_000),
+            Triple(110_000, 100_000, 101_100)
+        )) {
+            val store = Store()
+            val policy = PlanetProductionPolicy(maximumStock = cap)
+            val initial = PlanetProduction(galaxy, store, 0, policy).settle(1, 0)
+            store.saved = initial.copy(bases = initial.bases + (1000 to initial.bases.getValue(1000).copy(supplies = initialSupplies)),
+                social = initial.social.copy(goals = initial.social.goals.copy(focus = mapOf(1000 to GoalActions.PRODUCTION))))
+            val produced = PlanetProduction(galaxy, store, 0, policy).settle(1, 86400)
+            assertEquals(expected, produced.bases.getValue(1000).supplies)
+            assertEquals(produced, store.saved)
+            val writes = store.writes
+            assertEquals(produced, PlanetProduction(galaxy, store, 0, policy).settle(1, 86400))
+            assertEquals(writes, store.writes)
+        }
+    }
+
     @Test fun failedStorageDoesNotPublishAndNewSessionResetsOnlyOnce() {
         val store = Store()
         val production = PlanetProduction(galaxy, store, 0, PlanetProductionPolicy(maximumStock = 100100))

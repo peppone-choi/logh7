@@ -11,7 +11,10 @@ object GridForces {
     fun mobileUnits(outfit: OutfitStock): Long = ships(outfit) + (outfit.activeGround?.values?.count {it.base==0}?.toLong()
         ?: outfit.units.troops.filterKeys {it.kind in ground}.values.sumOf {it.toLong()})
     data class Force(val camp: Camp, val units: Long = 0, val nonSolo: Boolean = false,
-        val ship: Boolean = false, val base: Boolean = false, val deployedShip: Boolean = false)
+        val ship: Boolean = false, val base: Boolean = false, val deployedShip: Boolean = false,
+        val combatBase: Boolean = base) {
+        val combatPresence get() = units > 0 || combatBase
+    }
 
     fun collect(galaxy: Galaxy, generation: Long, navigators: Collection<Navigator>,
         stocks: PlanetStocks?, eliminated: Set<CountryId> = emptySet()): Map<Int, List<Force>> {
@@ -22,7 +25,7 @@ object GridForces {
             val previous = camps[force.camp] ?: Force(force.camp)
             camps[force.camp] = Force(force.camp, Math.addExact(previous.units, force.units),
                 previous.nonSolo || force.nonSolo, previous.ship || force.ship, previous.base || force.base,
-                previous.deployedShip || force.deployedShip)
+                previous.deployedShip || force.deployedShip, previous.combatBase || force.combatBase)
         }
         navigators.filter {
             it.generation == generation && it.country !in eliminated && !BattleDeath.deceased(stocks, it.characterId) &&
@@ -48,7 +51,7 @@ object GridForces {
                 is Allegiance.Independent -> Camp(Camp.Owner.Independent(owner.characterId))
                 else -> null
             }
-            if(camp!=null)add(base.grid, Force(camp, base = true))
+            if(camp!=null)add(base.grid, Force(camp, base = true, combatBase = camp.country !in eliminated))
             // U-07 (CD p.39, evidence:guess): after a violation, neutral Fezzan is a planet troops may land on and occupy.
             if (stocks != null && stocks.social.trade.violations.isNotEmpty() && TradeActions.fezzan(galaxy, stocks) == base.id)
                 add(base.grid, Force(Camp.FEZZAN, base = true))
@@ -74,7 +77,8 @@ object GridForces {
     }
 
     fun state(galaxy: Galaxy, grid: Int, forces: Map<Int, List<Force>>): GridState =
-        GridState(galaxy.kind(grid), galaxy.terrain(grid), TacticalContact.contested(forces[grid].orEmpty()), forces[grid].orEmpty().map {
+        // W31 entry rules retain the territorial exception for a deployed ally.
+        GridState(galaxy.kind(grid), galaxy.terrain(grid), TacticalContact.contested(forces[grid].orEmpty(), territorial = true), forces[grid].orEmpty().map {
             // Capacity decisions need only distinguish counts above 300. Keep the
             // full Long total in collect(), including for native map reports.
             CampPresence(it.camp, it.units.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), it.nonSolo, it.deployedShip, it.base)
