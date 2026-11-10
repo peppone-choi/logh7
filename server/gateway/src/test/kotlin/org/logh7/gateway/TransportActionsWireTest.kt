@@ -46,6 +46,57 @@ class TransportActionsWireTest {
         if(warehouse>0)assertEquals(warehouse,ByteBuffer.wrap(next(client,0x0327)).getInt(6))
     }
     private fun listed(client:SyntheticClient,command:Int):List<Int> = listedRows(client,command).map {it.first}
+
+    @Test fun mixedPlanCommitsAllCargoOnceAndReturnsItAfterReopen() {
+        val state=State()
+        val troop=UnitStack(0)
+        val source=state.stocks.bases.getValue(1049).copy(units=UnitInventory(mapOf(hull to 4),mapOf(troop to 3)))
+        state.stocks=state.stocks.copy(bases=state.stocks.bases+(1049 to source))
+        LoadFixture(directory.resolve("mixed"),1,LoadMetrics(),galaxy,ticking=false,
+            navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {fixture->
+            val client=fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+            fun plan(troops:Int,status:Int,phase:Int) {
+                val command=ByteBuffer.allocate(39).put(request(28))
+                    .putShort(12,0xfffe.toShort()).putInt(19,2).putShort(29,0x1234)
+                    .putShort(hull.kind.toShort()).putShort(2).putShort(1000).putShort(troops.toShort()).array()
+                client.send(command)
+                val response=ByteBuffer.wrap(next(client,0x1200))
+                assertEquals(35,response.capacity());assertEquals(status,response.getShort(16).toInt())
+                assertEquals(phase,response.get(22).toInt());assertEquals(0x1234,response.getShort(33).toInt())
+                next(client,0x1201);next(client,0x0356)
+                if(status==0)assertEquals(1049,ByteBuffer.wrap(next(client,0x0327)).getInt(6))
+            }
+            val before=state.stocks
+            plan(4,StrategyActionRejection.RESOURCE.ordinal+1,3)
+            assertEquals(before,state.stocks)
+            assertEquals(1000,state.players.getValue("load-000").mcp)
+            plan(3,0,2)
+            assertEquals(920,state.players.getValue("load-000").mcp)
+            val pack=state.stocks.strategic.transports.single {it.id==2}
+            assertEquals(UnitInventory(mapOf(hull to 2),mapOf(troop to 3)),pack.units)
+            assertEquals(1000,pack.supplies)
+            assertEquals(4000,state.stocks.bases.getValue(1049).supplies)
+            assertEquals(UnitInventory(mapOf(hull to 2)),state.stocks.bases.getValue(1049).units)
+        }
+        val savedWorld=directory.resolve("mixed-world")
+        FileWorldStateStore(savedWorld).use {it.saveWorld(state.players,state.stocks)}
+        FileWorldStateStore(savedWorld).use {
+            state.players=it.loadNavigation();state.stocks=checkNotNull(it.loadStocks())
+        }
+        LoadFixture(directory.resolve("mixed-reopen"),1,LoadMetrics(),galaxy,ticking=false,
+            navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {fixture->
+            val client=fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+            assertEquals(listOf(2),listed(client,29))
+            action(client,29,2,warehouse=1049)
+            assertEquals(840,state.players.getValue("load-000").mcp)
+            assertEquals(source.supplies,state.stocks.bases.getValue(1049).supplies)
+            assertEquals(source.units,state.stocks.bases.getValue(1049).units)
+            assertEquals(listOf(1),state.stocks.strategic.transports.map {it.id})
+        }
+    }
+
     private fun listedRows(client:SyntheticClient,command:Int,cursor:Int=0,expectedIntent:Int?=null,card:Int=if(command==65)44 else 25):List<Pair<Int,String>> {
         client.send(request(command,preview=true,target=cursor,card=card));next(client,0x1200)
         val rows=ByteBuffer.wrap(next(client,0x1202));val count=rows.get(6).toInt() and 255

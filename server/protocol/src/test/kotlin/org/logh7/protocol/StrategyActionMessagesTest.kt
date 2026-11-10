@@ -5,6 +5,22 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class StrategyActionMessagesTest {
+    @Test fun mixedTransportRequiresAnExplicitExactAndUniqueItemTail() {
+        val header=transport(28,25,1050,0xfffe,2,1000,1049)
+        val packet=ByteBuffer.allocate(39).put(header).putShort(32).putShort(2).putShort(1000).putShort(3).array()
+        assertEquals(mapOf(32 to 2,1000 to 3),StrategyActionMessages.query(packet).transportUnits)
+        assertEquals(29,StrategyActionMessages.query(packet).raw.size)
+        for(invalid in listOf(packet.copyOf(38),packet.copyOf(40),
+            packet.clone().also {ByteBuffer.wrap(it).putShort(35,32)},
+            packet.clone().also {ByteBuffer.wrap(it).putShort(37,0)},
+            packet.clone().also {ByteBuffer.wrap(it).putShort(35,500)},
+            packet.clone().also {ByteBuffer.wrap(it).putInt(19,124)},
+            packet.clone().also {ByteBuffer.wrap(it).putShort(12,32)})) {
+            assertFailsWith<IllegalArgumentException>{StrategyActionMessages.query(invalid)}
+        }
+        assertTrue(StrategyActionMessages.query(transport(28,25,1050,32,2,1000,1049)).transportUnits.isEmpty())
+    }
+
     @Test fun approvalRequiresAMailIdAndTokenAndKeepsBothOnRejection() {
         val body=ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(99)
             .putShort(0).putShort(3).putInt(42).put(0).putInt(0).putShort(0).putInt(0).putShort(0xffff.toShort()).array()

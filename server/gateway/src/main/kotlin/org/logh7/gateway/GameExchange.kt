@@ -2738,7 +2738,7 @@ class GameExchange(
                                     character.abilities[1],character.abilities[2],query.target,query.base,query.value,
                                     identities=WorldCharacters.identities(characters.profiles(),navigation?.snapshot()),amount=query.amount.toLong(),argument=query.argument,
                                     requestToken=java.nio.ByteBuffer.wrap(query.raw).getShort(27).toInt() and 65535,
-                                    repairPreview=query.isRepairQuote)).thenApply {result ->
+                                    repairPreview=query.isRepairQuote,transportUnits=query.transportUnits)).thenApply {result ->
                                     if(query.isRepairQuote) {
                                         val quote=result.repairQuote
                                         val payment=when(quote?.cp) {

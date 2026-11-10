@@ -58,7 +58,8 @@ data class StrategyActionRequest(val account:String,val connection:String,val ch
     val generation:Long,val command:Int,val card:Int,val rank:Int,val outfit:Int=0,
     val politics:Int=50,val administration:Int=50,val target:Int=0,val base:Int=0,val value:Int=0,
     val amount:Long=0,val identities:List<StrategicIdentity> = emptyList(),val argument:Int=0,
-    val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0,val repairPreview:Boolean=false,val countryName:String?=null) {
+    val navigators:Map<String,Navigator> = emptyMap(),val requestToken:Int=0,val repairPreview:Boolean=false,val countryName:String?=null,
+    val transportUnits:Map<Int,Int> = emptyMap()) {
     constructor(account:String,connection:String,characterId:Int,power:Power,generation:Long,command:Int,card:Int,rank:Int,outfit:Int=0,
         politics:Int=50,administration:Int=50,target:Int=0,base:Int=0,value:Int=0,amount:Long=0,
         identities:List<StrategicIdentity> = emptyList(),argument:Int=0,navigators:Map<String,Navigator> = emptyMap(),requestToken:Int=0,
