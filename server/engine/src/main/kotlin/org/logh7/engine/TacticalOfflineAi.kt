@@ -5,11 +5,14 @@ import kotlin.math.*
 /** Manual: offline AI accepts tactical missions (update04). Steering, allocation and five-real-second
  * decisions below are replacement policy. Uses the normal motion, reload and damage models. Author: Peppone Choi. */
 internal object TacticalOfflineAi {
-    fun eligible(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks)=session.ended==null &&
-        session.participants[account]?.let {!it.online && it.country==p.country && it.country !in session.eliminated}==true &&
+    fun missionEligible(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks)=session.ended==null &&
+        session.participants[account]?.let {it.country==p.country && it.country !in session.eliminated}==true &&
         p.generation==session.generation && p.cpPaused &&
         p.baseId==0 && p.mode==5 && p.hull!=null && p.hull.woundedUntil<=session.gameMillis/1000 &&
-        !BattleDeath.deceased(stocks,p.characterId) && !stocks.social.justice.detained(p.characterId) &&
+        !BattleDeath.deceased(stocks,p.characterId) && !stocks.social.justice.detained(p.characterId)
+
+    fun eligible(session:SessionState,account:String,p:Navigator,stocks:PlanetStocks)=
+        missionEligible(session,account,p,stocks) && session.participants[account]?.online==false &&
         stocks.tacticalCommands.tacticalAi(p.characterId)
 
     private fun currentMission(p:Navigator,stocks:PlanetStocks)=stocks.tacticalCommands.missions[p.characterId]

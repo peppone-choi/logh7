@@ -555,7 +555,7 @@ internal object TacticalCommandOperations {
                 val id=p.characterId
                 val existing=missions[id]
                 if(existing!=null && !existing.completed && !existing.defaultDefense)continue
-                val base=if(id !in defeated && TacticalOfflineAi.eligible(session,account,p,stocks) &&
+                val base=if(id !in defeated && TacticalOfflineAi.missionEligible(session,account,p,stocks) &&
                     TacticalContact.contested(forces[p.grid].orEmpty()))TacticalOfflineAi.defenseBase(p,stocks,g) else null
                 if(base!=null) {
                     if(existing?.defaultDefense!=true || existing.completed || existing.target!=base.id || existing.grid!=p.grid)
