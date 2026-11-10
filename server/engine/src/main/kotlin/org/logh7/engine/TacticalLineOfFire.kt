@@ -15,7 +15,8 @@ internal object TacticalLineOfFire {
             val t=((point.x-from.x)*dx+(point.y-from.y)*dy)/length
             return t>0 && t<1 && hypot(point.x-from.x-t*dx,point.y-from.y-t*dy)<=radius+.05
         }
-        for(p in players.filter {it.unitId!=source && it.grid==grid && it.baseId==0 && it.cpPaused && TacticalAuthority.camp(it,stocks)==camp}) {
+        for(p in players.filter {it.unitId!=source && it.grid==grid && it.baseId==0 && it.cpPaused &&
+            !BattleDeath.deceased(stocks,it.characterId) && TacticalAuthority.camp(it,stocks)==camp}) {
             val at=p.motion?.pose(now,p.posture,galaxy,stocks)?.position ?:
                 TacticalDeployment.initial(p.unitId,grid,players,stocks,galaxy).position
             if(intersects(at,.25))return true
