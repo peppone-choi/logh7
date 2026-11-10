@@ -126,6 +126,43 @@ class JusticeActionsTest {
             state=JusticeActions.settle(galaxy,session.copy(gameMillis=(session.gameMillis/1000+day*86400)*1000),accounts.toMutableMap(),state);day++}
         assertTrue(state.social.justice.watches.isEmpty(),"noticed within 60 days")
     }
+    @Test fun dailyWatchDetectionUsesRegisteredIntelligenceAndPrefersTheStoredAbility() {
+        val start=session.gameMillis/1000+Justice.DAY
+        val due=(start..start+1000).first {at->
+            listOf(a,b).all {JusticeActions.roll(c.characterId,it.characterId,at) in 10..29}
+        }
+        val watches=listOf(a,b).associate {watcher->watcher.characterId to
+            Watch(watcher.characterId,c.characterId,due-Justice.DAY,due)}
+        val registered=ids.zip(listOf(90,10,50)).map {(identity,ability)->
+            identity.copy(abilities=List(8) {if(it==3)ability else 100-ability})
+        }
+        for(overridden in listOf(false,true)) {
+            val initial=stocks()
+            val people=initial.strategic.people
+            val inventory=initial.copy(social=initial.social.copy(justice=JusticeState(watches=watches)),
+                strategic=initial.strategic.copy(people=if(overridden)people+(a.characterId to
+                    people.getValue(a.characterId).copy(abilities=List(8) {if(it==3)10 else 90})) else people))
+            val nav=Navigation(galaxy,object:NavigationStore {
+                override fun load()=accounts
+                override fun save(players:Map<String,Navigator>)=Unit
+            },NavigationPolicy())
+            val production=PlanetProduction(galaxy,null,rules.startSeconds,PlanetProductionPolicy(),restored=inventory)
+            production.settle(1,session.gameMillis/1000)
+            var loads=0
+            production.identities={loads++;registered}
+            val save=WorldStateCommitter { _, _ -> }
+            TacticalCombat.settle(session.copy(gameMillis=(due-1)*1000),galaxy,nav,production,save)
+            assertEquals(0,loads)
+            assertEquals(watches,production.snapshot(1)?.social?.justice?.watches)
+
+            TacticalCombat.settle(session.copy(gameMillis=due*1000),galaxy,nav,production,save)
+            assertEquals(1,loads)
+            val expected=if(overridden)emptyMap() else mapOf(a.characterId to
+                watches.getValue(a.characterId).copy(checkAt=due+Justice.DAY))
+            assertEquals(expected,production.snapshot(1)?.social?.justice?.watches)
+        }
+    }
+
     @Test fun activeSpecialGuardLetsTheRaidTargetEvadeAtThatSpotOnly() {
         val start=session.gameMillis/1000
         val now=(start..start+1000).first {JusticeActions.roll(a.characterId,c.characterId,it) in 40..59}
