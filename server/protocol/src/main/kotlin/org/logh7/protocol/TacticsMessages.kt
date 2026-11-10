@@ -132,6 +132,18 @@ object TacticsMessages {
             .putFloat(u.leaderX).putFloat(u.leaderY).putFloat(u.leaderZ).putFloat(u.leaderDirection).put(if(u.detected)1 else 0)}
         return LoginMessages.sessionMessage(0x033b,out.array())
     }
+    /** Reads detection flags from an outbound state packet, including a partial query reply. */
+    fun forEachStateDetection(message:ByteArray, consume:(Int,Boolean)->kotlin.Unit) {
+        if(message.size<8)return
+        val fields=ByteBuffer.wrap(message)
+        if(fields.getShort(4).toInt()!=0x033b)return
+        val count=fields.getShort(6).toInt() and 65535
+        require(count<=600 && fields.limit()==8+47*count)
+        repeat(count) {i->
+            val offset=8+47*i
+            consume(fields.getInt(offset),fields.get(offset+46).toInt()!=0)
+        }
+    }
     /** 00422d80: 55 wire bytes per corps, versus the native padded 60-byte record. */
     fun corps(corps: List<Corps>): ByteArray {
         require(corps.size <= 600 && corps.map { it.character }.distinct().size == corps.size)

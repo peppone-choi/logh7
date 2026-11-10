@@ -6,11 +6,75 @@ import org.logh7.engine.*
 import org.logh7.gateway.load.*
 import java.nio.ByteBuffer
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.*
 
 /** Regression for a second player's strategy presence replacing the native battlefield. Author: Peppone Choi. */
 class TacticalEntryWireTest {
     @TempDir lateinit var directory:Path
+    @Test fun aDirectStateReplyCanRevealAnEnemyBeforeTheNextClockUpdateHidesIt() {
+        val grid=2487
+        val now=SessionRules.load().startSeconds
+        val galaxy=Galaxy(listOf(GalaxySystem(3,grid,0,"Battle",3)),
+            listOf(GalaxyBase(1049,grid,80,0,"Battle",0,30f,86400,0,0f,2f)),Power.entries.associateWith {grid})
+        fun motion(y:Float):TacticalMotion {
+            val point=TacticalPoint(0f,y)
+            return TacticalMotion(grid,now,TacticalPose(point,0f),0f,0f,listOf(point))
+        }
+        fun fleet(id:Int,power:Int,kind:Int,y:Float):OutfitStock {
+            val stack=UnitStack(kind)
+            return OutfitStock(id,power,OutfitKind.FLEET,1049,10+id,units=UnitInventory(mapOf(stack to 1)),
+                position=OutfitPosition(grid),activeShips=ActiveShipUnits(listOf(ActiveShipUnit(id,stack,
+                    tactical=NpcTacticalState(motion(y),now,now)))))
+        }
+        val scout=fleet(1,2,32,22f)
+        val enemy=fleet(2,3,119,19f)
+        val stocks=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,3,0,100,200,300)),
+            outfits=mapOf(1 to scout,2 to enemy),warehouses=mapOf(11 to OutfitWarehouse(11,2,OutfitKind.FLEET,1049,1),
+                12 to OutfitWarehouse(12,3,OutfitKind.FLEET,1049,2)),deploymentInitialized=true,nextShipId=3)
+        val viewer=Navigator(1,10000,Power.EMPIRE,grid,1000,1000,1000,cpPaused=true,motion=motion(21f))
+        val nav=object:NavigationStore {
+            override fun load()=mapOf("load-000" to viewer)
+            override fun save(players:Map<String,Navigator>) {}
+        }
+        val inventory=object:PlanetStockStore {
+            override fun load()=stocks
+            override fun save(stocks:PlanetStocks) {}
+        }
+        val scoutInside=AtomicBoolean()
+        fun decorate(delegate:GameNavigation)=object:GameNavigation by delegate {
+            override fun snapshot():WorldSnapshot?=delegate.snapshot()?.let {snapshot->
+                if(!scoutInside.get())snapshot else {
+                    val current=checkNotNull(snapshot.planetStocks)
+                    snapshot.copy(planetStocks=current.copy(outfits=current.outfits+(scout.id to fleet(1,2,32,18f))))
+                }
+            }
+        }
+        fun through(client:SyntheticClient,opcode:Int):ByteArray {
+            repeat(80){val packet=client.receive();if(ByteBuffer.wrap(packet).getShort(4).toInt()==opcode)return packet}
+            error("Missing opcode $opcode")
+        }
+        fun detected(packet:ByteArray):Int {
+            val fields=ByteBuffer.wrap(packet)
+            val index=(0 until fields.getShort(6).toInt()).single {fields.getInt(8+47*it)==enemy.id}
+            return fields.get(54+47*index).toInt()
+        }
+        LoadFixture(directory,1,LoadMetrics(),galaxy,ticking=false,stockStore=inventory,navigationStore=nav,
+            navigationDecorator=::decorate).use {fixture->
+            val client=fixture.join(fixture.account(0),true,false).client
+            client.send(SyntheticClient.opcode(0x0f00));through(client,0x0f01)
+            client.send(SyntheticClient.opcode(0x0f02));assertEquals(0,detected(through(client,0x033b)));through(client,0x0f03)
+            // Consume the unsolicited clock refresh while both the scout and viewer are outside.
+            through(client,0x033f)
+            scoutInside.set(true)
+            client.send(ByteBuffer.allocate(8).putShort(0x033a).putShort(1).putInt(enemy.id).array())
+            assertEquals(1,detected(through(client,0x033b)))
+            scoutInside.set(false)
+            client.send(SyntheticClient.opcode(0x0300));through(client,0x0301)
+            assertEquals(0,detected(through(client,0x033b)))
+        }
+    }
+
     @Test fun peerJoinPreservesAllBattlefieldDefinitionsAndQueriesStayWithinGrid() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Battle",3)),
             listOf(GalaxyBase(1049,2487,80,0,"Battle",0,20f,86400,0,90f,2f)),Power.entries.associateWith {2487})

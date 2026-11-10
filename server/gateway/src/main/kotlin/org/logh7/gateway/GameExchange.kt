@@ -173,7 +173,18 @@ class GameExchange(
         }
     }
     private var tacticalResumeGrid: Int? = null
-    private var hiddenTacticalUnits=emptySet<Int>()
+    @Volatile private var hiddenTacticalUnits=emptySet<Int>()
+    private fun stageGameMessages(messages:List<ByteArray>):OutboundBatch {
+        val batch=handshake.stageAll(messages,clearHeader=0)
+        // Every state packet can change the client's detection flags, even a partial direct reply.
+        var observed:MutableSet<Int>?=null
+        for(message in messages)org.logh7.protocol.TacticsMessages.forEachStateDetection(message) {id,detected->
+            val hidden=observed ?: hiddenTacticalUnits.toMutableSet().also {observed=it}
+            if(detected)hidden.remove(id) else hidden.add(id)
+        }
+        observed?.let {hiddenTacticalUnits=it}
+        return batch
+    }
     private var recoveryCheckedAt: Long? = null
     private fun stocks(): CompletableFuture<org.logh7.engine.PlanetStocks?> =
         stock?.snapshot(checkNotNull(generation))?.thenApply { it } ?: CompletableFuture.completedFuture(null)
@@ -633,13 +644,9 @@ class GameExchange(
                 if(world?.galaxy?.let { org.logh7.engine.TacticalTerrain.starRadius(it,player.grid) }==null) listOf(corps)
                 else {
                     val updates=battle.detectionChanges(hiddenTacticalUnits)
-                    hiddenTacticalUnits=battle.units.filterNot {it.detected}.map {it.id}.toSet()
                     if(updates.isEmpty())listOf(corps) else listOf(corps,org.logh7.protocol.TacticsMessages.states(updates))
                 }
-            } else {
-                hiddenTacticalUnits=emptySet()
-                emptyList()
-            }
+            } else emptyList()
             clockRequest?.let { listOf(checkNotNull(BootstrapMessages.response(it, gameSeconds()))) }.orEmpty() +
                 (if (changed || relocated) listOf(characterMessage(character, player, true)) else emptyList()) +
                 (if (relocated) (if(previous.cpPaused && previous.grid != player.grid)
@@ -666,6 +673,8 @@ class GameExchange(
             val repeatTactical = update?.initialize==true && update.stage==0x0f02 && update.player.cpPaused &&
                 update.revision?.let {pendingTacticalRevision>it}==true
             val tactical = update?.let {
+                if(it.initialize || deliveredPlayer?.grid!=it.player.grid || deliveredTactics!=it.player.cpPaused)
+                    hiddenTacticalUnits=emptySet()
                 val changed = deliveredTactics != null &&
                     (deliveredTactics != it.player.cpPaused && deliveredPlayer?.grid == it.player.grid ||
                         deliveredTactics == true && deliveredPlayer?.grid != it.player.grid)
@@ -697,7 +706,7 @@ class GameExchange(
             val retry=if(repeatTactical)listOf(org.logh7.protocol.TacticsMessages.notify(checkNotNull(update).player.grid,true)) else emptyList()
             if (output.isEmpty() && tactical.isEmpty() && retry.isEmpty()) null else {
                 presence?.observeMotions(connection,output+tactical+retry)
-                handshake.stageAll(output + tactical + retry, clearHeader = 0).also { batch ->
+                stageGameMessages(output+tactical+retry).also { batch ->
                     pendingOfflineWarpNotice?.let { notice ->
                         if (output.any { it === notice.message }) notice.batch = batch
                     }
@@ -723,7 +732,7 @@ class GameExchange(
             } else current
             if(output.isEmpty())null else {
                 presence?.observeMotions(connection,output)
-                handshake.stageAll(output, clearHeader = 0)
+                stageGameMessages(output)
             }
         }
     }
@@ -747,6 +756,7 @@ class GameExchange(
             else if(deliveredTactics!=true)false
             else {
                 deliveredTactics=false
+                hiddenTacticalUnits=emptySet()
                 tacticalExitPending=true
                 true
             }
@@ -3017,7 +3027,6 @@ class GameExchange(
                                 if (!worldInitialized && tactical != null) startupGroundOrders =
                                     tactical.groundOrders.filterTo(mutableSetOf()) { it.character == player.characterId }
                                 tacticalResumeGrid=tactical?.grid
-                                hiddenTacticalUnits=tactical?.units.orEmpty().filterNot {it.detected}.map {it.id}.toSet()
                                 reservedWarpNotice(result.warpCancellation, player.characterId, gameSeconds()).singleOrNull()?.let { startupWarpNotice = it }
                                 if (opcode == 0x0f02) startupGridReady = true
                                 listOf(BootstrapMessages.characterId(entered),
@@ -3134,7 +3143,7 @@ class GameExchange(
                 }
                 else -> error("Unsupported lobby opcode 0x${opcode.toString(16)}")
             }
-            return handshake.stageAll(listOf(response), clearHeader = 0)
+            return stageGameMessages(listOf(response))
         }
         check(state == State.AWAITING_AUTH) { "Post-authentication messages are not implemented" }
         val body = handshake.receive(type, data) ?: return null
