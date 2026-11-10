@@ -29,6 +29,24 @@ class FortressSinkingPresenceTest {
         assertEquals(1,received.size)
     }
 
+    @Test fun dockedStrategicOwnerReceivesTheSceneTransitionForCrossGridReturn() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        val docked = Navigator(1,10001,Power.ALLIANCE,2487,1000,1000,900,baseId=1002,mode=4)
+        hub.update(GamePresence.Member("one",character,docked,received::add))
+        val returned = docked.copy(grid=2490,baseId=1004)
+        hub.fortressSunk(returned,character,emptyList(),100)
+        val galaxy = Galaxy(listOf(GalaxySystem(3,2487,4,"Battle",3),GalaxySystem(4,2490,4,"Home",3)),
+            emptyList(),Power.entries.associateWith { 2487 })
+        val snapshot = WorldSnapshot(1,0,navigators=mapOf("pilot" to returned))
+        hub.strategicMovement(NpcStrategicMovement(1,1,2487,2488,100,listOf(1),mapOf(10001 to "one")),
+            snapshot,WorldBootstrap(galaxy)) { null }
+        val exit = received.flatten().filter { opcode(it)==0x0f1f }.single()
+        assertEquals(0,exit[6].toInt())
+        assertEquals(docked.grid,ByteBuffer.wrap(exit).getInt(7))
+        assertEquals(returned,hub.communicationMember("one")!!.player)
+    }
+
     @Test fun dockedTacticalOwnerLeavesTheBattleAndGetsItsReturnLocation() {
         val hub=GamePresence();val received=mutableListOf<List<ByteArray>>()
         val docked=Navigator(1,10001,Power.ALLIANCE,2487,1000,1000,900,baseId=1002,mode=4,cpPaused=true)

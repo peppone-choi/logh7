@@ -67,6 +67,7 @@
 #include "tactical_detection_data.h"
 #include "tactical_inspect_data.h"
 #include "hd_texture_data.h"
+#include "hud_system_label_data.h"
 // HD texture pack rules: data-relative path, skipped files, header sizes and the reported size (codes 901+).
 static int checkHdTextureRules() {
     char rel[MAX_PATH];
@@ -854,6 +855,24 @@ static bool tacticalNoticesTest() {
         strcmp(logh::tacticalNoticeFallback(118, 10, missing, 4), "LOGH7_TACTICAL_PARALLEL") ||
         strcmp(logh::tacticalNoticeFallback(118, 10, missing, 99), "LOGH7_TACTICAL_DESTINATION") ||
         strcmp(logh::tacticalNoticeFallback(118, 57, missing), "LOGH7_TACTICAL_PLAYER_DEPARTED")) return false;
+    {
+        // 0f1f flag 0: only the verified 118/38 call (e8 24 04 06 00 -> 00522010) becomes the neutral modal body.
+        const unsigned call = 0x4c1be7;
+        const BYTE native[5] = {0xe8, 0x24, 0x04, 0x06, 0x00};
+        if (call + 5 + *reinterpret_cast<const unsigned*>(native + 1) != 0x522010) return false;
+        if (!logh::tacticalWindowNoticeCall(call) || !logh::tacticalWindowNoticeCall(0x5104b2) ||
+            logh::tacticalWindowNoticeCall(0x4c1bb8) || logh::tacticalWindowNoticeCall(0x4c1bf9) ||
+            logh::tacticalWindowNoticeCall(0x4c19e0)) return false;
+        if (strcmp(logh::tacticalNoticeFallback(118, 38, missing), "LOGH7_TACTICAL_SITUATION_ENDED") ||
+            logh::tacticalNoticeFallback(118, 38, valid) != valid ||
+            logh::tacticalNoticeFallback(118, 37, missing) != missing) return false;
+        const wchar_t* body = nullptr;
+        for (size_t i = 0; i < count; ++i) if (rows[i].index == 38) body = rows[i].text;
+        std::string encoded; std::wstring back;
+        if (!body || wcscmp(body, L"전술 상황이 종료되었습니다.\n") ||
+            !logh::encodeKoreanResource(L"전술 상황이 종료되었습니다.", encoded) ||
+            !logh::japaneseFragment(encoded.c_str(), back) || back != L"전술 상황이 종료되었습니다.") return false;
+    }
     std::wstring decoded = L"unchanged";
     if (logh::tacticalNoticeFragment(missing, decoded) || decoded != L"unchanged" ||
         logh::tacticalNoticeFragment(nullptr, decoded)) return false;
@@ -1659,6 +1678,29 @@ static int runGuard(int argc, wchar_t** argv) {
            refresh.due(nextRoot,true) || refresh.due(nullptr,true))return 290;
         refresh.bind(nextRoot,label); // Recreating the HUD already rendered the current rank.
         if(refresh.due(nextRoot,true))return 291;
+    }
+    {
+        // HUD slot 13: the verified 0058d790 call (e8 3b 5d f7 ff) reaches the native setter 0x5034d0.
+        const BYTE setterCall[]={0xe8,0x3b,0x5d,0xf7,0xff};LONG setterRel=0;memcpy(&setterRel,setterCall+1,4);
+        const unsigned setterTarget=static_cast<unsigned>(static_cast<LONG>(logh::hudSystemSetterCall)+5+setterRel);
+        if(logh::hudSystemLabelSlot!=13 || logh::hudSystemLabelWidget!=0x38 || setterTarget!=0x5034d0 ||
+           logh::hudSystemCatalogueCell!=0x4c8b70 || logh::hudSystemCatalogueName!=0x4c8c90)return 1170;
+        wchar_t label[96];
+        if(!logh::hudSystemLabel(2991,true,L"아스가르드",label,96) || wcscmp(label,L"아스가르드 성계") ||
+           !logh::hudSystemLabel(2016,false,nullptr,label,96) || wcscmp(label,L"17, 21 그리드"))return 1171;
+        // Missing data keeps the native label: no name, no grid, no buffer.
+        wcscpy_s(label,L"native");
+        if(logh::hudSystemLabel(2991,true,nullptr,label,96) || logh::hudSystemLabel(2991,true,L"",label,96) ||
+           logh::hudSystemLabel(5000,false,nullptr,label,96) || logh::hudSystemLabel(2016,false,nullptr,nullptr,96) ||
+           logh::hudSystemLabel(2016,false,nullptr,label,0) || wcscmp(label,L"native"))return 1172;
+        logh::HudSystemLabelRefresh refresh;
+        const auto hudRoot=reinterpret_cast<void*>(0x1000),nextRoot=reinterpret_cast<void*>(0x2000);
+        if(!refresh.due(hudRoot,3757) || refresh.due(nullptr,3757) || refresh.due(hudRoot,5000))return 1173;
+        refresh.applied(hudRoot,3757);
+        // Fortress return: same HUD, canonical grid 3757 -> 2991 must rewrite once.
+        if(refresh.due(hudRoot,3757) || !refresh.due(hudRoot,2991) || !refresh.due(nextRoot,3757))return 1174;
+        refresh.applied(hudRoot,2991);
+        if(refresh.due(hudRoot,2991))return 1175;
     }
     {
         unsigned excluded=0;

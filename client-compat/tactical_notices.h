@@ -27,9 +27,11 @@ static const unsigned tacticalNoticeCalls[] = {0x50e0cc, 0x50e0fb, 0x50eaf1, 0x5
     // Fortress tab 補給 target prompt (state 0x13, 118/46), the supply twin of the repair prompt 0x510363 (118/47).
     0x51033a,
     // 0425 NotifyWarpedShip (004c1990): a departing unit matched a grid player's flagship (118/57, CD group has 0..6).
-    0x4c19e0};
-// 0x5104b2 (118/60) fills the base-support window's empty-list text, not the chat log, so the chat marker would show raw
-// (seen 2026-11-03, work/fortress-tab-20261103): that one caller gets the catalogue's private CP932 form instead.
+    0x4c19e0,
+    // 0f1f flag 0 (byte 0 != 1 at 004c1baa): 118/38 NO DATA reaches the mode-5 modal via 00517af0 (work/fortress-ui-evidence).
+    0x4c1be7};
+// Window callers (logh::tacticalWindowNoticeCalls) show text outside the chat log, so the chat marker would show raw
+// (0x5104b2 seen 2026-11-03, work/fortress-tab-20261103): they get the catalogue's private CP932 form instead.
 static const char* tacticalWindowNotice(unsigned index, const char* marker) {
     static std::string encoded;
     size_t count; const auto rows = logh::tacticalNotices(count);
@@ -46,7 +48,9 @@ static const char* __fastcall tacticalNoticeLookup(void* table, void*, unsigned 
     const auto original = reinterpret_cast<const char*(__thiscall*)(void*, unsigned, unsigned)>(0x522010)
         (table, group, index);
     const auto text = logh::tacticalNoticeFallback(group, index, original, *reinterpret_cast<const BYTE*>(0x221669c));
-    if (text != original && _ReturnAddress() == reinterpret_cast<void*>(0x5104b2 + 5)) return tacticalWindowNotice(index, text);
+    if (text != original &&
+        logh::tacticalWindowNoticeCall(static_cast<unsigned>(reinterpret_cast<UINT_PTR>(_ReturnAddress())) - 5))
+        return tacticalWindowNotice(index, text);
     return logh::tacticalMissionNotice(text, InterlockedCompareExchange(&ownSupremeCommander, 0, 0) != 0);
 }
 // Preserve the native dialog state machine and its confirm/cancel result.

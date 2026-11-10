@@ -222,6 +222,9 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         // Reconcile durable capital/session endings before observers can start a native
         // forced-undock transition that cannot finish once gameplay requests are frozen.
         afterCommit()
+        // Deliver the return before other observers refresh the viewer from the new snapshot.
+        for(event in fortressSunk)for(observer in fortressSinkingObservers)try {observer(event)}
+        catch(failure:Exception){System.err.println("Fortress sinking delivery failed: ${failure.javaClass.simpleName}")}
         publishCoupDockCancellations(cancelledDocking)
         if(experienced.isNotEmpty())for(observer in characterRefreshObservers)try {observer(experienced)}
         catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}
@@ -236,8 +239,6 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
         catch(failure:Exception){System.err.println("Ground battle delivery failed: ${failure.javaClass.simpleName}")}
         for(event in occupations)for(observer in occupationObservers)try {observer(event)}
         catch(failure:Exception){System.err.println("Occupation delivery failed: ${failure.javaClass.simpleName}")}
-        for(event in fortressSunk)for(observer in fortressSinkingObservers)try {observer(event)}
-        catch(failure:Exception){System.err.println("Fortress sinking delivery failed: ${failure.javaClass.simpleName}")}
         for(movement in movements)for(observer in movementObservers)try {observer(movement)}
         catch(failure:Exception){System.err.println("Tactical movement delivery failed: ${failure.javaClass.simpleName}")}
         for(event in postures)for(observer in postureObservers)try {observer(event)}
