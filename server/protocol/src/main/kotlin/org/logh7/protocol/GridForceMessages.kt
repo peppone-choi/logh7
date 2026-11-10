@@ -5,6 +5,12 @@ import org.logh7.protocol.generated.MessageId
 
 /** CD NotifySearch reader 0044c960 and map import 004bfd30. Author: Peppone Choi. */
 object GridForceMessages {
+    fun clearSearch(seconds: Long, character: Int, power: Int, camp: Int, validGrid: Int): ByteArray {
+        require(seconds in 0..0xffffffffL && character > 0 && power in 2..3 && camp in 0..1 && validGrid in 0..4999)
+        val body = ByteBuffer.allocate(20).putInt(seconds.toInt()).putInt(StrategicSearchMessages.CLEAR_REPORT)
+            .putInt(character).put(1).putShort(validGrid.toShort()).put(1).put(power.toByte()).put(camp.toByte()).putShort(0)
+        return LoginMessages.sessionMessage(MessageId.NotifySearch.opcode, body.array())
+    }
     // The native importer replaces one power/camp across the map per packet.
     // Every row must therefore carry the same allegiance, with one nonempty group.
     fun search(seconds: Long, character: Int, power: Int, camp: Int, units: Map<Int, Int>): ByteArray {

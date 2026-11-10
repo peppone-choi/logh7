@@ -67,6 +67,7 @@
 #include "environment_shader_data.h"
 #include "tactical_fortress_menu_data.h"
 #include "tactical_detection_data.h"
+#include "strategic_search_data.h"
 #include "tactical_inspect_data.h"
 #include "hd_texture_data.h"
 #include "hud_system_label_data.h"
@@ -1675,6 +1676,43 @@ static int tacticalDetectionTest() {
     call(10);if(logh::findTacticalCalls(code,sizeof(code),target,sites,1)!=2 || sites[0]!=code+3)return 1144;
     return 0;
 }
+// Strategic search clear: decoded 0b0d marker row, importer seam bytes and the 0b03 sender call (codes 1260+).
+static int strategicSearchTest() {
+    BYTE report[0x18]={};
+    const unsigned clearWord=logh::strategicSearchClearWord;
+    memcpy(report+4,&clearWord,4);report[8]=7;report[0xc]=1;report[0x10]=1;report[0x12]=3;
+    if(!logh::strategicSearchClearReport(report) || logh::strategicSearchClearReport(nullptr))return 1260;
+    report[0xd]=0xcc;report[0x11]=0xcc;if(!logh::strategicSearchClearReport(report))return 1261; // Native padding.
+    report[0x14]=1;if(logh::strategicSearchClearReport(report))return 1262;
+    report[0x14]=0;report[0x15]=1;if(logh::strategicSearchClearReport(report))return 1262;
+    report[0x15]=0;report[0xc]=2;if(logh::strategicSearchClearReport(report))return 1263;
+    report[0xc]=1;report[0x10]=2;if(logh::strategicSearchClearReport(report))return 1264;
+    report[0x10]=1;report[4]^=1;if(logh::strategicSearchClearReport(report))return 1265; // Ordinary wait.
+    report[4]^=1;if(!logh::strategicSearchClearReport(report))return 1265;
+    BYTE seam[6]={0x0f,0x86,0x64,0x01,0x00,0x00}; // jbe 004bff84 at 004bfe1a.
+    static_assert(sizeof(logh::strategicSearchSeamBytes)==6,"jbe rel32 only");
+    if(!logh::strategicSearchSeamIntact(seam) || logh::strategicSearchSeamTarget(seam)!=logh::strategicSearchRedraw)return 1266;
+    // The patch must end exactly at the resume address and stay before the row loop's jl target.
+    if(logh::strategicSearchSeam+sizeof(seam)!=logh::strategicSearchSeamContinue ||
+        logh::strategicSearchSeamContinue>logh::strategicSearchLoopTarget)return 1266;
+    seam[0]=0xe9;if(logh::strategicSearchSeamIntact(seam) || logh::strategicSearchSeamIntact(nullptr))return 1266;
+    seam[0]=0x0f;seam[2]=0x65;if(logh::strategicSearchSeamIntact(seam))return 1266; // Other jbe target.
+    BYTE code[0x30];memset(code,0x90,sizeof(code));
+    const auto serializer=code+0x28;
+    auto call=[&](unsigned offset) {code[offset]=0xe8;const auto rel=static_cast<unsigned>(serializer-(code+offset+5));memcpy(code+offset+1,&rel,4);};
+    call(0x18);
+    if(logh::strategicSearchSendCall(code,sizeof(code),serializer))return 1267; // No push 0x51.
+    code[4]=0x6a;code[5]=0x52;if(logh::strategicSearchSendCall(code,sizeof(code),serializer))return 1267; // Fuel selector.
+    code[5]=0x51;if(logh::strategicSearchSendCall(code,sizeof(code),serializer)!=code+0x18)return 1268;
+    call(0x20);if(logh::strategicSearchSendCall(code,sizeof(code),serializer))return 1268; // Ambiguous.
+    memset(code+0x20,0x90,5);code[4]=0x90;code[5]=0x90;code[0x1d]=0x6a;code[0x1e]=0x51;
+    if(logh::strategicSearchSendCall(code,sizeof(code),serializer))return 1268; // Push after the call.
+    BYTE record[20];memset(record,0xab,sizeof(record));const unsigned own=0x01020304;memcpy(record+8,&own,4);
+    if(logh::advertiseStrategicSearchClear(0x52,record) || record[0]!=0xab)return 1269;
+    if(!logh::advertiseStrategicSearchClear(0x51,record) || logh::tacticalWord(record)!=0x4c374753 ||
+        logh::tacticalWord(record+4)!=0x434c5231 || logh::tacticalWord(record+8)!=own || record[12]!=0xab || record[19]!=0xab)return 1269;
+    return 0;
+}
 static int tacticalInspectTest() {
     // 02216680 is a lookup only in state 2; state 1 and the reset value must not open a panel.
     if(logh::tacticalInspectShip(2,7)!=7 || logh::tacticalInspectShip(1,7) || logh::tacticalInspectShip(9,7) || logh::tacticalInspectShip(2,0))return 1150;
@@ -1747,6 +1785,7 @@ static int runGuard(int argc, wchar_t** argv) {
         logh::countryAtlasScale(128,128,262144,512)!=0)return 1123;
     if(int result=tacticalCampTest())return result;
     if(int result=tacticalDetectionTest())return result;
+    if(int result=strategicSearchTest())return result;
     if(int result=tacticalInspectTest())return result;
     if(int result=countryEndingTest())return result;
     if(int result=outfitAffiliationTest())return result;

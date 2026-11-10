@@ -66,6 +66,21 @@ class NavigationRecoveryTest {
         val arrived = nav.apply(warp, at(7200)).player!!
         assertEquals(2488, arrived.grid); assertEquals(20, arrived.mcp); assertEquals(100, arrived.pcp)
     }
+    @Test fun searchChargesMcpOrFullPcpSubstitutionAndPersistsWithoutMoving() {
+        val initial = store().players.getValue("pilot").copy(pcp = 480, mcp = 250)
+        val store = Store(initial)
+        val nav = Navigation(galaxy, store, NavigationPolicy())
+        val search = request.copy(strategicSearch = true)
+        val first = assertNotNull(nav.apply(search, at(0)).player)
+        assertEquals(initial.copy(mcp = 10, mcpUsed = 240), first)
+        val reopened = Navigation(galaxy, store, NavigationPolicy())
+        val second = assertNotNull(reopened.apply(search, at(0)).player)
+        assertEquals(first.copy(pcp = 0), second)
+        assertEquals(NavigationRejection.CP, reopened.apply(search, at(0)).rejection)
+        assertEquals(second, store.players.getValue("pilot"))
+        reopened.apply(request.copy(tactical = true), at(0))
+        assertEquals(NavigationRejection.TACTICAL, reopened.apply(search, at(0)).rejection)
+    }
     @Test fun anUnrelatedBattleDoesNotBlockStrategyMovementButThePlayersOwnTacticalPhaseDoes() {
         val nav = Navigation(galaxy, store(), NavigationPolicy())
         val elsewhere = session.copy(battles = mapOf("another-grid" to BattleState(session.gameMillis, 0)))

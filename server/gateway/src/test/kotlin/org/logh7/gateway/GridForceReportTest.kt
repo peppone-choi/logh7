@@ -44,6 +44,21 @@ class GridForceReportTest {
         assertEquals(mapOf(2487 to 1,2489 to 1,2490 to 1),counts(after))
     }
 
+    @Test fun paidSearchReturnsNearbyHostilesSeparatelyFromFriendlyAutomaticReports() {
+        val enemy = viewer.copy(characterId = 10001, grid = 2488, country = Power.ALLIANCE.country,
+            shipStyle = ShipStyleId.fromLegacy(Power.ALLIANCE))
+        val state = WorldSnapshot(0, 0, session, navigators = mapOf("self" to viewer, "near" to enemy,
+            "far" to enemy.copy(characterId = 10002, grid = 2495),
+            "old" to enemy.copy(characterId = 10003, generation = 2)))
+        assertEquals(mapOf(2487 to 1), counts(state))
+        val packets = GridForceReport.search(state, galaxy, viewer, 1).values.map(ByteBuffer::wrap)
+        assertEquals(setOf(2, 3), packets.map { it.get(22).toInt() }.toSet())
+        val hostile = packets.single { it.get(22).toInt() == 3 }
+        assertEquals(1, hostile.get(18).toInt())
+        assertEquals(2488, hostile.getShort(19).toInt())
+        assertEquals(1, hostile.getShort(24).toInt())
+    }
+
     @Test fun countsDeployedShipBoatsButNotGroundTroopsCrewOrWarehouses() {
         val stock = PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
             mapOf(1 to OutfitStock(1,2,OutfitKind.PATROL,1049,10,

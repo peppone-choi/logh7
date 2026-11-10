@@ -125,6 +125,7 @@ class GameExchange(
     private var pendingJoin: CompletableFuture<Admission>? = null
     fun takePendingJoin(): CompletableFuture<Admission>? = pendingJoin.also { pendingJoin = null }
     private var pendingWorld: CompletableFuture<List<ByteArray>>? = null
+    private var previousSearchGroups = emptySet<Pair<Int, Boolean>>()
     private data class Publication(val character: CharacterMessages.Generate, val player: org.logh7.engine.Navigator, val initialize: Boolean,val stage:Int=0,val revision:Long?=null)
     private var publication: Publication? = null
     private var deliveredPlayer: org.logh7.engine.Navigator? = null
@@ -2068,6 +2069,40 @@ class GameExchange(
                                 unitMessage(character, player),
                                 org.logh7.protocol.NavigationMessages.grid(player.grid,player.cpPaused),
                                 org.logh7.protocol.NavigationMessages.moved(arrived, seconds, player.unitId, player.cruise)) + completedWork(result, character, warpNotified = true)
+                        }
+                        return null
+                    }
+                    0x0b03 -> {
+                        check(gameStarted && worldInitialized)
+                        val movement = checkNotNull(navigation)
+                        val galaxy = checkNotNull(world).galaxy
+                        val character = checkNotNull(currentCharacter(identity.account))
+                        val characterId = character.id.toInt()
+                        val command = org.logh7.protocol.StrategicSearchMessages.request(body)
+                        require(command.characterId == characterId)
+                        val request = org.logh7.engine.NavigationRequest(identity.account, characterId,
+                            currentProfile(identity.account, characterId).country, connection, checkNotNull(generation),
+                            politics = character.abilities[1], administration = character.abilities[2], strategicSearch = true)
+                        pendingWorld = navigate(request).thenApply { result ->
+                            val player = result.player ?: result.previous ?: return@thenApply emptyList()
+                            publication = Publication(character, player, false)
+                            val updates = listOf(characterMessage(character, player, true)) + completedWork(result, character)
+                            if (result.player == null) return@thenApply updates
+                            val seconds = gameSeconds()
+                            val reply = listOf(org.logh7.protocol.StrategicSearchMessages.reply(characterId, seconds, 0, player.pcp, player.mcp)) + updates
+                            val snapshot = movement.snapshot()?.takeIf { it.session?.generation == player.generation }
+                                ?: return@thenApply reply
+                            val reports = GridForceReport.search(snapshot, galaxy, player, seconds)
+                            if (!command.supportsClear) {
+                                previousSearchGroups = previousSearchGroups + reports.keys
+                                return@thenApply reply + reports.values
+                            }
+                            val cleared = (previousSearchGroups - reports.keys).map { (power, insurgent) ->
+                                org.logh7.protocol.GridForceMessages.clearSearch(seconds, characterId, power,
+                                    if (insurgent) 1 else 0, player.grid)
+                            }
+                            previousSearchGroups = reports.keys
+                            reply + cleared + reports.values
                         }
                         return null
                     }
