@@ -364,6 +364,7 @@ object ProposalActions {
         }
         if(i.command!=OPEN)return reject(SocialRejection.COMMAND)
         val cost=costs[i.value] ?: return reject(SocialRejection.COMMAND)
+        if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
         if(i.target<=0 || i.target==i.characterId)return reject(SocialRejection.COMMAND)
         if(BattleDeath.deceased(s,i.target))return reject(SocialRejection.TARGET)
         val politicianCard=if(i.value!=ASSIGNMENT)politicianSenderCard(s,p,i.rank) else null
@@ -403,10 +404,9 @@ object ProposalActions {
         }
         if(i.value==APPOINTMENT && (targetCard to seat) !in vacancies(g,s,i.target,power,recipientRank,i.characterId,senderRank,countries))
             return reject(SocialRejection.TARGET)
-        if(rankChange(i.value) && (i.amount!=0L || i.country in session.eliminated ||
+        if(rankChange(i.value) && (i.amount!=0L ||
             personnel(g,s,recipient,i.argument,target,i.value,i.identities,countries)==null))return reject(SocialRejection.TARGET)
         r.assignment?.let {
-            if(i.country in session.eliminated)return reject(SocialRejection.SESSION)
             assignmentRejection(assignmentPreview(g,s,recipient,i.argument,it,countries,assignmentBlocked))
                 ?.let { reason -> return reject(reason) }
         }

@@ -329,16 +329,27 @@ class ProposalActionsTest {
         }
     }
 
-    @Test fun anEliminatedCountryCannotApproveAnOfficeOrderButCanRefuseOrReceiveTheExpiryRefund() {
-        val opened = act("a", ProposalActions.OPEN, 17, b.characterId, ProposalActions.RESIGNATION, 19, stocks())
+    @Test fun anEliminatedCountryCannotOpenOrApproveAnOfficeOrderButCanRefuseOrReceiveTheExpiryRefund() {
+        val initial = stocks()
+        val active = session.copy(countries = setOf(Power.EMPIRE.country, Power.ALLIANCE.country, CountryId(42)))
+        val defeated = active.copy(eliminated = mapOf(Power.EMPIRE.country to
+            CountryDefeat(EndReason.SYSTEMS_REDUCED, active.gameMillis / 1000)))
+        val open = SocialRequest(StrategyActionRequest("a", "a", a.characterId, Power.EMPIRE, 1,
+            ProposalActions.OPEN, 17, 2, target = b.characterId, value = ProposalActions.RESIGNATION, argument = 19))
+        val initialPlayers = mapOf("a" to a, "b" to b)
+        val blocked = ProposalActions.evaluate(galaxy, open, defeated, a, initial, initialPlayers)
+        assertEquals(SocialRejection.SESSION, blocked.rejection)
+        assertEquals(a, blocked.player)
+        assertEquals(initial, blocked.stocks)
+        assertFalse(blocked.changed)
+
+        val opened = ProposalActions.evaluate(galaxy, open, active, a, initial, initialPlayers)
+        assertNull(opened.rejection)
         val pending = assertNotNull(opened.stocks)
         val sender = assertNotNull(opened.player)
         val mail = pending.social.proposals.mails.single()
         assertTrue(mail.order)
         assertEquals(960, sender.mcp)
-        val active = session.copy(countries = setOf(Power.EMPIRE.country, Power.ALLIANCE.country, CountryId(42)))
-        val defeated = active.copy(eliminated = mapOf(Power.EMPIRE.country to
-            CountryDefeat(EndReason.SYSTEMS_REDUCED, mail.createdAt)))
         val accounts = mapOf("a" to sender, "b" to b)
         fun reply(value: Int): SocialResult {
             val request = SocialRequest(StrategyActionRequest("b", "b", b.characterId, Power.EMPIRE, 1,
@@ -377,6 +388,33 @@ class ProposalActionsTest {
         assertEquals(mapOf("a" to sender.copy(mcp = a.mcp), "b" to b), players)
         assertEquals(expired, ProposalActions.settle(galaxy, expiry, players, expired))
         assertEquals(a.mcp, players.getValue("a").mcp)
+    }
+
+    @Test fun anEliminatedCountryStillAcknowledgesAnExistingAssignmentReplay() {
+        val country = Power.EMPIRE.country
+        val payload = StockAssignmentProposal(17, 1049, 1, OutfitKind.FLEET.wire, emptyList(), emptyList(), supplies = 1)
+        val mail = ProposalMail(1, a.characterId, b.characterId, 17, 19, ProposalActions.ASSIGNMENT,
+            true, 0, Proposals.LIFETIME, mcp = 80, country = country,
+            assignment = payload, assignmentOriginalRecipient = b.characterId)
+        val initial = stocks()
+        val pending = initial.copy(social = initial.social.copy(nextId = 2, proposals = ProposalState(listOf(mail))))
+        val defeated = session.copy(countries = session.countries + CountryId(42), eliminated = mapOf(country to
+            CountryDefeat(EndReason.SYSTEMS_REDUCED, session.gameMillis / 1000)))
+        val request = SocialRequest(StrategyActionRequest("a", "a", a.characterId, Power.EMPIRE, 1,
+            ProposalActions.OPEN, 17, 2, target = b.characterId, value = ProposalActions.ASSIGNMENT, argument = 19),
+            assignment = payload)
+        val sender = a.copy(mcp = 920)
+        val accounts = mapOf("a" to sender, "b" to b)
+        val replay = ProposalActions.evaluate(galaxy, request, defeated, sender, pending, accounts)
+        assertNull(replay.rejection)
+        assertEquals(mail.id, replay.proposalId)
+        assertEquals(sender, replay.player)
+        assertEquals(pending, replay.stocks)
+        assertFalse(replay.changed)
+
+        val tampered = request.copy(assignment = StockAssignmentProposal(payload.token, 1049, 1,
+            OutfitKind.FLEET.wire, emptyList(), emptyList(), supplies = 2))
+        assertEquals(SocialRejection.QUOTE_CHANGED, ProposalActions.evaluate(galaxy, tampered, defeated, sender, pending, accounts).rejection)
     }
 
     @Test fun anAbsentOrderWaitsForTheRecipientToBeReleasedFromDetention() {
