@@ -43,7 +43,7 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
         if(i.command==26) {
             if(r.phase !in setOf(FormationPhase.BEGIN,FormationPhase.DELETE))return reject(StrategyActionRejection.COMMAND)
             if(r.phase==FormationPhase.BEGIN) {
-                val rows=stocks.outfits.values.filter {it.country==i.country}.filter {
+                val rows=stocks.outfits.values.filter {it.country==i.country && it.guard==null}.filter {
                     it.kind==r.kind && it.positionIn(galaxy)==OutfitPosition(p.grid,r.base)}.sortedBy {it.id}
                     .map {FormationStock(it.id,GridForces.units(it).coerceAtMost(65535).toInt())}
                 if(rows.size>200)return reject(StrategyActionRejection.MAXIMUM)

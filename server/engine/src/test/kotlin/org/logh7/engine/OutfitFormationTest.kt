@@ -218,6 +218,42 @@ class OutfitFormationTest {
         assertNull(released.rejection);assertFalse(assertNotNull(released.stocks).outfits.containsKey(formed.outfit))
         assertEquals(CountryId(43),released.stocks?.strategic?.operations?.single()?.country)
     }
+    @Test fun regularDissolutionCannotListOrRefundGuardShipsAndTheOwnerCanStillDisbandThem() {
+        val owner = player.copy(characterId = 10001)
+        val command = request(card = 25, kind = OutfitKind.PATROL, command = 26)
+        val formed = create(stocks(25), selected = mapOf(code to 1), r = command)
+        assertNull(formed.rejection)
+        val regular = assertNotNull(formed.stocks).outfits.getValue(formed.outfit)
+        val choice = checkNotNull(GuardShips.option(0))
+        val stack = UnitStack(choice.baseKind)
+        val unit = ActiveShipUnit(900, stack, GuardShips.BOATS)
+        val guard = OutfitStock(900, 2, OutfitKind.PATROL, 1049, regular.warehouseId, owner.characterId,
+            UnitInventory(ships = mapOf(stack to 1)), number = 201, activeShips = ActiveShipUnits(listOf(unit)),
+            guard = mapOf(unit.id to choice.index))
+        val initial = checkNotNull(formed.stocks).let { it.copy(outfits = it.outfits + (guard.id to guard), nextShipId = 901) }
+        val service = OutfitFormationService { 0L }
+
+        val listed = service.evaluate(galaxy, command, session, player, initial)
+        assertNull(listed.rejection)
+        assertEquals(listOf(regular.id), listed.items.map { it.code })
+        fun dissolve(target: Int) = service.evaluate(galaxy,
+            command.copy(phase = FormationPhase.DELETE, target = target), session, player, initial)
+        val denied = dissolve(guard.id)
+        assertEquals(StrategyActionRejection.AUTHORITY, denied.rejection)
+        assertEquals(player, denied.player)
+        assertEquals(initial, denied.stocks)
+        val dissolved = dissolve(regular.id)
+        assertNull(dissolved.rejection)
+        assertEquals(mapOf(guard.id to guard), dissolved.stocks?.outfits)
+
+        val disband = StrategyActionRequest("other", "d", owner.characterId, Power.EMPIRE, 1, 96, 0, 7, argument = 5)
+        val released = StrategyActions.evaluate(galaxy, disband, session, owner, initial)
+        assertNull(released.rejection)
+        assertEquals(mapOf(regular.id to regular), released.stocks?.outfits)
+        assertEquals(initial.bases, released.stocks?.bases)
+        assertEquals(initial.warehouses, released.stocks?.warehouses)
+    }
+
     @Test fun dissolutionReturnsOnlySurvivorsAndBothDepotsClearsOfficesAndNeverReusesTheDeletedId() {
         val formed=create(selected=mapOf(code to 3));val first=assertNotNull(formed.stocks)
         val outfit=first.outfits.getValue(formed.outfit)
