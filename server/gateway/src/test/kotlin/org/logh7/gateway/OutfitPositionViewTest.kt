@@ -22,6 +22,36 @@ class OutfitPositionViewTest {
             List(packet[6].toInt() and 255) {bytes.int.also {bytes.position(bytes.position()+20)}}}
         assertEquals((1..201).toList(),ids)
     }
+    @Test fun unitDetailUsesCommittedTacticalPostureOnlyInTheCurrentSpaceDeployment() {
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)),
+            listOf(GalaxyBase(1000, 2487, 80, 0, "Home", 0, 20f, 86400, 0, 0f, 2f)),
+            Power.entries.associateWith { 2487 })
+        val initial = ActiveShips.initialize(PlanetStocks(1, 0, mapOf(1000 to PlanetStock(1000, 2, 0, 0, 0, 0)),
+            mapOf(1 to OutfitStock(1, 2, OutfitKind.FLEET, 1000, 10, units = UnitInventory(mapOf(UnitStack(0) to 1)),
+                position = OutfitPosition(2487))), mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, 1000, 1))))
+        val world = WorldBootstrap(galaxy)
+        val outfit = initial.outfits.getValue(1)
+        val ship = checkNotNull(outfit.activeShips).values.single()
+        val pending = TacticalPostureOrder(10000, TacticalShipMode.ANCHORED, 1000, 1, 2)
+        val sailing = TacticalPosture(2487, TacticalShipMode.SAILING, 0, pending)
+        val anchored = TacticalPosture(2487, TacticalShipMode.ANCHORED, 1000)
+        fun stocks(posture: TacticalPosture, position: OutfitPosition = OutfitPosition(2487)) =
+            initial.copy(outfits = mapOf(1 to outfit.copy(position = position,
+                activeShips = ActiveShipUnits(listOf(ship.copy(posture = posture))))))
+        fun assertLocation(stocks: PlanetStocks, grid: Int, base: Int, mode: Int, requestBase: Int = 0) {
+            val unit = ByteBuffer.wrap(world.outfitUnit(ship.id, 2, stocks, requestBase))
+            assertEquals(mode, unit.get(13).toInt())
+            assertEquals(grid, unit.getInt(14))
+            assertEquals(base, unit.getInt(27))
+        }
+        assertLocation(stocks(sailing), 2487, 0, 6)
+        assertLocation(stocks(anchored), 2487, 1000, 5)
+        assertLocation(stocks(anchored, OutfitPosition(2488)), 2488, 0, 5)
+        assertLocation(stocks(anchored, OutfitPosition(2487, 1000)), 2487, 1000, 4, requestBase = 1000)
+        assertFailsWith<IllegalArgumentException> { world.outfitUnit(ship.id, 2, stocks(anchored), base = 1000) }
+        assertFailsWith<IllegalArgumentException> { world.outfitUnit(ship.id, 3, stocks(anchored)) }
+    }
+
     @Test fun directoryAndGridForceFollowTheDeploymentInsteadOfItsWarehouse() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
             listOf(GalaxyBase(1000,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})

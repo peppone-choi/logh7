@@ -319,9 +319,11 @@ class WorldBootstrap(val galaxy: Galaxy,
             val position = outfit.positionIn(galaxy)
             require(outfit.country == country && (base == 0 || base == position.baseId)) { "Outfit unit access denied" }
             val unit = outfit.activeShips!!.values.single { it.id == id }
-            listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,position.grid,outfit.id,position.baseId,
+            val posture = unit.posture?.takeIf { position.baseId == 0 && it.grid == position.grid }
+            listOf(OutfitPartyMessages.UnitInformation(id,unit.stack.kind,position.grid,outfit.id,posture?.base ?: position.baseId,
                 org.logh7.engine.OutfitSupplies.distribution(outfit).getValue(id),unit.unavailable,
                 UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number-unit.boats,
+                mode = posture?.mode?.wire ?: if (position.baseId == 0) 5 else 4,
                 rebellion=stocks.social.coup.loyalty[outfit.id] ?: 0))
         }
         return LoginMessages.sessionMessage(0x0331,OutfitPartyMessages.units(units))
