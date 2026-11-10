@@ -10,12 +10,13 @@ class SupplementTest {
     private val session=SessionSimulation(SessionRules.load()).also {it.join("pilot",Power.EMPIRE,false,"c")}.exportState()
     private fun request(ids: List<Int> = listOf(1),supplies: Int=100,mode: Int=1)=SupplementRequest(
         "pilot","c",10000,Power.EMPIRE,1,1049,1,0,mode,if(ids.isEmpty())emptyMap() else mapOf(32 to ids),supplies)
-    private fun stocks(boats: Int=290,warehouseCrew: Int=100,warehouseShips: Boolean=true): PlanetStocks {
+    private fun stocks(boats: Int=290,warehouseCrew: Int=100,warehouseShips: Boolean=true,
+        kind: OutfitKind = OutfitKind.FLEET): PlanetStocks {
         val units=UnitInventory(mapOf(ship to 1))
         return PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300)),
-            mapOf(1 to OutfitStock(1,2,OutfitKind.FLEET,1049,101,10000,units,
+            mapOf(1 to OutfitStock(1,2,kind,1049,101,10000,units,
                 activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,ship,boats))))),
-            mapOf(101 to OutfitWarehouse(101,2,OutfitKind.FLEET,1049,1,
+            mapOf(101 to OutfitWarehouse(101,2,kind,1049,1,
                 UnitInventory(if(warehouseShips)mapOf(UnitStack(32) to 1) else emptyMap(),
                     if(warehouseCrew>0)mapOf(crew to warehouseCrew) else emptyMap()),supplies=1000)),
             deploymentInitialized=true,nextShipId=2)
@@ -64,6 +65,45 @@ class SupplementTest {
         assertEquals(LogisticsRejection.STOCK,Supplement.evaluate(request(emptyList(),-101),session,
             commit.player,commit.stocks!!).rejection)
     }
+    @Test fun carriedPackageLimitsSupplyPreviewAndCommitButAllowsReturnAndShipReplacement() {
+        val kind = OutfitKind.TRANSPORT
+        val original = stocks(kind = kind)
+        val outfit = original.outfits.getValue(1).copy(supplies = 100)
+        val packageSupplies = OutfitSupplies.capacity(outfit) - outfit.supplies
+        val loaded = TransportPackage(1, outfit.country, 1049, 1050, packageSupplies,
+            carrier = outfit.id, carrierBoats = TransportActions.boats(outfit))
+        val initial = original.copy(outfits = original.outfits + (outfit.id to outfit),
+            strategic = original.strategic.copy(transports = listOf(loaded), lastTransportId = loaded.id))
+
+        fun evaluate(supplies: Int, mode: Int, units: Map<Int, List<Int>> = emptyMap()): SupplementResult =
+            Supplement.evaluate(SupplementRequest("pilot", "c", 10000, Power.EMPIRE, 1, 1049,
+                outfit.id, kind.wire, mode, units, supplies), session, player, initial)
+
+        for (mode in 0..1) {
+            val denied = evaluate(1, mode)
+            assertEquals(LogisticsRejection.STOCK, denied.rejection)
+            assertEquals(player, denied.player)
+            assertEquals(initial, denied.stocks)
+            assertFalse(denied.changed)
+        }
+        val returned = evaluate(-1, 1)
+        assertNull(returned.rejection)
+        assertEquals(99, returned.stocks!!.outfits.getValue(1).supplies)
+        assertEquals(1001, returned.stocks!!.warehouses.getValue(101).supplies)
+
+        val ships = mapOf(ship.kind to listOf(1))
+        val preview = evaluate(1, 0, ships)
+        assertNull(preview.rejection)
+        assertEquals(player, preview.player)
+        val supplied = evaluate(1, 1, ships)
+        assertNull(supplied.rejection)
+        assertEquals(840, supplied.player!!.mcp)
+        assertEquals(300, supplied.stocks!!.outfits.getValue(1).activeShips!!.values.single().boats)
+        assertEquals(101, supplied.stocks!!.outfits.getValue(1).supplies)
+        assertEquals(999, supplied.stocks!!.warehouses.getValue(101).supplies)
+        assertEquals(listOf(loaded), supplied.stocks!!.strategic.transports)
+    }
+
     @Test fun invalidUnitsStockCrewCpSessionAndAuthorityLeaveStateUntouched() {
         val initial=stocks()
         for(q in listOf(request(listOf(2)),request(listOf(1,1)),request(supplies=1001),
