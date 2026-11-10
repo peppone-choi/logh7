@@ -61,6 +61,11 @@ object CivicActions {
         if(o.command==56 && !captured(g,o.base,o.country))return false
         return true
     }
+    private fun requisitionRoom(outfit: OutfitStock, stocks: PlanetStocks): Int {
+        val cargo = TransportActions.carriedCargo(outfit, stocks.strategic.transports).sumOf { it.first.toLong() }
+        return (OutfitSupplies.capacity(outfit).toLong() - outfit.supplies - cargo).coerceAtLeast(0).toInt()
+    }
+
     private fun remember(s:CivicState,o:CivicOrder):CivicState {
         val entries=s.orders.toMutableMap();entries[o.character]=o
         while(entries.size>256)entries.remove(entries.values.filter {!it.active}.minWith(compareBy({it.readyAt},{it.character})).character)
@@ -108,7 +113,7 @@ object CivicActions {
             if(r.command==54 && g.bases.single {it.id==base.baseId}.kind!=0)return reject(StrategyActionRejection.LOCATION)
             if(r.command==56) {
                 if(!captured(g,base.baseId,country))return reject(StrategyActionRejection.LOCATION)
-                if(base.supplies==0 || outfit.supplies>=OutfitSupplies.capacity(outfit))return reject(StrategyActionRejection.RESOURCE)
+                if (base.supplies == 0 || requisitionRoom(outfit, stocks) == 0) return reject(StrategyActionRejection.RESOURCE)
             }
             local.map {it.id}.toSet()
         } else {
@@ -147,7 +152,7 @@ object CivicActions {
                     }
                     56 -> {
                         var outfit=next.outfits.getValue(o.outfit)
-                        effect=minOf(1000,b.supplies,(OutfitSupplies.capacity(outfit)-outfit.supplies).coerceAtLeast(0))
+                        effect = minOf(1000, b.supplies, requisitionRoom(outfit, next))
                         if(effect>0) {
                             outfit=outfit.copy(supplies=Math.addExact(outfit.supplies,effect))
                             if(outfit.activeShips?.values?.isNotEmpty()==true)

@@ -95,6 +95,52 @@ class CivicActionsTest {
         assertEquals(7,bounded.civic.orders.getValue(10000).effect);assertEquals(1993,bounded.bases.getValue(1050).supplies)
         assertEquals(OutfitSupplies.capacity(almostFull),bounded.outfits.getValue(200).supplies)
     }
+    @Test fun requisitionUsesOnlyRoomNotOccupiedBySurvivingTransportCargo() {
+        val atPort = stationed(stocks(), 1050)
+        val kind = ProductionUnits.definitions.first { it.ship && it.power == 2 && it.name.startsWith("輸送艦") }.kind
+        val ship = ActiveShipUnit(1, UnitStack(kind), supplies = 100)
+        val original = atPort.outfits.getValue(200)
+        val outfit = original.copy(kind = OutfitKind.TRANSPORT, activeShips = ActiveShipUnits(listOf(ship)),
+            units = UnitInventory(ships = mapOf(ship.stack to 1), troops = original.units.troops))
+        val warehouse = atPort.warehouses.getValue(300).copy(kind = OutfitKind.TRANSPORT)
+        val initial = atPort.copy(outfits = mapOf(outfit.id to outfit), warehouses = mapOf(warehouse.id to warehouse))
+        val pilot = player.copy(grid = 2200, baseId = 1050)
+        val command = request(56).copy(card = 44)
+        val capacity = OutfitSupplies.capacity(outfit)
+
+        fun carrying(state: PlanetStocks, room: Int): PlanetStocks {
+            val surviving = capacity - outfit.supplies - room
+            val cargo = TransportPackage(1, Power.EMPIRE.country, 1050, 1051, surviving * 2,
+                carrier = outfit.id, carrierBoats = ship.boats * 2, survivingBoats = ship.boats)
+            return state.copy(strategic = state.strategic.copy(transports = listOf(cargo)))
+        }
+
+        val full = carrying(initial, 0)
+        val denied = act(command, full, pilot)
+        assertEquals(StrategyActionRejection.RESOURCE, denied.rejection)
+        assertSame(pilot, denied.player)
+        assertSame(full, denied.stocks)
+
+        val accepted = act(command, carrying(initial, 200), pilot)
+        assertEquals(840, accepted.player?.mcp)
+        val pending = assertNotNull(accepted.stocks)
+        val fullAtCompletion = carrying(pending, 0)
+        val empty = settle(fullAtCompletion, p = pilot)
+        assertEquals(CivicPhase.EMPTY, empty.civic.orders.getValue(pilot.characterId).phase)
+        assertEquals(fullAtCompletion.bases, empty.bases)
+        assertEquals(fullAtCompletion.outfits, empty.outfits)
+        assertEquals(fullAtCompletion.strategic.transports, empty.strategic.transports)
+
+        val partial = carrying(pending, 7)
+        val done = settle(partial, p = pilot)
+        assertEquals(7, done.civic.orders.getValue(pilot.characterId).effect)
+        assertEquals(1993, done.bases.getValue(1050).supplies)
+        assertEquals(107, done.outfits.getValue(outfit.id).supplies)
+        assertEquals(107, assertNotNull(done.outfits.getValue(outfit.id).activeShips).values.single().supplies)
+        assertEquals(partial.strategic.transports, done.strategic.transports)
+        assertEquals(done, settle(done, now + 2 * CivicActions.DAY, pilot))
+    }
+
     @Test fun specialGuardIsImmediateExclusiveAndExpiresOrEndsWhenLeavingTheGuardedSpot() {
         val p=player.copy(mode=1,spotId=guarded);val accepted=act(request(55),p=p);assertNull(accepted.rejection)
         val active=assertNotNull(accepted.stocks);assertEquals(CivicPhase.GUARDING,accepted.civic?.phase)
