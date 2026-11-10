@@ -737,6 +737,11 @@ internal class Navigation(private val galaxy: Galaxy, private val store: Navigat
                                 (if (stocks != null) OrganizationalOfficePolicy(galaxy, countries).capital(stocks, country)
                                 else galaxy.bases.singleOrNull { Capital.of(it)?.power == country.value }?.id) == before.baseId } == true
                             15 -> move.owner == 0 && stocks?.strategic?.fiefs?.get(before.baseId) == before.characterId
+                            // constmsg 74/63 is the imperial planetary governor's office (card 54).
+                            63 -> move.owner == 0 && friendly && stocks != null && before.country?.let {country->
+                                OrganizationalOfficePolicy(galaxy,countries).holders(stocks,54,country)
+                                    .any {it.seat==before.baseId && it.character==before.characterId}
+                            } == true
                             else -> false
                         }
                     }
