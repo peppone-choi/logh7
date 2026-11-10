@@ -1,15 +1,16 @@
 package org.logh7.engine
 
 enum class OriginalStartingOffice(val key:String,val country:CountryId,val fleetId:Int,val fleetNumber:Int,
-    val baseId:Int,val role:FleetOffice) {
+    val baseId:Int,val role:FleetOffice,val rank:Int=5) {
     REINHARD_FLEET_2("reinhard-fleet-2",CountryId(2),2,2,1049,FleetOffice.EMPIRE_COMMANDER),
     VUCOCK_FLEET_5("vucock-fleet-5",CountryId(3),137,5,1086,FleetOffice.ALLIANCE_COMMANDER),
     STADEN_FLEET_4("staden-fleet-4",CountryId(2),4,4,1015,FleetOffice.EMPIRE_COMMANDER),
     PAETTA_FLEET_2("paetta-fleet-2",CountryId(3),134,2,1177,FleetOffice.ALLIANCE_COMMANDER),
-    FOGEL_FLEET_5("fogel-fleet-5",CountryId(2),5,5,1015,FleetOffice.EMPIRE_COMMANDER);
+    FOGEL_FLEET_5("fogel-fleet-5",CountryId(2),5,5,1015,FleetOffice.EMPIRE_COMMANDER),
+    MERKATZ_FLEET_3("merkatz-fleet-3",CountryId(2),3,3,1026,FleetOffice.EMPIRE_COMMANDER,rank=4);
 
     fun accepts(id:Long,country:CountryId?,rank:Int):Boolean =
-        id in PublishedOriginalCandidates.NEW_IDS && country==this.country && rank==5
+        id in PublishedOriginalCandidates.NEW_IDS && country==this.country && rank==this.rank
 
     companion object {
         fun fromKey(key:String):OriginalStartingOffice? = entries.singleOrNull {it.key==key}
@@ -87,6 +88,7 @@ interface OriginalCandidateStore {
     val supportsStadenStartingOffice:Boolean get()=false
     val supportsPaettaStartingOffice:Boolean get()=false
     val supportsFogelStartingOffice:Boolean get()=false
+    val supportsMerkatzStartingOffice:Boolean get()=false
     fun load():List<OriginalCandidateEdit>
     fun loadPortraits():Map<String,CandidatePortrait> = emptyMap()
     fun save(id:Long,expected:Long,profile:OriginalCandidateProfile,country:CountryId?=null):OriginalCandidateEdit?

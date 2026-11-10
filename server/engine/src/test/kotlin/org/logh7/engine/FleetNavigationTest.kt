@@ -291,6 +291,9 @@ class FleetNavigationTest {
         assertEquals(listOf(3,134,2,1177,175),listOf(paetta.country.value,paetta.fleetId,paetta.fleetNumber,paetta.baseId,paetta.role.card))
         val fogel=OriginalStartingOffice.FOGEL_FLEET_5
         assertEquals(listOf(2,5,5,1015,39),listOf(fogel.country.value,fogel.fleetId,fogel.fleetNumber,fogel.baseId,fogel.role.card))
+        val merkatz=OriginalStartingOffice.MERKATZ_FLEET_3
+        assertEquals(listOf(2,3,3,1026,39,4),listOf(merkatz.country.value,merkatz.fleetId,merkatz.fleetNumber,
+            merkatz.baseId,merkatz.role.card,merkatz.rank))
         for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
     }
 
@@ -304,6 +307,7 @@ class FleetNavigationTest {
             OriginalStartingOffice.STADEN_FLEET_4,OriginalStartingOffice.FOGEL_FLEET_5 ->
                 home.copy(id=1015,grid=1260,model=51,name="Hafen")
             OriginalStartingOffice.PAETTA_FLEET_2 -> home.copy(id=1177,grid=2015,model=61,name=Capital.ALLIANCE.baseName)
+            OriginalStartingOffice.MERKATZ_FLEET_3 -> home.copy(id=1026,grid=3280,name="Neuenrade")
         }
         val systems=if(base.grid==start.grid)listOf(start) else
             listOf(start,GalaxySystem(4,base.grid,4,base.name,power.country.value))
@@ -312,7 +316,7 @@ class FleetNavigationTest {
             it.join("pilot",side,original,"c")
         }.exportState()
         val session=admitted(true)
-        val request=NavigationRequest("pilot",1003,office.country,"c",1,rank=5,
+        val request=NavigationRequest("pilot",1003,office.country,"c",1,rank=office.rank,
             shipKind=if(power==Power.EMPIRE)3 else 93,initializeOriginal=true,startingOffice=office)
         val fleet=OutfitStock(office.fleetId,office.country,OutfitKind.FLEET,base.id,1002,number=office.fleetNumber,aideId=1005)
         val initial=PlanetStocks(1,0,mapOf(base.id to PlanetStock(base.id,office.country.value,0,100,100,100)),
@@ -326,7 +330,7 @@ class FleetNavigationTest {
                 production.settle(1,admission.gameMillis/1000),state.commit) {false}
         }
         for((entry,admission) in listOf(request.copy(startingOffice=null) to session,
-            request.copy(rank=6) to session,request to admitted(false),
+            request.copy(rank=if(office.rank==5)6 else 5) to session,request to admitted(false),
             request.copy(country=wrongPower.country,shipKind=if(wrongPower==Power.EMPIRE)3 else 93) to admitted(true,wrongPower))) {
             assertEquals(0,assertNotNull(enter(entry,admission).player).baseId)
             assertEquals(fleet,state.stocks.outfits.getValue(fleet.id))

@@ -181,7 +181,7 @@ class OriginalCharacterLotteryTest {
         val file = directory.resolve("${office.key}.properties")
         val country = office.country
         val imperial=country.value==2
-        val data = OriginalCandidateProfile("Fixture", "Candidate", if(imperial)26 else 100059, 5, List(8) { 50+it })
+        val data = OriginalCandidateProfile("Fixture", "Candidate", if(imperial)26 else 100059, office.rank, List(8) { 50+it })
         val published = PublishedOriginalCandidates()
         published.publish(listOf(OriginalCandidateEdit(1003, 1, data.copy(startingOffice = office), country),
             OriginalCandidateEdit(1004, 1, data, country)))
@@ -193,6 +193,7 @@ class OriginalCharacterLotteryTest {
         assertEquals(office, service.profiles().getValue("marked").startingOffice)
         val restored = CharacterCreation(file, clock)
         assertEquals(office, restored.profiles().getValue("marked").startingOffice)
+        assertEquals(data.rank, restored.profiles().getValue("marked").character.rank)
         assertEquals(data.abilities, restored.profiles().getValue("marked").character.abilities)
         assertNull(restored.profiles().getValue("unmarked").startingOffice)
     }
