@@ -137,7 +137,7 @@ object OutfitFormationPolicy {
     internal fun dissolve(galaxy:Galaxy,r:OutfitFormationRequest,p:Navigator,stocks:PlanetStocks):OutfitFormationResult {
         fun reject(reason:StrategyActionRejection)=OutfitFormationResult(p,stocks,reason,base=r.base)
         val outfit=stocks.outfits[r.target] ?: return reject(StrategyActionRejection.TARGET)
-        if(outfit.country!=p.country || outfit.kind!=r.kind)return reject(StrategyActionRejection.AUTHORITY)
+        if(outfit.guard!=null || outfit.country!=p.country || outfit.kind!=r.kind)return reject(StrategyActionRejection.AUTHORITY)
         if(outfit.positionIn(galaxy)!=OutfitPosition(p.grid,r.base))return reject(StrategyActionRejection.LOCATION)
         val ships=outfit.activeShips ?: return reject(StrategyActionRejection.TROOPS)
         val ground=outfit.activeGround?.values.orEmpty()

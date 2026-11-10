@@ -51,7 +51,7 @@ static bool readGatheringAction(void* record) {
             if(responseStatus)state.message=responseStatus==6 ? (state.strategyCommand==10 ? L"자기 수도 저택 무도회장(제국 작위·동맹 준장 이상/정치가)에서 같은 거점 인물에게만 할 수 있습니다." :
                 state.strategyCommand==11 ? L"자기 봉토 저택의 숲에서, 같은 거점의 같은 진영 인물에게만 할 수 있습니다." :
                 L"자기 호텔 객실에서, 같은 거점의 같은 진영 인물에게만 할 수 있습니다.") :
-                responseStatus==7 ? L"다른 작업(보급·입항·워프 대기)을 마친 뒤 실행하세요." :
+                responseStatus==7 ? L"주최자나 손님이 구금 중이거나 다른 작업(보급·입항·워프 대기) 중입니다." :
                 responseStatus==8 ? L"주최자의 MCP가 부족합니다(320 필요)." : responseStatus==9 ? L"오늘은 이미 모임을 열었습니다." :
                 responseStatus==10 ? L"초대가 없거나 만료됐습니다. 새로 조회하세요." :
                 responseStatus==11 ? L"저장 한도에 도달했습니다." : L"요청 거부 · 세션·대상·현재 상태를 확인하세요.";

@@ -110,6 +110,8 @@ object GatheringActions {
             ?: live[i.characterId]?.takeIf {it.guest==i.target && it.command==i.command}))
         if(r.ticket!=s.social.nextId)return reject(SocialRejection.STALE,view)
         if(i.card!=0)return reject(SocialRejection.CARD,view)
+        if (i.value != 2 && (s.social.justice.detained(hostId) || s.social.justice.detained(guestId)))
+            return reject(SocialRejection.BUSY, view)
         if(p.cpPaused || p.fuelReadyAt!=null || p.dockTarget!=null || p.warpTarget!=null)return reject(SocialRejection.BUSY,view)
         val hostEntry=navigators.entries.singleOrNull {it.value.generation==i.generation && it.value.characterId==hostId}
         val guest=navigators.values.singleOrNull {it.generation==i.generation && it.characterId==guestId}
