@@ -71,6 +71,25 @@ class BootstrapMessagesTest {
         assertFails { BootstrapMessages.character(character,offices=offices+offices) }
         assertFails { BootstrapMessages.character(character,offices=List(15) { BootstrapMessages.OfficeCard(54,1000+it) }) }
     }
+    @Test fun politicianCardsAreSeatlessAndDoNotDisplaceStoredOffices() {
+        val politician=character.copy(rank=1)
+        for((power,card) in listOf(2 to 67,3 to 196)) {
+            val actor=politician.copy(power=power)
+            val initial=BootstrapMessages.character(actor,1000,1000,politicianCard=card)
+            val tail=ByteBuffer.wrap(initial,initial.size-7,7)
+            assertEquals(card,tail.short.toInt())
+            assertEquals(0,tail.int)
+            assertContentEquals(initial.copyOfRange(6,initial.size),
+                BootstrapMessages.changedCharacter(actor,1000,1000,politicianCard=card).drop(7).toByteArray())
+        }
+        val offices=List(14) {BootstrapMessages.OfficeCard(54,1000+it)}
+        val full=BootstrapMessages.character(politician,offices=offices,politicianCard=67)
+        assertEquals(16,full[full.size-98].toInt())
+        assertContentEquals(BootstrapMessages.character(politician,offices=offices),full)
+        assertFailsWith<IllegalArgumentException>{BootstrapMessages.character(character,politicianCard=67)}
+        assertFailsWith<IllegalArgumentException>{BootstrapMessages.character(politician,politicianCard=196)}
+    }
+
     @Test fun theStrategyHudMeritFieldCarriesTheCurrentMerit() {
         val record=BootstrapMessages.character(character.copy(merit=110))
         // face, merit, 0, HUD merit, then eight ability/experience pairs, influence, 100, 0 and the card list.

@@ -33,6 +33,23 @@ object ProposalActions {
             (sender.spotId==0 && recipient.spotId==0 ||
                 recipient.baseId==sender.baseId && recipient.spotId==sender.spotId && recipient.spotOwner==sender.spotOwner)
 
+    /** CD pp.28–29: a regular politician may address a different institution. */
+    fun politicianSenderCard(stocks:PlanetStocks,player:Navigator,fallbackRank:Int):Int? {
+        if(BattleDeath.deceased(stocks,player.characterId) || stocks.social.justice.detained(player.characterId))return null
+        return politicianCard(player.country,stocks.strategic.people[player.characterId]?.rank ?: fallbackRank)
+    }
+
+    fun politicianCard(country:CountryId?,rank:Int):Int? =
+        if(rank==1)when(country?.value) {2->67;3->196;else->null} else null
+
+    fun senderCanAddress(policy:OrganizationalOfficePolicy,country:CountryId,senderCard:Int,recipientCard:Int,
+        politicianCard:Int?):Boolean =
+        senderCard==1 || senderCard==politicianCard ||
+            policy.role(senderCard,country)?.institution?.let {it==policy.role(recipientCard,country)?.institution}==true
+
+    fun isOrder(senderCard:Int,senderRank:Int,recipientRank:Int):Boolean =
+        senderCard in setOf(1,67,196) || senderRank<=recipientRank
+
     fun assignmentEligible(g: Galaxy, stocks: PlanetStocks, executor: Navigator, requiredCard: Int,
         payload: StockAssignmentProposal, countries: CountryCatalog = CountryCatalogLoader.current()): Boolean =
         assignmentPreview(g, stocks, executor, requiredCard, payload, countries) { _, _ -> false }.changed
@@ -303,20 +320,21 @@ object ProposalActions {
         val cost=costs[i.value] ?: return reject(SocialRejection.COMMAND)
         if(i.target<=0 || i.target==i.characterId)return reject(SocialRejection.COMMAND)
         if(BattleDeath.deceased(s,i.target))return reject(SocialRejection.TARGET)
-        if(policy.holders(s,i.card,i.country).none {it.character==i.characterId})return reject(SocialRejection.CARD)
+        val politicianCard=if(i.value!=ASSIGNMENT)politicianSenderCard(s,p,i.rank) else null
+        if(i.card!=politicianCard && policy.holders(s,i.card,i.country).none {it.character==i.characterId})
+            return reject(SocialRejection.CARD)
         val recipient=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==i.target}
             ?: return reject(SocialRejection.LOCATION)
         if(!recipientInRange(p,recipient))return reject(SocialRejection.LOCATION)
         val recipientPosts=policy.holders(s,i.argument,i.country).filter {it.character==i.target}
         if(recipientPosts.isEmpty())return reject(SocialRejection.CARD)
-        val emperor=i.card==1
-        if(!emperor && policy.role(i.card,i.country)?.institution.let {it==null || it!=policy.role(i.argument,i.country)?.institution})
+        if(!senderCanAddress(policy,i.country,i.card,i.argument,politicianCard))
             return reject(SocialRejection.CARD)
         val people=s.strategic.people
         val sender=people[i.characterId] ?: StrategicPerson(rank=i.rank)
         val senderRank=rank(s,i.characterId,i.country,i.rank,countries);val recipientRank=rank(s,i.target,i.country,20,countries)
         // 命令 goes down the ranks, 提案 up (a smaller rank number is senior); the emperor orders everyone.
-        val order=emperor || senderRank<=recipientRank
+        val order=isOrder(i.card,senderRank,recipientRank)
         if(sender.influence<1)return reject(SocialRejection.RANK)
         // Dismissal: base = the third person, amount = that person's card; the recipient must be able to dismiss it.
         // Appointment: base = the seat, amount = the card; the sender asks the recipient to appoint the sender there.

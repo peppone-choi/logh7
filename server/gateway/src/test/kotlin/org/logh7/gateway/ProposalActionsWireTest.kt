@@ -390,6 +390,53 @@ class ProposalActionsWireTest {
         }
     }
 
+    @Test fun politicianDirectoryAndFallbackSendUseThePoliticianCardAcrossInstitutions() {
+        val state=State()
+        state.stocks=state.stocks.copy(strategic=state.stocks.strategic.copy(
+            people=state.stocks.strategic.people+(10000 to StrategicPerson(rank=1,militaryRank=10,influence=10)),
+            offices=state.stocks.strategic.offices.filter {it.character!=10000}))
+        seed(directory)
+        LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
+            stockStore=state.inventory,worldStateCommitter=state).use {fixture->
+            val sender=fixture.join(fixture.account(0),false,false).client
+            sender.send(SyntheticClient.opcode(0x0f00));next(sender,0x0f01)
+            val recipient=fixture.join(fixture.account(1),false,false).client
+            recipient.send(SyntheticClient.opcode(0x0f00));next(recipient,0x0f01)
+            sender.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(29).putShort(0x0984).array())
+            val directory=ByteBuffer.wrap(next(sender,0x120e))
+            assertEquals(1,directory.get(6).toInt())
+            assertEquals(67,directory.getShort(7).toInt())
+            assertEquals(1,directory.get(9).toInt())
+            assertEquals(0,directory.get(10).toInt())
+            next(sender,0x1201)
+
+            sender.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(98).putShort(0)
+                .putShort(ProposalActions.RESIGNATION.toShort()).putInt(10001).put(0).putInt(0)
+                .putShort(0).putInt(0).putShort(0).array())
+            assertEquals(0,ByteBuffer.wrap(next(sender,0x1200)).getShort(16).toInt())
+            next(sender,0x1201)
+            val changed=next(sender,0x0356)
+            assertEquals(67,ByteBuffer.wrap(changed,changed.size-7,7).short.toInt())
+            val mail=state.stocks.social.proposals.mails.single()
+            assertEquals(67,mail.senderCard)
+            assertEquals(19,mail.card)
+            assertTrue(mail.order)
+            assertEquals(920,state.players.getValue("load-000").pcp)
+
+            sender.send(body(Wire.begin(Wire.Query(Wire.Peer(10000,extra=listOf(0,0,67)),true,false))))
+            next(sender,0x0f13);next(sender,0x0709);next(sender,0x0f09)
+
+            query(recipient,10001,19)
+            next(recipient,0x0f13);next(recipient,0x0709);next(recipient,0x0f09)
+            recipient.send(body(Wire.reply(Wire.Reply(0,mail.id,0,Wire.Peer(10001),Wire.Peer(10000),
+                0,0,0,Proposals.APPROVE))))
+            next(recipient,0x0356)
+            assertEquals(Proposals.APPROVE,state.stocks.social.proposals.mails.single().reply)
+            query(sender,10000,67)
+            next(sender,0x0f14);next(sender,0x0709);next(sender,0x0f09)
+        }
+    }
+
     @Test fun proposalDirectoryExcludesAnOfficeHolderInsideAFacilityWhenTheSenderIsInSpace() {
         val state=State()
         state.players=state.players + ("load-000" to state.players.getValue("load-000")

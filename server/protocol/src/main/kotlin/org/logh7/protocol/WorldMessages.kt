@@ -191,7 +191,8 @@ object WorldMessages {
                 definition.commands.forEach(::writeShort)
                 continue
             }
-            val power = when (card) { 2,3,17,24,25,54,59,39,40,41,42,43,44,47,50,52,55,56,57 -> 2; 134,135,150,161,169,171,190,195,175,176,177,178,179,180,183,186,188,191,192,193 -> 3; else -> 0 }
+            val politician = card==67 || card==196
+            val power = when (card) { 67,2,3,17,24,25,54,59,39,40,41,42,43,44,47,50,52,55,56,57 -> 2; 196,134,135,150,161,169,171,190,195,175,176,177,178,179,180,183,186,188,191,192,193 -> 3; else -> 0 }
             writeShort(card); writeByte(if (power == 0) 0 else 1)
             writeByte(power); writeByte(0)
             // 00579800 -> 004c8c40 uses this institution category to choose a base/outfit seat.
@@ -199,7 +200,7 @@ object WorldMessages {
                 // Card institutions use constmsg group 4, not physical facilities in group 73.
                 // 0x4c8d50 returns no name for >= 0xff, so 004f5d50 shows the card alone
                 // instead of "皇宮 : 艦長" for personal/captain cards that belong to no institution.
-                0,59,195 -> NO_INSTITUTION
+                0,59,67,195,196 -> NO_INSTITUTION
                 2,3 -> 0; 169,171 -> 5; 17 -> 3; 134,135 -> 20; 161 -> 23
                 24,25 -> 4; 150 -> 21
                 54,55,190,191 -> 16
@@ -217,8 +218,8 @@ object WorldMessages {
             val governor=card==54 || card==190 || card==192
             val garrison=card in setOf(52,55,188,191)
             // First is the lowest eligible rank (0057a080), not the lowest numeric index.
-            writeByte(when { governor || card in setOf(134,135) -> 1; garrison -> 10; card in setOf(24,150) -> 4; card in setOf(40,41,175) -> 6; card in setOf(176,177) -> 7; card in setOf(42,178) -> 11; card in setOf(43,179) -> 12; card==171 -> 5; card in setOf(3,169) -> 2; card==25 || card==39 -> 5; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
-            writeByte(if(governor || card in setOf(134,135))1 else if(garrison || card in setOf(2,3,17,24,25,39,40,41,42,43,169,171,175,176,177,178,179,150,56,57,161,193))2 else 20); writeByte(0)
+            writeByte(when { governor || politician || card in setOf(134,135) -> 1; garrison -> 10; card in setOf(24,150) -> 4; card in setOf(40,41,175) -> 6; card in setOf(176,177) -> 7; card in setOf(42,178) -> 11; card in setOf(43,179) -> 12; card==171 -> 5; card in setOf(3,169) -> 2; card==25 || card==39 -> 5; card==56 -> 4; card==57 -> 3; card==193 -> 8; card==2 || card==17 -> 2; card==161 -> 5; else -> 0 })
+            writeByte(if(governor || politician || card in setOf(134,135))1 else if(garrison || card in setOf(2,3,17,24,25,39,40,41,42,43,169,171,175,176,177,178,179,150,56,57,161,193))2 else 20); writeByte(0)
             writeShort(0); writeByte(0); writeShort(0)
             val commands = commands(card)
             writeByte(commands.size)
