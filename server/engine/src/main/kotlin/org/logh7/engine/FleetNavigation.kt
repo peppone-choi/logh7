@@ -113,7 +113,8 @@ internal object FleetNavigation {
         if (position == outfit.positionIn(galaxy))
             return personal(units,false)
         if (committer == null) return NavigationResult(null, before, NavigationRejection.DISABLED)
-        if ((request.destination != null || request.place == PlaceMove.SwitchMode(5)) && blocked(outfit.id))
+        val departing = request.place == PlaceMove.SwitchMode(5) || request.place == PlaceMove.Dock(0, 5)
+        if ((request.destination != null || departing) && blocked(outfit.id))
             return NavigationResult(null, before, NavigationRejection.BUSY)
         if (followers.values.any { it.cruise < cruiseCost }) return refuseWarp()
         val departureBase = before.baseId.takeIf { it != 0 && after.baseId == 0 && after.cpPaused }

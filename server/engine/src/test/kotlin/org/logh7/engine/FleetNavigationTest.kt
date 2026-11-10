@@ -330,6 +330,36 @@ class FleetNavigationTest {
             assertEquals(before,state.players);assertNull(state.stocks.outfits.getValue(1).position)
         }
     }
+    @Test fun activeReorganizationBlocksDirectFleetDepartureFromTheCentralSquare() {
+        val state = state()
+        val pilot = state.players.getValue("pilot").copy(spotId = 0)
+        state.players = mapOf("pilot" to pilot)
+        val navigation = Navigation(galaxy, state.nav, NavigationPolicy())
+        val production = PlanetProduction(galaxy, state.inventory, SessionRules.load().startSeconds, PlanetProductionPolicy())
+        val logistics = OutfitLogistics({ 0L }, galaxy)
+        val prepare = LogisticsRequest("pilot", "c", pilot.characterId, Power.ALLIANCE, 1, 1,
+            LogisticsMode.REORGANIZATION, LogisticsPhase.PREPARE)
+        val reservation = assertNotNull(logistics.apply(prepare, session, pilot, production).reservation)
+        val initialStocks = state.stocks
+        val move = request.copy(place = PlaceMove.Dock(0, 5))
+
+        fun depart() = FleetNavigation.apply(move, session, galaxy, navigation, production,
+            assertNotNull(production.snapshot(1)), state.commit) { outfit ->
+            logistics.blocksMovement(session, outfit, production.snapshot(1))
+        }
+
+        assertEquals(NavigationRejection.BUSY, depart().rejection)
+        assertEquals(mapOf("pilot" to pilot), state.players)
+        assertEquals(initialStocks, state.stocks)
+        assertEquals(0, state.commits)
+        assertNull(logistics.apply(prepare.copy(phase = LogisticsPhase.CANCEL, reservation = reservation),
+            session, pilot, production).rejection)
+        assertNull(depart().rejection)
+        assertEquals(0, state.players.getValue("pilot").baseId)
+        assertEquals(OutfitPosition(home.grid), state.stocks.outfits.getValue(1).position)
+        assertEquals(1, state.commits)
+    }
+
     @Test fun delayedDockArrivalCommitsFleetAndFlagshipAtTheSameBase() {
         val state=state()
         apply(state,request.copy(place=PlaceMove.SwitchMode(5)),request.copy(place=PlaceMove.Dock(1000,4)))
