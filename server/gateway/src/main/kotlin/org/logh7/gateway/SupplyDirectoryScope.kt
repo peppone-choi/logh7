@@ -19,8 +19,8 @@ internal class SupplyDirectoryScope(private val galaxy:Galaxy,country:CountryId?
     fun supplySource(stocks:PlanetStocks,actor:Int,grid:Int,port:Int?=null):OutfitStock? {
         val own=country ?: return null
         val camp=Camp(own,CoupActions.rebel(stocks,actor,own))
-        return stocks.outfits.values.singleOrNull {it.commanderId==actor && it.kind==OutfitKind.TRANSPORT &&
-            TacticalAuthority.camp(it,stocks)==camp && it.positionIn(galaxy).let { position ->
+        return stocks.outfits.values.singleOrNull {CompletenessSupply.canSupplyFrom(stocks,it,actor,own) &&
+            it.positionIn(galaxy).let { position ->
                 position.grid==grid && (port==null || position.baseId==port) &&
                     stocks.bases[position.baseId]?.let(TacticalAuthority::camp)==camp
             }}

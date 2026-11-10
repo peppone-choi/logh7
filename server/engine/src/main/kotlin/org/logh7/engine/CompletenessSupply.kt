@@ -28,10 +28,17 @@ data class CompletenessSupplyResult(val player: Navigator?, val stocks: PlanetSt
  * Author: Peppone Choi.
  */
 object CompletenessSupply {
+    fun canSupplyFrom(stocks: PlanetStocks, outfit: OutfitStock, character: Int, country: CountryId): Boolean =
+        outfit.kind == OutfitKind.TRANSPORT && outfit.commanderId == character &&
+            TacticalAuthority.canAccessOutfitWarehouse(stocks, outfit, character, country)
+
     /** Cargo and CP rules shared by the authorized directory and by the committing world actor. */
     fun quote(player: Navigator, from: OutfitStock, to: OutfitStock, stocks: PlanetStocks): CompletenessSupplyQuote {
         if (player.cpPaused || player.navigationPending || stocks.social.justice.detained(player.characterId))
             return CompletenessSupplyQuote(rejection = LogisticsRejection.BUSY)
+        val country = player.country
+        if (country == null || !canSupplyFrom(stocks, from, player.characterId, country))
+            return CompletenessSupplyQuote(rejection = LogisticsRejection.ACCESS)
         val sourceUnits = from.activeShips?.values
         val targetUnits = to.activeShips?.values
         val maximum = OutfitSupplies.capacity(to)
@@ -59,8 +66,7 @@ object CompletenessSupply {
         val camp = TacticalAuthority.camp(player, stocks)
         // The CD sends zero if the actor's current outfit is ambiguous among their offices.
         val from = if (r.from != 0) stocks.outfits[r.from] else stocks.outfits.values.singleOrNull {
-            TacticalAuthority.camp(it, stocks) == camp && it.kind == OutfitKind.TRANSPORT && it.commanderId == r.characterId &&
-                (it.position?.baseId ?: it.baseId) == player.baseId
+            canSupplyFrom(stocks, it, r.characterId, r.country) && (it.position?.baseId ?: it.baseId) == player.baseId
         }
         if (from == null) return reject(LogisticsRejection.OUTFIT)
         val to = stocks.outfits[r.to] ?: return reject(LogisticsRejection.OUTFIT)
