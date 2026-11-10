@@ -32,6 +32,35 @@ class CompletenessSupplyTest {
         assertSame(before,result.stocks)
     }
 
+    @Test fun detentionBlocksTheQuoteAndAnEarlierConfirmationUntilRelease() {
+        val original = stocks()
+        val source = original.outfits.getValue(request.from)
+        val target = original.outfits.getValue(request.to)
+        val previousCost = assertNotNull(CompletenessSupply.quote(player, source, target, original).cost)
+        val confirmation = request.copy(expected = previousCost)
+        val holdingRoom = player.copy(mode = 1, spotId = player.baseId * 10_000 + 19)
+        val detention = Detention(player.characterId, Power.EMPIRE.country, 0, Justice.DAY, base = player.baseId)
+        val held = original.copy(social = original.social.copy(justice = original.social.justice.copy(
+            detentions = mapOf(player.characterId to detention))))
+
+        val quote = CompletenessSupply.quote(holdingRoom, source, target, held)
+        assertEquals(LogisticsRejection.BUSY, quote.rejection)
+        assertNull(quote.cost)
+        val denied = CompletenessSupply.evaluate(confirmation, session, holdingRoom, held)
+        assertEquals(LogisticsRejection.BUSY, denied.rejection)
+        assertFalse(denied.changed)
+        assertSame(holdingRoom, denied.player)
+        assertSame(held, denied.stocks)
+
+        val supplied = CompletenessSupply.evaluate(confirmation, session, player, original)
+        assertNull(supplied.rejection)
+        assertEquals(capacity, supplied.transferred)
+        assertEquals(840, supplied.player?.mcp)
+        val after = assertNotNull(supplied.stocks)
+        assertEquals(0, after.outfits.getValue(source.id).supplies)
+        assertEquals(capacity, after.outfits.getValue(target.id).supplies)
+    }
+
     @Test fun rebelSupplyCannotCrossCampOrContinueAfterThePortIsRetaken() {
         val initial=stocks()
         val country=Power.EMPIRE.country
