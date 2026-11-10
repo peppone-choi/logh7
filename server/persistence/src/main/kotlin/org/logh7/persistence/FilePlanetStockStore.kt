@@ -220,8 +220,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                         if(positions && f[13]!="-") OutfitPosition(f[13].toInt(),f[14].toInt()) else null,
                         if(grounds) ActiveGroundUnitCodec.decode(f[15],deployments,combat,aiGround) else null,
                         if(strategic && f[16]!="-")f[16].split(",").let {v->
-                            require(v.size==3) {"Invalid NPC strategic order"}
-                            org.logh7.engine.NpcStrategicState(v[0].toLong(),v[1].takeIf {it!="-"}?.toInt(),v[2].takeIf {it!="-"}?.toLong())
+                            require(v.size==3 || v.size==4 && v[3]=="dock-supply") {"Invalid NPC strategic order"}
+                            org.logh7.engine.NpcStrategicState(v[0].toLong(),v[1].takeIf {it!="-"}?.toInt(),
+                                v[2].takeIf {it!="-"}?.toLong(),awaitingDockSupply=v.size==4)
                         } else null,
                         if(f.size==18 || outfitCountries && f[17]!="-")f[17].split(",").associate {e->e.split("=").let {(u,g)->u.toInt() to g.toInt()}} else null,
                         style)
@@ -345,7 +346,10 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     ActiveShipUnitCodec.encode(outfit.activeShips),outfit.aideId,FleetStaffCodec.encode(outfit.staff)) +
                     (if(positions) listOf(outfit.position?.grid ?: "-",outfit.position?.baseId ?: "-") else emptyList()) +
                     (if(grounds) listOf(ActiveGroundUnitCodec.encode(outfit.activeGround)) else emptyList()) +
-                    (if(strategic)listOf(outfit.strategy?.let {"${it.nextDecisionAt},${it.destination ?: "-"},${it.arrivesAt ?: "-"}"} ?: "-") else emptyList()) +
+                    (if(strategic)listOf(outfit.strategy?.let {
+                        "${it.nextDecisionAt},${it.destination ?: "-"},${it.arrivesAt ?: "-"}" +
+                            if(it.awaitingDockSupply) ",dock-supply" else ""
+                    } ?: "-") else emptyList()) +
                     (if(outfitCountries)listOf(outfit.guard?.toSortedMap()?.entries?.joinToString(",") {"${it.key}=${it.value}"} ?: "-",outfit.shipStyle.value)
                         else if(strategic)outfit.guard?.let {g->listOf(g.toSortedMap().entries.joinToString(",") {"${it.key}=${it.value}"})}.orEmpty() else emptyList()))
                     .joinToString("\t")); append('\n')

@@ -584,6 +584,62 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun idleNpcRetriesResupplyAfterDockingAtAnEmptyDepot() {
+        val initial = stocks()
+        val depot = initial.bases.getValue(1000)
+        val fleet = initial.outfits.getValue(1).copy(position = OutfitPosition(2487))
+        val commanded = fleet.copy(id = 2, warehouseId = 11, commanderId = 10001,
+            position = OutfitPosition(2487, 1000), activeShips = ActiveShipUnits(listOf(ActiveShipUnit(3, stack))),
+            activeGround = null)
+        val movements = mutableListOf<NpcStrategicMovement>()
+        val docked = advance(0, initial.copy(bases = mapOf(1000 to depot.copy(supplies = 0)),
+            outfits = mapOf(1 to fleet, 2 to commanded), warehouses = initial.warehouses +
+                (11 to initial.warehouses.getValue(10).copy(id = 11, outfitId = 2)), nextShipId = 4), mutableMapOf(), movements)
+        assertEquals(OutfitPosition(2487, 1000), docked.outfits.getValue(1).position)
+        assertEquals(0, docked.outfits.getValue(1).supplies)
+        assertTrue(docked.outfits.getValue(1).strategy!!.awaitingDockSupply)
+
+        val production = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy(suppliesPerDay = 4000,
+            fleetUpkeepPerShip = 0), restored = docked)
+        val produced = production.settle(1, 86400)
+        assertEquals(4000, produced.bases.getValue(1000).supplies)
+        val locked = NpcStrategy.advance(simulation.copy(gameMillis = 86400_000), galaxy, mutableMapOf(), produced,
+            movements, warehouseBlocked = { _, id -> id == fleet.id })
+        assertEquals(0, locked.outfits.getValue(1).supplies)
+        assertEquals(4000, locked.bases.getValue(1000).supplies)
+        assertTrue(locked.outfits.getValue(1).strategy!!.awaitingDockSupply)
+
+        val stocked = advance(108000, locked, mutableMapOf(), movements)
+        assertEquals(OutfitPosition(2487, 1000), stocked.outfits.getValue(1).position)
+        assertNull(stocked.outfits.getValue(1).strategy?.destination)
+        assertFalse(stocked.outfits.getValue(1).strategy!!.awaitingDockSupply)
+        assertEquals(3000, stocked.outfits.getValue(1).supplies)
+        assertEquals(1000, stocked.bases.getValue(1000).supplies)
+        assertEquals(produced.outfits.getValue(2), stocked.outfits.getValue(2))
+        val repeated = advance(129600, stocked, mutableMapOf(), movements)
+        assertEquals(stocked.outfits.getValue(1).supplies, repeated.outfits.getValue(1).supplies)
+        assertEquals(stocked.bases, repeated.bases)
+        assertTrue(movements.isEmpty())
+
+        val captured = produced.copy(bases = produced.bases.mapValues { (_, stock) ->
+            stock.copy(owner = Allegiance.Country(CountryId(3)))
+        })
+        val stranded = advance(86400, captured, mutableMapOf(), movements)
+        assertNull(stranded.outfits.getValue(1).strategy)
+        assertEquals(captured.bases, stranded.bases)
+        assertTrue(movements.isEmpty())
+
+        val pilots = players()
+        val reserved = advance(86400, produced, pilots, movements)
+        assertEquals(2488, reserved.outfits.getValue(1).strategy?.destination)
+        assertEquals(produced.bases, reserved.bases)
+        val departed = advance(90000, reserved, pilots, movements)
+        assertEquals(OutfitPosition(2488), departed.outfits.getValue(1).position)
+        assertFalse(departed.outfits.getValue(1).strategy!!.awaitingDockSupply)
+        assertEquals(2700, departed.outfits.getValue(1).supplies)
+        assertEquals(1000, departed.bases.getValue(1000).supplies)
+    }
+
     @Test fun localResupplyCannotMoveStationedShipsToAnotherBaseInTheSameGrid() {
         val alternate=galaxy.bases.single().copy(id=1001,name="Alternate")
         val world=Galaxy(galaxy.systems,galaxy.bases+alternate,galaxy.starts)
