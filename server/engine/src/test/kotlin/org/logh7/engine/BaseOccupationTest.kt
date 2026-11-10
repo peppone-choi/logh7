@@ -268,8 +268,7 @@ class BaseOccupationTest {
         val outfit=captured.outfits.getValue(2)
         assertEquals(0,outfit.activeShips!!.values.single {it.id==2}.boats)
         assertEquals(300,outfit.activeShips!!.values.single {it.id==3}.boats)
-        assertEquals(listOf(4,5),outfit.activeGround!!.values.map {it.id}) // Surviving carrier retains the legacy evacuation policy.
-        assertEquals(0,outfit.activeGround!!.values.single {it.id==4}.carrier)
+        assertEquals(mapOf(4 to 3,5 to 3),outfit.activeGround!!.values.associate {it.id to it.carrier})
         val warehouse=captured.warehouses.getValue(102)
         assertEquals(0,warehouse.supplies);assertTrue(warehouse.units.ships.isEmpty());assertEquals(3,warehouse.power)
         assertEquals(mapOf(2 to 300),events.single().destroyedShips)
