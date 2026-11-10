@@ -107,6 +107,56 @@ class TacticalCommandOperationsTest {
         }
     }
 
+    @Test fun commandReassignmentWaitsForTheSelectedCarriersGroundOperation() {
+        for ((opcode, action) in listOf(0x40b to TacticalGroundAction.DEPLOY, 0x420 to TacticalGroundAction.WITHDRAW)) {
+            val state = state()
+            val outfit = state.stocks.outfits.getValue(1)
+            val ships = ActiveShipUnits(outfit.activeShips!!.values.map {
+                if (it.id == 1) it.copy(stack = UnitStack(32),
+                    posture = TacticalPosture(2488, TacticalShipMode.ANCHORED, 1000)) else it
+            })
+            val troop = if (action == TacticalGroundAction.DEPLOY) ActiveGroundUnit(3, UnitStack(0), carrier = 1)
+                else ActiveGroundUnit(3, UnitStack(0), base = 1000, origin = 1)
+            val troops = ActiveGroundUnits(listOf(troop))
+            state.stocks = state.stocks.copy(outfits = state.stocks.outfits + (1 to outfit.copy(aideId = 10001,
+                units = UnitInventory(ships.quantities(), troops.quantities()), activeShips = ships, activeGround = troops)))
+            val initial = run(state)
+            val transfer = TacticalCommand(opcode, listOf(1), target = 1010001)
+            val ground = request(transfer).copy(tacticalCommand = null,
+                tacticalGround = TacticalGroundCommand(action, listOf(1)))
+            val groundReady = assertNotNull(TacticalGroundOperations.accept(ground, session, galaxy, initial.navigation,
+                initial.production, assertNotNull(initial.production.snapshot(1)), state.commit, 1).groundReadyAt)
+            state.players = state.players + ("pilot" to state.players.getValue("pilot").copy(motion = motion(50f)))
+            val pending = run(state)
+            val before = state.stocks
+            assertEquals(NavigationRejection.BUSY, accept(pending, transfer, "ally").rejection)
+            assertEquals(before, state.stocks)
+
+            // A save from before the guard could contain both reservations.
+            val oldTransfer = TacticalQueuedCommand(10001, 2488, now, now + 5, transfer)
+            state.stocks = before.copy(tacticalCommands = before.tacticalCommands.copy(orders = listOf(oldTransfer)))
+            val events = mutableListOf<TacticalCommandResult>()
+            settle(run(state), oldTransfer.readyAt, events)
+            assertTrue(events.single().cancelled)
+            assertNull(state.stocks.tacticalCommands.authority[1])
+            assertEquals(groundReady, state.stocks.outfits.getValue(1).activeGround!!.values.single().order?.readyAt)
+
+            val restored = run(state)
+            settle(restored, groundReady)
+            val finished = state.stocks.outfits.getValue(1).activeGround!!.values.single()
+            assertNull(finished.order)
+            assertEquals(if (action == TacticalGroundAction.DEPLOY) 0 else 1, finished.carrier)
+            val result = TacticalCommandOperations.accept(request(transfer, "ally"),
+                session.copy(gameMillis = groundReady * 1000), galaxy, restored.navigation, restored.production,
+                assertNotNull(restored.production.snapshot(1)), state.commit, 1)
+            val transferReady = assertNotNull(result.commandReadyAt)
+            events.clear()
+            settle(restored, transferReady, events)
+            assertFalse(events.single().cancelled)
+            assertEquals(10001, state.stocks.tacticalCommands.authority[1])
+        }
+    }
+
     @Test fun explicitAntiAirWaitsAcrossReloadDispersesTheWingAndRestoresSpeedWithoutHittingItsCarrier() {
         val s=state();val enemy=s.stocks.outfits.getValue(2)
         val carrier=ProductionUnits.definitions.first {it.ship && it.power==3 && it.name.startsWith("戦闘艇母艦")}.kind

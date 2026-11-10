@@ -175,7 +175,9 @@ internal object TacticalCommandOperations {
                 for(id in c.units) {
                     val unit=ship(id,s) ?: return NavigationRejection.UNIT
                     if(p.characterId !in unit.outfit.members())return NavigationRejection.CARD
-                    if(!idle(unit.unit,now) || s.tacticalCommands.air.containsKey(id))return NavigationRejection.BUSY
+                    if (!idle(unit.unit, now) || s.tacticalCommands.air.containsKey(id) ||
+                        unit.outfit.activeGround?.values.orEmpty().any { it.order?.carrier == id })
+                        return NavigationRejection.BUSY
                     val at=pose(id,p.grid,now,players,s,g)!!.position
                     if(players.values.any {other->other.characterId!=p.characterId && TacticalAuthority.camp(other,s)==TacticalAuthority.camp(p,s) && other.grid==p.grid && other.cpPaused &&
                         pose(other.unitId,p.grid,now,players,s,g)?.position?.let {pt->hypot((pt.x-at.x).toDouble(),(pt.y-at.y).toDouble())<=
