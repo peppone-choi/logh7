@@ -533,6 +533,28 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun localResupplyUsesTheBetterStockedDepotAndBreaksTiesByBaseId() {
+        val alternate=galaxy.bases.single().copy(id=1001,name="Alternate")
+        val world=Galaxy(galaxy.systems,galaxy.bases+alternate,galaxy.starts)
+        val original=stocks()
+        val depot=original.bases.getValue(1000)
+        val fleet=original.outfits.getValue(1).copy(position=OutfitPosition(2487))
+        for(localStock in listOf(1,depot.supplies)) {
+            val initial=original.copy(bases=mapOf(1000 to depot.copy(supplies=localStock),1001 to depot.copy(baseId=1001)),
+                outfits=mapOf(1 to fleet))
+            val movements=mutableListOf<NpcStrategicMovement>()
+            val docked=NpcStrategy.advance(simulation,world,mutableMapOf(),initial,movements)
+            val chosen=if(localStock==1)1001 else 1000
+            val other=if(chosen==1000)1001 else 1000
+            assertEquals(OutfitPosition(2487,chosen),docked.outfits.getValue(1).position)
+            assertEquals(3000,docked.outfits.getValue(1).supplies)
+            assertEquals(depot.supplies-3000,docked.bases.getValue(chosen).supplies)
+            assertEquals(initial.bases.getValue(other),docked.bases.getValue(other))
+            assertTrue(movements.isEmpty())
+            assertEquals(docked,NpcStrategy.advance(simulation,world,mutableMapOf(),docked,movements))
+        }
+    }
+
     @Test fun strandedFleetCanDockAndReloadWithoutAnotherJumpAndCannotUseAnOccupiedDepot() {
         val events=mutableListOf<NpcStrategicMovement>()
         val original=stocks()

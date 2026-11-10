@@ -57,7 +57,7 @@ internal object NpcStrategy {
         fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
         val depots=galaxy.bases.filter {b->stocks.bases[b.id]?.let {it.country==outfit.country && it.camp==0}==true &&
             !TacticalContact.contested(forces[b.grid].orEmpty())}
-            .sortedWith(compareBy<GalaxyBase> {if(relief)stocks.bases.getValue(it.id).supplies else if(stocked(it))1 else 0}
+            .sortedWith(compareBy<GalaxyBase> {stocks.bases.getValue(it.id).supplies}
                 .thenByDescending {it.id}).associateBy {it.grid}
         if(depots.isEmpty())return null
         val local=depots[origin]?.let {DepotRoute(it,origin,0)}
