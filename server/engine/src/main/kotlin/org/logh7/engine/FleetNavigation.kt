@@ -161,7 +161,10 @@ internal object FleetNavigation {
                 else unit.copy(tactical = NpcTacticalState(TacticalDeployment.departure(base, now, stocks, slot++), now, now),
                     posture = null, motionCommander = 0, support = null, attack = null, shot = null)
             }) }
-        } ?: outfit.activeShips
+        } ?: outfit.activeShips?.let { units ->
+            if (nextOrigin == before.grid && position.grid == nextOrigin) units
+            else ActiveShipUnits(units.values.map { unit -> unit.copy(posture = null) })
+        }
         val moving = outfit.copy(position = position, activeShips = ships)
             .let { if (reservedPulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
             .let { if (immediatePulled) BlackHoleTides.loss(it, BlackHoleTides.PULL_PERCENT) else it }
