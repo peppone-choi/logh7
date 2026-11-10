@@ -122,7 +122,7 @@ class DockingWireTest {
         }
     }
 
-    @Test fun anOfflineDockCompletesOnceForCurrentSameGridObservers() = runBlocking<Unit> {
+    @Test fun anOfflineFleetDockSendsTheOnlineAideOneOwnArrivalAndOneCaptainNotice() = runBlocking<Unit> {
         val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2), GalaxySystem(4, 2488, 4, "Away", 2)),
             listOf(GalaxyBase(1049, 2487, 60, 0, "Odin", 0, 20f, 86400, 0, 0f, 2f)),
             Power.entries.associateWith { 2487 })
@@ -130,12 +130,26 @@ class DockingWireTest {
             "load-000" to Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000),
             "load-001" to Navigator(1, 10001, Power.EMPIRE, 2487, 1000, 1000, 1000),
             "load-002" to Navigator(1, 10002, Power.EMPIRE, 2488, 1000, 1000, 1000))
+        var players = initial
+        var stocks = PlanetStocks(1, 0, mapOf(1049 to PlanetStock(1049, 2, 0, 100, 100, 100)),
+            outfits = mapOf(1 to OutfitStock(1, 2, OutfitKind.FLEET, 1049, 10, commanderId = 10000,
+                aideId = 10001, position = OutfitPosition(2487))),
+            warehouses = mapOf(10 to OutfitWarehouse(10, 2, OutfitKind.FLEET, 1049, 1)),
+            deploymentInitialized = true)
         val store = object : NavigationStore {
-            private var players = initial
             override fun load() = players
-            override fun save(players: Map<String, Navigator>) { this.players = players }
+            override fun save(next: Map<String, Navigator>) { players = next }
         }
-        LoadFixture(directory, 3, LoadMetrics(), galaxy, ticking = false, navigationStore = store).use { fixture ->
+        val inventory = object : PlanetStockStore {
+            override fun load() = stocks
+            override fun save(next: PlanetStocks) { stocks = next }
+        }
+        val commit = WorldStateCommitter { navigation, stock ->
+            players = navigation
+            stocks = checkNotNull(stock)
+        }
+        LoadFixture(directory, 3, LoadMetrics(), galaxy, ticking = false, navigationStore = store,
+            stockStore = inventory, worldStateCommitter = commit).use { fixture ->
             fun join(index: Int) = fixture.join(fixture.account(index), true, false).client.also {
                 it.send(SyntheticClient.opcode(0x0f00))
                 through(it, 0x0f01)
@@ -159,22 +173,27 @@ class DockingWireTest {
             assertFalse(through(observer, 0x0301).any { code(it) == 0x0b0b })
 
             fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24))
-            val packets = through(observer, 0x0b0b)
-            val notice = ByteBuffer.wrap(packets.last())
-            assertEquals(10000, notice.getInt(10))
-            assertEquals(1049, notice.getInt(14))
-            assertEquals(4, notice.getShort(18).toInt())
+            observer.send(SyntheticClient.opcode(0x0300))
+            val packets = (through(observer, 0x0b0b) + through(observer, 0x0b0b)).toMutableList()
+            fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24 + 1000))
+            // The next clock replies bracket the queued notifications and the follower's own refresh.
+            repeat(2) {
+                observer.send(SyntheticClient.opcode(0x0300))
+                packets += through(observer, 0x0301)
+            }
+            val arrivals = packets.filter { code(it) == 0x0b0b }.map(ByteBuffer::wrap)
+            assertEquals(listOf(10000, 10001), arrivals.map { it.getInt(10) }.sorted())
+            assertTrue(arrivals.all { it.getInt(14) == 1049 && it.getShort(18).toInt() == 4 })
             assertFalse(packets.any { code(it) == 0x0425 })
             val docked = store.load().getValue(fixture.account(0))
             assertEquals(1049, docked.baseId)
             assertNull(docked.dockTarget)
             assertEquals(docked, fixture.engine.snapshot().navigators.getValue(fixture.account(0)))
+            assertEquals(1049, store.load().getValue(fixture.account(1)).baseId)
+            assertEquals(OutfitPosition(2487, 1049), stocks.outfits.getValue(1).position)
 
-            fixture.engine.submit(WorldCommand.AdvanceTo(8 * 3600_000L / 24 + 1000))
-            for (client in listOf(observer, away)) {
-                client.send(SyntheticClient.opcode(0x0300))
-                assertFalse(through(client, 0x0301).any { code(it) == 0x0b0b })
-            }
+            away.send(SyntheticClient.opcode(0x0300))
+            assertFalse(through(away, 0x0301).any { code(it) == 0x0b0b })
         }
     }
 

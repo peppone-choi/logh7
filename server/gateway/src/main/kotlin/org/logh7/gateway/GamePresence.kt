@@ -512,11 +512,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             val packets = mutableListOf<ByteArray>()
             val member = if (player.characterId in event.followers && player.baseId == captain.baseId &&
                 player.baseId != previous.player.baseId) {
-                previous.copy(player = player).also {
-                    packets += update(it, event.seconds).refresh
-                    packets += unit(it)
-                    packets += notice(player)
-                }
+                // The connection's normal world refresh sends the follower's own relocation.
+                previous.copy(player = player).also { packets += update(it, event.seconds).refresh }
             } else previous
             if (player.country != null && player.country == captain.country) packets += notice(captain)
             GridForceReport.message(snapshot, galaxy, player, event.seconds)?.let { packets += it }
