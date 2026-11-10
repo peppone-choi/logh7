@@ -4,16 +4,23 @@
 // constant 1 u16 @27. The native 1200 codec (0055b3a0 / 004b78a0 selector 0x46) moves the same bytes through its
 // own fields, each swapped whole: u32 @0, u16 @4, u16 @6, u16 @8, u16 @10, u32 @12, u8 @16, u32 @20, u16 @24,
 // u32 @28, u16 @32 (36-byte decoded record). The wire fields above are packed across those native fields.
+// Optional status 2 record (newer servers, sent after the status 1 report of the same query): the same
+// character/base/ticket/observedAt, garrison strength u64 in the treasury slot @17, approval and peace 0.
+// Older servers never send it; older DLLs consume it without display (status > 1 was rejected).
 #pragma once
 #include <cstring>
 
 namespace logh {
 constexpr unsigned short homeReportSearch=0x7f14;
+constexpr unsigned homeReportGarrison=2;
 // The server reads character and ticket as positive signed 32-bit values.
 constexpr unsigned homeReportIdLimit=0x7fffffffu;
 struct HomeReport {
     unsigned character,base,ticket,status,observedAt,approval,peace;
     unsigned long long treasury;
+    // Status 2 record, or merged into an accepted status 1 report: garrisonObserved marks presence (0 is a value).
+    bool garrisonObserved;
+    unsigned long long garrisonStrength;
 };
 namespace home_report_detail {
 template<class T> inline T get(const unsigned char* record,unsigned offset) {T value;memcpy(&value,record+offset,sizeof(value));return value;}
@@ -46,12 +53,26 @@ inline bool readHomeReport(const unsigned char* record,HomeReport& out) {
     value.ticket=(static_cast<unsigned>(get<unsigned short>(record,8))<<16) | get<unsigned short>(record,10);
     value.status=word12>>24;
     value.observedAt=((word12&0xffffffu)<<8) | byte16;
-    value.treasury=(static_cast<unsigned long long>(word20)<<32) | (static_cast<unsigned long long>(short24)<<16) | (word28>>16);
+    const unsigned long long slot=(static_cast<unsigned long long>(word20)<<32) | (static_cast<unsigned long long>(short24)<<16) | (word28>>16);
     value.approval=(word28>>8)&255;value.peace=word28&255;
     if(!value.character || value.character>homeReportIdLimit || !value.base ||
-        !value.ticket || value.ticket>homeReportIdLimit || value.status>1)return false;
+        !value.ticket || value.ticket>homeReportIdLimit || value.status>homeReportGarrison)return false;
+    if(slot>0x7fffffffffffffffULL)return false;
+    if(value.status==homeReportGarrison) {
+        if(value.approval || value.peace)return false;
+        value.garrisonObserved=true;value.garrisonStrength=slot;
+    } else value.treasury=slot;
     if(!value.status && (value.observedAt || value.treasury || value.approval || value.peace))return false;
-    if(value.status && (value.approval>100 || value.peace>100 || value.treasury>0x7fffffffffffffffULL))return false;
+    if(value.status==1 && (value.approval>100 || value.peace>100))return false;
     out=value;return true;
+}
+/** A parsed status 2 record belongs to an accepted status 1 report only once and only with its exact identity. */
+inline bool homeReportGarrisonFits(const HomeReport& accepted,const HomeReport& extra) {
+    return accepted.status==1 && !accepted.garrisonObserved && extra.status==homeReportGarrison &&
+        accepted.character==extra.character && accepted.base==extra.base && accepted.ticket==extra.ticket &&
+        accepted.observedAt==extra.observedAt;
+}
+inline void mergeHomeReportGarrison(HomeReport& accepted,const HomeReport& extra) {
+    accepted.garrisonObserved=true;accepted.garrisonStrength=extra.garrisonStrength;
 }
 }

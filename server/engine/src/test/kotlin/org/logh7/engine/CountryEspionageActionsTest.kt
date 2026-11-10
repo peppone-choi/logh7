@@ -29,7 +29,16 @@ class CountryEspionageActionsTest {
     @Test fun successfulIntelligenceStoresAHomeSnapshotUntilTheExactExpiry() {
         val spot=galaxy.facilitiesAt(1001,stocks(),catalog).first().spots.last().id
         val target=stocks().bases.getValue(1001).copy(treasury=3_000_000_000)
-        val original=stocks().let {it.copy(bases=it.bases+(1001 to target))}
+        val defenders=ActiveGroundUnits(listOf(ActiveGroundUnit(1,UnitStack(0),base=1001,strength=725)))
+        val invaders=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),base=1001,strength=500)))
+        val outfits=listOf(b to defenders,a to invaders).mapIndexed {index,(country,troops)->
+            val id=index+1
+            id to OutfitStock(id,country,OutfitKind.GROUND,1001,100+id,
+                units=UnitInventory(troops=troops.quantities()),activeGround=troops,shipStyle=ShipStyleId("empire"))
+        }.toMap()
+        val warehouses=outfits.values.associate {it.warehouseId to
+            OutfitWarehouse(it.warehouseId,it.country,OutfitKind.PATROL,1001,shipStyle=it.shipStyle)}
+        val original=stocks().let {it.copy(bases=it.bases+(1001 to target),outfits=outfits,warehouses=warehouses,nextShipId=3)}
         val entered=act(EspionageActions.INFILTRATE,time(spot,true),original,player.copy(baseId=1001,grid=2488,spotId=10010001),base=spot)
         val infiltrated=assertNotNull(entered.stocks)
         val agent=assertNotNull(entered.player)
@@ -49,8 +58,8 @@ class CountryEspionageActionsTest {
         fun at(time:Long)=session.copy(gameMillis=time*1000,participants=members)
         val expires=observed+Justice.DAY
         val viewerState=at(expires-1)
-        val report=HomeIntelligenceReport(a,1001,observed,3_000_000_000,60,60)
-        val changedTarget=saved.copy(bases=saved.bases+(1001 to target.copy(treasury=5)))
+        val report=HomeIntelligenceReport(a,1001,observed,3_000_000_000,60,60,garrisonStrength=725)
+        val changedTarget=saved.copy(bases=saved.bases+(1001 to target.copy(treasury=5)),outfits=emptyMap(),warehouses=emptyMap())
         assertEquals(report,EspionageActions.homeReport(changedTarget,viewerState,"ally","ally-connection",ally,1001))
         assertNull(EspionageActions.homeReport(saved,viewerState,"other","other-connection",other,1001))
         assertNull(EspionageActions.homeReport(saved,viewerState,"other","other-connection",ally,1001))
@@ -81,6 +90,7 @@ class CountryEspionageActionsTest {
         assertEquals(1,succeeded.outcome)
         assertEquals(840,succeeded.player?.mcp)
         val saved=assertNotNull(succeeded.stocks).social.justice.homeReports
+        assertEquals(0L,saved.getValue(a to 1001).garrisonStrength)
         assertEquals(reports-expired,saved-(a to 1001))
     }
 
