@@ -257,7 +257,20 @@ class PostgresOriginalCandidatesTest {
                 val seektOfficer=assertNotNull(reopened.save(1112,0,seekt,empire))
                 assertNull(reopened.save(1113,0,seekt,empire))
                 assertNull(reopened.save(1112,1,seekt.copy(startingOffice=null),empire))
-                assertEquals(preV24Officers+seektOfficer,
+                val preV25Officers=preV24Officers+seektOfficer
+                val cubrusly=paetta.copy(surname="Cubrusly",startingOffice=OriginalStartingOffice.CUBRUSLY_FLEET_1)
+                assertFalse(reopened.supportsCubruslyStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1113,0,cubrusly,alliance)}
+                migrate("V25__cubrusly_original_starting_office.sql")
+                assertEquals(preV25Officers,reopened.load().filter {it.profile.startingOffice!=null}.toSet())
+                assertTrue(reopened.supportsCubruslyStartingOffice && reopened.supportsSeektStartingOffice &&
+                    reopened.supportsPaettaStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1113,0,cubrusly,empire)}
+                assertFailsWith<IllegalArgumentException> {reopened.save(1113,0,cubrusly.copy(rank=4),alliance)}
+                val cubruslyOfficer=assertNotNull(reopened.save(1113,0,cubrusly,alliance))
+                assertNull(reopened.save(1114,0,cubrusly,alliance))
+                assertNull(reopened.save(1113,1,cubrusly.copy(startingOffice=null),alliance))
+                assertEquals(preV25Officers+cubruslyOfficer,
                     PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
                 connect().use {test->test.createStatement().use {
                     val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile

@@ -312,6 +312,9 @@ class FleetNavigationTest {
         val seekt=OriginalStartingOffice.SEEKT_FLEET_12
         assertEquals(listOf(2,12,12,1040,39,4),
             listOf(seekt.country.value,seekt.fleetId,seekt.fleetNumber,seekt.baseId,seekt.role.card,seekt.rank))
+        val cubrusly=OriginalStartingOffice.CUBRUSLY_FLEET_1
+        assertEquals(listOf(3,133,1,1177,175,5),
+            listOf(cubrusly.country.value,cubrusly.fleetId,cubrusly.fleetNumber,cubrusly.baseId,cubrusly.role.card,cubrusly.rank))
         for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
     }
 
@@ -324,7 +327,8 @@ class FleetNavigationTest {
             OriginalStartingOffice.VUCOCK_FLEET_5 -> home.copy(id=office.baseId,name="Santa Ana")
             OriginalStartingOffice.STADEN_FLEET_4,OriginalStartingOffice.FOGEL_FLEET_5 ->
                 home.copy(id=1015,grid=1260,model=51,name="Hafen")
-            OriginalStartingOffice.PAETTA_FLEET_2 -> home.copy(id=1177,grid=2015,model=61,name=Capital.ALLIANCE.baseName)
+            OriginalStartingOffice.PAETTA_FLEET_2,OriginalStartingOffice.CUBRUSLY_FLEET_1 ->
+                home.copy(id=1177,grid=2015,model=61,name=Capital.ALLIANCE.baseName)
             OriginalStartingOffice.MERKATZ_FLEET_3 -> home.copy(id=1026,grid=3280,name="Neuenrade")
             OriginalStartingOffice.HAWOOD_FLEET_7,OriginalStartingOffice.LEFEBVRE_FLEET_3 ->
                 home.copy(id=1230,grid=3744,model=102,name="Lusiana")
@@ -350,6 +354,8 @@ class FleetNavigationTest {
         val neighboringOffice=when(office) {
             OriginalStartingOffice.HAWOOD_FLEET_7 -> OriginalStartingOffice.LEFEBVRE_FLEET_3
             OriginalStartingOffice.LEFEBVRE_FLEET_3 -> OriginalStartingOffice.HAWOOD_FLEET_7
+            OriginalStartingOffice.CUBRUSLY_FLEET_1 -> OriginalStartingOffice.PAETTA_FLEET_2
+            OriginalStartingOffice.PAETTA_FLEET_2 -> OriginalStartingOffice.CUBRUSLY_FLEET_1
             else -> null
         }
         val neighbor=neighboringOffice?.let {
