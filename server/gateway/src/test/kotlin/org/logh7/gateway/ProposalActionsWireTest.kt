@@ -390,6 +390,33 @@ class ProposalActionsWireTest {
         }
     }
 
+    @Test fun proposalDirectoryExcludesAnOfficeHolderInsideAFacilityWhenTheSenderIsInSpace() {
+        val state=State()
+        state.players=state.players + ("load-000" to state.players.getValue("load-000")
+            .copy(baseId=0,mode=5,spotId=0))
+        seed(directory)
+        LoadFixture(directory,2,LoadMetrics(),galaxy,ticking=false,navigationStore=state.navigation,
+            stockStore=state.inventory,worldStateCommitter=state).use {fixture->
+            val sender=fixture.join(fixture.account(0),false,false).client
+            sender.send(SyntheticClient.opcode(0x0f00));next(sender,0x0f01)
+            val recipient=fixture.join(fixture.account(1),false,false).client
+            recipient.send(SyntheticClient.opcode(0x0f00));next(recipient,0x0f01)
+            fun request(preview:Boolean) {
+                sender.send(ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00).putShort(98).putShort(if(preview)0 else 17)
+                    .putShort(if(preview)0 else ProposalActions.RESIGNATION.toShort()).putInt(if(preview)0 else 10001)
+                    .put(if(preview)1 else 0).putInt(if(preview)0 else 19).putShort(0).putInt(0).putShort(0).array())
+            }
+            request(false)
+            assertNotEquals(0,ByteBuffer.wrap(next(sender,0x1200)).getShort(16).toInt())
+            next(sender,0x1201);next(sender,0x0356)
+            assertTrue(state.stocks.social.proposals.mails.isEmpty())
+            assertEquals(1000,state.players.getValue("load-000").pcp)
+            request(true)
+            assertEquals(0,next(sender,0x1202)[6].toInt())
+            next(sender,0x1201)
+        }
+    }
+
     @Test fun anOfficeOrderPaidWithPcpSurvivesRestartAndItsNativeReplyChargesTheRecipientHalfOnce() {
         val state=State()
         fun server(name:String):LoadFixture {

@@ -27,6 +27,12 @@ object ProposalActions {
         SPECIAL_PROMOTION to 640L,ASSIGNMENT to StockAssignment.COST.toLong())
     fun rankChange(command:Int)=command==DEMOTION || command==SPECIAL_PROMOTION
 
+    // CD p.28: not in tactics; the same spot inside a facility, otherwise the same grid.
+    fun recipientInRange(sender:Navigator,recipient:Navigator):Boolean =
+        recipient.country==sender.country && !recipient.cpPaused && recipient.grid==sender.grid &&
+            (sender.spotId==0 && recipient.spotId==0 ||
+                recipient.baseId==sender.baseId && recipient.spotId==sender.spotId && recipient.spotOwner==sender.spotOwner)
+
     fun assignmentEligible(g: Galaxy, stocks: PlanetStocks, executor: Navigator, requiredCard: Int,
         payload: StockAssignmentProposal, countries: CountryCatalog = CountryCatalogLoader.current()): Boolean =
         assignmentPreview(g, stocks, executor, requiredCard, payload, countries) { _, _ -> false }.changed
@@ -300,11 +306,7 @@ object ProposalActions {
         if(policy.holders(s,i.card,i.country).none {it.character==i.characterId})return reject(SocialRejection.CARD)
         val recipient=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==i.target}
             ?: return reject(SocialRejection.LOCATION)
-        // CD p.28: not in tactics; the same spot inside a facility, otherwise the same grid.
-        if(recipient.country!=p.country || recipient.cpPaused || recipient.grid!=p.grid ||
-            (p.spotId!=0 || recipient.spotId!=0) &&
-                (recipient.baseId!=p.baseId || recipient.spotId!=p.spotId || recipient.spotOwner!=p.spotOwner))
-            return reject(SocialRejection.LOCATION)
+        if(!recipientInRange(p,recipient))return reject(SocialRejection.LOCATION)
         val recipientPosts=policy.holders(s,i.argument,i.country).filter {it.character==i.target}
         if(recipientPosts.isEmpty())return reject(SocialRejection.CARD)
         val emperor=i.card==1
