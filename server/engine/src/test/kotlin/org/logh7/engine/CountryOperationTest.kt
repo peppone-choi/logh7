@@ -38,6 +38,51 @@ class CountryOperationTest {
     private fun act(r:StrategyActionRequest,s:PlanetStocks,family:String="empire")=
         StrategyActions.evaluate(galaxy,r,session,if(r.command==24)issuer else planner,s,catalog(family))
 
+    @Test fun sweepTargetsRequireSystemsAndLegacyUnissuedSpacePlansWithdrawWithoutPayment() {
+        val space = 2488
+        val system = 2490
+        assertEquals(GridKind.SPACE, galaxy.kind(space))
+        assertEquals(GridKind.STAR_SYSTEM, galaxy.kind(system))
+        val participant = planner.copy(characterId = 10003, hull = FlagshipHull(0, now))
+        val navigators = mapOf("solo" to participant)
+
+        for (family in listOf("empire", "alliance")) {
+            val initial = stock(family, solo = true).let {
+                it.copy(strategic = it.strategic.copy(people = mapOf(participant.characterId to StrategicPerson(rank = 4))))
+            }
+            val plan = request(22, family, solo = true).copy(value = StrategicPurpose.SWEEP.ordinal, navigators = navigators)
+            val issue = request(24, family, solo = true).copy(base = participant.characterId, navigators = navigators)
+            val deniedPlan = act(plan.copy(target = space), initial, family)
+            assertEquals(StrategyActionRejection.LOCATION, deniedPlan.rejection)
+            assertEquals(planner, deniedPlan.player)
+            assertEquals(initial, deniedPlan.stocks)
+
+            val planned = act(plan.copy(target = system), initial, family)
+            assertNull(planned.rejection)
+            val stored = assertNotNull(planned.stocks)
+            val validPlan = stored.strategic.operations.single()
+            assertEquals(system, validPlan.grid)
+            val issued = act(issue.copy(target = system), stored, family)
+            assertNull(issued.rejection)
+            val issuedPlan = assertNotNull(issued.stocks).strategic.operations.single()
+            assertEquals(setOf(participant.characterId), issuedPlan.characters)
+
+            val legacyPlan = validPlan.copy(grid = space)
+            val legacy = stored.copy(strategic = stored.strategic.copy(operations = listOf(legacyPlan)))
+            val deniedIssue = act(issue.copy(target = space), legacy, family)
+            assertEquals(StrategyActionRejection.LOCATION, deniedIssue.rejection)
+            assertEquals(issuer, deniedIssue.player)
+            assertEquals(legacy, deniedIssue.stocks)
+            val withdrawn = StrategicOperations.settle(galaxy, legacy, now)
+            assertEquals(legacyPlan.copy(state = StrategicPlanState.WITHDRAWN), withdrawn.strategic.operations.single())
+            assertEquals(legacy.strategic.people, withdrawn.strategic.people)
+
+            val historical = issuedPlan.copy(grid = space)
+            val historicalStock = legacy.copy(strategic = legacy.strategic.copy(operations = listOf(historical)))
+            assertEquals(historicalStock, StrategicOperations.settle(galaxy, historicalStock, now))
+        }
+    }
+
     @Test fun rebelFleetCannotCountJoinOrStartARegularOperation() {
         val regular=stock()
         val rebellion=CoupState(plots=mapOf(10002 to Plot(10002,country,0,revolt=1)),loyalty=mapOf(200 to CoupActions.LOYAL))
