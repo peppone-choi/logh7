@@ -497,6 +497,35 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun dockedFleetWithInsufficientLocalStockCanUseRemoteRelief() {
+        val initial = stocks()
+        val local = initial.bases.getValue(1000).copy(supplies = 599)
+        val remote = initial.bases.getValue(1000).copy(baseId = 1001)
+        val world = Galaxy(galaxy.systems, galaxy.bases + galaxy.bases.single().copy(id = 1001, grid = 2488), galaxy.starts)
+        val before = initial.copy(bases = mapOf(1000 to local, 1001 to remote))
+        val events = mutableListOf<NpcStrategicMovement>()
+        fun advanceWorld(at: Long, inventory: PlanetStocks) = NpcStrategy.advance(
+            simulation.copy(gameMillis = at * 1000), world, mutableMapOf(), inventory, events)
+
+        val reserved = advanceWorld(0, before)
+        assertEquals(NpcStrategicState(21600, 2488, 3600), reserved.outfits.getValue(1).strategy)
+        assertEquals(before.bases, reserved.bases)
+        assertTrue(events.isEmpty())
+        val short = reserved.copy(bases = reserved.bases + (1001 to remote.copy(supplies = 299)))
+        val cancelled = advanceWorld(3600, short)
+        assertNull(cancelled.outfits.getValue(1).strategy?.destination)
+        assertEquals(OutfitPosition(2487, 1000), cancelled.outfits.getValue(1).position)
+        assertEquals(short.bases, cancelled.bases)
+        assertTrue(events.isEmpty())
+
+        val arrived = advanceWorld(3600, reserved)
+        assertEquals(OutfitPosition(2488, 1001), arrived.outfits.getValue(1).position)
+        assertEquals(3000, arrived.outfits.getValue(1).supplies)
+        assertEquals(local, arrived.bases.getValue(1000))
+        assertEquals(remote.supplies - 3300, arrived.bases.getValue(1001).supplies)
+        assertEquals(2488, events.single().destination)
+    }
+
     @Test fun unavailableDepotReroutesTheReturningFleetWithoutChargingTheCancelledJump() {
         val alternate=galaxy.bases.single().copy(id=1001,grid=2588,name="Alternate")
         val world=Galaxy(galaxy.systems+GalaxySystem(5,2588,4,"Alternate",2),galaxy.bases+alternate,galaxy.starts)
