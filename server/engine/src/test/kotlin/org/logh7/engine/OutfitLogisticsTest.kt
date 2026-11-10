@@ -286,6 +286,45 @@ class OutfitLogisticsTest {
         assertEquals(3*spec.number,TransportActions.boats(expanded.outfits.getValue(1)))
         assertEquals(listOf(packageAboard),expanded.strategic.transports)
     }
+    @Test fun loadedTransportCannotSwapIntoFewerSlotsThanItsCargoNeeds() {
+        val f=Fixture()
+        val transport=UnitStack(76)
+        val warship=UnitStack(32)
+        val oldShip=ActiveShipUnit(1,transport)
+        assertEquals(oldShip.boats,ActiveShipUnit(2,warship).boats)
+        val cargo=TransportPackage(1,Power.EMPIRE.country,1000,1001,0,UnitInventory(troops=mapOf(crew to 3)),
+            carrier=1,carrierBoats=oldShip.boats)
+        val initial=f.store.saved
+        val outfit=initial.outfits.getValue(1).copy(kind=OutfitKind.TRANSPORT,
+            units=UnitInventory(ships=mapOf(transport to 1),troops=mapOf(crew to 50)),
+            activeShips=ActiveShipUnits(listOf(oldShip)))
+        val warehouse=initial.warehouses.getValue(101).copy(kind=OutfitKind.TRANSPORT,units=UnitInventory(ships=mapOf(warship to 1)))
+        fun world(packageAboard:TransportPackage)=initial.copy(outfits=mapOf(1 to outfit),
+            warehouses=mapOf(101 to warehouse),strategic=initial.strategic.copy(transports=listOf(packageAboard),lastTransportId=1),
+            nextShipId=2)
+        val transfer=UnitTransfer(ships=mapOf(transport to -1,warship to 1))
+        f.store.saved=world(cargo)
+        f.production=PlanetProduction(f.galaxy,f.store,f.rules.startSeconds,PlanetProductionPolicy())
+        val request=f.prepare(f.request()).copy(transfer=transfer)
+        val before=f.store.saved
+        val writes=f.store.writes
+        assertFailsWith<IllegalArgumentException> {Reorganization.capacity(before,1,transfer)}
+        assertEquals(LogisticsRejection.STOCK,f.act(request).rejection)
+        assertSame(before,f.store.saved)
+        assertEquals(writes,f.store.writes)
+
+        val smaller=cargo.copy(units=UnitInventory(troops=mapOf(crew to 2)))
+        val fitting=world(smaller)
+        assertEquals(listOf(ReorganizationShip(warship.kind,1,oldShip.boats)),Reorganization.capacity(fitting,1,transfer).ships)
+        val changed=ReplacementBoats.reorganize(fitting,1,transfer)
+        assertEquals(listOf(smaller),changed.strategic.transports)
+        assertEquals(0,TransportActions.freeUnitSlots(changed.outfits.getValue(1),changed.strategic.transports))
+
+        val supplies=OutfitSupplies.unitCapacity(warship.kind)+1
+        assertTrue(supplies<=OutfitSupplies.unitCapacity(transport.kind))
+        val supplyCargo=cargo.copy(supplies=supplies,units=UnitInventory())
+        assertFailsWith<IllegalArgumentException> {Reorganization.capacity(world(supplyCargo),1,transfer)}
+    }
     private val ship = UnitStack(32)
     private val crew = UnitStack(3)
     private class Store(var saved: PlanetStocks) : PlanetStockStore {
