@@ -546,8 +546,8 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     private fun publish(snapshot:WorldSnapshot,deferredCharacterRefresh:Set<Int> = emptySet()) {
         val old=published.get().planetStocks
         val inventory=snapshot.planetStocks
-        // Retire the old berth reservation even if the same commander is appointed again before the next logistics request.
-        if(inventory!=null && inventory!==old)logistics.expireFormerCommanders(inventory)
+        // Retire ineligible logistics reservations before a later appointment can restore the holder's access.
+        if(inventory!=null && inventory!==old)logistics.expireIneligible(inventory)
         if (galaxy != null && inventory != null) formations.expireIneligible(galaxy, snapshot.navigators, inventory)
         val result=if(snapshot.session?.ended!=null && snapshot.planetStocks!=null && galaxy!=null)
             SessionResults.fromWorld(galaxy,snapshot) else null
