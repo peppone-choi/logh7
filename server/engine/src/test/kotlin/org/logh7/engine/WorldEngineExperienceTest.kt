@@ -58,4 +58,42 @@ class WorldEngineExperienceTest {
     @Test fun duplicateOrStaleJoinCannotReplaceTheAcceptedCharactersExperienceProfile()=runBlocking {
         for(durable in listOf(false,true))checkNewcomer(this,durable,true)
     }
+
+    @Test fun aResumedOfflineCharacterUsesRegisteredAbilitiesWithoutReplacingSavedProgress()=runBlocking {
+        val rules=SessionRules.load()
+        val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
+            listOf(GalaxyBase(1049,2487,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2487})
+        val existing=StrategicPerson(rank=8,merit=123,evaluation=21,money=45)
+        val abilities=listOf(75,100,100,100,51,52,53,54)
+        val pilot=Navigator(1,10000,Power.EMPIRE,2487,985,960,900,pcpUsed=15,mcpUsed=40)
+        val unmatched=pilot.copy(characterId=10001)
+        var players=mapOf("offline" to pilot,"mismatched" to unmatched)
+        val initial=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,100,200,300)),
+            strategic=StrategicState(people=mapOf(10000 to existing,10001 to existing)),deploymentInitialized=true)
+        var stocks=initial.copy(social=initial.social.copy(academy=initial.social.academy.copy(
+            experience=mapOf(10000 to listOf(99,0,0,0,0,0,0,0)))))
+        repeat(2) {
+            val engine=WorldEngine(this,rules,ticking=false,galaxy=galaxy,awaitIdentities=true,
+                navigationStore=object:NavigationStore {
+                    override fun load()=players
+                    override fun save(next:Map<String,Navigator>) {players=next}
+                },stockStore=object:PlanetStockStore {
+                    override fun load()=stocks
+                    override fun save(next:PlanetStocks) {stocks=next}
+                },worldStateCommitter=WorldStateCommitter {next,inventory->players=next;stocks=checkNotNull(inventory)},
+                npcPolicy=NpcTacticalPolicy(enabled=false))
+            try {
+                engine.provideIdentities { listOf(StrategicIdentity(10000,2,13,0,abilities),
+                    StrategicIdentity(10001,3,13,0,List(8){20})) }.use {
+                    engine.submit(WorldCommand.AdvanceTo(1000))
+                    engine.synchronizeTime()
+                    assertEquals(existing.copy(abilities=listOf(76)+abilities.drop(1)),stocks.strategic.people[10000])
+                    assertEquals(existing,stocks.strategic.people[10001])
+                    assertEquals(listOf(0,0,0,0,1,1,1,1),stocks.social.academy.experience[10000])
+                    assertEquals(pilot.copy(pcpUsed=5,mcpUsed=0),players["offline"])
+                    assertEquals(unmatched,players["mismatched"])
+                }
+            } finally {engine.drainAndClose()}
+        }
+    }
 }
