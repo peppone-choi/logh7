@@ -584,6 +584,27 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun localResupplyCannotMoveStationedShipsToAnotherBaseInTheSameGrid() {
+        val alternate=galaxy.bases.single().copy(id=1001,name="Alternate")
+        val world=Galaxy(galaxy.systems,galaxy.bases+alternate,galaxy.starts)
+        val original=stocks()
+        val depot=original.bases.getValue(1000)
+        val fleet=original.outfits.getValue(1)
+        val ship=fleet.activeShips!!.values.single().copy(posture=TacticalPosture(2487,TacticalShipMode.STATIONED,1000))
+        val stationed=fleet.copy(position=OutfitPosition(2487),activeShips=ActiveShipUnits(listOf(ship)))
+        val events=mutableListOf<NpcStrategicMovement>()
+        for(strategy in listOf(null,NpcStrategicState(21600,2488,3600))) {
+            val initial=original.copy(bases=mapOf(1000 to depot.copy(supplies=1),1001 to depot.copy(baseId=1001)),
+                outfits=mapOf(1 to stationed.copy(strategy=strategy)))
+            val settled=NpcStrategy.advance(simulation.copy(gameMillis=3600000),world,mutableMapOf(),initial,events)
+            assertEquals(OutfitPosition(2487,1000),settled.outfits.getValue(1).position)
+            assertEquals(1,settled.outfits.getValue(1).supplies)
+            assertEquals(0,settled.bases.getValue(1000).supplies)
+            assertEquals(initial.bases.getValue(1001),settled.bases.getValue(1001))
+        }
+        assertTrue(events.isEmpty())
+    }
+
     @Test fun currentTacticalAnchorageBlocksNewAndPendingStrategicJumps() {
         val original=stocks()
         val fleet=OutfitSupplies.withBalances(original.outfits.getValue(1).copy(position=OutfitPosition(2487)),mapOf(1 to 2700))
