@@ -490,6 +490,18 @@ class GameExchange(
             player.characterId, captainCard ?: return emptyList(), target, 4),
             seconds, player.pcp, player.mcp, waitSeconds = maxOf(0, checkNotNull(player.dockReadyAt) - seconds)))
     }
+    private fun warpPosition(character: CharacterMessages.Generate, player: org.logh7.engine.Navigator, seconds: Long): List<ByteArray> {
+        val warp = org.logh7.protocol.NavigationMessages.Warp(player.characterId,
+            if (character.power == 2) 59 else 195, player.grid, 0, 5)
+        // The CD uses 0b07 to end the command wait. Its space notification cannot carry a facility spot,
+        // so a docked character also needs the current 0b0b base, mode and spot.
+        return listOf(characterMessage(character, player, true), unitMessage(character, player),
+            org.logh7.protocol.NavigationMessages.grid(player.grid, player.cpPaused),
+            org.logh7.protocol.NavigationMessages.moved(warp, seconds, player.unitId, player.cruise)) +
+            listOfNotNull(if (player.baseId != 0 || player.mode != 5 || player.spotId != 0)
+                org.logh7.protocol.PlaceMessages.dockNotification(player.characterId, player.baseId, player.mode, seconds,
+                    player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner) else null)
+    }
     private fun completedWork(result: org.logh7.engine.NavigationResult, character: CharacterMessages.Generate,
         warpNotified: Boolean = false): List<ByteArray> {
         val warpFinished = !warpNotified && result.completedWarp
@@ -501,14 +513,7 @@ class GameExchange(
             (if (result.completedDock) listOf(unitMessage(character, player),
                 org.logh7.protocol.PlaceMessages.dockNotification(player.characterId, player.baseId, player.mode, seconds,
                     player.spotId, if (player.spotId == 0) player.characterId else player.spotOwner)) else emptyList()) +
-            // Every completed reserved warp must end the native 0b07 wait, including failed entry.
-            (if (warpFinished) listOf(characterMessage(character, player, true), unitMessage(character, player),
-                org.logh7.protocol.NavigationMessages.grid(player.grid, player.cpPaused),
-                org.logh7.protocol.NavigationMessages.moved(org.logh7.protocol.NavigationMessages.Warp(player.characterId,
-                    if (character.power == 2) 59 else 195, player.grid, 0, 5), seconds, player.unitId, player.cruise)) +
-                (if(player.baseId!=0 || player.mode!=5 || player.spotId!=0) listOf(
-                    org.logh7.protocol.PlaceMessages.dockNotification(player.characterId,player.baseId,player.mode,seconds,
-                        player.spotId,if(player.spotId==0)player.characterId else player.spotOwner)) else emptyList()) else emptyList()) +
+            (if (warpFinished) warpPosition(character, player, seconds) else emptyList()) +
             reservedWarpNotice(result.warpCancellation, player.characterId, seconds)
     }
     private fun reservedWarpNotice(cancellation: NavigationRejection?, characterId: Int, seconds: Long): List<ByteArray> {
@@ -2041,15 +2046,8 @@ class GameExchange(
                                 return@thenApply listOf(org.logh7.protocol.NavigationMessages.rejected(
                                     command.copy(grid = origin.grid, base = origin.baseId, mode = origin.mode),
                                     seconds, origin.pcp, origin.mcp)) +
-                                    // The CD's warp ACK handler is empty. Its command chain
-                                    // waits for 0b07 even when entry fails; restore the actual
-                                    // position so the next card command can be selected.
-                                    (if (origin.baseId == 0 && origin.mode == 5) listOf(
-                                        characterMessage(character, origin, true), unitMessage(character, origin),
-                                        org.logh7.protocol.NavigationMessages.grid(origin.grid,origin.cpPaused),
-                                        org.logh7.protocol.NavigationMessages.moved(command.copy(grid = origin.grid),
-                                            seconds, origin.unitId, origin.cruise)) else emptyList()) +
-                                    completedWork(result, character, warpNotified = origin.baseId == 0 && origin.mode == 5) +
+                                    warpPosition(character, origin, seconds) +
+                                    completedWork(result, character, warpNotified = true) +
                                     warpRefusal(origin.characterId, result, seconds)
                             }
                             publication = Publication(character, player, false)
