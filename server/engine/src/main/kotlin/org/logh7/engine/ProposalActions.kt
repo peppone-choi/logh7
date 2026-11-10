@@ -28,27 +28,42 @@ object ProposalActions {
     fun rankChange(command:Int)=command==DEMOTION || command==SPECIAL_PROMOTION
 
     // CD p.28: not in tactics; the same spot inside a facility, otherwise the same grid.
-    fun recipientInRange(sender:Navigator,recipient:Navigator):Boolean =
+    fun recipientInRange(stocks:PlanetStocks,sender:Navigator,recipient:Navigator):Boolean =
         recipient.country==sender.country && !recipient.cpPaused && recipient.grid==sender.grid &&
+            CoupActions.camp(stocks,sender.characterId,sender.country)==CoupActions.camp(stocks,recipient.characterId,recipient.country) &&
             (sender.spotId==0 && recipient.spotId==0 ||
                 recipient.baseId==sender.baseId && recipient.spotId==sender.spotId && recipient.spotOwner==sender.spotOwner)
 
     /** CD pp.28–29: a regular politician may address a different institution. */
     fun politicianSenderCard(stocks:PlanetStocks,player:Navigator,fallbackRank:Int):Int? {
-        if(BattleDeath.deceased(stocks,player.characterId) || stocks.social.justice.detained(player.characterId))return null
+        if(BattleDeath.deceased(stocks,player.characterId) || stocks.social.justice.detained(player.characterId) ||
+            CoupActions.rebel(stocks,player.characterId,player.country))return null
         return politicianCard(player.country,stocks.strategic.people[player.characterId]?.rank ?: fallbackRank)
     }
 
     fun politicianCard(country:CountryId?,rank:Int):Int? =
         if(rank==1)when(country?.value) {2->67;3->196;else->null} else null
 
+    private val rebelLeaderCards=setOf(68,197)
+
+    fun rebelLeaderCard(policy:OrganizationalOfficePolicy,stocks:PlanetStocks,actor:Int,country:CountryId):Int? {
+        val plot=stocks.social.coup.plots[actor]?.takeIf {it.country==country && it.revolt>0} ?: return null
+        if(BattleDeath.deceased(stocks,actor) || stocks.social.justice.detained(actor))return null
+        return rebelLeaderCards.singleOrNull {card->policy.holders(stocks,card,country)
+            .any {it.character==actor && it.seat in plot.bases}}
+    }
+
     fun senderCanAddress(policy:OrganizationalOfficePolicy,country:CountryId,senderCard:Int,recipientCard:Int,
-        politicianCard:Int?):Boolean =
-        senderCard==1 || senderCard==politicianCard ||
-            policy.role(senderCard,country)?.institution?.let {it==policy.role(recipientCard,country)?.institution}==true
+        camp:Int,politicianCard:Int?,rebelLeaderCard:Int?):Boolean {
+        val recipient=policy.role(recipientCard,country)?.takeIf {it.camp==camp} ?: return false
+        if(senderCard==politicianCard)return camp==0
+        val sender=policy.role(senderCard,country)?.takeIf {it.camp==camp} ?: return false
+        if(senderCard in rebelLeaderCards)return senderCard==rebelLeaderCard
+        return senderCard==1 || sender.institution==recipient.institution
+    }
 
     fun isOrder(senderCard:Int,senderRank:Int,recipientRank:Int):Boolean =
-        senderCard in setOf(1,67,196) || senderRank<=recipientRank
+        senderCard in rebelLeaderCards || senderCard in setOf(1,67,196) || senderRank<=recipientRank
 
     fun assignmentEligible(g: Galaxy, stocks: PlanetStocks, executor: Navigator, requiredCard: Int,
         payload: StockAssignmentProposal, countries: CountryCatalog = CountryCatalogLoader.current()): Boolean =
@@ -131,6 +146,11 @@ object ProposalActions {
         fun belongs(id:Int)=!BattleDeath.deceased(s,id) && players.values.singleOrNull {it.generation==s.generation && it.characterId==id}?.country==country
         if(!belongs(mail.sender) || !belongs(mail.recipient) || mail.target>0 && !belongs(mail.target))return null
         val policy=OrganizationalOfficePolicy(g,countries)
+        val camp=policy.role(mail.card,country)?.camp ?: return null
+        if(CoupActions.camp(s,mail.sender,country)!=camp || CoupActions.camp(s,mail.recipient,country)!=camp ||
+            mail.target>0 && CoupActions.camp(s,mail.target,country)!=camp)return null
+        if(mail.senderCard in rebelLeaderCards && rebelLeaderCard(policy,s,mail.sender,country)!=mail.senderCard)return null
+        if(mail.targetCard>0 && policy.role(mail.targetCard,country)?.camp!=camp)return null
         val recipients=recipientHolders(policy,s,mail,country)
         if(recipients.none {it.character==mail.recipient})return null
         var navigators=emptyMap<String,Navigator>()
@@ -232,7 +252,11 @@ object ProposalActions {
             // Keep the original recipient when a death invalidates the command, so a successor cannot execute it.
             if(!mail.pending || country==null || BattleDeath.deceased(settled,mail.sender) ||
                 BattleDeath.deceased(settled,mail.recipient) || BattleDeath.deceased(settled,mail.target))return@map mail
-            fun currentHolder(id:Int)=!BattleDeath.deceased(settled,id) && (keyOf(id)?.let {players.getValue(it).country==country} ?: true)
+            val camp=policy.role(mail.card,country)?.camp ?: return@map mail
+            if(mail.senderCard in rebelLeaderCards && rebelLeaderCard(policy,settled,mail.sender,country)!=mail.senderCard)
+                return@map mail
+            fun currentHolder(id:Int)=!BattleDeath.deceased(settled,id) && CoupActions.camp(settled,id,country)==camp &&
+                (keyOf(id)?.let {players.getValue(it).country==country} ?: true)
             val holders=recipientHolders(policy,settled,mail,country)
             if(currentHolder(mail.recipient) &&
                 holders.any {it.character==mail.recipient})mail
@@ -325,23 +349,26 @@ object ProposalActions {
             return reject(SocialRejection.CARD)
         val recipient=accounts.values.singleOrNull {it.generation==i.generation && it.characterId==i.target}
             ?: return reject(SocialRejection.LOCATION)
-        if(!recipientInRange(p,recipient))return reject(SocialRejection.LOCATION)
+        if(!recipientInRange(s,p,recipient))return reject(SocialRejection.LOCATION)
         val recipientPosts=policy.holders(s,i.argument,i.country).filter {it.character==i.target}
         if(recipientPosts.isEmpty())return reject(SocialRejection.CARD)
-        if(!senderCanAddress(policy,i.country,i.card,i.argument,politicianCard))
+        val camp=CoupActions.camp(s,i.characterId,i.country)
+        if(!senderCanAddress(policy,i.country,i.card,i.argument,camp,politicianCard,
+            rebelLeaderCard(policy,s,i.characterId,i.country)))
             return reject(SocialRejection.CARD)
         val people=s.strategic.people
         val sender=people[i.characterId] ?: StrategicPerson(rank=i.rank)
         val senderRank=rank(s,i.characterId,i.country,i.rank,countries);val recipientRank=rank(s,i.target,i.country,20,countries)
-        // 命令 goes down the ranks, 提案 up (a smaller rank number is senior); the emperor orders everyone.
+        // 命令 goes down the ranks, 提案 up. The CD manual names exceptions with cross-institution command rights.
         val order=isOrder(i.card,senderRank,recipientRank)
         if(sender.influence<1)return reject(SocialRejection.RANK)
         // Dismissal: base = the third person, amount = that person's card; the recipient must be able to dismiss it.
         // Appointment: base = the seat, amount = the card; the sender asks the recipient to appoint the sender there.
         val target=when(i.value) {DISMISSAL,DEMOTION,SPECIAL_PROMOTION -> i.base;APPOINTMENT -> i.characterId;else -> 0}
         val targetCard=if(i.value==DISMISSAL || i.value==APPOINTMENT)i.amount.toInt() else 0
-        if(target>0 && accounts.values.singleOrNull {it.generation==i.generation && it.characterId==target}?.country!=i.country)
-            return reject(SocialRejection.TARGET)
+        if(targetCard>0 && policy.role(targetCard,i.country)?.camp!=camp)return reject(SocialRejection.TARGET)
+        if(target>0 && (accounts.values.singleOrNull {it.generation==i.generation && it.characterId==target}?.country!=i.country ||
+            CoupActions.camp(s,target,i.country)!=camp))return reject(SocialRejection.TARGET)
         val power=i.country.value
         val seat=when(i.value) {
             APPOINTMENT -> i.base

@@ -59,6 +59,50 @@ class ProposalActionsTest {
         assertNull(ProposalActions.politicianSenderCard(politician,a.copy(country=CountryId(42)),1))
     }
 
+    @Test fun rebelLeaderOrdersOnlyLiveRebelPostsAndStaleAuthorityExpiresWithRefund() {
+        val country=CountryId(2)
+        val rebelCard=assertNotNull(CoupActions.alias(19))
+        val original=stocks()
+        val plot=Plot(a.characterId,country,0,members=listOf(b.characterId),revolt=1,bases=setOf(1049))
+        val state=original.copy(bases=original.bases+(1049 to original.bases.getValue(1049).copy(camp=1)),
+            strategic=original.strategic.copy(offices=listOf(OfficeHolding(68,1049,a.characterId),
+                OfficeHolding(69,1049,a.characterId),OfficeHolding(rebelCard,1049,b.characterId)),
+                people=original.strategic.people+(a.characterId to StrategicPerson(rank=10,influence=10))),
+            social=original.social.copy(coup=CoupState(mapOf(a.characterId to plot))))
+        fun send(s:PlanetStocks,card:Int=68)=act("a",ProposalActions.OPEN,card,b.characterId,ProposalActions.RESIGNATION,rebelCard,s)
+        val opened=send(state)
+        assertNull(opened.rejection)
+        assertEquals(960,opened.player?.mcp)
+        val pending=assertNotNull(opened.stocks)
+        val mail=pending.social.proposals.mails.single()
+        assertTrue(mail.order)
+        assertEquals(9,pending.strategic.people.getValue(a.characterId).influence)
+        val approval=act("b",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,pending)
+        assertNull(approval.rejection)
+        assertEquals(960,approval.player?.mcp)
+        assertTrue(policy.holders(assertNotNull(approval.stocks),rebelCard,country).isEmpty())
+
+        val regularRecipient=state.copy(social=state.social.copy(coup=CoupState(mapOf(a.characterId to plot.copy(members=emptyList())))))
+        assertEquals(SocialRejection.LOCATION,send(regularRecipient).rejection)
+        assertEquals(SocialRejection.CARD,send(state,69).rejection)
+        val stale=pending.copy(strategic=pending.strategic.copy(offices=pending.strategic.offices.filter {it.card!=68}))
+        val ended=pending.copy(social=pending.social.copy(coup=CoupState()))
+        for (blocked in listOf(stale,ended)) {
+            val reply=act("b",ProposalActions.REPLY,0,mail.id,Proposals.APPROVE,0,blocked)
+            assertEquals(SocialRejection.CARD,reply.rejection)
+            assertEquals(b,reply.player)
+            assertEquals(blocked,reply.stocks)
+            val players=mutableMapOf("a" to assertNotNull(opened.player),"b" to b)
+            val due=session.copy(gameMillis=(mail.createdAt+ProposalActions.ABSENT_ORDER_SECONDS)*1000,
+                participants=session.participants+("b" to session.participants.getValue("b").copy(online=false)))
+            assertEquals(blocked,ProposalActions.settle(galaxy,due,players,blocked) {emptyList()})
+            assertEquals(1000,players.getValue("b").mcp)
+            val expired=ProposalActions.settle(galaxy,due.copy(gameMillis=mail.expiresAt*1000),players,blocked) {emptyList()}
+            assertTrue(expired.social.proposals.mails.isEmpty())
+            assertEquals(1000,players.getValue("a").mcp)
+        }
+    }
+
     @Test fun absentDemotionOrdersRecheckTheTargetAndChargeOnlyOnce() = absentRankChange(ProposalActions.DEMOTION)
     @Test fun absentSpecialPromotionUpdatesTheTargetFlagshipAndChargesOnlyOnce() = absentRankChange(ProposalActions.SPECIAL_PROMOTION)
 

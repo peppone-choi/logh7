@@ -218,15 +218,17 @@ class GameExchange(
         fun institution(card:Int)=policy.role(card,country)?.institution
         val politicianCard=if(allowPolitician)org.logh7.engine.ProposalActions.politicianSenderCard(
             inventory,me,currentCharacterById(me.characterId)?.rank ?: 20) else null
+        val camp=org.logh7.engine.CoupActions.camp(inventory,me.characterId,country)
+        val leaderCard=org.logh7.engine.ProposalActions.rebelLeaderCard(policy,inventory,me.characterId,country)
         val mine=(policy.held(inventory,me.characterId).filter {it.country==country}.map {it.card}
             .filter {institution(it)!=null}+listOfNotNull(politicianCard)).distinct()
         val players=navigation?.snapshot()?.navigators.orEmpty().values.filter {it.generation==me.generation &&
             it.characterId!=me.characterId && (recipientId==null || it.characterId==recipientId) &&
-            org.logh7.engine.ProposalActions.recipientInRange(me,it)}
+            org.logh7.engine.ProposalActions.recipientInRange(inventory,me,it)}
         return players.sortedBy {it.characterId}.mapNotNull {other ->
             val theirs=policy.held(inventory,other.characterId).filter {it.country==country}.map {it.card}.filter {institution(it)!=null}.distinct()
             mine.firstNotNullOfOrNull {card->theirs.firstOrNull {recipientCard(it) &&
-                org.logh7.engine.ProposalActions.senderCanAddress(policy,country,card,it,politicianCard)}
+                org.logh7.engine.ProposalActions.senderCanAddress(policy,country,card,it,camp,politicianCard,leaderCard)}
                 ?.let {Triple(other.characterId,card,it)}}
         }
     }
@@ -2962,8 +2964,10 @@ class GameExchange(
                                         val country=me.country
                                         val policy=org.logh7.engine.OrganizationalOfficePolicy(world.galaxy)
                                         val politicianCard=org.logh7.engine.ProposalActions.politicianSenderCard(inventory,me,character.rank)
+                                        val camp=org.logh7.engine.CoupActions.camp(inventory,me.characterId,country)
+                                        val leaderCard=country?.let {org.logh7.engine.ProposalActions.rebelLeaderCard(policy,inventory,me.characterId,it)}
                                         val here=players.values.filter {it.generation==me.generation && it.characterId!=me.characterId &&
-                                            country!=null && org.logh7.engine.ProposalActions.recipientInRange(me,it)}
+                                            country!=null && org.logh7.engine.ProposalActions.recipientInRange(inventory,me,it)}
                                             .map {it.characterId}.toSet()
                                         fun cards(id:Int)=country?.let {administration!!.offices(id,it.value,checkNotNull(generation)).map {it.kind}}.orEmpty()
                                         fun institution(card:Int)=country?.let {org.logh7.engine.OrganizationOffices.of(card,it)?.institution}
@@ -2975,7 +2979,7 @@ class GameExchange(
                                             val actorRank=org.logh7.engine.ProposalActions.rank(inventory,character.id.toInt(),actualCountry,character.rank)
                                             org.logh7.protocol.AppointmentDirectoryMessages.OrderSuggest(card,people.filter {(_,held)->
                                                 held.any {institution(it)!=null && org.logh7.engine.ProposalActions.senderCanAddress(
-                                                    policy,actualCountry,card,it,politicianCard)}}.take(10).map {(target,held)->
+                                                    policy,actualCountry,card,it,camp,politicianCard,leaderCard)}}.take(10).map {(target,held)->
                                                 val targetRank=org.logh7.engine.ProposalActions.rank(inventory,target.id.toInt(),actualCountry,target.rank)
                                                 val proposal=!org.logh7.engine.ProposalActions.isOrder(card,actorRank,targetRank)
                                                 (if(proposal)1 else 0) to org.logh7.protocol.AppointmentDirectoryMessages.Person(target,

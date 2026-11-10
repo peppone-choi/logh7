@@ -106,6 +106,8 @@ class CountryCoupActionsTest {
     @Test fun allianceRuleFamilyUsesItsRebelAndHeadOfficesWithAnEmpireDisplay() {
         val revolted=act(CoupActions.REVOLT,plotted(b,10002),"b").stocks!!
         assertTrue(OfficeHolding(197,1001,10002,b) in revolted.strategic.offices)
+        assertEquals(197,ProposalActions.rebelLeaderCard(policy,revolted,10002,b))
+        assertNull(ProposalActions.rebelLeaderCard(policy,revolted,10002,a))
         val started=CoupActions.settle(galaxy,revolted,1000,catalog)
         val won=CoupActions.settle(galaxy,started,1000+7*86400,catalog)
         assertTrue(OfficeHolding(132,1001,10002,b) in won.strategic.offices)
