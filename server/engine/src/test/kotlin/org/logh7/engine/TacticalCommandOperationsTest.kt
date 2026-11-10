@@ -958,6 +958,31 @@ class TacticalCommandOperationsTest {
         assertEquals(1L,relieved.strategic.people.getValue(10000).merit)
     }
 
+    @Test fun defaultGarrisonDefenseCreditsOnlineAndAiDisabledCommandersWithoutDelegatingControl() {
+        val s=state()
+        val pilot=s.players.getValue("pilot")
+        val offline=session.copy(participants=session.participants+("pilot" to
+            session.participants.getValue("pilot").copy(online=false,connection=null)))
+        val interval=TacticalMissionRules.CHECK_INTERVAL_GAME_SECONDS
+        val aiOn=TacticalCommandState(aiSwitches=mapOf(pilot.characterId to 16))
+        for((phase,commands) in listOf(session to aiOn,session to TacticalCommandState(),offline to TacticalCommandState())) {
+            val initial=s.stocks.copy(tacticalCommands=commands)
+            val players=s.players.toMutableMap()
+            fun settle(at:Long,inventory:PlanetStocks)=TacticalCommandOperations.finishMissions(
+                phase.copy(gameMillis=at*1000),galaxy,players,inventory,1,mutableListOf(),mutableListOf(),emptySet())
+            assertFalse(TacticalOfflineAi.eligible(phase,"pilot",pilot,initial))
+            val assigned=settle(now,initial)
+            val mission=assigned.tacticalCommands.missions.getValue(pilot.characterId)
+            assertTrue(mission.defaultDefense)
+            assertEquals(1000,mission.target)
+            assertEquals(assigned,settle(now+interval-1,assigned))
+            val credited=settle(now+interval,assigned)
+            assertEquals(1L,credited.strategic.people.getValue(pilot.characterId).merit)
+            assertEquals(credited,settle(now+interval,credited))
+            assertEquals(s.players,players)
+        }
+    }
+
     @Test fun sameGridDefeatEndsDefenseWithoutCreditAtTheCheckBoundary() {
         val s=state()
         val mission=TacticalMissionState(10000,1,0,1000,now,grid=2488)
@@ -1115,7 +1140,11 @@ class TacticalCommandOperationsTest {
             assertEquals(merit,after.tacticalCommands.merits[10000] ?: 0L)
             assertEquals(mapOf(10000 to (kind to 0L)),events.single().finishedMissions)
             events.clear()
-            assertEquals(after,settle(now+3*interval,defeated,after))
+            val resumed=settle(now+3*interval,defeated,after)
+            val defense=resumed.tacticalCommands.missions.getValue(10000)
+            assertTrue(defense.defaultDefense)
+            assertEquals(now+3*interval,defense.assignedAt)
+            assertEquals(merit,resumed.tacticalCommands.merits[10000] ?: 0L)
             assertTrue(events.isEmpty())
         }
     }
