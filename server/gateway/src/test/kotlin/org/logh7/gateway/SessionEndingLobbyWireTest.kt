@@ -25,7 +25,10 @@ class SessionEndingLobbyWireTest {
             it.send(SyntheticClient.token(token),SyntheticClient.opcode(0x2000));it.expect(0x2001)
         }
     }
-    @Test fun lobbyDeletionRefreshWaitsForCommitAndCannotDeleteAnotherAccount() = runBlocking {
+    @Test fun lobbyDeletionRefreshWaitsForCommitAndCannotDeleteAnotherAccount() = checkLobbyDeletion(applyForOriginal = false)
+    @Test fun lobbyDeletionAllowsAnOriginalCharacterLotteryApplicationInTheSameGeneration() = checkLobbyDeletion(applyForOriginal = true)
+
+    private fun checkLobbyDeletion(applyForOriginal: Boolean) = runBlocking {
         val account = "load-000"
         val character = 10000
         var players = mapOf(account to Navigator(1, character, Power.EMPIRE, 2487, 1000, 1000, 1000,
@@ -45,7 +48,7 @@ class SessionEndingLobbyWireTest {
             }, worldStateCommitter = WorldStateCommitter { next, stocks ->
                 players = next
                 inventory = checkNotNull(stocks)
-            }, sessionDirectory = GameSessionDirectory()).use { f ->
+            }, sessionDirectory = GameSessionDirectory()).use fixture@ { f ->
             f.join(account, true, false).client.close()
             f.await("pilot disconnected") { f.engine.snapshot().session!!.online == 0 }
             lobby(f, 1).use { client ->
@@ -66,6 +69,39 @@ class SessionEndingLobbyWireTest {
                 assertEquals(setOf(character), f.engine.snapshot().planetStocks?.deletedCharacters?.get(account))
                 assertNull(CharacterCreation(directory.resolve("characters.properties")).character(account))
             }
+            if (applyForOriginal) {
+                f.game(account, create = false).use { client ->
+                    val application = ByteBuffer.allocate(7).putShort(0x1006).put(1).putInt(1001).array()
+                    client.send(application)
+                    client.expect(0x1006)
+                }
+                assertEquals(listOf(1001L), CharacterCreation(directory.resolve("characters.properties")).entries(account))
+                assertEquals(1L, f.engine.snapshot().session?.generation)
+                return@fixture
+            }
+            f.game(account, create = true).close()
+            val replacement = assertNotNull(CharacterCreation(directory.resolve("characters.properties")).character(account))
+            assertEquals(10001L, replacement.id)
+            lobby(f, 0).use { client ->
+                client.send(refresh)
+                val charged = client.expect(0x2004)
+                client.send(request(), refresh)
+                assertContentEquals(charged, client.expect(0x2004), "a replay must preserve the replacement")
+            }
+            f.join(account, create = false, initialize = false).also { assertTrue(it.accepted) }.client.use { client ->
+                client.send(SyntheticClient.opcode(0x0f00))
+                assertEquals(replacement.id.toInt(), ByteBuffer.wrap(client.expect(0x0204)).getInt(6))
+                var ready = false
+                for (i in 1..64) {
+                    if (ByteBuffer.wrap(client.receive()).getShort(4).toInt() and 0xffff == 0x0f01) {
+                        ready = true
+                        break
+                    }
+                }
+                assertTrue(ready)
+            }
+            assertEquals(1L, f.engine.snapshot().session?.generation)
+            assertEquals(replacement.id.toInt(), f.engine.snapshot().navigators[account]?.characterId)
         }
     }
     @Test fun singleSessionSelectionReportsCurrentTerritoryCharactersAndElapsedTime()=runBlocking {
