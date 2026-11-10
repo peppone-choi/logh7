@@ -49,6 +49,9 @@ object EspionageActions {
     fun cells(a:Int,b:Int)=maxOf(kotlin.math.abs(a%100-b%100),kotlin.math.abs(a/100-b/100))
     /** Daily chance (percent) that a disguise is seen through: 20 − (intelligence − 50)/4, 5..40 (evidence:guess). */
     fun exposure(intelligence:Int)=(20-(intelligence-50)/4).coerceIn(5,40)
+    private fun intelligence(stocks:PlanetStocks,character:Int,identities:()->List<StrategicIdentity>)=
+        stocks.strategic.people[character]?.abilities?.getOrNull(3)
+            ?: identities().singleOrNull {it.id==character}?.abilities?.getOrNull(3) ?: 50
     /** Intelligence duties (CM group 6): 20 調査局長, 58/194 諜報官, 162 情報部長. */
     val cards=setOf(20,58,162,194)
     const val INFILTRATION_DAYS=7L
@@ -85,7 +88,7 @@ object EspionageActions {
     /** Explodes due bombs (the base stops automatic production; people still in that spot are wounded), drops ended
      * infiltrations and production stops. */
     fun settle(galaxy:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks,
-        catalog:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
+        catalog:CountryCatalog=CountryCatalogLoader.current(),identities:()->List<StrategicIdentity> = {emptyList()}):PlanetStocks {
         val now=session.gameMillis/1000;val j=s.social.justice
         val due=j.bombs.values.filter {it.explodesAt<=now}
         val seen=j.disguises.values.filter {it.checkAt<=now}
@@ -102,15 +105,15 @@ object EspionageActions {
             infiltrations=j.infiltrations.filterValues {it.until>now},disabled=disabled,
             homeReports=j.homeReports.filterValues {it.expiresAt>now})))
         // A disguise is rolled once per game day; seen through, the intruder is arrested by the side it hid among.
+        val roster by lazy(identities)
         for(d in seen.sortedBy {it.character}) {
-            val intelligence=next.strategic.people[d.character]?.abilities?.getOrNull(3) ?: 50
             val justice=next.social.justice
             val agent=players.values.singleOrNull {it.characterId==d.character && it.generation==session.generation}
             if(agent==null || disguise(next,agent)!=d) {
                 next=next.copy(social=next.social.copy(justice=justice.copy(disguises=justice.disguises-d.character)))
                 continue
             }
-            if(roll(d.character,d.alias,d.checkAt)<exposure(intelligence)) {
+            if(roll(d.character,d.alias,d.checkAt)<exposure(intelligence(next,d.character) { roster })) {
                 next=next.copy(social=next.social.copy(justice=justice.copy(disguises=justice.disguises-d.character)))
                 JusticeActions.detain(galaxy,next,players,d.character,d.country,now,catalog)?.let {next=it}
             } else next=next.copy(social=next.social.copy(justice=justice.copy(disguises=justice.disguises+(d.character to d.copy(checkAt=d.checkAt+Justice.DAY)))))
@@ -146,8 +149,7 @@ object EspionageActions {
         val owner=s.bases[p.baseId]?.country
         val j=s.social.justice;val inside=j.infiltrations[i.characterId]?.takeIf {it.until>now && it.base==p.baseId && it.spot==p.spotId &&
             (if(it.country!=null)it.country==own && it.targetCountry==owner else own.value in 2..3)}
-        val intelligence=s.strategic.people[i.characterId]?.abilities?.getOrNull(3)
-            ?: i.identities.singleOrNull {it.id==i.characterId}?.abilities?.getOrNull(3) ?: 50
+        val intelligence=intelligence(s,i.characterId) { i.identities }
         val paid=CpPayment.charge(CpBalance(p.pcp.toLong(),p.mcp.toLong()),if(i.command in setOf(INTRUDE,RETURN))320L else 160L,CpPool.MCP)
         if(paid !is PaymentResult.Paid)return reject(SocialRejection.CP)
         val payer=p.paidWith(paid.balance)

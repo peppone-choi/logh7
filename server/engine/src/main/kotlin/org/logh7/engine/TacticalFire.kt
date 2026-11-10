@@ -389,7 +389,7 @@ internal object TacticalCombat {
                 registeredIdentities
             }
             inventory = JusticeActions.settle(galaxy, session, players, inventory) { registeredIdentities }
-            inventory = EspionageActions.settle(galaxy, session, players, inventory)
+            inventory = EspionageActions.settle(galaxy, session, players, inventory) { registeredIdentities }
             inventory = economy(galaxy, session, players, inventory)
         }
         clearFinishedOrders(players,galaxy,inventory,now,session.eliminated.keys)
