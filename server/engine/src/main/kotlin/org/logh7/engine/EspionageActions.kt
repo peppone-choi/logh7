@@ -56,6 +56,14 @@ object EspionageActions {
         player.generation==s.generation && (if(d.originCountry!=null)player.country==d.originCountry
             else player.country?.value in 2..3 && d.country.value in 2..3) && s.bases[player.baseId]?.country==d.country}
 
+    internal fun endDepartedInfiltration(stocks: PlanetStocks, before: Navigator?, after: Navigator): PlanetStocks {
+        val justice = stocks.social.justice
+        val infiltration = justice.infiltrations[after.characterId] ?: return stocks
+        if (before?.characterId != after.characterId || before.baseId != infiltration.base || before.spotId != infiltration.spot ||
+            after.baseId == infiltration.base && after.spotId == infiltration.spot) return stocks
+        return stocks.copy(social = stocks.social.copy(justice = justice.copy(infiltrations = justice.infiltrations - after.characterId)))
+    }
+
     /** Explodes due bombs (the base stops automatic production; people still in that spot are wounded), drops ended
      * infiltrations and production stops. */
     fun settle(galaxy:Galaxy,session:SessionState,players:MutableMap<String,Navigator>,s:PlanetStocks,
