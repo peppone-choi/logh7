@@ -13,6 +13,14 @@ internal class OutfitFormationService(private val configuredCountries:CountryCat
             s.participants[d.request.identity.account]?.let {!it.online || it.connection!=d.request.identity.connection || it.country!=d.request.identity.country}!=false}
     }
     fun blocksBase(s:SessionState,base:Int):Boolean {prune(s);return drafts.values.any {it.request.base==base}}
+    fun expireIneligible(galaxy: Galaxy, players: Map<String, Navigator>, stocks: PlanetStocks) {
+        drafts.entries.removeIf { (account, draft) ->
+            val identity = draft.request.identity
+            val player = players[account]
+            player == null || player.generation != identity.generation || player.characterId != identity.characterId ||
+                player.country != identity.country || OutfitFormationPolicy.authority(galaxy, draft.request, player, stocks, countries) != null
+        }
+    }
     fun complete(r:OutfitFormationRequest) {if(r.phase==FormationPhase.COMMIT)drafts.remove(r.identity.account)}
     fun evaluate(galaxy:Galaxy,request:OutfitFormationRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):OutfitFormationResult {
         prune(s)
