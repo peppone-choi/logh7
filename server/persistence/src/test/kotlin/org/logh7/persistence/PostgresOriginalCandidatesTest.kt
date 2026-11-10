@@ -152,6 +152,19 @@ class PostgresOriginalCandidatesTest {
                 val reopened=PostgresOriginalCandidates(::connect,world)
                 assertEquals(setOf(edited,allianceOfficer),reopened.load().filter {it.profile.startingOffice!=null}.toSet())
                 assertTrue(reopened.supportsAllianceStartingOffice)
+                val staden=commander.copy(surname="Staden",givenName="Admiral",startingOffice=OriginalStartingOffice.STADEN_FLEET_4)
+                assertFalse(reopened.supportsStadenStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1101,0,staden,empire)}
+                migrate("V18__staden_original_starting_office.sql")
+                assertEquals(setOf(edited,allianceOfficer),reopened.load().filter {it.profile.startingOffice!=null}.toSet())
+                assertTrue(reopened.supportsStartingOffice && reopened.supportsAllianceStartingOffice && reopened.supportsStadenStartingOffice)
+                assertFailsWith<IllegalArgumentException> {reopened.save(1101,0,staden,alliance)}
+                assertFailsWith<IllegalArgumentException> {reopened.save(1101,0,staden.copy(rank=6),empire)}
+                val stadenOfficer=assertNotNull(reopened.save(1101,0,staden,empire))
+                assertNull(reopened.save(1102,0,staden,empire))
+                assertNull(reopened.save(1101,1,staden.copy(startingOffice=null),empire))
+                assertEquals(setOf(edited,allianceOfficer,stadenOfficer),
+                    PostgresOriginalCandidates(::connect,world).load().filter {it.profile.startingOffice!=null}.toSet())
                 connect().use {test->test.createStatement().use {
                     val rejected=assertFailsWith<SQLException> {it.executeUpdate("""UPDATE original_candidate_profile
                         SET starting_office='vucock-fleet-5' WHERE world_identity='$world' AND candidate_id=${edited.id}""")}

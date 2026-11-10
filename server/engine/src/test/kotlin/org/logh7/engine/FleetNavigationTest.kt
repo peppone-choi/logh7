@@ -250,14 +250,22 @@ class FleetNavigationTest {
     @Test fun aBoundOriginalTakesTheVacantFleetCommandOnlyOnFirstEntry() {
         val vucock=OriginalStartingOffice.VUCOCK_FLEET_5
         assertEquals(listOf(3,137,5,1086,175),listOf(vucock.country.value,vucock.fleetId,vucock.fleetNumber,vucock.baseId,vucock.role.card))
+        val staden=OriginalStartingOffice.STADEN_FLEET_4
+        assertEquals(listOf(2,4,4,1015,39),listOf(staden.country.value,staden.fleetId,staden.fleetNumber,staden.baseId,staden.role.card))
         for(office in OriginalStartingOffice.entries)checkFirstFleetCommand(office)
     }
 
     private fun checkFirstFleetCommand(office:OriginalStartingOffice) {
         val power=if(office.country.value==2)Power.EMPIRE else Power.ALLIANCE
         val wrongPower=Power.entries.single {it!=power}
-        val base=home.copy(id=office.baseId,name=if(power==Power.EMPIRE)Capital.EMPIRE.baseName else "Santa Ana")
-        val world=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",office.country.value)),listOf(base),Power.entries.associateWith {2487})
+        val start=GalaxySystem(3,2487,4,"Home",office.country.value)
+        val base=when(office) {
+            OriginalStartingOffice.REINHARD_FLEET_2 -> home.copy(id=office.baseId,name=Capital.EMPIRE.baseName)
+            OriginalStartingOffice.VUCOCK_FLEET_5 -> home.copy(id=office.baseId,name="Santa Ana")
+            OriginalStartingOffice.STADEN_FLEET_4 -> home.copy(id=1015,grid=1260,model=51,name="Hafen")
+        }
+        val systems=if(base.grid==start.grid)listOf(start) else listOf(start,GalaxySystem(4,base.grid,4,"Amritsar",2))
+        val world=Galaxy(systems,listOf(base),Power.entries.associateWith {start.grid})
         fun admitted(original:Boolean,side:Power=power)=SessionSimulation(SessionRules.load()).also {
             it.join("pilot",side,original,"c")
         }.exportState()
@@ -295,6 +303,7 @@ class FleetNavigationTest {
         state.fail=false
         val docked=assertNotNull(enter().player)
         assertEquals(base.id,docked.baseId)
+        assertEquals(base.grid,docked.grid)
         assertEquals(docked,state.players.getValue("pilot"))
         assertEquals(fleet.copy(commanderId=1003),state.stocks.outfits.getValue(fleet.id))
         assertEquals(1,state.commits)

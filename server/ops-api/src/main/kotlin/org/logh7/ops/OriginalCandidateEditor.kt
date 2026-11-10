@@ -19,14 +19,20 @@ private fun CountryCatalog.candidatePower(id:Int)=countries[id]?.takeIf {it.nati
 private fun OriginalStartingOffice.label()=when(this) {
     OriginalStartingOffice.REINHARD_FLEET_2 -> "라인하르트 · 제2함대 사령관 (오딘)"
     OriginalStartingOffice.VUCOCK_FLEET_5 -> "뷰코크 · 제5함대 사령관 (산타 아나)"
+    OriginalStartingOffice.STADEN_FLEET_4 -> "슈타덴 · 제4함대 사령관 (하펜)"
 }
 
 /** The definition DB migrations still missing before [office] can be stored, or null when the store accepts it. */
 private fun missingOfficeMigration(store:OriginalCandidateStore?,office:OriginalStartingOffice):String? {
-    val alliance=office==OriginalStartingOffice.VUCOCK_FLEET_5
+    // V16 adds the office column; later migrations widen its check constraint to each further office.
+    val (migration,supported)=when(office) {
+        OriginalStartingOffice.REINHARD_FLEET_2 -> null to true
+        OriginalStartingOffice.VUCOCK_FLEET_5 -> "V17" to (store?.supportsAllianceStartingOffice==true)
+        OriginalStartingOffice.STADEN_FLEET_4 -> "V18" to (store?.supportsStadenStartingOffice==true)
+    }
     return when {
-        store?.supportsStartingOffice!=true -> if(alliance)"V16·V17" else "V16"
-        alliance && !store.supportsAllianceStartingOffice -> "V17"
+        store?.supportsStartingOffice!=true -> listOfNotNull("V16",migration).joinToString("·")
+        !supported -> migration
         else -> null
     }
 }
@@ -190,28 +196,36 @@ private fun candidatePage(published:PublishedOriginalCandidates,id:Long?,newCoun
     for(peerage in Peerage.entries)append("<option value=\"${peerage.ordinal+1}\"${if(profile.peerage==peerage)" selected" else ""}>${peerageNames[peerage.ordinal]}</option>")
     append("</select></label><p>작위를 주려면 제국 작위 카드를 지원하는 응모 국가와 영속 월드 저장이 필요합니다.</p>")
     val boundOffice=edit?.profile?.startingOffice
-    // Each creation side offers the office its native country accepts: Reinhard for the empire, Vucock for the alliance.
-    val sideCountry=(if(empire)Power.EMPIRE else Power.ALLIANCE).country
-    val office=boundOffice ?: OriginalStartingOffice.entries.firstOrNull {it.country==sideCountry}
-    val officeRank=office?.let {candidate ->
-        (2..20).firstOrNull {candidate.accepts(PublishedOriginalCandidates.NEW_IDS.first,candidate.country,it)}}
-    val officeRankName=officeRank?.let {militaryRanks[it-2]}
-    val officeHolder=edits.values.firstOrNull {it.id!=selected && it.profile.startingOffice==office}
-    val officeMigration=office?.let {officeMigrations[it]}
-    val officeEligible=office!=null && officeRank!=null && scoped==office.country.value &&
-        (creating || (selected!=null && selected !in definitions && selected in PublishedOriginalCandidates.NEW_IDS))
+    fun officeRank(office:OriginalStartingOffice)=
+        (2..20).firstOrNull {office.accepts(PublishedOriginalCandidates.NEW_IDS.first,office.country,it)}
     if(boundOffice!=null) {
-        append("<p>시작 직책 <strong>${boundOffice.label()}</strong> · 게시 후에는 변경할 수 없습니다. 응모 국가나 시작 계급${officeRankName?.let {"($it)"}.orEmpty()}을 바꾸면 저장되지 않습니다.</p>")
-    } else if(office==null || officeRank==null) {
-        // No original starting office exists for this creation side.
-    } else if(officeMigration!=null) {
-        append("<p>시작 직책 ${office.label()}을 지정하려면 정의 DB ${officeMigration}을 적용하세요.</p>")
-    } else if(officeEligible && officeHolder!=null) {
-        append("<p>시작 직책 ${office.label()}은 후보 ${officeHolder.id}에 이미 지정되어 있습니다.</p>")
-    } else if(officeEligible) {
-        append("<label>시작 직책 <select name=\"startingOffice\" data-country=\"${office.country.value}\" data-rank=\"$officeRank\"><option value=\"\">지정 없음</option>")
-        append("<option value=\"${office.key}\">${office.label()}</option></select></label>")
-        append("<p>시작 계급이 ${officeRankName}일 때만 지정할 수 있습니다. 게시 후에는 해제하거나 다른 후보로 옮길 수 없습니다.</p>")
+        val rankName=officeRank(boundOffice)?.let {militaryRanks[it-2]}
+        append("<p>시작 직책 <strong>${boundOffice.label()}</strong> · 게시 후에는 변경할 수 없습니다. 응모 국가나 시작 계급${rankName?.let {"($it)"}.orEmpty()}을 바꾸면 저장되지 않습니다.</p>")
+    } else {
+        // Each creation side offers the offices its native country accepts: Reinhard and Staden for the empire,
+        // Vucock for the alliance. Every office keeps its own migration and holder state.
+        val sideCountry=(if(empire)Power.EMPIRE else Power.ALLIANCE).country
+        val newCandidate=creating || (selected!=null && selected !in definitions && selected in PublishedOriginalCandidates.NEW_IDS)
+        val choices=buildList<Pair<OriginalStartingOffice,Int>> {
+            for(office in OriginalStartingOffice.entries.filter {it.country==sideCountry}) {
+                val rank=officeRank(office) ?: continue
+                val migration=officeMigrations[office]
+                val eligible=newCandidate && scoped==office.country.value
+                val holder=edits.values.firstOrNull {it.id!=selected && it.profile.startingOffice==office}
+                when {
+                    migration!=null -> append("<p>시작 직책 ${office.label()}을 지정하려면 정의 DB ${migration}을 적용하세요.</p>")
+                    eligible && holder!=null -> append("<p>시작 직책 ${office.label()}은 후보 ${holder.id}에 이미 지정되어 있습니다.</p>")
+                    eligible -> add(office to rank)
+                }
+            }
+        }
+        if(choices.isNotEmpty()) {
+            append("<label>시작 직책 <select name=\"startingOffice\"><option value=\"\">지정 없음</option>")
+            for((office,rank) in choices)
+                append("<option value=\"${office.key}\" data-country=\"${office.country.value}\" data-rank=\"$rank\">${office.label()}</option>")
+            val rankNames=choices.map {militaryRanks[it.second-2]}.distinct().joinToString("·")
+            append("</select></label><p>시작 계급이 ${rankNames}일 때만 지정할 수 있습니다. 게시 후에는 해제하거나 다른 후보로 옮길 수 없습니다.</p>")
+        }
     }
     append("<div class=\"abilities\">")
     for((index,name) in abilities.withIndex())append("<label>$name ${number("ability$index",profile.abilities[index],0,255)}</label>")
@@ -222,8 +236,11 @@ if(portrait){const update=()=>{preview.hidden=!portrait.value;
 if(portrait.value)preview.src='/admin/images/file/'+encodeURIComponent(portrait.value)+'?revision='+portrait.selectedOptions[0].dataset.revision;
 else preview.removeAttribute('src');};portrait.onchange=update;update();}
 const office=form.elements.startingOffice;
-if(office){const sync=()=>{const allowed=form.elements.country.value===office.dataset.country&&form.elements.rank.value===office.dataset.rank;
-office.disabled=!allowed;if(!allowed)office.value='';};form.elements.country.onchange=sync;form.elements.rank.onchange=sync;sync();}
+if(office){const sync=()=>{let any=false;for(const option of office.options){if(!option.value)continue;
+const allowed=form.elements.country.value===option.dataset.country&&form.elements.rank.value===option.dataset.rank;
+option.disabled=!allowed;any=any||allowed;}
+if(office.selectedOptions[0]?.disabled)office.value='';office.disabled=!any;};
+form.elements.country.onchange=sync;form.elements.rank.onchange=sync;sync();}
 form.onsubmit=async e=>{e.preventDefault();const fields=form.querySelector('fieldset'),body=new URLSearchParams(new FormData(form));fields.disabled=true;
 try{const response=await fetch(form.action,{method:'POST',body});if(!response.ok){status.textContent=await response.text();return;}
 location.replace('?candidate='+encodeURIComponent(body.get('candidate')));}catch{status.textContent='저장 상태를 확인할 수 없습니다.';}finally{fields.disabled=false;}};</script></html>""")
