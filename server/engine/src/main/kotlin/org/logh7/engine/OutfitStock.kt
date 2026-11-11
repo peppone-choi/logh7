@@ -36,6 +36,12 @@ class LogisticsOfficePolicy(private val galaxy: Galaxy,private val countries:Cou
             if(offices.holders(stocks,office.card,country).none {it.character==character})null else office.card to seat
         }
     }
+    fun staffed(stocks: PlanetStocks, country: CountryId, kind: OutfitKind): Boolean =
+        LogisticsOffice.entries.any { office ->
+            office.permits(office.power, kind) && seat(office, country, stocks) != null &&
+                offices.holders(stocks, office.card, country).isNotEmpty()
+        }
+
     fun permits(stocks:PlanetStocks,character:Int,country:CountryId,kind:OutfitKind,card:Int?=null):Boolean =
         cards(stocks,character,country.value).any {(id,_) ->
             val rule=checkNotNull(LogisticsOffice.of(id))

@@ -270,30 +270,48 @@ internal object NpcStrategy {
             val berth = outfit.positionIn(galaxy)
             if (outfit.guard != null || berth.baseId != outfit.baseId || depot(stocks, outfit, galaxy) == null ||
                 TacticalContact.contested(forces()[berth.grid].orEmpty())) return outfit
+            if (warehouseBlocked(stocks, outfit.id)) return outfit
+            val base = stocks.bases.getValue(berth.baseId)
             val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
-            if (warehouse.units.ships.isEmpty() && warehouse.spareShips.values.isEmpty() ||
-                warehouseBlocked(stocks, outfit.id)) return outfit
             val ships = checkNotNull(outfit.activeShips)
+            val mayAllocate by lazy { !LogisticsOfficePolicy(galaxy).staffed(stocks, outfit.country, outfit.kind) }
             for (unit in ships.values) {
-                if (unit.boats == 0) continue
-                val (remaining, restored) = try {
-                    ReplacementBoats.restoreUnit(warehouse, unit)
+                val fullSize = UnitSpecifications.ships.single { it.kind == unit.stack.kind }.number
+                if (unit.boats == 0 || unit.boats == fullSize) continue
+                try {
+                    var allocated = stocks
+                    val restored = try {
+                        ReplacementBoats.restoreUnit(warehouse, unit)
+                    } catch (insufficient: IllegalArgumentException) {
+                        if (!mayAllocate) continue
+                        val reserve = base.units.ships.keys.filter { it.kind == unit.stack.kind }.minByOrNull { it.level }
+                            ?: continue
+                        allocated = StockAssignment.applyTransfer(stocks, outfit, UnitTransfer(ships = mapOf(reserve to 1)), 0)
+                        ReplacementBoats.restoreUnit(allocated.warehouses.getValue(warehouse.id), unit)
+                    }
+                    val (remaining, ship) = restored
+                    val replacement = outfit.copy(activeShips = ActiveShipUnits(ships.values.map { if (it.id == unit.id) ship else it }))
+                    if (!canDepart(stocks, replacement, galaxy)) continue
+                    val required = ReplacementBoats.crewRequired(replacement)
+                    var crew = Supplement.transferCrew(outfit, remaining, required)
+                    if (crew.shortfall > 0) {
+                        if (!mayAllocate) continue
+                        val baseReserve = remaining.copy(units = UnitInventory(troops = base.units.troops), spareShips = SpareShipBoats())
+                        val allocation = Supplement.transferCrew(outfit, baseReserve, required -
+                            crew.moved.values.sumOf { it.toLong() })
+                        if (allocation.shortfall > 0) continue
+                        allocated = allocated.copy(warehouses = allocated.warehouses + (remaining.id to remaining))
+                        allocated = StockAssignment.applyTransfer(allocated, outfit, UnitTransfer(troops = allocation.moved), 0)
+                        crew = Supplement.transferCrew(outfit, allocated.warehouses.getValue(remaining.id), required)
+                    }
+                    val units = UnitInventory(replacement.units.ships, crew.onboard, replacement.units.work)
+                    val replenished = remaining.copy(units = UnitInventory(remaining.units.ships, crew.reserve, remaining.units.work))
+                    stocks = allocated.copy(warehouses = allocated.warehouses + (warehouse.id to replenished))
+                    return replacement.copy(units = units)
                 } catch (_: IllegalArgumentException) {
+                    // Keep every source intact when the combined allocation cannot fit.
                     continue
                 }
-                if (restored == unit) continue
-                val replacement = outfit.copy(activeShips = ActiveShipUnits(ships.values.map { if (it.id == unit.id) restored else it }))
-                if (!canDepart(stocks, replacement, galaxy)) continue
-                val crew = Supplement.transferCrew(outfit, remaining, ReplacementBoats.crewRequired(replacement))
-                if (crew.shortfall > 0) continue
-                val units = try {
-                    UnitInventory(replacement.units.ships, crew.onboard, replacement.units.work)
-                } catch (_: IllegalArgumentException) {
-                    continue
-                }
-                val replenishedWarehouse = remaining.copy(units = UnitInventory(remaining.units.ships, crew.reserve, remaining.units.work))
-                stocks = stocks.copy(warehouses = stocks.warehouses + (warehouse.id to replenishedWarehouse))
-                return replacement.copy(units = units)
             }
             return outfit
         }
