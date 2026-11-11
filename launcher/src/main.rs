@@ -15,6 +15,22 @@ use std::{
     process::{Command, ExitCode},
 };
 
+const COMMAND_CONFLICT: &str = "설정·점검·패치 명령은 한 번에 하나만 실행하세요";
+
+fn is_operation(option: Option<&str>) -> bool {
+    matches!(
+        option,
+        Some(
+            "--setup"
+                | "--check"
+                | "--check-connection"
+                | "--apply-patch"
+                | "--revert-patch"
+                | "--download-patch"
+        )
+    )
+}
+
 fn run() -> Result<i32, String> {
     let mut path = env::current_exe()
         .map_err(|_| "런처 경로를 찾지 못했습니다")?
@@ -24,8 +40,15 @@ fn run() -> Result<i32, String> {
     let mut configure = false;
     let mut apply_patch: Option<PathBuf> = None;
     let mut revert_patch = false;
+    let mut operation_selected = false;
     let mut args = env::args_os().skip(1);
     while let Some(arg) = args.next() {
+        if is_operation(arg.to_str()) {
+            if operation_selected {
+                return Err(COMMAND_CONFLICT.into());
+            }
+            operation_selected = true;
+        }
         match arg.to_str() {
             Some("--config") => {
                 path = PathBuf::from(args.next().ok_or("--config 뒤에 파일 경로를 지정하세요")?)
@@ -41,9 +64,6 @@ fn run() -> Result<i32, String> {
             }
             Some("--revert-patch") => revert_patch = true,
             Some("--download-patch") => {
-                if check_connection {
-                    return Err("--check-connection은 패치 명령과 따로 실행하세요".into());
-                }
                 let url = args
                     .next()
                     .ok_or("--download-patch 뒤에 HTTPS 또는 HTTP 주소를 지정하세요")?;
@@ -57,6 +77,9 @@ fn run() -> Result<i32, String> {
                 // Optional anchors after the directory: --expect-manifest <SHA-256>, --trust-key <P-256 X||Y>.
                 let (mut expected, mut trusted) = (None, None);
                 while let Some(flag) = args.next() {
+                    if is_operation(flag.to_str()) {
+                        return Err(COMMAND_CONFLICT.into());
+                    }
                     let value = args.next().and_then(|v| v.to_str().map(str::to_string));
                     match flag.to_str() {
                         Some("--expect-manifest") => {
@@ -110,13 +133,7 @@ fn run() -> Result<i32, String> {
             _ => return Err("지원하지 않는 옵션입니다. --help를 확인하세요".into()),
         }
     }
-    if configure && (check || apply_patch.is_some() || revert_patch) {
-        return Err("--setup은 --check·패치 명령과 따로 실행하세요".into());
-    }
-    if check_connection && (configure || check || apply_patch.is_some() || revert_patch) {
-        return Err("--check-connection은 설정·패치 명령과 따로 실행하세요".into());
-    }
-    let launch = !check && !check_connection && apply_patch.is_none() && !revert_patch;
+    let launch = !operation_selected;
     if configure || (launch && !path.try_exists().unwrap_or(true) && io::stdin().is_terminal()) {
         setup::configure(&path, &mut io::stdin().lock(), &mut io::stdout().lock())?;
         if configure {
