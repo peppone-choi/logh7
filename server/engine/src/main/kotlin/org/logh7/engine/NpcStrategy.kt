@@ -500,7 +500,31 @@ internal object NpcStrategy {
             for(fleet in assigned)if(fleet.id!=retained?.id)setStrategy(fleet,NpcStrategicState(now))
             if(enemy==null)continue
             val secured=retained?.let {securedExpedition(it,stocks)}==true
-            if(secured && retained.positionIn(galaxy).baseId!=retained.baseId)continue
+            if(secured && retained.positionIn(galaxy).baseId!=retained.baseId) {
+                val position=retained.positionIn(galaxy)
+                val berth=depot(stocks,retained,galaxy)
+                if(berth!=null && position.grid!=galaxy.bases.single {it.id==retained.baseId}.grid &&
+                    retained.strategy!!.nextDecisionAt<=now && eligible(retained,stocks) &&
+                    !warehouseBlocked(stocks,retained.id) && !TacticalContact.contested(forces()[position.grid].orEmpty())) {
+                    val front=galaxy.bases.single {it.id==retained.strategy.expeditionBase}.grid
+                    val canAllocate=!logisticsOffice.staffed(stocks,country,retained.kind)
+                    val objectives=galaxy.bases.filter {base->base.grid==front &&
+                        stocks.bases[base.id]?.let {it.country==enemy && it.camp==0}==true}.sortedBy {it.id}
+                    for(objective in objectives) {
+                        val loaded=NpcOccupation.loadAtBerth(retained,objective,stocks,berth.baseId) {canAllocate}
+                        val carrier=loaded.outfits.getValue(retained.id)
+                        if(!NpcOccupation.hasCarrier(carrier,objective,loaded))continue
+                        val localForces=GridForces.collect(galaxy,loaded.generation,players.values,loaded,session.eliminated.keys)
+                        if(missionRoute(galaxy,localForces,carrier,loaded,objective,null,
+                                reserveInPort=producesSupplies(berth),producesSupplies=producesSupplies)==null)continue
+                        stocks=loaded
+                        forceCache=localForces
+                        setStrategy(carrier,NpcStrategicState(now,expeditionBase=objective.id))
+                        continue@countryLoop
+                    }
+                }
+                continue
+            }
             if(retained!=null && !secured) {
                 val current=checkNotNull(NpcOccupation.goal(retained,stocks,galaxy,session.eliminated.keys))
                 if(depot(stocks,retained,galaxy)==null ||

@@ -246,6 +246,47 @@ class NpcOccupationTest {
         assertEquals(secondTarget.id,rearmed.strategy?.expeditionBase)
     }
 
+    @Test fun securedExpeditionRearmsAtAFriendlyBerthForTheRemainingBaseInTheBattlefront() {
+        val home=base.copy(id=1001,grid=2487)
+        val depot=base.copy(id=1002,grid=2490)
+        val captured=base.copy(id=1003,grid=2492)
+        val objective=base.copy(grid=captured.grid)
+        val world=Galaxy(listOf(GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,depot.grid,4,"Depot",2),
+            GalaxySystem(5,captured.grid,4,"Front",3)),listOf(home,depot,captured,objective),
+            mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to objective.grid))
+        val original=stocks(12f)
+        val landed=ActiveGroundUnits(listOf(troop(original).copy(carrier=0,base=captured.id,origin=1)))
+        val fleet=original.outfits.getValue(1).copy(baseId=home.id,position=OutfitPosition(depot.grid,depot.id),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32)))),activeGround=landed,
+            strategy=NpcStrategicState(now,expeditionBase=captured.id))
+        val infantry=UnitStack(0)
+        val stock=original.copy(bases=original.bases+mapOf(
+            home.id to PlanetStock(home.id,2,0,100_000,0,0),
+            depot.id to PlanetStock(depot.id,2,0,300,0,0,units=UnitInventory(troops=mapOf(infantry to 2))),
+            captured.id to PlanetStock(captured.id,2,0,0,0,0)),
+            outfits=original.outfits+(fleet.id to fleet),social=SocialState(),
+            strategic=original.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to objective.id)),
+            warehouses=original.warehouses+(fleet.warehouseId to original.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id)))
+        fun advance(offset:Long,state:PlanetStocks,blocked:Boolean=false)=NpcStrategy.advance(
+            time(offset),world,mutableMapOf(),state,mutableListOf(),warehouseBlocked={_,_->blocked},
+            producesSupplies={it.baseId==depot.id})
+        val blocked=advance(0,stock,blocked=true)
+        assertEquals(stock.bases.getValue(depot.id).units,blocked.bases.getValue(depot.id).units)
+        assertEquals(captured.id,blocked.outfits.getValue(fleet.id).strategy?.expeditionBase)
+        val prepared=advance(0,stock)
+        val rearmed=prepared.outfits.getValue(fleet.id)
+        assertEquals(objective.id,rearmed.strategy?.expeditionBase)
+        assertEquals(fleet.position,rearmed.position)
+        assertEquals(landed.values,rearmed.activeGround!!.values.filter {it.base==captured.id})
+        assertEquals(2,rearmed.activeGround.values.count {it.carrier==1})
+        assertTrue(prepared.bases.getValue(depot.id).units.troops.isEmpty())
+        assertEquals(stock.bases.getValue(home.id),prepared.bases.getValue(home.id))
+
+        val replenished=prepared.copy(bases=prepared.bases+(depot.id to prepared.bases.getValue(depot.id).copy(supplies=1_200)))
+        val departure=advance(21600,replenished)
+        assertEquals(91,assertNotNull(departure.outfits.getValue(fleet.id).strategy?.destination)%100)
+    }
+
     @Test fun reservedExpeditionDocksAtItsForwardBerthAfterTheStockRunsOut() {
         val home=base.copy(id=1001,grid=2487)
         val forward=base.copy(id=1002,grid=2489)
