@@ -120,6 +120,9 @@ object TransportActions {
         return state.copy(transports=packages,lastTransportId=lastId)
     }
 
+    fun availableSource(stocks: PlanetStocks, pack: TransportPackage): PlanetStock? =
+        stocks.bases[pack.source]?.takeIf { it.belongsTo(pack.country) && it.camp == 0 }
+
     fun destinationAvailable(stocks:PlanetStocks,pack:TransportPackage):Boolean =
         stocks.bases[pack.destination]?.let {it.belongsTo(pack.country) && it.camp==0}==true
 
@@ -178,7 +181,7 @@ object TransportActions {
                     return reject(StrategyActionRejection.CARD)
                 val pack=packages.singleOrNull {it.id==r.target && it.country==country} ?: return reject(StrategyActionRejection.TARGET)
                 if(pack.carrier!=0)return reject(StrategyActionRejection.BUSY)
-                val source=stocks.bases[pack.source]?.takeIf {it.belongsTo(country) && it.camp==0} ?: return reject(StrategyActionRejection.LOCATION)
+                val source=availableSource(stocks,pack) ?: return reject(StrategyActionRejection.LOCATION)
                 val stocked=deposit(source,pack.supplies,pack.units) ?: return reject(StrategyActionRejection.MAXIMUM)
                 next=stocks.copy(bases=stocks.bases+(source.baseId to stocked),strategic=stocks.strategic.copy(transports=packages-pack,lastTransportId=lastId))
                 warehouseBase=source.baseId
