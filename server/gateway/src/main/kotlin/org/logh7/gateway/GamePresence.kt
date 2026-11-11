@@ -6,6 +6,7 @@ import org.logh7.engine.ProposalActions
 import org.logh7.engine.TacticalWeapon
 import org.logh7.engine.NpcFleetDialogue
 import org.logh7.engine.PublishedNpcFleetDialogue
+import org.logh7.engine.WorldSnapshot
 import org.logh7.engine.positionIn
 import org.logh7.engine.members
 import org.logh7.protocol.BootstrapMessages
@@ -27,6 +28,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         val sendTactical: ((Int, Int, List<ByteArray>) -> Unit)? = null)
     data class Update(val peers: List<Member>, val refresh: List<ByteArray>)
     private val members = linkedMapOf<String, Member>()
+    private var strategicSnapshot: WorldSnapshot? = null
+    private val strategicReports = mutableSetOf<String>()
     private class CombatHail(val player:Navigator, val outfit:Int, val revision:Long?, val seconds:Long,
         val at:Long, var delivered:Boolean=false)
     private val combatHails = mutableMapOf<String,CombatHail>()
@@ -497,7 +500,12 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             }
     }
     @Synchronized fun strategicMovement(event:org.logh7.engine.NpcStrategicMovement,
-        snapshot:org.logh7.engine.WorldSnapshot,world:WorldBootstrap,characterById:(Int)->CharacterMessages.Generate?) {
+        snapshot:WorldSnapshot,world:WorldBootstrap,characterById:(Int)->CharacterMessages.Generate?) {
+        // A single commit publishes every moved outfit against the same final map.
+        if (strategicSnapshot !== snapshot) {
+            strategicSnapshot = snapshot
+            strategicReports.clear()
+        }
         val audience=members.values.filter {it.player.generation==event.generation &&
             event.recipients[it.character.id.toInt()]==it.connection}.toList()
         for(previous in audience) {
@@ -508,7 +516,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             val member=previous.copy(player=player,pendingTacticalEnd=pendingEnd)
             val updated=update(member,event.seconds)
             val packets=mutableListOf<ByteArray>()
-            GridForceReport.message(snapshot,world.galaxy,player,event.seconds)?.let {packets+=it}
+            if (strategicReports.add(member.connection))
+                GridForceReport.message(snapshot,world.galaxy,player,event.seconds)?.let {packets+=it}
             if(event.source!=event.destination && player.grid==event.source && player.baseId==0 && player.cpPaused &&
                 previous.player.grid==event.source && previous.player.cpPaused) {
                 packets+=org.logh7.protocol.TacticalRetreatMessages.warpNotifications(event.seconds,event.destination,event.units)
@@ -518,7 +527,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
                 // Re-enter through 0f02 to rebuild the complete committed battlefield.
                 packets+=org.logh7.protocol.TacticsMessages.notify(player.grid,true)
             }
-            send(member,packets+updated.refresh)
+            if (packets.isNotEmpty() || updated.refresh.isNotEmpty()) send(member,packets+updated.refresh)
         }
     }
 
