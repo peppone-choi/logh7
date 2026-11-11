@@ -59,6 +59,34 @@ class GridForceReportTest {
         assertEquals(1, hostile.getShort(24).toInt())
     }
 
+    @Test fun reportsExcludeDetainedFlagshipsAndForcesOfEliminatedCountries() {
+        val alliance = Power.ALLIANCE.country
+        val detained = viewer.copy(characterId = 10001, grid = 2488)
+        val enemy = viewer.copy(characterId = 10002, grid = 2489, country = alliance,
+            shipStyle = ShipStyleId.fromLegacy(Power.ALLIANCE))
+        val fleet = OutfitStock(1, 3, OutfitKind.FLEET, 1050, 10,
+            units = UnitInventory(mapOf(UnitStack(32) to 1)), position = OutfitPosition(2490))
+        val stock = PlanetStocks(1, 0, mapOf(1050 to PlanetStock(1050, 3, 0, 0, 0, 0)),
+            outfits = mapOf(fleet.id to fleet), warehouses = mapOf(10 to OutfitWarehouse(10, 3, OutfitKind.FLEET, 1050, 1)))
+        val state = WorldSnapshot(0, 0, session, navigators = mapOf("self" to viewer,
+            "detained" to detained, "enemy" to enemy), planetStocks = stock)
+        assertEquals(mapOf(2487 to 1, 2488 to 1), counts(state))
+        val hostile = ByteBuffer.wrap(GridForceReport.search(state, galaxy, viewer, 1).getValue(3 to false))
+        assertEquals(2, hostile.get(18).toInt())
+        assertEquals(2489, hostile.getShort(19).toInt())
+        assertEquals(2490, hostile.getShort(26).toInt())
+
+        val detention = Detention(detained.characterId, Power.EMPIRE.country, 0, 100)
+        val after = state.copy(
+            session = session.copy(eliminated = mapOf(alliance to CountryDefeat(EndReason.SYSTEMS_REDUCED, 0))),
+            planetStocks = stock.copy(social = stock.social.copy(justice =
+                JusticeState(detentions = mapOf(detained.characterId to detention)))))
+        assertEquals(mapOf(2487 to 1), counts(after))
+        val reports = GridForceReport.search(after, galaxy, viewer, 1)
+        assertEquals(setOf(2 to false), reports.keys)
+        assertEquals(1, reports.getValue(2 to false)[18].toInt())
+    }
+
     @Test fun countsDeployedShipBoatsButNotGroundTroopsCrewOrWarehouses() {
         val stock = PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,2,0,0,0,0)),
             mapOf(1 to OutfitStock(1,2,OutfitKind.PATROL,1049,10,
