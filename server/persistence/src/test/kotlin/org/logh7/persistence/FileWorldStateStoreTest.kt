@@ -1,11 +1,20 @@
 package org.logh7.persistence
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.condition.EnabledOnOs
+import org.junit.jupiter.api.condition.OS
 import org.junit.jupiter.api.io.TempDir
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.logh7.engine.*
+import com.sun.nio.file.ExtendedOpenOption.NOSHARE_DELETE
 import java.io.IOException
+import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardOpenOption.READ
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.locks.LockSupport
 import kotlin.test.*
 
 class FileWorldStateStoreTest {
@@ -46,6 +55,44 @@ class FileWorldStateStoreTest {
         }
         FileWorldStateStore(root).use { store ->
             assertEquals(paid, store.loadNavigation().getValue("pilot"))
+            assertEquals(spent, store.loadStocks())
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["navigation.tsv", "stocks.tsv"])
+    @EnabledOnOs(OS.WINDOWS)
+    fun readOfPreviousSlotRecoversWhenReleasedAndFencesWriterWhenPersistent(file: String) {
+        val root = directory.resolve("world")
+        val paid = pilot.copy(mcp = 840)
+        val spent = inventory.copy(producedDays = 1)
+        FileWorldStateStore(root).use { store ->
+            repeat(2) { store.saveWorld(mapOf("pilot" to pilot), inventory) }
+            val writer = Thread.currentThread()
+            val done = AtomicBoolean()
+            FileChannel.open(root.resolve("slot-0").resolve(file), READ, NOSHARE_DELETE).use { reader ->
+                val release = kotlin.concurrent.thread(isDaemon = true) {
+                    while (!done.get() && writer.state != Thread.State.TIMED_WAITING) LockSupport.parkNanos(100_000)
+                    reader.close()
+                }
+                try {
+                    store.saveWorld(mapOf("pilot" to paid), spent)
+                } finally {
+                    done.set(true)
+                    release.join()
+                }
+            }
+            assertEquals(paid, store.loadNavigation()["pilot"])
+            assertEquals(spent, store.loadStocks())
+            val committedPointer = Files.readString(root.resolve("CURRENT"))
+            FileChannel.open(root.resolve("slot-1").resolve(file), READ, NOSHARE_DELETE).use {
+                assertFailsWith<IOException> { store.saveWorld(mapOf("pilot" to pilot), inventory) }
+            }
+            assertEquals(committedPointer, Files.readString(root.resolve("CURRENT")))
+            assertFailsWith<IllegalStateException> { store.saveWorld(mapOf("pilot" to pilot), inventory) }
+        }
+        FileWorldStateStore(root).use { store ->
+            assertEquals(paid, store.loadNavigation()["pilot"])
             assertEquals(spent, store.loadStocks())
         }
     }

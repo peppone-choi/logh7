@@ -454,7 +454,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                 while (buffer.hasRemaining()) target.write(buffer)
                 target.force(true)
             }
-            Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            replaceAtomically(temporary, path)
         } catch (failure: Exception) { throw IOException("Could not persist planet stocks", failure) }
         finally { Files.deleteIfExists(temporary) }
     }
