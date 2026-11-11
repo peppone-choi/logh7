@@ -313,6 +313,28 @@ class GamePresenceBattlefieldTest {
         assertEquals(returned, hub.detail("viewer", 10000)?.player)
     }
 
+    @Test fun strategicWarpSendsEveryDepartingUnitWithinTheNativePacketLimit() {
+        val hub = GamePresence()
+        val received = mutableListOf<ByteArray>()
+        hub.update(GamePresence.Member("viewer", character, player, received::addAll))
+        val committed = snapshot.copy(navigators = mapOf("pilot" to player))
+        val world = WorldBootstrap(galaxy)
+        for (size in listOf(1, 32, 33, 300)) {
+            received.clear()
+            val ids = (1..size).toList()
+            hub.strategicMovement(NpcStrategicMovement(1, 1, 2487, 2488, 100, ids, recipients), committed, world) { null }
+            val frames = received.filter { opcode(it) == 0x0425 }
+            assertEquals(ids.chunked(32), frames.map { packet ->
+                val body = ByteBuffer.wrap(packet)
+                assertEquals(100, body.getInt(6))
+                assertEquals(2488, body.getInt(10))
+                val count = body.get(20).toInt() and 255
+                assertEquals(21 + 4 * count, packet.size)
+                List(count) { body.getInt(21 + 4 * it) }
+            })
+        }
+    }
+
     @Test fun defeatExitSurvivesTheStrategicMovementPublicationOfItsCommittedReturn() {
         val hub = GamePresence()
         val received = mutableListOf<List<ByteArray>>()
