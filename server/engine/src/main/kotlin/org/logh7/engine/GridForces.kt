@@ -10,6 +10,11 @@ object GridForces {
     /** Ashore units remain at their base when the carrier outfit moves elsewhere. */
     fun mobileUnits(outfit: OutfitStock): Long = ships(outfit) + (outfit.activeGround?.values?.count {it.base==0}?.toLong()
         ?: outfit.units.troops.filterKeys {it.kind in ground}.values.sumOf {it.toLong()})
+
+    fun countsFlagship(player: Navigator, generation: Long, stocks: PlanetStocks?, eliminated: Set<CountryId>): Boolean =
+        player.generation == generation && player.country !in eliminated &&
+            !BattleDeath.deceased(stocks, player.characterId) && stocks?.social?.justice?.detained(player.characterId) != true
+
     data class Force(val camp: Camp, val units: Long = 0, val nonSolo: Boolean = false,
         val ship: Boolean = false, val base: Boolean = false, val deployedShip: Boolean = false,
         val combatBase: Boolean = base) {
@@ -27,10 +32,7 @@ object GridForces {
                 previous.nonSolo || force.nonSolo, previous.ship || force.ship, previous.base || force.base,
                 previous.deployedShip || force.deployedShip, previous.combatBase || force.combatBase)
         }
-        navigators.filter {
-            it.generation == generation && it.country !in eliminated && !BattleDeath.deceased(stocks, it.characterId) &&
-                stocks?.social?.justice?.detained(it.characterId) != true
-        }.forEach {
+        navigators.filter { countsFlagship(it, generation, stocks, eliminated) }.forEach {
             val player = it
             // U-10: a revolt's rebels count as their side's rebel camp (manual p.31).
             val camp = stocks?.let { TacticalAuthority.camp(player, it) } ?: Camp.of(player)

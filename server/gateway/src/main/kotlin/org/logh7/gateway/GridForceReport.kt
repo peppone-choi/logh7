@@ -16,15 +16,16 @@ internal object GridForceReport {
 
     private fun reports(snapshot: WorldSnapshot, galaxy: Galaxy, viewer: Navigator, seconds: Long,
         countries: CountryCatalog, search: Boolean): Map<Pair<Int, Boolean>, ByteArray> {
-        if (snapshot.session?.generation != viewer.generation) return emptyMap()
+        val session = snapshot.session?.takeIf { it.generation == viewer.generation } ?: return emptyMap()
+        val eliminated = session.eliminated.keys
         val stocks=snapshot.planetStocks?.takeIf {it.generation==viewer.generation}
         val camp=Camp.of(viewer,stocks?.let {CoupActions.rebel(it,viewer.characterId,viewer.country)}==true)
         fun nativePower(camp: Camp, fallback: Int? = null) =
             camp.country?.let { countries.nativePower(Allegiance.Country(it)) } ?: fallback
         val friendly = nativePower(camp, viewer.shipStyle.nativePower) to camp.insurgent
         val groups = linkedMapOf<Pair<Int, Boolean>, MutableMap<Int, Long>>()
-        // One native search has 225 cells: use a 15x15 neighbourhood until the
-        // original strategic sensor range formula is restored.
+        // The native decoder accepts up to 225 reported cells. The 15x15 search
+        // window is provisional until the original range is known.
         fun add(owner: Camp, power: Int?, grid: Int, count: Long) {
             if (count <= 0 || abs(grid % 100 - viewer.grid % 100) > 7 || abs(grid / 100 - viewer.grid / 100) > 7) return
             if (power == null || power !in 2..3) return
@@ -34,12 +35,13 @@ internal object GridForceReport {
             val units = groups.getOrPut(key) { mutableMapOf() }
             units[grid] = (units[grid] ?: 0L) + count
         }
-        snapshot.navigators.values.filter {it.generation==viewer.generation && !BattleDeath.deceased(stocks,it.characterId)}
+        snapshot.navigators.values.filter { GridForces.countsFlagship(it, viewer.generation, stocks, eliminated) }
             .forEach {
                 val owner = Camp.of(it, stocks?.let { s -> CoupActions.rebel(s, it.characterId, it.country) } == true)
                 add(owner, nativePower(owner, it.shipStyle.nativePower), it.grid, 1)
             }
         stocks?.outfits?.values?.forEach {outfit ->
+                if (outfit.country in eliminated) return@forEach
                 val owner = TacticalAuthority.camp(outfit, stocks)
                 if (!search && owner != camp) return@forEach
                 // Damaged surviving ships still exist; destroyed ships and ground units do not.
