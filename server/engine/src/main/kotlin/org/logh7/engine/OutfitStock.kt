@@ -79,7 +79,6 @@ data class OutfitStock(val id: Int, val country: CountryId, val kind: OutfitKind
         val people=listOf(commanderId,aideId).filter {it>0}+staff.members
         require(people.distinct().size==people.size)
         require(units.work.isEmpty()) { "An outfit cannot own a production line" }
-        require(position == null || kind != OutfitKind.GROUND || position.baseId != 0)
         require(activeShips == null || activeShips.quantities() == units.ships) { "Outfit ship identities differ from inventory" }
         require(activeGround==null || activeGround.quantities()==GroundUnits.quantities(units)) {"Outfit ground identities differ from inventory"}
         require(activeGround?.values.orEmpty().all {u->

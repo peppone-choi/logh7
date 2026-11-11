@@ -2,6 +2,19 @@ package org.logh7.engine
 
 /** Commander-led deployment uses the same durable transaction as the flagship. Author: Peppone Choi. */
 internal object FleetNavigation {
+    fun commandedOutfit(player: Navigator, stocks: PlanetStocks, galaxy: Galaxy): OutfitStock? {
+        val country = player.country ?: return null
+        val camp = TacticalAuthority.camp(player, stocks)
+        val candidates = stocks.outfits.values.filter {
+            it.commanderId == player.characterId && it.country == country &&
+                TacticalAuthority.camp(it, stocks) == camp &&
+                it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
+        }
+        val existing = candidates.filter { it.kind != OutfitKind.GROUND }
+        if (existing.isNotEmpty()) return existing.singleOrNull()
+        return candidates.singleOrNull { it.activeShips?.values?.any { ship -> ship.boats > 0 } == true }
+    }
+
     fun apply(request: NavigationRequest, session: SessionState, galaxy: Galaxy, navigation: Navigation,
         production: PlanetProduction, stocks: PlanetStocks, committer: WorldStateCommitter?,
         initialProfile:StrategicPerson?=null,blocked: (Int) -> Boolean): NavigationResult {
@@ -88,12 +101,7 @@ internal object FleetNavigation {
         // Personal flagship retreat must not transport the commander's unimplemented fleet/CRC selection.
         if (request.tacticalRetreat != null || before?.retreat != null)
             return if(request.offlineDirection!=null)personal() else navigation.apply(request, session, stocks)
-        val outfit = before?.let { player -> stocks.outfits.values.singleOrNull {
-            it.commanderId == player.characterId && it.kind != OutfitKind.GROUND &&
-                player.country!=null && it.country == player.country &&
-                TacticalAuthority.camp(it,stocks) == TacticalAuthority.camp(player,stocks) &&
-                it.positionIn(galaxy).let { position -> position.grid == player.grid && position.baseId == player.baseId }
-        } }
+        val outfit = before?.let { commandedOutfit(it, stocks, galaxy) }
         if (before == null || outfit == null) return personal()
         val camp = TacticalAuthority.camp(outfit,stocks)
         fun deferred(reason:NavigationRejection)=if(request.offlineDirection!=null)
