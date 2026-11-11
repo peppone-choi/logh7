@@ -136,13 +136,13 @@ internal object TacticalOfflineAi {
                     val at=unit.tacticalPose(p.grid,now,players.values,stocks,g)
                     distance(pose.position,at.position)<=(p.commandRange?.radius(now) ?: 0f)
                 }.map {it.id}.toSet()
-                if(occupied!=null) {
-                    val landed=occupation(original,occupied,p,now,scale,stocks,g,players,commandable,session)
-                    if(landed!==original) {stocks=stocks.copy(outfits=stocks.outfits+(outfitId to landed));commanded=true;continue}
-                }
-                val updated=original.activeShips?.values?.map {unit ->
-                    if(unit.id !in commandable || unit.posture?.let {it.grid==p.grid && it.mode.requiresBase}==true)return@map unit
-                    val support=if(kind in 0..1)TacticalSupportOperations.offlineSupport(original,unit,p,now,scale,players,stocks,g,
+                val prepared = if (occupied == null) original
+                    else occupation(original,occupied,p,now,scale,stocks,g,players,commandable,session)
+                if (prepared !== original) commanded = true
+                val updated=prepared.activeShips?.values?.map {unit ->
+                    if (unit.id !in commandable ||
+                        unit.posture?.let { it.grid == p.grid && (it.mode.requiresBase || it.order != null) } == true) return@map unit
+                    val support=if(kind in 0..1)TacticalSupportOperations.offlineSupport(prepared,unit,p,now,scale,players,stocks,g,
                         alliedTargets,reserved,pose.position) else null
                     if(support!=null && support.approach==null) {
                         reserved.add(support.order.action to support.order.target)
@@ -155,7 +155,7 @@ internal object TacticalOfflineAi {
                     val velocity=(spec.number("最高速度（km/1G秒）:最高速度（km/1G秒）")/20000f).coerceIn(.1f,1f)
                     val lateral=((unit.id%5)-2)*1.5f
                     val destination=goal?.let {TacticalPoint(it.x+lateral,it.y)}
-                    val carrying=occupied!=null && original.activeGround?.values.orEmpty().any {it.carrier==unit.id && it.order==null}
+                    val carrying=occupied!=null && prepared.activeGround?.values.orEmpty().any {it.carrier==unit.id && it.order==null}
                     val approach=support?.approach
                     val moving=path(g,p.grid,now,at,approach ?:
                         if(carrying)TacticalCommandOperations.basePoint(occupied!!,now,stocks) else destination,
@@ -167,7 +167,7 @@ internal object TacticalOfflineAi {
                     motions[unit.id]=moving;movingOutfits+=outfitId;commanded=true
                     unit.copy(tactical=state,motionCommander=p.characterId,attack=firing)
                 } ?: continue
-                stocks=stocks.copy(outfits=stocks.outfits+(outfitId to original.copy(activeShips=ActiveShipUnits(updated))))
+                stocks=stocks.copy(outfits=stocks.outfits+(outfitId to prepared.copy(activeShips=ActiveShipUnits(updated))))
             }
             if(commanded)players[account]=next.copy(commandRange=next.commandRange?.reset(now))
             if(motions.isEmpty() && !commanded)continue
