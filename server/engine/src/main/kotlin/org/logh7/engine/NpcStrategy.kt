@@ -478,6 +478,26 @@ internal object NpcStrategy {
         fun setStrategy(outfit:OutfitStock,strategy:NpcStrategicState?) {
             stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(strategy=strategy)))
         }
+        fun rearmAtForwardBerth(fleet:OutfitStock,objectives:()->List<GalaxyBase>) {
+            val position=fleet.positionIn(galaxy)
+            val berth=depot(stocks,fleet,galaxy) ?: return
+            if(position.grid==galaxy.bases.single {it.id==fleet.baseId}.grid ||
+                (fleet.strategy?.nextDecisionAt ?: return)>now || !eligible(fleet,stocks) ||
+                warehouseBlocked(stocks,fleet.id) || TacticalContact.contested(forces()[position.grid].orEmpty()))return
+            val canAllocate=!logisticsOffice.staffed(stocks,fleet.country,fleet.kind)
+            for(objective in objectives()) {
+                val loaded=NpcOccupation.loadAtBerth(fleet,objective,stocks,berth.baseId) {canAllocate}
+                val carrier=loaded.outfits.getValue(fleet.id)
+                if(!NpcOccupation.hasCarrier(carrier,objective,loaded))continue
+                val localForces=GridForces.collect(galaxy,loaded.generation,players.values,loaded,session.eliminated.keys)
+                if(missionRoute(galaxy,localForces,carrier,loaded,objective,null,
+                        reserveInPort=producesSupplies(berth),producesSupplies=producesSupplies)==null)continue
+                stocks=loaded
+                forceCache=localForces
+                setStrategy(carrier,NpcStrategicState(now,expeditionBase=objective.id))
+                return
+            }
+        }
         // Pick a reachable expedition before the production day so its ships can hold their fuel.
         countryLoop@ for(country in listOf(Power.EMPIRE.country,Power.ALLIANCE.country)) {
             val enemy=NpcOccupation.expeditionEnemy(country,stocks,galaxy,session.eliminated.keys)
@@ -500,12 +520,24 @@ internal object NpcStrategy {
             for(fleet in assigned)if(fleet.id!=retained?.id)setStrategy(fleet,NpcStrategicState(now))
             if(enemy==null)continue
             val secured=retained?.let {securedExpedition(it,stocks)}==true
-            if(secured && retained.positionIn(galaxy).baseId!=retained.baseId)continue
+            if(secured && retained.positionIn(galaxy).baseId!=retained.baseId) {
+                rearmAtForwardBerth(retained) {
+                    val front=galaxy.bases.single {it.id==retained.strategy?.expeditionBase}.grid
+                    galaxy.bases.filter {base->base.grid==front &&
+                        stocks.bases[base.id]?.let {it.country==enemy && it.camp==0}==true}.sortedBy {it.id}
+                }
+                continue
+            }
             if(retained!=null && !secured) {
                 val current=checkNotNull(NpcOccupation.goal(retained,stocks,galaxy,session.eliminated.keys))
                 if(depot(stocks,retained,galaxy)==null ||
-                    checkNotNull(retained.strategy).nextDecisionAt>now || !NpcOccupation.hasCarrier(retained,current,stocks) ||
-                    missionRoute(galaxy,forces(),retained,stocks,current,null,reserveInPort=true,
+                    checkNotNull(retained.strategy).nextDecisionAt>now)continue
+                if(!NpcOccupation.hasCarrier(retained,current,stocks)) {
+                    if(retained.activeGround?.values.orEmpty().none {it.base==current.id})
+                        rearmAtForwardBerth(retained) {listOf(current)}
+                    continue
+                }
+                if(missionRoute(galaxy,forces(),retained,stocks,current,null,reserveInPort=true,
                         producesSupplies=producesSupplies)!=null)continue
             }
             val garrisons=stocks.outfits.values.asSequence().filter {it.country==enemy}
