@@ -15,7 +15,6 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.file.Files
 import java.nio.file.Path
-import java.nio.file.StandardCopyOption.*
 import java.nio.file.StandardOpenOption.*
 
 /** Forced file contents and atomic replacement. The OS/filesystem owns directory crash durability. */
@@ -151,7 +150,7 @@ class FileNavigationStore(private val path: Path, worldOwner: Path? = null) : Na
                 while (buffer.hasRemaining()) it.write(buffer)
                 it.force(true)
             }
-            Files.move(temporary, path, ATOMIC_MOVE, REPLACE_EXISTING)
+            replaceAtomically(temporary, path)
         } catch (failure: Exception) { throw IOException("Could not persist navigation", failure) }
         finally { Files.deleteIfExists(temporary) }
     }
