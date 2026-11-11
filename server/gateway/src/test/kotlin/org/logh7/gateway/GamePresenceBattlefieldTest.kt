@@ -221,6 +221,20 @@ class GamePresenceBattlefieldTest {
         verifyBattlefield(listOf(0x040a)) { it.support(result.copy(cancelled = true), committed, galaxy) { null } }
     }
 
+    @Test fun npcLocalSortieRefreshesTheBattlefieldWithoutAnOutboundWarp() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("viewer", character, player, received::add))
+        val committed = snapshot.copy(navigators = mapOf("pilot" to player))
+        val sortie = NpcStrategicMovement(1, 1, player.grid, player.grid, 100, listOf(1), recipients)
+
+        hub.strategicMovement(sortie, committed, WorldBootstrap(galaxy)) { null }
+
+        val opcodes = received.flatten().map(::opcode)
+        assertEquals(1, opcodes.count { it == 0x0f1f })
+        assertTrue(0x0425 !in opcodes)
+    }
+
     @Test fun sameGridTacticalEndSurvivesCommittedStrategicMovementRefresh() {
         val hub = GamePresence()
         val received = mutableListOf<List<ByteArray>>()
