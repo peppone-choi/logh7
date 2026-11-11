@@ -158,6 +158,45 @@ class TransportActionsWireTest {
         }
     }
 
+    @Test fun capturedHomeDepotHidesCargoAndRejectsPreviouslyListedLoadAndUnload() {
+        val state = State()
+        val home = galaxy.bases.first().copy(id = 1051, name = "Home Depot")
+        val transportGalaxy = Galaxy(galaxy.systems, galaxy.bases + home, galaxy.starts)
+        val fleet = state.stocks.outfits.getValue(200).copy(baseId = home.id, position = OutfitPosition(2487, 1049))
+        val warehouse = state.stocks.warehouses.getValue(fleet.warehouseId).copy(baseId = home.id)
+        val homeStock = PlanetStock(home.id, 2, 0, 0, 0, 0)
+        val waiting = TransportPackage(2, CountryId(2), 1049, 1050, 100)
+        val aboard = TransportPackage(3, CountryId(2), 1050, 1049, 200,
+            carrier = fleet.id, carrierBoats = TransportActions.boats(fleet))
+        state.stocks = state.stocks.copy(
+            bases = state.stocks.bases + (home.id to homeStock),
+            outfits = state.stocks.outfits + (fleet.id to fleet),
+            warehouses = state.stocks.warehouses + (warehouse.id to warehouse),
+            strategic = state.stocks.strategic.copy(transports = listOf(waiting, aboard), lastTransportId = aboard.id))
+
+        fun server(name: String) = LoadFixture(directory.resolve(name), 1, LoadMetrics(), transportGalaxy, ticking = false,
+            navigationStore = state.navigation, stockStore = state.inventory, worldStateCommitter = state)
+        server("home-friendly").use { fixture ->
+            val client = fixture.join(fixture.account(0), true, false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            next(client, 0x0f01)
+            assertEquals(setOf(waiting.id, aboard.id), listed(client, 65).toSet())
+        }
+
+        state.stocks = state.stocks.copy(bases = state.stocks.bases + (home.id to homeStock.copy(owner = Allegiance.fromLegacy(3))))
+        server("home-captured").use { fixture ->
+            val client = fixture.join(fixture.account(0), true, false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            next(client, 0x0f01)
+            assertTrue(listed(client, 65).isEmpty())
+            val before = state.stocks
+            val authority = StrategyActionRejection.AUTHORITY.ordinal + 1
+            action(client, 65, waiting.id, authority, intent = 1)
+            action(client, 65, aboard.id, authority, intent = 2)
+            assertEquals(1000, state.players.getValue("load-000").mcp)
+            assertEquals(before, state.stocks)
+        }
+    }
     @Test fun encryptedPlanListsOnlyOwnCargoAndRestoresLoadedCargoForDeliveryAndCancellation() {
         val state=State()
         fun server(name:String)=LoadFixture(directory.resolve(name),1,LoadMetrics(),galaxy,ticking=false,
