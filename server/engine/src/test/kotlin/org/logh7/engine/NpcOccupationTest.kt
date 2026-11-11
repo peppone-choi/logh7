@@ -246,7 +246,7 @@ class NpcOccupationTest {
         assertEquals(secondTarget.id,rearmed.strategy?.expeditionBase)
     }
 
-    @Test fun securedExpeditionRearmsAtAFriendlyBerthForTheRemainingBaseInTheBattlefront() {
+    @Test fun expeditionRearmsAtAFriendlyBerthAfterCapturingOrLosingABattle() {
         val home=base.copy(id=1001,grid=2487)
         val depot=base.copy(id=1002,grid=2490)
         val captured=base.copy(id=1003,grid=2492)
@@ -285,6 +285,17 @@ class NpcOccupationTest {
         val replenished=prepared.copy(bases=prepared.bases+(depot.id to prepared.bases.getValue(depot.id).copy(supplies=1_200)))
         val departure=advance(21600,replenished)
         assertEquals(91,assertNotNull(departure.outfits.getValue(fleet.id).strategy?.destination)%100)
+
+        val repelled=fleet.copy(strategy=NpcStrategicState(now,expeditionBase=objective.id))
+        val retry=advance(0,stock.copy(outfits=stock.outfits+(fleet.id to repelled)))
+        assertEquals(objective.id,retry.outfits.getValue(fleet.id).strategy?.expeditionBase)
+        assertTrue(NpcOccupation.hasCarrier(retry.outfits.getValue(fleet.id),objective,retry))
+        assertTrue(retry.bases.getValue(depot.id).units.troops.isEmpty())
+
+        val fighting=repelled.copy(activeGround=ActiveGroundUnits(landed.values.map {it.copy(base=objective.id)}))
+        val pendingBattle=advance(0,stock.copy(outfits=stock.outfits+(fleet.id to fighting)))
+        assertEquals(stock.bases.getValue(depot.id).units,pendingBattle.bases.getValue(depot.id).units)
+        assertEquals(fighting.activeGround,pendingBattle.outfits.getValue(fleet.id).activeGround)
     }
 
     @Test fun reservedExpeditionDocksAtItsForwardBerthAfterTheStockRunsOut() {
