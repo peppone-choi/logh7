@@ -295,7 +295,8 @@ class OutfitFormationTest {
         val service=OutfitFormationService {0L}
         val request=request(FormationPhase.DELETE,25,OutfitKind.TRANSPORT,26).copy(target=transport.id)
         val rejected=service.evaluate(galaxy,request,session,player,loaded)
-        assertEquals(StrategyActionRejection.BUSY,rejected.rejection)
+        assertEquals(StrategyActionRejection.CARGO_LOADED,rejected.rejection)
+        assertEquals(18,checkNotNull(rejected.rejection).ordinal+1)
         assertFalse(rejected.changed)
         assertSame(loaded,rejected.stocks)
         assertSame(player,rejected.player)
