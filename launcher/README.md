@@ -82,6 +82,8 @@ cargo build --release --locked
 
 `tools/ops/patch_sign.py keygen --out <개인키.pem>`이 ECDSA P-256 키를 만들고 공개키(X||Y 128자리 16진수)를 출력한다. 개인키는 패치 서버에 두지 않는다. `patch_sign.py sign --key <개인키.pem> --patch <패치 디렉터리>`는 `patch.manifest` 옆에 `patch.manifest.sig`(r||s 128자리 16진수)를 쓴다. 런처는 `--download-patch <주소> <디렉터리> --trust-key <공개키>`로 서명을 먼저 받아 Windows CNG(`bcrypt.dll`, 외부 크레이트 없음)로 확인하고, 맞을 때만 목록의 파일을 받는다. 파일마다 SHA-256 대조는 그대로 한다. 공개키는 런처 배포본에 한 번만 넣으면 되므로 패치마다 목록 고정값을 알릴 필요가 없다. `--expect-manifest`와 함께 쓸 수도 있다.
 
+배포 패치를 적용할 때는 `--apply-patch <패치 디렉터리> --trust-key <배포 공개키>`에 내려받을 때 사용한 공개키를 지정한다. 런처는 설치 사본의 파일이나 보관본을 쓰기 전에 로컬 `patch.manifest.sig`로 목록 서명을 다시 확인하고, 실행 파일 호환성과 패치 파일별 해시를 검사한다. 공개키 없이 적용하는 명령도 로컬 시험 패치에 사용할 수 있다.
+
 로컬 확인(`work/patch-20261103`): 실제 한국어 패치 40개 파일에 서명해 `python -m http.server`로 열었다. 맞는 키로는 40개를 받았고 원래 패치와 같았다. 다른 키, 목록에 한 줄 덧붙인 변조, 서명 파일 없음(404)은 모두 아무것도 받지 않고 실패했다. 런처 단위 검사 10개가 통과했다(서명 고정 벡터와 위조 목록 거부 포함).
 
 
