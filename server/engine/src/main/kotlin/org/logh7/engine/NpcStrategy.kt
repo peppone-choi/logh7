@@ -147,7 +147,7 @@ internal object NpcStrategy {
         return fallback
     }
     private data class Plan(val position:OutfitPosition,val missionJumps:Int=0,val partialDepotLoad:Boolean=false,
-        val infantryBerth:Boolean=false)
+        val infantryBerth:Boolean=false,val waitingForSupplies:Boolean=false)
 
     /** Find a strategic route and budget the entire leg before consuming its first jump. */
     private fun missionRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
@@ -230,10 +230,10 @@ internal object NpcStrategy {
             ?.let {Plan(OutfitPosition(origin,it.id),jumps,partialDepotLoad=true)}
         fun reserve(jumps:Int):Plan? {
             if(!reserveInPort || position.baseId==0 || !canCarry(jumps))return null
-            collectLocally(jumps)?.let {return it}
+            collectLocally(jumps)?.let {return it.copy(waitingForSupplies=true)}
             // Keep a productive berth when real stock has just been loaded or consumed.
             return if(depots.any {it.grid==origin && producesSupplies(stocks.bases.getValue(it.id))})
-                Plan(position,jumps,partialDepotLoad=true) else null
+                Plan(position,jumps,partialDepotLoad=true,waitingForSupplies=true) else null
         }
         fun pooled(jumps:Int):Plan? = if(canPay(jumps,combined))collectLocally(jumps) else null
 
@@ -458,7 +458,7 @@ internal object NpcStrategy {
             stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(strategy=strategy)))
         }
         // Pick a reachable expedition before the production day so its ships can hold their fuel.
-        for(country in listOf(Power.EMPIRE.country,Power.ALLIANCE.country)) {
+        countryLoop@ for(country in listOf(Power.EMPIRE.country,Power.ALLIANCE.country)) {
             val enemy=NpcOccupation.expeditionEnemy(country,stocks,galaxy,session.eliminated.keys)
             val assigned=stocks.outfits.values.filter {it.country==country && it.strategy?.expeditionBase!=null}
             val retained=assigned.firstOrNull {fleet->
@@ -516,18 +516,32 @@ internal object NpcStrategy {
                     .map { Triple(fleet,it,distance(grid,it.grid)) }
             }.sortedWith(compareBy<Triple<OutfitStock,GalaxyBase,Int>> {garrisons[it.second.id] ?: 0}
                 .thenBy {it.third}.thenBy {it.first.id}.thenBy {it.second.id})
+            val productiveHome=retained?.takeIf {secured}?.let {fleet->
+                val grid=fleet.positionIn(galaxy).grid
+                galaxy.bases.any {base->base.grid==grid && stocks.bases[base.id]?.let {
+                    it.country==country && it.camp==0 && producesSupplies(it)
+                }==true}
+            }==true
+            var waiting:Pair<GalaxyBase,Int>?=null
             for((fleet,base) in choices) {
-                val route=missionRoute(galaxy,forces(),fleet,stocks,base,null) ?: continue
+                val route=missionRoute(galaxy,forces(),fleet,stocks,base,null,reserveInPort=productiveHome,
+                    producesSupplies=producesSupplies) ?: continue
+                if(route.waitingForSupplies) {
+                    // Prefer an immediately funded mission, then the shortest leg the home sector can provision.
+                    if(route.missionJumps<(waiting?.second ?: Int.MAX_VALUE))waiting=base to route.missionJumps
+                    continue
+                }
                 if(secured && route.position.grid==fleet.positionIn(galaxy).grid) {
                     // Load the next infantry at home before moving to the berth that can fuel it.
                     setStrategy(fleet,NpcStrategicState(now,expeditionBase=base.id))
-                    break
+                    continue@countryLoop
                 }
                 val (inventory,provisioned)=supplied(stocks,fleet,galaxy,departing=false,missionJumps=route.missionJumps) ?: continue
                 stocks=inventory
                 setStrategy(provisioned,NpcStrategicState(now,expeditionBase=base.id))
-                break
+                continue@countryLoop
             }
+            waiting?.let {(base,_)->setStrategy(checkNotNull(retained),NpcStrategicState(now,expeditionBase=base.id))}
         }
         fun repairAtDepot(outfit:OutfitStock):OutfitStock {
             val ships=outfit.activeShips!!

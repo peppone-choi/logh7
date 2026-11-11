@@ -427,4 +427,44 @@ class NpcOccupationTest {
         assertEquals(short.supplies,underway.outfits.getValue(fleet.id).supplies)
         assertEquals(jump,moves.single().destination)
     }
+
+    @Test fun aReturningExpeditionReservesTheNextLegWhileItsHomeSectorProducesSupplies() {
+        val home=base.copy(id=1001,grid=2487)
+        val depot=home.copy(id=1002)
+        val captured=base.copy(id=1003,grid=2485)
+        val objective=base.copy(id=1004,grid=2490)
+        val world=Galaxy(listOf(
+            GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,captured.grid,4,"Captured",2),
+            GalaxySystem(5,objective.grid,4,"Objective",3)
+        ),listOf(home,depot,captured,objective),mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to objective.grid))
+        val original=stocks(12f)
+        val fleet=original.outfits.getValue(1).copy(baseId=home.id,position=OutfitPosition(home.grid,home.id),
+            strategy=NpcStrategicState(now,expeditionBase=captured.id),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32)))))
+        val waiting=original.copy(bases=mapOf(
+            home.id to PlanetStock(home.id,2,0,0,0,0),
+            depot.id to PlanetStock(depot.id,2,0,100,0,0),
+            captured.id to PlanetStock(captured.id,2,0,0,0,0),
+            objective.id to PlanetStock(objective.id,3,0,0,0,0)
+        ),outfits=mapOf(fleet.id to fleet),social=SocialState(),
+            strategic=original.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to objective.id)),
+            warehouses=mapOf(fleet.warehouseId to original.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id)))
+        fun advance(offset:Long,stock:PlanetStocks,productive:Boolean=true)=NpcStrategy.advance(
+            time(offset),world,mutableMapOf(),stock,mutableListOf(),producesSupplies={productive && it.baseId==depot.id})
+
+        assertEquals(captured.id,advance(0,waiting,productive=false).outfits.getValue(fleet.id).strategy?.expeditionBase)
+        val reserved=advance(0,waiting)
+        val parked=reserved.outfits.getValue(fleet.id)
+        assertEquals(objective.id,parked.strategy?.expeditionBase)
+        assertEquals(depot.id,parked.positionIn(world).baseId)
+        assertEquals(100,parked.supplies)
+        assertEquals(0,reserved.bases.getValue(depot.id).supplies)
+        assertEquals(fleet.activeGround,parked.activeGround)
+
+        val budget=fleet.activeShips!!.values.single().boats*6
+        val produced=reserved.copy(bases=reserved.bases+
+            (depot.id to reserved.bases.getValue(depot.id).copy(supplies=budget-parked.supplies)))
+        val departing=advance(21600,produced)
+        assertEquals(88,assertNotNull(departing.outfits.getValue(fleet.id).strategy?.destination)%100)
+    }
 }
