@@ -427,6 +427,39 @@ class NpcTacticsTest {
         assertEquals(troops,expedition.activeGround)
     }
 
+    @Test fun escortPreservesReturnFuelWhileTheCarrierLandsInfantry() {
+        val state=state()
+        val home=galaxy.bases.single()
+        val grid=2488
+        val objective=home.copy(id=1001,grid=grid,name="Objective")
+        val campaign=Galaxy(galaxy.systems,listOf(home,objective),galaxy.starts)
+        val point=TacticalPoint(-178f,-95f)
+        val heading=(-Math.PI/2).toFloat()
+        val motion=TacticalMotion(grid,now,TacticalPose(point,heading),0f,heading,listOf(point))
+        val original=state.stocks.outfits.getValue(1)
+        val escort=original.activeShips!!.values.single().copy(tactical=NpcTacticalState(motion,now,now))
+        val carrier=ActiveShipUnit(3,UnitStack(32),
+            posture=TacticalPosture(grid,TacticalShipMode.ANCHORED,objective.id,autonomousAnchor=true))
+        val landing=TacticalGroundOrder(TacticalGroundAction.DEPLOY,0,grid,carrier.id,objective.id,now,now+600)
+        val ships=ActiveShipUnits(listOf(escort,carrier))
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),carrier=carrier.id,order=landing)))
+        val fleet=original.copy(position=OutfitPosition(grid),activeShips=ships,activeGround=troops,
+            units=UnitInventory(ships.quantities(),troops.quantities()),
+            strategy=NpcStrategicState(now,expeditionBase=objective.id))
+        val budget=mapOf(escort.id to escort.boats,carrier.id to carrier.boats)
+        val stocked=state.stocks.copy(outfits=mapOf(fleet.id to OutfitSupplies.withBalances(fleet,budget)),bases=mapOf(
+            home.id to state.stocks.bases.getValue(home.id).copy(supplies=100000),
+            objective.id to PlanetStock(objective.id,3,0,0,0,0)
+        ),strategic=state.stocks.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to objective.id)),
+            nextShipId=maxOf(4,state.stocks.nextShipId))
+        val hits=mutableListOf<TacticalImpact>()
+        val next=NpcTactics.advance(session,campaign,state.players.toMutableMap(),stocked,
+            NpcTacticalPolicy(strategic=true),24,hits,mutableListOf()).outfits.getValue(fleet.id)
+        assertEquals(listOf(TacticalWeapon.BEAM),hits.map {it.weapon})
+        assertEquals(budget,OutfitSupplies.distribution(next))
+        assertEquals(troops,next.activeGround)
+    }
+
     @Test fun strandedStrategicFleetUsesNormalRetreatThenDocksWithoutReplayingItsOldJump() {
         val state=state();val original=state.stocks.outfits.getValue(1)
         val before=state.stocks.copy(bases=state.stocks.bases.mapValues {(_,b)->b.copy(supplies=100000)},

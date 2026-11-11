@@ -28,10 +28,12 @@ data class NpcStrategicMovement(val generation:Long,val outfit:Int,val source:In
 
 internal object NpcStrategy {
     private fun distance(a:Int,b:Int)=max(abs(a%100-b%100),abs(a/100-b/100))
-    private fun eligible(outfit:OutfitStock,stocks:PlanetStocks)=outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) &&
-        TacticalAuthority.uncommanded(outfit,stocks) && outfit.activeGround?.values.orEmpty().none {it.order!=null} &&
+    private fun eligible(outfit:OutfitStock,stocks:PlanetStocks,allowAutonomousLanding:Boolean=false)=
+        outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) && TacticalAuthority.uncommanded(outfit,stocks) &&
+        outfit.activeGround?.values.orEmpty().none {troop->troop.order?.let {!allowAutonomousLanding || it.character!=0}==true} &&
         outfit.activeShips?.values?.any {it.boats>0}==true &&
-        outfit.activeShips.values.none {it.support!=null || it.attack!=null || it.shot!=null || it.posture?.order!=null || it.tactical?.retreat!=null}
+        outfit.activeShips.values.none {ship->ship.support!=null || ship.attack!=null || ship.shot!=null ||
+            ship.posture?.order?.let {!allowAutonomousLanding || it.character!=0}==true || ship.tactical?.retreat!=null}
 
     private fun securedExpedition(outfit:OutfitStock,stocks:PlanetStocks):Boolean =
         outfit.strategy?.expeditionBase?.let {stocks.bases[it]}
@@ -263,9 +265,11 @@ internal object NpcStrategy {
     fun returnDistance(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,
         eliminated:Set<CountryId> = emptySet()):Int? {
         val position=outfit.positionIn(galaxy)
-        if(!eligible(outfit,stocks) || position.baseId!=0)return null
+        val current=outfit.strategy
+        // The carrier cannot warp during landing, but escorts still need to protect the fleet's fuel.
+        if(position.baseId!=0 || !eligible(outfit,stocks,allowAutonomousLanding=current?.expeditionBase!=null))return null
         val fallback=home(galaxy,forces,outfit,stocks)?.jumps
-        val current=outfit.strategy ?: return fallback
+        if(current==null)return fallback
         if(current.expeditionBase==null)return fallback
         val goal=NpcOccupation.goal(outfit,stocks,galaxy,eliminated)?.takeIf {
             it.id==current.expeditionBase && it.grid!=position.grid && NpcOccupation.hasCarrier(outfit,it,stocks)
