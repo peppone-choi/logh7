@@ -17,7 +17,7 @@ object GridForces {
 
     data class Force(val camp: Camp, val units: Long = 0, val nonSolo: Boolean = false,
         val ship: Boolean = false, val base: Boolean = false, val deployedShip: Boolean = false,
-        val combatBase: Boolean = base) {
+        val combatBase: Boolean = base, val deployedShips: Long = if (deployedShip) units else 0) {
         val combatPresence get() = units > 0 || combatBase
     }
 
@@ -30,7 +30,8 @@ object GridForces {
             val previous = camps[force.camp] ?: Force(force.camp)
             camps[force.camp] = Force(force.camp, Math.addExact(previous.units, force.units),
                 previous.nonSolo || force.nonSolo, previous.ship || force.ship, previous.base || force.base,
-                previous.deployedShip || force.deployedShip, previous.combatBase || force.combatBase)
+                previous.deployedShip || force.deployedShip, previous.combatBase || force.combatBase,
+                Math.addExact(previous.deployedShips,force.deployedShips))
         }
         navigators.filter { countsFlagship(it, generation, stocks, eliminated) }.forEach {
             val player = it
@@ -65,7 +66,8 @@ object GridForces {
             if (count > 0) {
                 val position = outfit.positionIn(galaxy)
                 add(position.grid, Force(Camp(outfit.country, CoupActions.outfitCamp(stocks, outfit)==1),
-                    count, nonSolo = true, ship = ships > 0, deployedShip = ships > 0 && position.baseId == 0))
+                    count, nonSolo = true, ship = ships > 0, deployedShip = ships > 0 && position.baseId == 0,
+                    deployedShips = if(position.baseId==0)ships else 0))
             }
             outfit.activeGround?.values.orEmpty().filter {it.base>0}.groupingBy {it.base}.eachCount().forEach { (base,count) ->
                 add(galaxy.bases.single {it.id==base}.grid,

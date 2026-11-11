@@ -71,6 +71,9 @@ internal object NpcStrategy {
     /** Hostile mobile units on [grid] against [camp]. */
     private fun hostile(forces:Map<Int,List<GridForces.Force>>,grid:Int,camp:Camp)=
         forces[grid].orEmpty().filter {it.camp!=camp}.sumOf {it.units}
+    /** Ground garrisons and docked units still count for entry and an assault, but cannot intercept a passing fleet. */
+    private fun hostileShips(forces:Map<Int,List<GridForces.Force>>,grid:Int,camp:Camp)=
+        forces[grid].orEmpty().filter {it.camp!=camp}.sumOf {it.deployedShips}
     private data class DepotRoute(val base:GalaxyBase,val next:Int,val jumps:Int)
     private data class RouteVisit(val grid:Int,val first:Int,val jumps:Int,val estimatedTotal:Int)
 
@@ -146,7 +149,8 @@ internal object NpcStrategy {
 
     /** Find a strategic route and budget the entire leg before consuming its first jump. */
     private fun missionRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
-        stocks:PlanetStocks,goal:GalaxyBase,preferred:Int?,returning:Boolean=false,reserveInPort:Boolean=false):Plan? {
+        stocks:PlanetStocks,goal:GalaxyBase,preferred:Int?,returning:Boolean=false,reserveInPort:Boolean=false,
+        producesSupplies:(PlanetStock)->Boolean={false}):Plan? {
         val position=outfit.positionIn(galaxy)
         val origin=position.grid
         val camp=Camp(outfit.country,false)
@@ -157,7 +161,8 @@ internal object NpcStrategy {
         fun traversable(grid:Int):Boolean {
             if(grid==origin)return true
             if(passable[grid]==0) {
-                val allowed=hostile(forces,grid,camp)<=strength*2 &&
+                val resistance=if(grid==goal.grid)hostile(forces,grid,camp) else hostileShips(forces,grid,camp)
+                val allowed=resistance<=strength*2 &&
                     GridEntryRules.evaluate(GridForces.state(galaxy,grid,forces),entry)==GridEntryVerdict.ALLOWED
                 passable[grid]=if(allowed)1 else -1
             }
@@ -221,8 +226,13 @@ internal object NpcStrategy {
         val combined=localBerths.sumOf {it.second}
         fun collectLocally(jumps:Int):Plan? = localBerths.firstOrNull()?.first
             ?.let {Plan(OutfitPosition(origin,it.id),jumps,partialDepotLoad=true)}
-        fun reserve(jumps:Int):Plan? =
-            if(reserveInPort && position.baseId!=0 && canCarry(jumps))collectLocally(jumps) else null
+        fun reserve(jumps:Int):Plan? {
+            if(!reserveInPort || position.baseId==0 || !canCarry(jumps))return null
+            collectLocally(jumps)?.let {return it}
+            // Keep a productive berth when real stock has just been loaded or consumed.
+            return if(depots.any {it.grid==origin && producesSupplies(stocks.bases.getValue(it.id))})
+                Plan(position,jumps,partialDepotLoad=true) else null
+        }
         fun pooled(jumps:Int):Plan? = if(canPay(jumps,combined))collectLocally(jumps) else null
 
         // A staging depot must shorten the route. An underway fleet may finish its funded jump
@@ -258,7 +268,8 @@ internal object NpcStrategy {
      * (`evidence:guess`, 2026-11-04 replacement policy).
      */
     private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,
-        players:Collection<Navigator>,eliminated:Set<CountryId>,preferred:Int?=null,mayReserve:Boolean=false):Plan? {
+        players:Collection<Navigator>,eliminated:Set<CountryId>,preferred:Int?=null,mayReserve:Boolean=false,
+        producesSupplies:(PlanetStock)->Boolean):Plan? {
         val position=outfit.positionIn(galaxy)
         val origin=position.grid
         val camp=Camp(outfit.country,false)
@@ -270,11 +281,11 @@ internal object NpcStrategy {
         val candidates=enemies.filter(::beatable)
         val nationalGoal=NpcOccupation.goal(outfit,stocks,galaxy,eliminated)
         val objective=nationalGoal?.takeIf {NpcOccupation.hasCarrier(outfit,it,stocks)}
-        if(objective!=null && beatable(origin)) {
+        if(objective!=null && hostileShips(forces,origin,camp)<=own*2) {
             if(objective.grid==origin && position.baseId==0)return null
             if(objective.grid in candidates && objective.grid!=origin)
                 missionRoute(galaxy,forces,outfit,stocks,objective,preferred,
-                    reserveInPort=mayReserve && outfit.strategy?.expeditionBase==objective.id)?.let {return it}
+                    reserveInPort=mayReserve && outfit.strategy?.expeditionBase==objective.id,producesSupplies=producesSupplies)?.let {return it}
         }
         val homeStock=stocks.bases[outfit.baseId]
         val needsTroops=nationalGoal!=null && outfit.activeGround?.values.orEmpty().none {it.base==nationalGoal.id}
@@ -414,7 +425,8 @@ internal object NpcStrategy {
         movements:MutableList<NpcStrategicMovement>,
         warehouseBlocked: (PlanetStocks, Int) -> Boolean = { _, _ -> false },
         startingClaims:List<OriginalBerthClaim> = emptyList(),
-        infantryProduction:(Int,CountryId)->List<Int> = { _, _ -> emptyList() }):PlanetStocks {
+        infantryProduction:(Int,CountryId)->List<Int> = { _, _ -> emptyList() },
+        producesSupplies:(PlanetStock)->Boolean = {false}):PlanetStocks {
         if(session.ended!=null)return original
         val now=session.gameMillis/1000
         if(now>0xffffffffL-21600)return original
@@ -453,7 +465,8 @@ internal object NpcStrategy {
                 val current=checkNotNull(NpcOccupation.goal(retained,stocks,galaxy,session.eliminated.keys))
                 if(depot(stocks,retained,galaxy)==null ||
                     checkNotNull(retained.strategy).nextDecisionAt>now || !NpcOccupation.hasCarrier(retained,current,stocks) ||
-                    missionRoute(galaxy,forces(),retained,stocks,current,null)!=null)continue
+                    missionRoute(galaxy,forces(),retained,stocks,current,null,reserveInPort=true,
+                        producesSupplies=producesSupplies)!=null)continue
             }
             val garrisons=stocks.outfits.values.asSequence().filter {it.country==enemy}
                 .flatMap {it.activeGround?.values.orEmpty().asSequence()}.filter {it.base!=0}
@@ -683,7 +696,7 @@ internal object NpcStrategy {
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
                 val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys,destination,
-                    mayReserve=!warehouseBlocked(stocks,id))
+                    mayReserve=!warehouseBlocked(stocks,id),producesSupplies=producesSupplies)
                 val relief=if(normal?.infantryBerth==true || (normal?.missionJumps ?: 0)>0)null
                     else reliefRoute(galaxy,forces(),outfit,stocks,destination)
                 val planned=relief?.let {OutfitPosition(it.next,if(it.jumps==1)it.base.id else 0)} ?: normal?.position
@@ -770,7 +783,7 @@ internal object NpcStrategy {
                     }
                 }
                 val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys,
-                    mayReserve=!warehouseBlocked(stocks,id))
+                    mayReserve=!warehouseBlocked(stocks,id),producesSupplies=producesSupplies)
                 val destination=normal?.position
                 val waitingAtHome=expedition!=null && position.baseId==outfit.baseId && destination==null
                 val relief=if(waitingAtHome || normal?.infantryBerth==true || (normal?.missionJumps ?: 0)>0)null
