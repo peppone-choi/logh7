@@ -20,6 +20,7 @@ const STATE: &str = "logh7-patch.state";
 const BACKUP: &str = "logh7-patch-backup";
 const PENDING: &str = "pending";
 const NEXT: &str = "logh7-patch.state.next";
+const LOCK: &str = "logh7-patch.lock";
 const CLIENT: &str = "exe/G7MTClient.exe";
 
 struct Entry {
@@ -102,7 +103,7 @@ fn hash_file(path: &Path, failure: &str) -> Result<String, String> {
 
 fn validate_path(relative: &str) -> Result<(), String> {
     let first = relative.split('/').next().unwrap_or_default();
-    let reserved = [MANIFEST, "patch.manifest.sig", STATE, BACKUP, NEXT];
+    let reserved = [MANIFEST, "patch.manifest.sig", STATE, BACKUP, NEXT, LOCK];
     if relative.contains(['\\', ':'])
         || relative
             .split('/')
@@ -161,6 +162,8 @@ fn manifest(text: &str) -> Result<(String, Vec<Entry>), String> {
 }
 
 pub fn apply(root: &Path, patch: &Path, trusted: Option<&str>) -> Result<usize, String> {
+    #[cfg(windows)]
+    let _lock = lock_installation(root)?;
     if root.join(STATE).exists() {
         return Err("이미 패치가 적용돼 있습니다. 먼저 --revert-patch로 되돌리세요".into());
     }
@@ -195,7 +198,7 @@ pub fn apply(root: &Path, patch: &Path, trusted: Option<&str>) -> Result<usize, 
                 let _ = fs::remove_file(root.join(NEXT));
                 return Err(format!("{failure}. 바꾼 파일은 없습니다"));
             }
-            return Err(match revert(root) {
+            return Err(match revert_locked(root) {
                 Ok(_) => format!("{failure}. 바꾼 파일을 모두 원래대로 되돌렸습니다"),
                 Err(again) => format!(
                     "{failure}. 자동 되돌리기도 실패했습니다: {again}. 원인을 해결한 뒤 --revert-patch를 다시 실행하세요"
@@ -259,6 +262,28 @@ fn replace(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 pub fn revert(root: &Path) -> Result<usize, String> {
+    #[cfg(windows)]
+    let _lock = lock_installation(root)?;
+    revert_locked(root)
+}
+
+#[cfg(windows)]
+fn lock_installation(root: &Path) -> Result<fs::File, String> {
+    use std::os::windows::fs::OpenOptionsExt;
+    const FILE_FLAG_DELETE_ON_CLOSE: u32 = 0x04000000;
+    // As with the download lock, Windows releases it when the last handle closes.
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .share_mode(0)
+        .custom_flags(FILE_FLAG_DELETE_ON_CLOSE)
+        .open(root.join(LOCK))
+        .map_err(|_| {
+            "다른 패치 작업이 진행 중이거나 설치 폴더의 잠금 파일에 접근할 수 없습니다".into()
+        })
+}
+
+fn revert_locked(root: &Path) -> Result<usize, String> {
     let text = fs::read_to_string(root.join(STATE)).map_err(|_| "적용된 패치가 없습니다")?;
     let mut lines = text.lines();
     if lines.next() != Some("LOGH7-PATCH-STATE-1") {
@@ -386,6 +411,25 @@ mod tests {
         assert!(!root.join(STATE).exists() && !root.join(BACKUP).exists());
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn apply_and_revert_share_the_installation_lock() {
+        let (root, patch) = setup("installation-lock");
+        let held = lock_installation(&root).unwrap();
+        assert!(
+            apply(&root, &patch, None)
+                .unwrap_err()
+                .contains("다른 패치 작업")
+        );
+        assert!(revert(&root).unwrap_err().contains("다른 패치 작업"));
+        assert!(!root.join(STATE).exists() && !root.join(BACKUP).exists());
+        drop(held);
+        assert!(!root.join(LOCK).exists());
+        assert_eq!(2, apply(&root, &patch, None).unwrap());
+        assert_eq!(2, revert(&root).unwrap());
+        assert!(!root.join(LOCK).exists());
+    }
+
     #[test]
     fn windows_aliases_in_the_manifest_cannot_overwrite_the_original_backup() {
         let (root, patch) = setup("path-alias");
@@ -418,6 +462,7 @@ mod tests {
             "exe//G7MTClient.exe",
             "exe/G7MTClient.exe.",
             "LOGH7-PATCH.STATE",
+            "LOGH7-PATCH.LOCK",
             "logh7-patch-backup/exe/String.txt",
         ] {
             assert!(validate_path(path).is_err(), "{path}");

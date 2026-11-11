@@ -23,7 +23,8 @@ from state_backup import sha256  # noqa: E402
 CLIENT = "exe/G7MTClient.exe"
 # Machine-local or generated files that a fresh install must create for itself (the client writes
 # its runtime log to exe/String.txt and window positions to exe/window*.dat).
-EXCLUDE = ("*.log", "GraphicConfig.txt", "exe/window*.dat", "exe/String.txt", "logh7-patch.state", "logh7-patch.state.next", "logh7-patch-backup/*", CLIENT)
+EXCLUDE = ("*.log", "GraphicConfig.txt", "exe/window*.dat", "exe/String.txt", "logh7-patch.state",
+           "logh7-patch.state.next", "logh7-patch.lock", "logh7-patch-backup/*", CLIENT)
 
 
 def changes(original: Path, prepared: Path) -> list[str]:

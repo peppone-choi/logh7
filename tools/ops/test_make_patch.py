@@ -24,6 +24,7 @@ class MakePatchTest(unittest.TestCase):
             (prepared / "exe" / "dinput8.dll").write_bytes(b"dll")
             (prepared / "exe" / "dxwrapper.log").write_text("log")
             (prepared / "GraphicConfig.txt").write_text("local")
+            (prepared / "logh7-patch.lock").touch()
             make_patch.main(["--original", str(original), "--prepared", str(prepared), "--out", str(out)])
             lines = (out / "patch.manifest").read_text(encoding="utf-8").splitlines()
             self.assertEqual(["LOGH7-PATCH-1", f"client\t{sha256(original / 'exe' / 'G7MTClient.exe')}",
