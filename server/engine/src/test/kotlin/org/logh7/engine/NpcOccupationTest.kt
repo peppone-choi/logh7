@@ -90,13 +90,14 @@ class NpcOccupationTest {
     @Test fun vacantGovernmentsSelectOneExpeditionFromActualProductionWithoutSettingNationalGoals() {
         val odin=base.copy(id=1049,grid=2487,kind=0,name="オーディン")
         val heinessen=base.copy(id=1177,grid=2015,kind=0,name="ハイネセン")
+        val depot=heinessen.copy(id=1178,name="Depot")
         val empireFront=base.copy(id=1051,grid=2016,kind=0,name="Empire front")
         val allianceFront=base.copy(id=1052,grid=2488,kind=0,name="Alliance")
         val world=Galaxy(listOf(GalaxySystem(3,2487,4,"ヴァルハラ",2),GalaxySystem(4,2015,4,"バーラト",3),
             GalaxySystem(5,2016,4,"E",2),GalaxySystem(6,2488,4,"A",3)),
-            listOf(odin,heinessen,empireFront,allianceFront),mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
+            listOf(odin,heinessen,depot,empireFront,allianceFront),mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
         val initial=InitialOutfitDeployment(world).initialize(PlanetStocks(1,0,world.conditions.mapValues {(_,b)->
-            PlanetStock(b.baseId,b.power,0,100_000,0,0)
+            PlanetStock(b.baseId,b.power,0,if(b.baseId==depot.id)0 else 100_000,0,0)
         }))
         fun advance(stock:PlanetStocks,session:SessionState)=NpcStrategy.advance(session,world,mutableMapOf(),stock,mutableListOf(),
             infantryProduction={_,country->listOf(if(country==Power.EMPIRE.country)0 else 4)})
@@ -126,5 +127,20 @@ class NpcOccupationTest {
         assertEquals(odin,NpcOccupation.goal(carrier,directed,world,emptySet()))
         assertEquals(odin,NpcOccupation.goal(alliance.last(),directed,world,emptySet()))
         assertNull(NpcOccupation.goal(carrier.copy(commanderId=10001),directed,world,emptySet()))
+
+        val drained=OutfitSupplies.withBalances(carrier,carrier.activeShips!!.values.associate {it.id to 0})
+            .copy(strategy=NpcStrategicState(now+21600,expeditionBase=empireFront.id))
+        val short=loaded.copy(outfits=loaded.outfits+(carrier.id to drained),bases=loaded.bases+
+            (home.baseId to loaded.bases.getValue(home.baseId).copy(supplies=0))+
+            (depot.id to loaded.bases.getValue(depot.id).copy(supplies=100_000)))
+        val rebased=advance(short,time(21600))
+        val provisioned=rebased.outfits.getValue(carrier.id)
+        assertEquals(OutfitPosition(heinessen.grid,depot.id),provisioned.positionIn(world))
+        assertEquals(0,rebased.bases.getValue(home.baseId).supplies)
+        assertEquals(100_000-provisioned.supplies,rebased.bases.getValue(depot.id).supplies)
+        assertEquals(carrier.activeGround,provisioned.activeGround)
+        assertEquals(empireFront.id,provisioned.strategy?.expeditionBase)
+        val resumed=advance(rebased,time(43200)).outfits.getValue(carrier.id)
+        assertEquals(empireFront.grid,resumed.strategy?.destination)
     }
 }

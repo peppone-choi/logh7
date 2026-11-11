@@ -141,7 +141,8 @@ internal object NpcStrategy {
     /** Find a strategic route and budget the entire leg before consuming its first jump. */
     private fun missionRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
         stocks:PlanetStocks,goal:GalaxyBase,preferred:Int?,returning:Boolean=false):Plan? {
-        val origin=outfit.positionIn(galaxy).grid
+        val position=outfit.positionIn(galaxy)
+        val origin=position.grid
         val camp=Camp(outfit.country,false)
         val strength=GridForces.mobileUnits(outfit)
         if(strength !in 1..GridEntryRules.MAX_UNITS_PER_CAMP.toLong())return null
@@ -188,8 +189,9 @@ internal object NpcStrategy {
         val live=outfit.activeShips!!.values.filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit)
         val fuel=depot(stocks,outfit,galaxy)?.supplies ?: 0
-        fun canPay(jumps:Int)=live.all {maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it)).toLong()>=it.boats.toLong()*jumps} &&
-            jumpShortfall(live,balances,jumps)<=fuel
+        fun canPay(jumps:Int,available:Int=fuel)=live.all {
+            maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it)).toLong()>=it.boats.toLong()*jumps
+        } && jumpShortfall(live,balances,jumps)<=available
         val returnJumps=if(returning)0 else depots.minOfOrNull {toGoal[it.grid]} ?: return null
         val roundTrip=forward+returnJumps
         if(canPay(roundTrip)) {
@@ -199,15 +201,33 @@ internal object NpcStrategy {
             return Plan(OutfitPosition(next,arrivalBase),roundTrip)
         }
 
+        // A different friendly berth in this system can fund the same route without a warp.
+        val localBerths=depots.asSequence()
+            .filter {it.grid==origin && it.id!=position.baseId}
+            .map {it to stocks.bases.getValue(it.id).supplies}
+            .filter {(_,available)->available>fuel}
+            .sortedWith(compareByDescending<Pair<GalaxyBase,Int>> {it.second}.thenBy {it.first.id})
+            .toList()
+        localBerths.firstOrNull {(_,available)->canPay(roundTrip,available)}?.let { (berth,_) ->
+            return Plan(OutfitPosition(origin,berth.id),roundTrip)
+        }
+
         // A stocked staging depot must shorten the remaining route, so a short sortie cannot oscillate between depots.
         val closer=depots.filter {toGoal[it.grid]<forward && stocks.bases.getValue(it.id).supplies>0}
         if(closer.isEmpty())return null
         val first=IntArray(5000)
         val fromOrigin=distances(origin,first,live.minOf {maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it))/it.boats})
-        val stage=closer.filter {fromOrigin[it.grid]>0 && canPay(fromOrigin[it.grid])}
-            .minWithOrNull(compareBy<GalaxyBase> {toGoal[it.grid]}.thenBy {fromOrigin[it.grid]}.thenBy {it.id}) ?: return null
-        val next=first[stage.grid]
-        return Plan(OutfitPosition(next,if(next==stage.grid)stage.id else 0),fromOrigin[stage.grid])
+        val stages=closer.filter {fromOrigin[it.grid]>0}
+            .sortedWith(compareBy<GalaxyBase> {toGoal[it.grid]}.thenBy {fromOrigin[it.grid]}.thenBy {it.id})
+        stages.firstOrNull {canPay(fromOrigin[it.grid])}?.let {stage->
+            val next=first[stage.grid]
+            return Plan(OutfitPosition(next,if(next==stage.grid)stage.id else 0),fromOrigin[stage.grid])
+        }
+        for((berth,available) in localBerths) {
+            val stage=stages.firstOrNull {canPay(fromOrigin[it.grid],available)} ?: continue
+            return Plan(OutfitPosition(origin,berth.id),fromOrigin[stage.grid])
+        }
+        return null
     }
 
     /** Reserve real cargo for every remaining jump to a reachable safe depot. */
@@ -513,8 +533,14 @@ internal object NpcStrategy {
             return replenished.copy(strategy=NpcStrategicState(now+21600, awaitingDockSupply=awaitingSupply,
                 expeditionBase=outfit.strategy?.expeditionBase))
         }
-        fun dockLocally(outfit:OutfitStock,destination:OutfitPosition) {
-            val replenished=replenishAtBerth(outfit.copy(position=destination))
+        fun dockLocally(outfit:OutfitStock,destination:OutfitPosition,missionJumps:Int) {
+            var dockedOutfit=outfit.copy(position=destination)
+            if(missionJumps>0) {
+                val (inventory,loaded)=checkNotNull(supplied(stocks,dockedOutfit,galaxy,departing=false,missionJumps=missionJumps))
+                stocks=inventory
+                dockedOutfit=loaded
+            }
+            val replenished=replenishAtBerth(dockedOutfit)
             val docked=replenished.copy(
                 activeShips=ActiveShipUnits(replenished.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,posture=null)}))
             stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to docked))
@@ -581,7 +607,7 @@ internal object NpcStrategy {
                 val relief=if((normal?.missionJumps ?: 0)>0)null else reliefRoute(galaxy,forces(),outfit,stocks,destination)
                 val planned=relief?.let {OutfitPosition(it.next,if(it.jumps==1)it.base.id else 0)} ?: normal?.position
                 if(planned?.grid==position.grid) {
-                    dockLocally(outfit,planned)
+                    dockLocally(outfit,planned,normal?.missionJumps ?: 0)
                     continue
                 }
                 if(hasTacticalBerth) {
@@ -665,8 +691,8 @@ internal object NpcStrategy {
                 val destination=normal?.position
                 val waitingAtHome=expedition!=null && position.baseId==outfit.baseId && destination==null
                 val relief=if(waitingAtHome || (normal?.missionJumps ?: 0)>0)null else reliefRoute(galaxy,forces(),outfit,stocks)
-                if(relief==null && destination?.grid==position.grid) {
-                    dockLocally(outfit,destination)
+                if(relief==null && normal!=null && normal.position.grid==position.grid) {
+                    dockLocally(outfit,normal.position,normal.missionJumps)
                 } else {
                     val grid=if(hasTacticalBerth)null else relief?.next ?: destination?.grid?.takeIf {canDepart(stocks,outfit,galaxy)}
                     if (grid == null && awaitingSupply && (depot(stocks, outfit, galaxy)?.supplies ?: 0) > 0 &&
