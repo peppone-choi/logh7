@@ -2,7 +2,7 @@ package org.logh7.engine
 
 enum class LogisticsMode { ALLOCATION, REORGANIZATION }
 enum class LogisticsPhase { PREPARE, COMMIT, CANCEL }
-enum class LogisticsRejection { SESSION, IDENTITY, OUTFIT, ACCESS, LOCATION, BUSY, PREPARATION, STOCK, CREW, CP, MODE, STORAGE, QUOTE_CHANGED }
+enum class LogisticsRejection { SESSION, IDENTITY, OUTFIT, ACCESS, LOCATION, BUSY, PREPARATION, STOCK, CREW, CP, MODE, STORAGE, QUOTE_CHANGED, CARGO_LOADED }
 data class LogisticsRequest(val account: String, val connection: String, val characterId: Int,
     val country: CountryId?, val generation: Long, val outfitId: Int, val mode: LogisticsMode,
     val phase: LogisticsPhase, val transfer: UnitTransfer = UnitTransfer(), val supplies: Int = 0,
@@ -130,7 +130,8 @@ internal class OutfitLogistics(private val clock: () -> Long,galaxy:Galaxy?=null
                 if (outfit.supplies > OutfitSupplies.capacity(destination)) return reject(LogisticsRejection.STOCK)
                 reorganized
             }
-        } catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }
+        } catch (_: ReplacementBoats.LoadedCargo) { return reject(LogisticsRejection.CARGO_LOADED) }
+        catch (_: IllegalArgumentException) { return reject(LogisticsRejection.STOCK) }
         // The native command combines CP and inventory in the common world store.
         // Preview still runs all reservation, ownership, crew and identity checks.
         val saved = if (persist) production.replace(stocks, next) else next

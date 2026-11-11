@@ -271,8 +271,8 @@ class OutfitLogisticsTest {
         val before=f.store.saved
         val writes=f.store.writes
         val reduction=UnitTransfer(mapOf(hull to -2),crewMove(-1))
-        assertFailsWith<IllegalArgumentException> {Reorganization.capacity(before,1,reduction)}
-        assertEquals(LogisticsRejection.STOCK,f.act(request.copy(transfer=reduction)).rejection)
+        assertFailsWith<ReplacementBoats.LoadedCargo> {Reorganization.capacity(before,1,reduction)}
+        assertEquals(LogisticsRejection.CARGO_LOADED,f.act(request.copy(transfer=reduction)).rejection)
         assertSame(before,f.store.saved)
         assertEquals(writes,f.store.writes)
 
@@ -308,8 +308,8 @@ class OutfitLogisticsTest {
         val request=f.prepare(f.request()).copy(transfer=transfer)
         val before=f.store.saved
         val writes=f.store.writes
-        assertFailsWith<IllegalArgumentException> {Reorganization.capacity(before,1,transfer)}
-        assertEquals(LogisticsRejection.STOCK,f.act(request).rejection)
+        assertFailsWith<ReplacementBoats.LoadedCargo> {Reorganization.capacity(before,1,transfer)}
+        assertEquals(LogisticsRejection.CARGO_LOADED,f.act(request).rejection)
         assertSame(before,f.store.saved)
         assertEquals(writes,f.store.writes)
 
