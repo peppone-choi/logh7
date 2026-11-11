@@ -64,6 +64,8 @@ def exercise(launcher, root):
     insecure = []
     context = certificates(root)
     interrupt = True
+    paused = threading.Event()
+    release = threading.Event()
 
     def response(request, status, data=b"", length=None, headers=()):
         request.send_response(status)
@@ -81,12 +83,15 @@ def exercise(launcher, root):
         requests.append(request.path)
         if request.path == "/redirect/patch.manifest":
             response(request, 302, headers=(("Location", f"http://127.0.0.1:{http_port}/patch.manifest"),))
-        elif request.path == "/patch/patch.manifest":
+        elif request.path == "/paused/data/b.dat":
+            paused.set()
+            release.wait(30)
+        elif request.path in ("/patch/patch.manifest", "/paused/patch.manifest"):
             response(request, 200, manifest)
         elif request.path == "/patch/data/b.dat" and interrupt:
             response(request, 200, b"sec", length=len(payload["data/b.dat"]))
         else:
-            response(request, 200, payload[request.path.removeprefix("/patch/")])
+            response(request, 200, payload[request.path.split("/", 2)[2]])
 
     env = {key: value for key, value in os.environ.items()
            if key.upper() not in {"SSL_CERT_FILE", "SSL_CERT_DIR", "ALL_PROXY", "HTTP_PROXY", "HTTPS_PROXY"}}
@@ -139,6 +144,33 @@ def exercise(launcher, root):
         assert requests == ["/patch/patch.manifest", "/patch/data/b.dat"], requests
         assert all((out / name).read_bytes() == data for name, data in payload.items())
         assert not partial.exists()
+
+        if os.name == "nt":
+            out = root / "nested" / "concurrent"
+            partial = out.with_name(out.name + ".partial")
+            lock = out.with_name(out.name + ".partial-lock")
+            args = [launcher, "--download-patch", base + "/paused", out, "--expect-manifest", digest(manifest)]
+            with subprocess.Popen(args, env={**env, "SSL_CERT_FILE": str(root / "ca.pem")},
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE) as first:
+                try:
+                    assert paused.wait(15), "first download did not reach the held file"
+                    requests.clear()
+                    blocked = download(base + "/patch", out)
+                    assert blocked.returncode == 1 and "다운로드가 진행 중" in blocked.stderr, blocked
+                    assert requests == ["/patch/patch.manifest"], requests
+                    assert not out.exists()
+                    assert (partial / "exe/a.dll").read_bytes() == payload["exe/a.dll"]
+                finally:
+                    first.kill()
+                    first.communicate(timeout=10)
+                    release.set()
+            assert not lock.exists()
+            requests.clear()
+            result = download(base + "/patch", out)
+            assert result.returncode == 0, result.stderr
+            assert requests == ["/patch/patch.manifest", "/patch/data/b.dat"], requests
+            assert all((out / name).read_bytes() == data for name, data in payload.items())
+            assert not partial.exists() and not lock.exists()
 
 
 def safe_failure_output(launcher, root):
