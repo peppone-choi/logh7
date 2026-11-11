@@ -228,7 +228,9 @@ internal object NpcTactics {
             if(withdrawal!=null && now>=withdrawal.completesAt && current.all {u->
                     u.tactical?.let {it.retreat==withdrawal && RetreatRules.outside(it.motion.pose(now,u.posture,galaxy))}==true}) {
                 if(canEnter(galaxy,outfit,withdrawal.destination,forces())) {
-                    stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),strategy=null,
+                    // The old jump belonged to the abandoned position; an expedition can replan from here.
+                    val strategy=outfit.strategy?.expeditionBase?.let {NpcStrategicState(now,expeditionBase=it)}
+                    stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to outfit.copy(position=OutfitPosition(withdrawal.destination),strategy=strategy,
                         activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(tactical=null,motionCommander=0,attack=null,shot=null)}))))
                     forceCache=null
                     current.forEach {u->movements+=TacticalMovement(session.generation,u.id,position.grid,now,null,
