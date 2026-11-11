@@ -7,14 +7,14 @@ from pathlib import Path
 from qa_gui_group import GuiTestGroup
 
 
-def run_client(background, source, copy, account, out, index, seconds, port, group, reconnects=0):
+def run_client(background, source, copy, account, out, index, seconds, port, group, reconnects=0, launcher_login=False):
     """Reuse one copy only after the prior invocation proves full cleanup."""
     for attempt in range(reconnects + 1):
         destination = out / (f'client-{index}' if attempt == 0 else f'client-{index}-reconnect-{attempt}')
         print(json.dumps({'client': index, 'attempt': attempt, 'out': str(destination)}), flush=True)
         result = background.run(source, destination, seconds, instance_root=copy, render_capture=True,
-            upstream_port=port, ui_login=True, account=account, credential='dummy', ui_control=True,
-            silent_device=True, gui_group=group, manual_login=True)
+            upstream_port=port, ui_login=not launcher_login, account=account, credential='dummy', ui_control=True,
+            silent_device=True, gui_group=group, manual_login=not launcher_login)
         if result != 0:
             return result
         report = json.loads((destination / 'run.json').read_text(encoding='utf-8'))
@@ -35,6 +35,8 @@ def main():
     parser.add_argument('--instance-root', type=Path, action='append', required=True)
     parser.add_argument('--account', action='append', required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--launcher-login', action='store_true',
+                        help='Use the original command-line login with synthetic accounts; keep owned UI commands available')
     parser.add_argument('--reconnect-client', type=int, choices=(0, 1, 2), help='Allow this owned copy to reconnect while its peers stay online')
     parser.add_argument('--max-reconnects', type=int, choices=range(1, 4), default=1)
     parser.add_argument('--seconds', type=int, default=600)
@@ -65,7 +67,7 @@ def main():
     with GuiTestGroup(reusable=args.reconnect_client is not None, copies=count) as group, ThreadPoolExecutor(max_workers=count) as pool:
         futures = {pool.submit(run_client, background, args.source_root, copies[i], args.account[i], out,
             i, args.seconds, args.upstream_port, group,
-            args.max_reconnects if i == args.reconnect_client else 0): i for i in range(count)}
+            args.max_reconnects if i == args.reconnect_client else 0, launcher_login=args.launcher_login): i for i in range(count)}
         for future in as_completed(futures):
             index = futures[future]
             try: results[index] = future.result()

@@ -151,6 +151,8 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
         print(json.dumps({"status": "WAITING_FOR_BACKGROUND_QA",
                           "reason": "Use --silent-device for process-local memory-only audio"}), flush=True)
         return 3
+    if ui_control and not render_capture:
+        raise ValueError("UI commands require private render capture")
     import tempfile
     if Path(tempfile.gettempdir()).drive.casefold() != WORK.drive.casefold():
         raise ValueError("Set TEMP and TMP on the workspace drive before Frida attachment")
@@ -164,7 +166,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
     injected = [Path(__file__).with_name('silent-dsound.js')]
     if render_capture:
         injected.append(Path(__file__).with_name('capture-frame.js'))
-    if ui_login:
+    if ui_login or ui_control:
         injected.append(Path(__file__).with_name('input-login.js'))
     if creation_menu:
         injected.append(Path(__file__).with_name('enable-creation-menu.js'))
@@ -270,7 +272,7 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                 import frida
                 session = frida.attach(pid)
                 script_source = Path(__file__).with_name("capture-frame.js").read_text()
-                if ui_login:
+                if ui_login or ui_control:
                     script_source += "\n" + Path(__file__).with_name("input-login.js").read_text()
                 if creation_menu:
                     script_source += "\n" + Path(__file__).with_name("enable-creation-menu.js").read_text()
@@ -597,8 +599,8 @@ if __name__ == "__main__":
         parser.error("UI clicks require --ui-login")
     if args.enable_creation_menu and not args.ui_login:
         parser.error("Creation menu compatibility patch requires --ui-login")
-    if args.ui_control and not args.ui_login:
-        parser.error("UI command file requires --ui-login")
+    if args.ui_control and not args.render_capture:
+        parser.error("UI command file requires --render-capture")
     for value, limit in ((args.test_account, 30), (args.test_credential, 10)):
         if not 1 <= len(value) <= limit or not all(33 <= ord(char) <= 126 for char in value):
             parser.error("Use nonempty printable ASCII test credentials within the documented limits, without spaces")
