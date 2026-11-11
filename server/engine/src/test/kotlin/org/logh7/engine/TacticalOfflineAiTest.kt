@@ -620,6 +620,43 @@ class TacticalOfflineAiTest {
             assertEquals(if(cancelled)0 else 1000,troop.base)
         }
     }
+    @Test fun occupationMovesOtherCarriersWhileOneAnchorsOrDeploys() {
+        val plain = stocks(2)
+        val fleet = plain.outfits.getValue(1)
+        val carrier = fleet.activeShips!!.values.single()
+        val approaching = carrier.copy(id = 2, tactical = NpcTacticalState(motion(0f, 12f), now, now))
+        val troops = ActiveGroundUnits(listOf(ActiveGroundUnit(5, UnitStack(0), carrier = 1),
+            ActiveGroundUnit(6, UnitStack(0), carrier = 2)))
+        for (anchored in listOf(false, true)) {
+            val ready = if (anchored) carrier.copy(posture = TacticalPosture(2488, TacticalShipMode.ANCHORED, 1000)) else carrier
+            val equipped = fleet.copy(units = UnitInventory(mapOf(carrier.stack to 2), troops.quantities()),
+                activeShips = ActiveShipUnits(listOf(ready, approaching)), activeGround = troops)
+            val initial = plain.copy(bases = mapOf(1000 to PlanetStock(1000, 3, 0, 100, 0, 0)),
+                outfits = plain.outfits + (fleet.id to equipped), tacticalCommands = plain.tacticalCommands.copy(
+                    missions = mapOf(10000 to TacticalMissionState(10000, 2, 1, 1000, now, grid = 2488))))
+            val events = mutableListOf<TacticalCommandResult>()
+            val pilots = players()
+            val next = TacticalOfflineAi.advance(offline, galaxy, pilots, initial, 1, events)
+            val updated = next.outfits.getValue(fleet.id)
+            val ships = updated.activeShips!!.values.associateBy { it.id }
+            val landed = updated.activeGround!!.values.associateBy { it.id }
+            if (anchored) {
+                assertEquals(ready, ships.getValue(1))
+                assertEquals(now + 25, landed.getValue(5).order?.readyAt)
+            } else {
+                assertEquals(now + 10, ships.getValue(1).posture?.order?.readyAt)
+                assertNull(landed.getValue(5).order)
+            }
+            assertNull(landed.getValue(6).order)
+            assertNull(ships.getValue(2).posture?.order)
+            val move = assertNotNull(events.single().motions[2], "The second carrier must approach in the same decision")
+            assertEquals(move, ships.getValue(2).tactical?.motion)
+            assertTrue(move.velocity > 0)
+            assertEquals(10000, ships.getValue(2).motionCommander)
+            assertFalse(1 in events.single().motions, "A carrier with a new order must retain it")
+        }
+    }
+
     @Test fun occupationUsesTheCurrentFortressBerthForCommandAndAnchoringRange() {
         val berth=galaxy.bases.single().copy(mobile=true)
         val targetBase=berth.copy(id=1001,name="Target")
