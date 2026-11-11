@@ -266,6 +266,56 @@ internal object NpcStrategy {
             stocks=stocks.copy(bases=stocks.bases+(depot.baseId to depot.copy(supplies=depot.supplies-(before-available))))
             return outfit.copy(activeShips=ActiveShipUnits(repaired))
         }
+        val logisticsOffice = LogisticsOfficePolicy(galaxy)
+        fun replenishCrew(source: PlanetStocks, outfit: OutfitStock, warehouse: OutfitWarehouse,
+            mayAllocate: () -> Boolean): Pair<PlanetStocks, OutfitStock>? {
+            var allocated = source
+            val required = ReplacementBoats.crewRequired(outfit)
+            var crew = Supplement.transferCrew(outfit, warehouse, required)
+            if (crew.shortfall > 0) {
+                if (!mayAllocate()) return null
+                val base = source.bases.getValue(outfit.baseId)
+                val baseReserve = warehouse.copy(units = UnitInventory(troops = base.units.troops), spareShips = SpareShipBoats())
+                val allocation = Supplement.transferCrew(outfit, baseReserve, required - crew.moved.values.sumOf { it.toLong() })
+                if (allocation.shortfall > 0) return null
+                val staged = source.copy(warehouses = source.warehouses + (warehouse.id to warehouse))
+                allocated = StockAssignment.applyTransfer(staged, outfit, UnitTransfer(troops = allocation.moved), 0)
+                crew = Supplement.transferCrew(outfit, allocated.warehouses.getValue(warehouse.id), required)
+            }
+            val units = UnitInventory(outfit.units.ships, crew.onboard)
+            val reserve = warehouse.copy(units = UnitInventory(warehouse.units.ships, crew.reserve))
+            return allocated.copy(warehouses = allocated.warehouses + (reserve.id to reserve)) to outfit.copy(units = units)
+        }
+        fun reformAtHome(outfit: OutfitStock, lost: List<ActiveShipUnit>): PlanetStocks? {
+            val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
+            val base = stocks.bases.getValue(outfit.baseId)
+            val mayAllocate by lazy { !logisticsOffice.staffed(stocks, outfit.country, outfit.kind) }
+            val empty = outfit.copy(activeShips = ActiveShipUnits(emptyList()),
+                units = UnitInventory(troops = outfit.units.troops), supplies = 0)
+            val opening = stocks.copy(outfits = stocks.outfits + (outfit.id to empty))
+            val available = warehouse.units.ships.keys + warehouse.spareShips.values.keys
+            for (kind in lost.sortedBy { it.id }.map { it.stack.kind }.distinct()) {
+                try {
+                    val reserve = available.filter { it.kind == kind }.minByOrNull { it.level }
+                    val stack = reserve ?: base.units.ships.keys.filter { it.kind == kind }.minByOrNull { it.level } ?: continue
+                    val transfer = UnitTransfer(ships = mapOf(stack to 1))
+                    val staged = if (reserve != null) opening else {
+                        if (!mayAllocate) continue
+                        StockAssignment.applyTransfer(opening, empty, transfer, 0)
+                    }
+                    val commissioned = ReplacementBoats.reorganize(staged, outfit.id, transfer)
+                    val replacement = commissioned.outfits.getValue(outfit.id)
+                    if (!canDepart(commissioned, replacement, galaxy)) continue
+                    val (supplied, crewed) = replenishCrew(commissioned, replacement,
+                        commissioned.warehouses.getValue(warehouse.id)) { mayAllocate } ?: continue
+                    return supplied.copy(outfits = supplied.outfits + (outfit.id to crewed))
+                } catch (_: IllegalArgumentException) {
+                    // Invalid capacity or an exhausted unit ID leaves the formation untouched.
+                    continue
+                }
+            }
+            return null
+        }
         fun replaceBoatsAtHome(outfit: OutfitStock): OutfitStock {
             val berth = outfit.positionIn(galaxy)
             if (outfit.guard != null || berth.baseId != outfit.baseId || depot(stocks, outfit, galaxy) == null ||
@@ -274,7 +324,7 @@ internal object NpcStrategy {
             val base = stocks.bases.getValue(berth.baseId)
             val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
             val ships = checkNotNull(outfit.activeShips)
-            val mayAllocate by lazy { !LogisticsOfficePolicy(galaxy).staffed(stocks, outfit.country, outfit.kind) }
+            val mayAllocate by lazy { !logisticsOffice.staffed(stocks, outfit.country, outfit.kind) }
             for (unit in ships.values) {
                 val fullSize = UnitSpecifications.ships.single { it.kind == unit.stack.kind }.number
                 if (unit.boats == 0 || unit.boats == fullSize) continue
@@ -292,22 +342,9 @@ internal object NpcStrategy {
                     val (remaining, ship) = restored
                     val replacement = outfit.copy(activeShips = ActiveShipUnits(ships.values.map { if (it.id == unit.id) ship else it }))
                     if (!canDepart(stocks, replacement, galaxy)) continue
-                    val required = ReplacementBoats.crewRequired(replacement)
-                    var crew = Supplement.transferCrew(outfit, remaining, required)
-                    if (crew.shortfall > 0) {
-                        if (!mayAllocate) continue
-                        val baseReserve = remaining.copy(units = UnitInventory(troops = base.units.troops), spareShips = SpareShipBoats())
-                        val allocation = Supplement.transferCrew(outfit, baseReserve, required -
-                            crew.moved.values.sumOf { it.toLong() })
-                        if (allocation.shortfall > 0) continue
-                        allocated = allocated.copy(warehouses = allocated.warehouses + (remaining.id to remaining))
-                        allocated = StockAssignment.applyTransfer(allocated, outfit, UnitTransfer(troops = allocation.moved), 0)
-                        crew = Supplement.transferCrew(outfit, allocated.warehouses.getValue(remaining.id), required)
-                    }
-                    val units = UnitInventory(replacement.units.ships, crew.onboard, replacement.units.work)
-                    val replenished = remaining.copy(units = UnitInventory(remaining.units.ships, crew.reserve, remaining.units.work))
-                    stocks = allocated.copy(warehouses = allocated.warehouses + (warehouse.id to replenished))
-                    return replacement.copy(units = units)
+                    val (supplied, crewed) = replenishCrew(allocated, replacement, remaining) { mayAllocate } ?: continue
+                    stocks = supplied
+                    return crewed
                 } catch (_: IllegalArgumentException) {
                     // Keep every source intact when the combined allocation cannot fit.
                     continue
@@ -347,6 +384,27 @@ internal object NpcStrategy {
             var outfit=stocks.outfits.getValue(id)
             val position=outfit.positionIn(galaxy)
             val owner=stocks.bases[position.baseId]
+            val lost = outfit.activeShips?.values?.takeIf { it.isNotEmpty() && it.all { ship -> ship.boats == 0 } }
+            val home = stocks.bases.getValue(outfit.baseId)
+            if (lost != null && outfit.country !in session.eliminated && outfit.guard == null &&
+                outfit.kind in setOf(OutfitKind.FLEET, OutfitKind.PATROL) && TacticalAuthority.uncommanded(outfit, stocks) &&
+                outfit.activeGround?.values.isNullOrEmpty() && stocks.strategic.transports.none { it.carrier == id } &&
+                home.country == outfit.country && home.camp == 0) {
+                val homePosition = OutfitPosition(galaxy.bases.single { it.id == home.baseId }.grid, home.baseId)
+                val atHome = outfit.copy(position = homePosition)
+                if (now >= (outfit.strategy?.nextDecisionAt ?: 0) &&
+                    claimsByFleet[id].orEmpty().none { it.vacantFleet(atHome, stocks, galaxy, players) != null } &&
+                    !warehouseBlocked(stocks, id) && !TacticalContact.contested(forces()[homePosition.grid].orEmpty())) {
+                    val rebuilt = reformAtHome(atHome, lost)
+                    if (rebuilt != null) {
+                        stocks = rebuilt
+                        outfit = stocks.outfits.getValue(id)
+                        forceCache = null
+                    }
+                    stocks = stocks.copy(outfits = stocks.outfits + (id to outfit.copy(strategy = NpcStrategicState(now + 21600))))
+                }
+                continue
+            }
             val permitted=outfit.country !in session.eliminated && eligible(outfit,stocks) &&
                 (position.baseId==0 || owner?.let {it.country==outfit.country && it.camp==0}==true)
             if(!permitted) {

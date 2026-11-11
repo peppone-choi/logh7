@@ -1015,6 +1015,51 @@ class NpcStrategyTest {
         }
     }
 
+    @Test fun destroyedUncommandedFleetCanCommissionFromHomeStockWithANewUnitId() {
+        val initial = stocks()
+        val fleet = initial.outfits.getValue(1)
+        val ship = fleet.activeShips!!.values.single()
+        val fielded = fleet.copy(position = OutfitPosition(2488), units = UnitInventory(fleet.units.ships), activeGround = null)
+        val sunk = TacticalLosses.apply(fielded, ship.id, ship.boats)
+        val base = initial.bases.getValue(fleet.baseId)
+        val crew = UnitStack(3)
+        val required = ReplacementBoats.crewRequired(fleet).toInt()
+        val available = base.copy(units = UnitInventory(mapOf(stack to 1), mapOf(crew to required)))
+        val lost = initial.copy(outfits = mapOf(fleet.id to sunk))
+        val events = mutableListOf<NpcStrategicMovement>()
+
+        val waiting = advance(0, lost, mutableMapOf(), events)
+        assertEquals(sunk.activeShips, waiting.outfits.getValue(fleet.id).activeShips)
+        assertEquals(2488, waiting.outfits.getValue(fleet.id).position!!.grid)
+        assertEquals(initial.nextShipId, waiting.nextShipId)
+        val ready = waiting.copy(bases = mapOf(base.baseId to available))
+        assertEquals(ready, advance(21599, ready, mutableMapOf(), events))
+
+        val after = advance(21600, ready, mutableMapOf(), events)
+        val reformed = after.outfits.getValue(fleet.id)
+        assertEquals(OutfitPosition(2487, base.baseId), reformed.position)
+        assertEquals(listOf(ship.copy(id = initial.nextShipId)), reformed.activeShips!!.values)
+        assertEquals(required, reformed.units.troops[crew])
+        assertEquals(UnitInventory(), after.bases.getValue(base.baseId).units)
+        assertEquals(initial.warehouses, after.warehouses)
+        assertEquals(initial.nextShipId + 1, after.nextShipId)
+        assertEquals(after, advance(21600, after, mutableMapOf(), events))
+        assertTrue(events.isEmpty())
+
+        val crewShort = ready.copy(bases = mapOf(base.baseId to available.copy(units = UnitInventory(mapOf(stack to 1)))))
+        val occupied = ready.copy(bases = mapOf(base.baseId to available.copy(owner = Allegiance.Country(Power.ALLIANCE.country))))
+        val commanded = ready.copy(outfits = mapOf(fleet.id to sunk.copy(commanderId = 10001)))
+        val garrison = ready.copy(outfits = mapOf(fleet.id to TacticalLosses.apply(fleet, ship.id, ship.boats)))
+        for (blocked in listOf(crewShort, occupied, commanded, garrison)) {
+            val untouched = advance(21600, blocked, mutableMapOf(), events)
+            assertEquals(blocked.bases, untouched.bases)
+            assertEquals(blocked.warehouses, untouched.warehouses)
+            assertEquals(blocked.nextShipId, untouched.nextShipId)
+            assertEquals(blocked.outfits.getValue(fleet.id).activeShips, untouched.outfits.getValue(fleet.id).activeShips)
+            assertEquals(blocked.outfits.getValue(fleet.id).activeGround, untouched.outfits.getValue(fleet.id).activeGround)
+        }
+    }
+
     @Test fun depotRepairSkipsGuardShipsAndHumanCommandedOutfits() {
         val initial = stocks()
         val damaged = TacticalLosses.apply(initial.outfits.getValue(1), 1, 40)
