@@ -336,4 +336,95 @@ class NpcOccupationTest {
         assertEquals(fueled.supplies,retained.supplies)
         assertEquals(0,result.bases.getValue(home.id).supplies)
     }
+
+    @Test fun returningExpeditionWaitsAtAProductiveBerthInsteadOfBacktrackingForRelief() {
+        val home=base.copy(id=1001,grid=2487)
+        val stage=base.copy(id=1002,grid=2491)
+        val relief=base.copy(id=1003,grid=2492)
+        val capital=base.copy(id=1004,grid=2493)
+        val world=Galaxy(listOf(
+            GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,stage.grid,4,"Stage",2),
+            GalaxySystem(5,relief.grid,4,"Relief",2),GalaxySystem(6,capital.grid,4,"Capital",3)
+        ),listOf(home,stage,relief,capital),mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to capital.grid))
+        val original=stocks(12f)
+        val fleet=original.outfits.getValue(1).copy(baseId=home.id,position=OutfitPosition(stage.grid,stage.id),
+            strategy=NpcStrategicState(now,expeditionBase=stage.id),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32)))),
+            activeGround=ActiveGroundUnits(listOf(ActiveGroundUnit(5,UnitStack(0),base=stage.id,origin=1))))
+        val waiting=original.copy(bases=mapOf(
+            home.id to PlanetStock(home.id,2,0,0,0,0),
+            stage.id to PlanetStock(stage.id,2,0,0,0,0),
+            relief.id to PlanetStock(relief.id,2,0,100_000,0,0),
+            capital.id to PlanetStock(capital.id,3,0,0,0,0)
+        ),outfits=mapOf(fleet.id to fleet),social=SocialState(),
+            strategic=original.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to capital.id)),
+            warehouses=mapOf(fleet.warehouseId to original.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id)))
+        fun advance(offset:Long,stock:PlanetStocks,productive:Boolean=true)=NpcStrategy.advance(
+            time(offset),world,mutableMapOf(),stock,mutableListOf(),producesSupplies={productive && it.baseId==stage.id})
+
+        assertEquals(relief.grid,advance(0,waiting,productive=false).outfits.getValue(fleet.id).strategy?.destination)
+        val held=advance(0,waiting)
+        val retained=held.outfits.getValue(fleet.id)
+        assertEquals(stage.id,retained.positionIn(world).baseId)
+        assertEquals(stage.id,retained.strategy?.expeditionBase)
+        assertNull(retained.strategy?.destination)
+        assertEquals(waiting.bases,held.bases)
+        assertEquals(fleet.activeGround,retained.activeGround)
+
+        val fuel=4*fleet.activeShips!!.values.single().boats
+        val supplied=held.copy(bases=held.bases+(stage.id to held.bases.getValue(stage.id).copy(supplies=fuel)))
+        val departing=advance(21600,supplied)
+        val jump=assertNotNull(departing.outfits.getValue(fleet.id).strategy?.destination)
+        assertEquals(90,jump%100)
+        val underway=advance(25200,departing)
+        assertEquals(jump,underway.outfits.getValue(fleet.id).positionIn(world).grid)
+        assertEquals(fuel-fleet.activeShips!!.values.single().boats,underway.outfits.getValue(fleet.id).supplies)
+        assertEquals(supplied.bases.getValue(relief.id),underway.bases.getValue(relief.id))
+    }
+
+    @Test fun returningExpeditionKeepsItsCargoWhenNoDepotIsWithinRange() {
+        val home=base.copy(id=1001,grid=2487)
+        val captured=base.copy(id=1002,grid=2497)
+        val capital=base.copy(id=1003,grid=2499)
+        val world=Galaxy(listOf(
+            GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,captured.grid,4,"Captured",2),
+            GalaxySystem(5,capital.grid,4,"Capital",3)
+        ),listOf(home,captured,capital),mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to capital.grid))
+        val original=stocks(12f)
+        val position=OutfitPosition(2490)
+        val fleet=original.outfits.getValue(1).copy(baseId=home.id,position=position,
+            strategy=NpcStrategicState(now,expeditionBase=captured.id),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32)))),
+            activeGround=ActiveGroundUnits(listOf(ActiveGroundUnit(5,UnitStack(0),base=captured.id,origin=1))))
+        val ship=fleet.activeShips!!.values.single()
+        val short=OutfitSupplies.withBalances(fleet,mapOf(ship.id to ship.boats*2))
+        val waiting=original.copy(bases=mapOf(
+            home.id to PlanetStock(home.id,2,0,100_000,0,0),
+            captured.id to PlanetStock(captured.id,2,0,0,0,0),
+            capital.id to PlanetStock(capital.id,3,0,0,0,0)
+        ),outfits=mapOf(fleet.id to short),social=SocialState(),
+            strategic=original.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to capital.id)),
+            warehouses=mapOf(fleet.warehouseId to original.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id)))
+        val moves=mutableListOf<NpcStrategicMovement>()
+        fun advance(offset:Long,stock:PlanetStocks)=NpcStrategy.advance(time(offset),world,mutableMapOf(),stock,moves)
+
+        val held=advance(0,waiting)
+        val retained=held.outfits.getValue(fleet.id)
+        assertNull(retained.strategy?.destination)
+        assertEquals(captured.id,retained.strategy?.expeditionBase)
+        assertEquals(position,retained.positionIn(world))
+        assertEquals(short.supplies,retained.supplies)
+        assertEquals(waiting.bases,held.bases)
+        assertTrue(moves.isEmpty())
+
+        val funded=OutfitSupplies.withBalances(retained,mapOf(ship.id to ship.boats*3))
+        val ready=held.copy(outfits=mapOf(fleet.id to funded))
+        val departing=advance(21600,ready)
+        val jump=assertNotNull(departing.outfits.getValue(fleet.id).strategy?.destination)
+        assertEquals(89,jump%100)
+        val underway=advance(25200,departing)
+        assertEquals(jump,underway.outfits.getValue(fleet.id).positionIn(world).grid)
+        assertEquals(short.supplies,underway.outfits.getValue(fleet.id).supplies)
+        assertEquals(jump,moves.single().destination)
+    }
 }
