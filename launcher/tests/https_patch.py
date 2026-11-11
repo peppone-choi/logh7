@@ -227,19 +227,29 @@ def authenticated_apply(launcher, root):
             f"LOGH7-PATCH-1\nclient\t{client_hash}\nfile\texe/a.dll\t{payload_hash}\n".encode())
         (patch / "exe/a.dll").write_bytes(payload)
 
-    def apply():
-        return subprocess.run([launcher, "--config", config, "--apply-patch", patch, "--trust-key", key],
+    def apply(trust_key=key):
+        return subprocess.run([launcher, "--config", config, "--apply-patch", patch, "--trust-key", trust_key],
                               capture_output=True, encoding="utf-8", timeout=15)
+
+    def unchanged():
+        assert destination.read_bytes() == b"previous"
+        assert not (client / "logh7-patch.state").exists()
+        assert not (client / "logh7-patch-backup").exists()
 
     write_package(b"first")
     missing = apply()
     assert missing.returncode == 1 and "패치 목록 서명을 읽지 못했습니다" in missing.stderr, missing
+    unchanged()
     (patch / "patch.manifest.sig").write_text(signature + "\n", encoding="ascii")
+    wrong_key = ("6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"
+                 "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5")
+    untrusted = apply(wrong_key)
+    assert untrusted.returncode == 1 and "서명" in untrusted.stderr, untrusted
+    unchanged()
     write_package(b"substituted")
     tampered = apply()
     assert tampered.returncode == 1 and "서명" in tampered.stderr, tampered
-    assert destination.read_bytes() == b"previous"
-    assert not (client / "logh7-patch.state").exists() and not (client / "logh7-patch-backup").exists()
+    unchanged()
     write_package(b"first")
     accepted = apply()
     assert accepted.returncode == 0 and destination.read_bytes() == b"first", accepted
