@@ -2,7 +2,7 @@
 //!
 //! HTTPS 또는 시험용 HTTP에서 `patch.manifest`와 그 목록의 파일을 받는다.
 //! 받은 파일은 목록의 SHA-256과 대조한다. `patch::apply`도 적용 전에 다시 확인한다.
-use crate::patch::sha256;
+use crate::patch::{sha256, validate_paths};
 use std::{
     fs,
     io::{Read, Write},
@@ -229,20 +229,13 @@ pub fn download(
             let (relative, hash) = rest
                 .split_once('\t')
                 .ok_or("패치 목록의 파일 항목 형식이 올바르지 않습니다")?;
-            if relative
-                .split('/')
-                .any(|part| part.is_empty() || part == "." || part == "..")
-                || relative.contains('\\')
-                || relative.contains(':')
-            {
-                return Err("허용하지 않는 패치 경로입니다".into());
-            }
             files.push((relative.to_string(), hash.to_ascii_lowercase()));
         }
     }
     if text.lines().next().map(str::trim) != Some("LOGH7-PATCH-1") || files.is_empty() {
         return Err("지원하지 않는 패치 목록입니다".into());
     }
+    validate_paths(files.iter().map(|(path, _)| path.as_str()))?;
     // 이어받기(파일 단위): 이전 시도의 `.partial`에서 목록 해시와 같은 내용만 빈 새 디렉터리로 옮겨 쓴다.
     // - 새 디렉터리에는 목록 철자 그대로 쓰므로 대소문자가 다른 옛 이름이나 옛 파일/디렉터리 충돌이 남지 않는다.
     // - 옛 디렉터리는 표준 `remove_dir_all`로 지운다. 이 함수는 심볼릭 링크·정션을 따라가지 않는다
@@ -340,6 +333,21 @@ mod tests {
             sha256(b"client")
         )
         .into_bytes()
+    }
+
+    #[test]
+    fn windows_aliases_are_rejected_before_creating_the_download_directory() {
+        let hash = sha256(b"dll");
+        let mut list = manifest(&hash);
+        list.extend_from_slice(format!("file\tEXE/DINPUT8.DLL\t{hash}\n").as_bytes());
+        let base = serve(vec![("/patch/patch.manifest", list)]);
+        let temp =
+            std::env::temp_dir().join(format!("logh7-download-alias-{}", std::process::id()));
+        let failure = download(&base, &temp, None, None).unwrap_err();
+
+        assert!(failure.contains("중복"), "{failure}");
+        assert!(!temp.exists());
+        assert!(!temp.with_extension("partial").exists());
     }
 
     #[test]
