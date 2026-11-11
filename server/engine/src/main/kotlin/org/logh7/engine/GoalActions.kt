@@ -65,13 +65,13 @@ object GoalActions {
         return SocialResult(p.paidWith(paid.balance),s.copy(social=s.social.copy(goals=next)),changed=true,outcome=1,found=i.target)
     }
 
-    /** One day's lean toward the planet's focus (skipped while production is stopped). */
-    fun lean(day:PlanetStock,before:PlanetStock,focus:Int?,stopped:Boolean,maximumStock:Int=Int.MAX_VALUE):PlanetStock {
-        if(focus==null || stopped)return day
+    /** Apply the focus after production, using gross supplies before construction and recruitment. */
+    internal fun lean(day:PlanetStock,suppliesProduced:Int,focus:Int?,maximumStock:Int=Int.MAX_VALUE):PlanetStock {
+        if(focus==null)return day
         val e=day.economy
         return when(focus) {
             PRODUCTION -> {
-                val bonus = productionBonus(day.supplies - before.supplies)
+                val bonus = productionBonus(suppliesProduced)
                 val ceiling = maxOf(day.supplies, maximumStock).toLong()
                 day.copy(supplies = minOf(ceiling, day.supplies.toLong() + bonus).toInt())
             }
