@@ -319,7 +319,9 @@ internal object NpcStrategy {
                 }
                 if(position.baseId==homeBase.id)return null
                 if(origin==homeBase.grid)return Plan(OutfitPosition(origin,homeBase.id))
-                missionRoute(galaxy,forces,outfit,stocks,homeBase,preferred,returning=true)?.let {return it}
+                missionRoute(galaxy,forces,outfit,stocks,homeBase,preferred,returning=true,
+                    reserveInPort=mayReserve && outfit.strategy?.expeditionBase!=null,
+                    producesSupplies=producesSupplies)?.let {return it}
             }
         }
         val home=if(position.baseId==0)home(galaxy,forces,outfit,stocks) else null
@@ -351,6 +353,8 @@ internal object NpcStrategy {
             }
         }
         if(home==null)return null
+        // A returning expedition can wait for a route to reopen without spending its remaining fuel.
+        if(rearm && outfit.strategy?.expeditionBase!=null && jumpShortfall(live,balances,home.jumps)>0L)return null
         return Plan(OutfitPosition(home.next,if(home.next==home.base.grid)home.base.id else 0))
     }
     private fun depot(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy)=
