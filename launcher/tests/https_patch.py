@@ -99,7 +99,11 @@ def exercise(launcher, root):
 
     with serve(plaintext) as http_port, serve(secure, context) as https_port:
         base = f"https://localhost:{https_port}"
-        out = root / "patch"
+        out = root / "patch.1"
+        other = root / "patch.2"
+        legacy = root / "patch.partial"
+        legacy.mkdir()
+        (legacy / "keep").write_bytes(b"previous launcher data")
         assert download(base + "/patch", out, trust=False).returncode != 0
         mismatch = download(f"https://127.0.0.1:{https_port}/patch", out)
         assert mismatch.returncode != 0 and "HTTPS 인증 또는 암호화 연결 실패" in mismatch.stderr, mismatch
@@ -108,13 +112,27 @@ def exercise(launcher, root):
         redirected = download(base + "/redirect", out)
         assert redirected.returncode != 0 and not insecure, redirected.stderr
         assert requests == ["/redirect/patch.manifest"] and not out.exists(), requests
+        for suffix in (".PARTIAL", ".partial-next"):
+            reserved = out.with_name(out.name + suffix)
+            result = download(base + "/patch", reserved)
+            assert result.returncode == 1 and "임시 디렉터리와 충돌" in result.stderr, result
+            assert not reserved.exists()
+        assert requests == ["/redirect/patch.manifest"], requests
 
         result = download(base + "/patch/", out)
         assert result.returncode != 0 and "패치 파일 받기: HTTPS 패치 응답 본문" in result.stderr, result
-        partial = out.with_suffix(".partial")
+        partial = out.with_name(out.name + ".partial")
+        assert (legacy / "keep").read_bytes() == b"previous launcher data"
         assert not out.exists() and (partial / "exe/a.dll").read_bytes() == payload["exe/a.dll"]
         assert not (partial / "data/b.dat").exists()
         interrupt = False
+        requests.clear()
+        result = download(base + "/patch", other)
+        assert result.returncode == 0, result.stderr
+        assert requests == ["/patch/patch.manifest", "/patch/exe/a.dll", "/patch/data/b.dat"], requests
+        assert (partial / "exe/a.dll").read_bytes() == payload["exe/a.dll"]
+        assert all((other / name).read_bytes() == data for name, data in payload.items())
+        assert (legacy / "keep").read_bytes() == b"previous launcher data"
         requests.clear()
         result = download(base + "/patch", out)
         assert result.returncode == 0, result.stderr
@@ -159,4 +177,4 @@ if __name__ == "__main__":
         root = Path(folder)
         exercise(launcher, root)
         safe_failure_output(launcher, root)
-    print("HTTPS trust, hostname, redirect refusal, interrupted download resume, and safe failure output passed")
+    print("HTTPS trust, hostname, redirect refusal, versioned download resume, and safe failure output passed")
