@@ -90,4 +90,33 @@ class NpcObjectiveRoutingTest {
         assertTrue(fleet(away).supplies>=17*ship.boats)
         assertEquals(ground,fleet(away).activeGround)
     }
+
+    @Test fun emptyCarrierReturnsFromForwardDepotAndLoadsNewInfantryBeforeRetryingTheObjective() {
+        val world=map(2487,2484,stage=2485)
+        val initial=stock(world,100000)
+        val empty=fleet(initial).copy(position=OutfitPosition(2485,1002),
+            activeGround=ActiveGroundUnits(emptyList()),units=UnitInventory(ships=mapOf(ship.stack to 1)))
+        var inventory=initial.copy(outfits=mapOf(1 to empty))
+        val moves=mutableListOf<NpcStrategicMovement>()
+        var at=0L
+        repeat(2) {
+            inventory=advance(at,world,inventory,moves)
+            inventory=advance(assertNotNull(fleet(inventory).strategy?.arrivesAt),world,inventory,moves)
+            at=fleet(inventory).strategy!!.nextDecisionAt
+        }
+        assertEquals(listOf(2386,2487),moves.map {it.destination})
+        assertEquals(OutfitPosition(2487,1000),fleet(inventory).position)
+        val waiting=advance(at,world,inventory,moves)
+        assertNull(fleet(waiting).strategy?.destination)
+        assertTrue(fleet(waiting).activeGround!!.values.isEmpty())
+
+        val home=waiting.bases.getValue(1000).copy(units=UnitInventory(troops=mapOf(UnitStack(0) to 1)))
+        val resupplied=waiting.copy(bases=waiting.bases+(1000 to home))
+        val rearmed=advance(assertNotNull(fleet(waiting).strategy).nextDecisionAt,world,resupplied,moves)
+        val replacement=assertNotNull(fleet(rearmed).activeGround).values.single()
+        assertEquals(3,replacement.id)
+        assertEquals(ship.id,replacement.carrier)
+        assertTrue(rearmed.bases.getValue(1000).units.troops.isEmpty())
+        assertNotNull(fleet(rearmed).strategy?.destination)
+    }
 }
