@@ -76,7 +76,8 @@ internal object Reorganization {
         val additionalTroops = if (outfit.kind == OutfitKind.GROUND) {
             // The editor adds the returned transport allowance to its existing troop count.
             val baseline = GroundUnits.quantities(outfit.units).values.sum()
-            val slots = checkNotNull(projected.activeShips).values.sumOf { GroundTransfer.capacity(it.stack.kind) }
+            val slots = checkNotNull(projected.activeShips).values.filter { it.boats > 0 }
+                .sumOf { GroundTransfer.capacity(it.stack.kind) }
             maxOf(0, slots - baseline)
         } else 0
         return ReorganizationCapacity(additionalTroops,Math.toIntExact(crew),Math.toIntExact(crew-baselineCrew),shipRows(projected))

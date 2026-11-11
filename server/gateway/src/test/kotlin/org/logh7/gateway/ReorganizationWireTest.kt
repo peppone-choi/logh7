@@ -14,11 +14,12 @@ class ReorganizationWireTest {
         val state = State(10000)
         val infantry = UnitStack(0)
         val landingShip = UnitStack(84)
-        val outfit = state.stocks.outfits.getValue(1).copy(kind = OutfitKind.GROUND, activeShips = null,
-            units = UnitInventory(mapOf(landingShip to 1), mapOf(infantry to 1, UnitStack(3) to 1)))
+        val ships = ActiveShipUnits(listOf(ActiveShipUnit(1, landingShip), ActiveShipUnit(2, landingShip, boats = 0)))
+        val outfit = state.stocks.outfits.getValue(1).copy(kind = OutfitKind.GROUND, activeShips = ships,
+            units = UnitInventory(ships.quantities(), mapOf(infantry to 1, UnitStack(3) to 1)))
         val warehouse = state.stocks.warehouses.getValue(101).copy(kind = OutfitKind.PATROL, outfitId = 0,
             units = UnitInventory(troops = mapOf(infantry to 1)))
-        state.stocks = state.stocks.copy(outfits = mapOf(1 to outfit), warehouses = mapOf(101 to warehouse))
+        state.stocks = state.stocks.copy(outfits = mapOf(1 to outfit), warehouses = mapOf(101 to warehouse), nextShipId = 3)
 
         fixture(state, "ground-preview").use { server ->
             val client = server.join(server.account(0), true, false).client
