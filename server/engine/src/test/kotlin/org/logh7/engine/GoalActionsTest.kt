@@ -53,8 +53,7 @@ class GoalActionsTest {
         val s=assertNotNull(act(GoalActions.GOVERNANCE,66,1049,GoalActions.APPROVAL).stocks)
         assertEquals(2,s.social.goals.focus[1049])
         val day=s.bases.getValue(1049)
-        assertEquals(61,GoalActions.lean(day,day,GoalActions.APPROVAL,false).economy?.approval)
-        assertEquals(60,GoalActions.lean(day,day,GoalActions.APPROVAL,true).economy?.approval,"stopped")
-        assertEquals(210+10,GoalActions.lean(day.copy(supplies=210),day.copy(supplies=110),GoalActions.PRODUCTION,false).supplies)
+        assertEquals(61,GoalActions.lean(day,0,GoalActions.APPROVAL).economy?.approval)
+        assertEquals(210+10,GoalActions.lean(day.copy(supplies=210),100,GoalActions.PRODUCTION).supplies)
     }
 }

@@ -72,6 +72,23 @@ class UnitProductionTest {
         val fortress = galaxy.bases.single().copy(kind = 1)
         assertTrue(Places.forBase(fortress, 2).any { it.kind == 10 })
     }
+    @Test fun productionFocusUsesTheDaysOutputEvenWhenTheShipyardSpendsItAll() {
+        val day = 86400L
+        val base = initial().copy(supplies = 100, units = UnitInventory(work = mapOf("S32" to 66)))
+        val opening = PlanetStocks(1, 0, mapOf(base.baseId to base), deploymentInitialized = true)
+        val focused = opening.copy(social = opening.social.copy(goals =
+            GoalState(focus = mapOf(base.baseId to GoalActions.PRODUCTION))))
+        val limited = policy.copy(suppliesPerDay = 450)
+        val normal = PlanetProduction(galaxy, null, 0, limited, restored = opening).settle(1, day)
+        val settled = PlanetProduction(galaxy, null, 0, limited, restored = focused).settle(1, day)
+        val ordinaryStock = normal.bases.getValue(base.baseId)
+        val focusedStock = settled.bases.getValue(base.baseId)
+        assertEquals(1, ordinaryStock.units.ships[UnitStack(32)])
+        assertEquals(100, ordinaryStock.supplies)
+        assertEquals(ordinaryStock.copy(supplies = 145), focusedStock)
+        assertEquals(settled, PlanetProduction(galaxy, null, 0, limited, restored = settled).settle(1, day))
+    }
+
     @Test fun aRebuiltShipyardJoinsAutomaticProductionAtTheAbsoluteWorldClock() {
         val start=SessionRules.load().startSeconds
         val base=1049
