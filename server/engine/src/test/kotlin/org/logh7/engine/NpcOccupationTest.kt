@@ -467,4 +467,45 @@ class NpcOccupationTest {
         val departing=advance(21600,produced)
         assertEquals(88,assertNotNull(departing.outfits.getValue(fleet.id).strategy?.destination)%100)
     }
+
+    @Test fun underwayExpeditionCanFinishAReachableLegToAnEmptyProductivePort() {
+        val home=base.copy(id=1001,grid=2487)
+        val stage=base.copy(id=1002,grid=2490)
+        val objective=base.copy(id=1003,grid=2493)
+        val world=Galaxy(listOf(
+            GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,stage.grid,4,"Stage",2),
+            GalaxySystem(5,objective.grid,4,"Objective",3)
+        ),listOf(home,stage,objective),mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to objective.grid))
+        val original=stocks(12f)
+        val fleet=original.outfits.getValue(1).copy(baseId=home.id,position=OutfitPosition(2488),
+            strategy=NpcStrategicState(now,expeditionBase=objective.id),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32)))))
+        val ship=fleet.activeShips!!.values.single()
+        val funded=OutfitSupplies.withBalances(fleet,mapOf(ship.id to ship.boats*2))
+        val underway=original.copy(bases=mapOf(
+            home.id to PlanetStock(home.id,2,0,100_000,0,0),
+            stage.id to PlanetStock(stage.id,2,0,0,0,0),
+            objective.id to PlanetStock(objective.id,3,0,0,0,0)
+        ),outfits=mapOf(fleet.id to funded),social=SocialState(),
+            strategic=original.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to objective.id)),
+            warehouses=mapOf(fleet.warehouseId to original.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id)))
+        val moves=mutableListOf<NpcStrategicMovement>()
+        fun advance(offset:Long,stock:PlanetStocks,productive:Boolean=true)=NpcStrategy.advance(
+            time(offset),world,mutableMapOf(),stock,moves,producesSupplies={productive && it.baseId==stage.id})
+
+        assertEquals(home.grid,advance(0,underway,productive=false).outfits.getValue(fleet.id).strategy?.destination)
+        val reserved=advance(0,underway)
+        val jump=assertNotNull(reserved.outfits.getValue(fleet.id).strategy?.destination)
+        assertEquals(89,jump%100)
+        assertEquals(underway.bases,reserved.bases)
+        val first=advance(3600,reserved)
+        val next=advance(25200,first)
+        assertEquals(stage.grid,next.outfits.getValue(fleet.id).strategy?.destination)
+        val arrived=advance(28800,next)
+        val docked=arrived.outfits.getValue(fleet.id)
+        assertEquals(OutfitPosition(stage.grid,stage.id),docked.positionIn(world))
+        assertEquals(0,docked.supplies)
+        assertEquals(fleet.activeGround,docked.activeGround)
+        assertEquals(listOf(jump,stage.grid),moves.map {it.destination})
+    }
 }
