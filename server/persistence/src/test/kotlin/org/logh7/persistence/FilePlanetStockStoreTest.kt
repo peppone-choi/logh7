@@ -8,6 +8,33 @@ import kotlin.test.*
 
 class FilePlanetStockStoreTest {
     @TempDir lateinit var directory: Path
+    @Test fun groundOutfitAtSeaRequiresTheRollbackMarkerAndPreservesCarrierIdentity() {
+        val path = directory.resolve("ground-at-sea")
+        val depot = PlanetStock(1049, 2, 0, 100, 100, 100)
+        val ship = ActiveShipUnit(1, UnitStack(84))
+        val infantry = ActiveGroundUnit(2, UnitStack(0), carrier = ship.id)
+        val outfit = OutfitStock(1, 2, OutfitKind.GROUND, depot.baseId, 10, commanderId = 10000,
+            units = UnitInventory(mapOf(ship.stack to 1), mapOf(infantry.stack to 1)),
+            activeShips = ActiveShipUnits(listOf(ship)), activeGround = ActiveGroundUnits(listOf(infantry)))
+        val warehouse = OutfitWarehouse(10, 2, OutfitKind.PATROL, depot.baseId)
+        val docked = PlanetStocks(1, 0, mapOf(depot.baseId to depot), mapOf(1 to outfit), mapOf(10 to warehouse),
+            deploymentInitialized = true, nextShipId = 3)
+        val atSea = docked.copy(outfits = mapOf(1 to outfit.copy(position = OutfitPosition(2488))))
+        val marker = "LOGH7-STOCK-57\t"
+
+        FilePlanetStockStore(path).use { store ->
+            store.save(docked)
+            assertFalse(Files.readString(path).startsWith(marker))
+            assertEquals(docked, store.load())
+            store.save(atSea)
+            val saved = Files.readString(path)
+            assertTrue(saved.startsWith(marker))
+            assertEquals(atSea, store.load())
+            Files.writeString(path, saved.removePrefix(marker))
+            assertFailsWith<IllegalArgumentException> { store.load() }
+        }
+    }
+
     @Test fun generatedCharacterDeletionReceiptsRoundTripWithoutChangingOtherStockSections() {
         val path = directory.resolve("deletion")
         val stock = PlanetStock(1049, 2, 0, 100, 100, 100)

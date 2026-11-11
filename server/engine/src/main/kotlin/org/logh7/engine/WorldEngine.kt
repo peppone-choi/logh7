@@ -591,8 +591,7 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
     }
     private fun offlineArrival(session:SessionState,before:Navigator,after:Navigator):NpcStrategicMovement {
         val stocks=production?.snapshot(session.generation)
-        val outfit=galaxy?.let {g->stocks?.outfits?.values?.singleOrNull {it.commanderId==after.characterId &&
-            it.kind!=OutfitKind.GROUND && it.positionIn(g).grid==after.grid}}
+        val outfit = if (galaxy != null && stocks != null) FleetNavigation.commandedOutfit(after, stocks, galaxy) else null
         val units=outfit?.activeShips?.values.orEmpty().filter {it.boats>0}.map {it.id}.take(300)
         val audience=session.participants.mapNotNull {(account,member)->
             navigation?.snapshot(session.generation)?.get(account)?.takeIf {member.online && member.connection!=null}

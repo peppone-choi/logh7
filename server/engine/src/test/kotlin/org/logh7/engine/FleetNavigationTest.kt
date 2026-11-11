@@ -64,6 +64,37 @@ class FleetNavigationTest {
         assertEquals(player,apply(state,request).single().player)
     }
 
+    @Test fun groundOutfitWarpsWithItsLandingShipAndLeavesAshoreTroopsAtTheDepot() {
+        val state = state()
+        val landingShip = UnitStack(163)
+        val infantry = UnitStack(4)
+        val ship = ActiveShipUnit(1, landingShip)
+        val aboard = ActiveGroundUnit(2, infantry, carrier = ship.id)
+        val ashore = ActiveGroundUnit(3, infantry, base = home.id)
+        val outfit = state.stocks.outfits.getValue(1).copy(kind = OutfitKind.GROUND,
+            units = UnitInventory(mapOf(landingShip to 1), mapOf(infantry to 2, UnitStack(7) to 1)),
+            activeShips = ActiveShipUnits(listOf(ship)), activeGround = ActiveGroundUnits(listOf(aboard, ashore)))
+        val warehouse = state.stocks.warehouses.getValue(10).copy(kind = OutfitKind.PATROL, outfitId = 0)
+        state.stocks = state.stocks.copy(outfits = mapOf(1 to outfit), warehouses = mapOf(10 to warehouse), nextShipId = 4)
+
+        assertNull(apply(state, request.copy(place = PlaceMove.SwitchMode(5))).single().rejection)
+        assertEquals(OutfitPosition(home.grid), state.stocks.outfits.getValue(1).position)
+        assertNull(apply(state, request.copy(destination = enemy.grid)).single().rejection)
+        val arrived = state.stocks.outfits.getValue(1)
+        assertEquals(OutfitPosition(enemy.grid), arrived.position)
+        assertEquals(ship.id, arrived.activeShips!!.values.single().id)
+        assertEquals(listOf(aboard, ashore), arrived.activeGround!!.values)
+        assertEquals(warehouse, state.stocks.warehouses.getValue(10))
+        val pilot = state.players.getValue("pilot")
+        assertEquals(enemy.grid, pilot.grid)
+        assertEquals(960, pilot.mcp)
+        assertEquals(900, pilot.cruise)
+        val forces = GridForces.collect(galaxy, 1, state.players.values, state.stocks)
+        assertEquals(1L, forces.getValue(home.grid).single().units)
+        assertEquals(3L, forces.getValue(enemy.grid).single { it.camp.country == Power.ALLIANCE.country }.units)
+        assertEquals(pilot, apply(state, request).single().player)
+    }
+
     @Test fun immediateWarpCommitsTheOperationStartWithTheShipAndRollsBothBackOnFailure() {
         for (fleet in listOf(false, true)) {
             val state = operationTravelState(fleet, 2488)
