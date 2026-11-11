@@ -194,6 +194,20 @@ pub fn download(
     if out.exists() {
         return Err("받을 디렉터리가 이미 있습니다".into());
     }
+    let name = out.file_name().ok_or("받을 디렉터리 이름이 필요합니다")?;
+    let lower = name.to_string_lossy().to_ascii_lowercase();
+    if lower.ends_with(".partial")
+        || lower.ends_with(".partial-next")
+        || lower.ends_with(['.', ' '])
+    {
+        return Err("내려받기 임시 디렉터리와 충돌하는 이름입니다".into());
+    }
+    // Preserve the complete output name so dotted release versions have separate staging paths.
+    let mut temporary = name.to_os_string();
+    temporary.push(".partial");
+    let staging = out.with_file_name(&temporary);
+    temporary.push("-next");
+    let fresh = out.with_file_name(temporary);
     let https = base
         .starts_with("https://")
         .then(|| https_agent(base))
@@ -240,8 +254,6 @@ pub fn download(
     // - 새 디렉터리에는 목록 철자 그대로 쓰므로 대소문자가 다른 옛 이름이나 옛 파일/디렉터리 충돌이 남지 않는다.
     // - 옛 디렉터리는 표준 `remove_dir_all`로 지운다. 이 함수는 심볼릭 링크·정션을 따라가지 않는다
     //   (Rust 1.58.1, CVE-2022-21658). 링크를 통해 읽힌 내용도 목록 해시와 같을 때만 쓰므로 섞이지 않는다.
-    let staging = out.with_extension("partial");
-    let fresh = out.with_extension("partial-next");
     let _ = fs::remove_dir_all(&fresh);
     fs::create_dir_all(&fresh).map_err(|_| "임시 다운로드 디렉터리를 만들지 못했습니다")?;
     let write = |root: &Path, relative: &str, data: &[u8]| -> Result<(), String> {
