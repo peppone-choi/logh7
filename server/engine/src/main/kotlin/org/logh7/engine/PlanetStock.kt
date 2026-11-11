@@ -128,6 +128,8 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun infantryProduction(base:Int,country:CountryId):List<Int> =
         units.forCountry(base,country).filterNot {it.unit.ship}.map {it.unit.kind}
+    fun producesSupplies(stock:PlanetStock):Boolean =
+        stock.economy!=null && stock.nextDay(galaxy.conditions.getValue(stock.baseId),policy).supplies>stock.supplies
     fun settle(session:SessionState)=settle(session.generation,session.gameMillis/1000,session.eliminated.keys)
     fun settle(generation: Long, seconds: Long,eliminated:Set<CountryId> = emptySet()): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
