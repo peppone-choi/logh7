@@ -131,6 +131,22 @@ class NpcOccupationTest {
 
         val drained=OutfitSupplies.withBalances(carrier,carrier.activeShips!!.values.associate {it.id to 0})
             .copy(strategy=NpcStrategicState(now+21600,expeditionBase=empireFront.id))
+        val ships=drained.activeShips!!.values
+        val total=ships.sumOf {it.boats*5/2}
+        var remaining=total
+        val uneven=OutfitSupplies.withBalances(drained,ships.associate {ship->
+            val supplied=minOf(remaining,OutfitSupplies.unitCapacity(ship))
+            remaining-=supplied
+            ship.id to supplied
+        })
+        assertTrue(ships.any {OutfitSupplies.distribution(uneven).getValue(it.id)<it.boats})
+        val dry=loaded.copy(outfits=loaded.outfits+(carrier.id to uneven),bases=loaded.bases+
+            (home.baseId to loaded.bases.getValue(home.baseId).copy(supplies=0)))
+        val balanced=advance(dry,time(21600)).outfits.getValue(carrier.id)
+        assertEquals(total,balanced.supplies)
+        assertTrue(ships.all {OutfitSupplies.distribution(balanced).getValue(it.id) in it.boats*2..it.boats*3})
+        assertEquals(empireFront.grid,balanced.strategy?.destination)
+
         val short=loaded.copy(outfits=loaded.outfits+(carrier.id to drained),bases=loaded.bases+
             (home.baseId to loaded.bases.getValue(home.baseId).copy(supplies=0))+
             (depot.id to loaded.bases.getValue(depot.id).copy(supplies=100_000)))

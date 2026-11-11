@@ -327,6 +327,35 @@ internal object NpcStrategy {
     private fun jumpShortfall(ships:List<ActiveShipUnit>,balances:Map<Int,Int>,jumps:Int)=
         ships.sumOf {max(0,it.boats*jumps-balances.getValue(it.id)).toLong()}
 
+    /** Redistribute carried fuel in port so every surviving unit can make the same jumps. */
+    private fun balanceFuelInPort(outfit:OutfitStock):OutfitStock {
+        val ships=outfit.activeShips!!.values.filter {it.boats>0}
+        val balances=OutfitSupplies.distribution(outfit)
+        val carried=ships.sumOf {balances.getValue(it.id)}
+        val boats=ships.sumOf {it.boats}
+        val capacityJumps=ships.minOf {OutfitSupplies.unitCapacity(it)/it.boats}
+        val jumps=minOf(carried/boats,capacityJumps)
+        // Keep the fraction above the shared minimum usable for the next jump.
+        val shared=ships.associate {ship->
+            val minimum=ship.boats*jumps
+            val current=balances.getValue(ship.id)
+            val amount=if(jumps<capacityJumps)current.coerceIn(minimum,minimum+ship.boats) else max(current,minimum)
+            ship.id to amount
+        }.toMutableMap()
+        var remainder=carried.toLong()-shared.values.sumOf(Int::toLong)
+        for(ship in ships) {
+            if(remainder==0L)break
+            val current=shared.getValue(ship.id)
+            val minimum=ship.boats*jumps
+            val adjustment=remainder.coerceIn((minimum-current).toLong(),max(0,minimum+ship.boats-current).toLong())
+            shared[ship.id]=current+adjustment.toInt()
+            remainder-=adjustment
+        }
+        check(remainder==0L)
+        if(shared.all {(id,amount)->balances.getValue(id)==amount})return outfit
+        return OutfitSupplies.withBalances(outfit,balances+shared)
+    }
+
     private fun canDepart(stocks:PlanetStocks,outfit:OutfitStock,galaxy:Galaxy):Boolean {
         val ships=outfit.activeShips!!.values.filter {it.boats>0}
         val source=depot(stocks,outfit,galaxy)
@@ -397,6 +426,14 @@ internal object NpcStrategy {
                     fleet.activeShips?.values?.any {it.boats>0}==true &&
                     stocks.bases[fleet.baseId]?.let {it.country==country && it.camp==0}==true &&
                     claimsByFleet[fleet.id].orEmpty().none {it.vacantFleet(fleet,stocks,galaxy,players)!=null}
+            }?.let {fleet->
+                val position=fleet.positionIn(galaxy)
+                if(checkNotNull(fleet.strategy).nextDecisionAt>now || depot(stocks,fleet,galaxy)==null ||
+                    !eligible(fleet,stocks) || warehouseBlocked(stocks,fleet.id) ||
+                    TacticalContact.contested(forces()[position.grid].orEmpty()))fleet
+                else balanceFuelInPort(fleet).also {balanced->
+                    if(balanced!=fleet)stocks=stocks.copy(outfits=stocks.outfits+(fleet.id to balanced))
+                }
             }
             for(fleet in assigned)if(fleet.id!=retained?.id)setStrategy(fleet,NpcStrategicState(now))
             if(enemy==null)continue
