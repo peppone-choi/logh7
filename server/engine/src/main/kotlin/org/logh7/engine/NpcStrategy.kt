@@ -225,13 +225,17 @@ internal object NpcStrategy {
             if(reserveInPort && position.baseId!=0 && canCarry(jumps))collectLocally(jumps) else null
         fun pooled(jumps:Int):Plan? = if(canPay(jumps,combined))collectLocally(jumps) else null
 
-        // A stocked staging depot must shorten the remaining route, so a short sortie cannot oscillate between depots.
-        val closer=depots.filter {toGoal[it.grid]<forward && stocks.bases.getValue(it.id).supplies>0}
+        // A staging depot must shorten the route. An underway fleet may finish its funded jump
+        // into a safe berth even if its stock was consumed after the jump was reserved.
+        fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
+        val closer=depots.filter {toGoal[it.grid]<forward &&
+            (stocked(it) || position.baseId==0 && it.grid==preferred)}
         if(closer.isEmpty())return pooled(roundTrip) ?: reserve(roundTrip)
         val first=IntArray(5000)
         val fromOrigin=distances(origin,first,live.minOf {maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it))/it.boats})
         val stages=closer.filter {fromOrigin[it.grid]>0}
-            .sortedWith(compareBy<GalaxyBase> {toGoal[it.grid]}.thenBy {fromOrigin[it.grid]}.thenBy {it.id})
+            .sortedWith(compareByDescending<GalaxyBase>(::stocked)
+                .thenBy {toGoal[it.grid]}.thenBy {fromOrigin[it.grid]}.thenBy {it.id})
         stages.firstOrNull {canPay(fromOrigin[it.grid])}?.let {stage->
             val next=first[stage.grid]
             return Plan(OutfitPosition(next,if(next==stage.grid)stage.id else 0),fromOrigin[stage.grid])

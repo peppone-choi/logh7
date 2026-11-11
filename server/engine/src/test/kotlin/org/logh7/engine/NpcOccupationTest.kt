@@ -204,4 +204,45 @@ class NpcOccupationTest {
         assertEquals(landed.values,rearmed.activeGround!!.values.filter {it.base==empireFront.id})
         assertEquals(secondTarget.id,rearmed.strategy?.expeditionBase)
     }
+
+    @Test fun reservedExpeditionDocksAtItsForwardBerthAfterTheStockRunsOut() {
+        val home=base.copy(id=1001,grid=2487)
+        val forward=base.copy(id=1002,grid=2489)
+        val objective=base.copy(grid=2491)
+        val world=Galaxy(listOf(
+            GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,forward.grid,4,"Forward",2),
+            GalaxySystem(5,objective.grid,4,"Objective",3)
+        ),listOf(home,forward,objective),mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to objective.grid))
+        val original=stocks(12f)
+        val fleet=original.outfits.getValue(1).copy(baseId=home.id,position=OutfitPosition(2488),
+            strategy=NpcStrategicState(now+21600,forward.grid,now+3600),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32)))))
+        val fueled=OutfitSupplies.withBalances(fleet,fleet.activeShips!!.values.associate {it.id to it.boats})
+        val waiting=original.copy(bases=mapOf(
+            home.id to PlanetStock(home.id,2,0,100_000,0,0),
+            forward.id to PlanetStock(forward.id,2,0,0,0,0),
+            objective.id to original.bases.getValue(base.id)
+        ),outfits=mapOf(fleet.id to fueled),
+            warehouses=mapOf(fleet.warehouseId to original.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id)))
+        val arrived=NpcStrategy.advance(time(3600),world,mutableMapOf(),waiting,mutableListOf())
+        val docked=arrived.outfits.getValue(fleet.id)
+        assertEquals(OutfitPosition(forward.grid,forward.id),docked.positionIn(world))
+        assertEquals(0,docked.supplies)
+        assertEquals(0,arrived.bases.getValue(forward.id).supplies)
+        assertEquals(fueled.activeGround,docked.activeGround)
+        assertTrue(docked.strategy!!.awaitingDockSupply)
+
+        val deliveredSupplies=docked.activeShips!!.values.single().boats*2
+        val delivered=arrived.copy(bases=arrived.bases+
+            (forward.id to arrived.bases.getValue(forward.id).copy(supplies=deliveredSupplies)))
+        val replenished=NpcStrategy.advance(time(25200),world,mutableMapOf(),delivered,mutableListOf())
+        assertEquals(deliveredSupplies,replenished.outfits.getValue(fleet.id).supplies)
+        assertEquals(0,replenished.bases.getValue(forward.id).supplies)
+
+        val captured=waiting.copy(bases=waiting.bases+
+            (forward.id to waiting.bases.getValue(forward.id).copy(owner=Allegiance.Country(CountryId(3)))))
+        val redirected=NpcStrategy.advance(time(3600),world,mutableMapOf(),captured,mutableListOf())
+        assertNotEquals(forward.id,redirected.outfits.getValue(fleet.id).positionIn(world).baseId)
+        assertEquals(captured.bases,redirected.bases)
+    }
 }
