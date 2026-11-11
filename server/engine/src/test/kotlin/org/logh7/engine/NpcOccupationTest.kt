@@ -296,6 +296,13 @@ class NpcOccupationTest {
             units=UnitInventory(troops=soldiers.quantities()))
         val blockedAssault=advance(waiting.copy(outfits=waiting.outfits+(fortified.id to fortified)),0)
         assertNotEquals(transit.grid,blockedAssault.outfits.getValue(carrier.id).strategy?.destination)
+
+        val committed=fueled.copy(strategy=NpcStrategicState(now,expeditionBase=objective.id))
+        val autonomous=waiting.copy(outfits=waiting.outfits+(carrier.id to committed),social=SocialState(),
+            strategic=waiting.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to objective.id)))
+        val forces=GridForces.collect(world,autonomous.generation,emptyList(),autonomous)
+        assertEquals(5,NpcStrategy.returnDistance(world,forces,committed,autonomous))
+        assertEquals(1,NpcStrategy.returnDistance(world,forces,committed,autonomous,setOf(CountryId(3))))
     }
 
     @Test fun retainsAnExpeditionAtAnEmptyPortWithOngoingSupplyProduction() {

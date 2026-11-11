@@ -122,7 +122,7 @@ internal object NpcTactics {
                 enemies.any { hypot(it.pose.position.x.toDouble()-observer.x,it.pose.position.y.toDouble()-observer.y)<=policy.sight &&
                     !TacticalTerrain.sharedSensorBlocked(galaxy,position.grid,camp,observer,it.pose.position,now,players.values,stocks) }
             }
-            val returnJumps=if(policy.strategic && detectsEnemies)NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks) else null
+            val returnJumps=if(policy.strategic && detectsEnemies)NpcStrategy.returnDistance(galaxy,forces(),outfit,stocks,session.eliminated.keys) else null
             val cargo=OutfitSupplies.distribution(outfit)
             val retreat=live.mapNotNull {it.tactical?.takeIf {s->s.motion.grid==position.grid}?.retreat}.minByOrNull {it.acceptedAt}
             val lossThreshold=if(behavior==NpcCombatBehavior.CAUTIOUS)2 else 4
