@@ -31,6 +31,23 @@ pub fn parse_ui_scale(text: &str) -> Result<String, String> {
     }
 }
 
+pub(crate) fn parse_host(text: &str) -> Result<Ipv4Addr, &'static str> {
+    let host: Ipv4Addr = text
+        .parse()
+        .map_err(|_| "host에는 IPv4 주소가 필요합니다")?;
+    if host.is_unspecified() || host.is_multicast() || host.is_broadcast() {
+        return Err("접속 가능한 IPv4 주소를 지정하세요");
+    }
+    Ok(host)
+}
+
+pub(crate) fn parse_port(text: &str) -> Result<u16, &'static str> {
+    text.parse::<u16>()
+        .ok()
+        .filter(|port| *port > 0)
+        .ok_or("port 범위는 1~65535입니다")
+}
+
 impl Config {
     pub fn parse(text: &str, directory: &Path) -> Result<Self, String> {
         let mut values = BTreeMap::new();
@@ -69,17 +86,8 @@ impl Config {
                 .filter(|v| !v.is_empty())
                 .ok_or_else(|| format!("필수 설정 누락: {key}"))
         };
-        let host: Ipv4Addr = required("host")?
-            .parse()
-            .map_err(|_| "host에는 IPv4 주소가 필요합니다")?;
-        if host.is_unspecified() || host.is_multicast() || host.is_broadcast() {
-            return Err("접속 가능한 IPv4 주소를 지정하세요".into());
-        }
-        let port = required("port")?
-            .parse::<u16>()
-            .ok()
-            .filter(|p| *p > 0)
-            .ok_or("port 범위는 1~65535입니다")?;
+        let host = parse_host(required("host")?)?;
+        let port = parse_port(required("port")?)?;
         let session = values
             .get("session")
             .unwrap_or(&"1")

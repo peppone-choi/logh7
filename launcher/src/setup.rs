@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, parse_host, parse_port};
 use std::{
     fs::{self, OpenOptions},
     io::{self, BufRead, Write},
@@ -25,21 +25,28 @@ pub fn configure(
         .parent()
         .filter(|dir| !dir.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
-    let config = original
-        .as_deref()
-        .map(|text| Config::parse(text, directory))
-        .transpose()?;
+    let saved = original.as_deref().unwrap_or_default();
+    let saved_host = endpoint_value(saved, "host")
+        .and_then(|value| parse_host(value).ok())
+        .map(|host| host.to_string());
+    let saved_port = endpoint_value(saved, "port")
+        .and_then(|value| parse_port(value).ok())
+        .map(|port| port.to_string());
     let host = ask(
         input,
         output,
         "로그인 서버 IPv4 주소",
-        config.as_ref().map(|c| c.host.to_string()).as_deref(),
+        saved_host.as_deref(),
     )?;
     let port = ask(
         input,
         output,
         "로그인 서버 포트",
-        Some(&config.as_ref().map_or(47900, |c| c.port).to_string()),
+        if original.is_none() {
+            Some("47900")
+        } else {
+            saved_port.as_deref()
+        },
     )?;
     let updated = match &original {
         Some(text) => update_endpoint(text, &host, &port),
@@ -102,10 +109,24 @@ fn ask(
     .to_owned())
 }
 
+fn endpoint_value<'a>(text: &'a str, name: &str) -> Option<&'a str> {
+    text.trim_start_matches('\u{feff}')
+        .lines()
+        .find_map(|line| {
+            let (key, value) = line.split_once('=')?;
+            (key.trim() == name).then(|| value.trim())
+        })
+}
+
 fn update_endpoint(text: &str, host: &str, port: &str) -> String {
-    text.split_inclusive('\n')
+    let mut updated: String = text
+        .split_inclusive('\n')
         .map(|line| {
-            let Some((key, old)) = line.split_once('=') else {
+            let body = line
+                .strip_suffix("\r\n")
+                .or_else(|| line.strip_suffix('\n'))
+                .unwrap_or(line);
+            let Some((key, old)) = body.split_once('=') else {
                 return line.to_owned();
             };
             let value = match key.trim_start_matches('\u{feff}').trim() {
@@ -113,11 +134,22 @@ fn update_endpoint(text: &str, host: &str, port: &str) -> String {
                 "port" => port,
                 _ => return line.to_owned(),
             };
-            let prefix = &old[..old.len() - old.trim_start().len()];
-            let suffix = &old[old.trim_end().len()..];
-            format!("{key}={prefix}{value}{suffix}")
+            let trimmed_start = old.trim_start();
+            let prefix = &old[..old.len() - trimmed_start.len()];
+            let suffix = &trimmed_start[trimmed_start.trim_end().len()..];
+            format!("{key}={prefix}{value}{suffix}{}", &line[body.len()..])
         })
-        .collect()
+        .collect();
+    let newline = if text.contains("\r\n") { "\r\n" } else { "\n" };
+    for (name, value) in [("host", host), ("port", port)] {
+        if endpoint_value(text, name).is_none() {
+            if !updated.is_empty() && !updated.ends_with('\n') {
+                updated.push_str(newline);
+            }
+            updated.push_str(&format!("{name}={value}{newline}"));
+        }
+    }
+    updated
 }
 
 fn save(path: &Path, original: Option<&str>, updated: &str) -> Result<(), String> {
@@ -196,6 +228,45 @@ mod tests {
                 .replace("127.0.0.1", "127.0.0.2")
                 .replace("50010", "50011")
         );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn setup_recovers_invalid_empty_and_missing_endpoint_fields() {
+        let directory =
+            std::env::temp_dir().join(format!("logh7-repair-endpoint-{}", std::process::id()));
+        fs::create_dir(&directory).unwrap();
+        let path = directory.join("launcher.ini");
+        let other = "# port=1234\r\nclient_root=client copy\r\naccount=pilot\r\nlogin_ui=true";
+        for (saved, repaired, input) in [
+            (
+                "host=0.0.0.0\r\nport=65536\r\n",
+                "host=127.0.0.2\r\nport=50011\r\n",
+                "127.0.0.2\n50011\n",
+            ),
+            (
+                "host= \r\nport=50011\r\n",
+                "host= 127.0.0.2\r\nport=50011\r\n",
+                "127.0.0.2\n\n",
+            ),
+            ("host=127.0.0.2\r\n", "host=127.0.0.2\r\n", "\n50011\n"),
+        ] {
+            let original = format!("\u{feff}{saved}{other}");
+            fs::write(&path, &original).unwrap();
+            assert!(configure(&path, &mut &b"127.0.0.2\n0\n"[..], &mut Vec::new()).is_err());
+            assert_eq!(fs::read_to_string(&path).unwrap(), original);
+            configure(&path, &mut input.as_bytes(), &mut Vec::new()).unwrap();
+            let text = fs::read_to_string(&path).unwrap();
+            let mut expected = format!("\u{feff}{repaired}{other}");
+            if !saved.contains("port=") {
+                expected.push_str("\r\nport=50011\r\n");
+            }
+            assert_eq!(text, expected);
+            assert_eq!(
+                Config::parse(&text, &directory).unwrap().arguments(),
+                ["127.0.0.2", "50011", "pilot"]
+            );
+        }
         fs::remove_dir_all(directory).unwrap();
     }
 }
