@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.Admission
 import org.logh7.engine.ActorTiming
+import org.logh7.protocol.LoginMessages
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.Callable
@@ -38,6 +39,25 @@ class LoadHarnessTest {
         assertEquals(ActorTiming.entries.size, Regex("NOT_MEASURED").findAll(empty).count())
         assertTrue(empty.contains("\"count\":0"))
     }
+    @Test fun admissionWithoutACharacterIsRejectedBeforeCreationAndCanBeRetried() {
+        LoadFixture(temporary.resolve("missing-character"), 1, LoadMetrics(), ticking = false).use { fixture ->
+            val account = fixture.account(0)
+            fixture.game(account, create = false).use { game ->
+                game.send(SyntheticClient.opcode(0x0205))
+                assertContentEquals(LoginMessages.sessionRejection(), game.expect(0x0202))
+                assertTrue(fixture.decisions.isEmpty())
+                assertFalse(Files.exists(fixture.directory.resolve("characters.properties")))
+            }
+            fixture.awaitState(online = 0, connections = 0, participants = 0)
+
+            val joined = fixture.join(account, create = true)
+            joined.client.use {
+                assertTrue(joined.accepted)
+                fixture.awaitState(online = 1, connections = 1, participants = 1)
+            }
+        }
+    }
+
     @Test fun smallLoopbackLifecycleAlwaysRuns() = lifecycle(3, "small")
     @Test fun operatorCanCloseOnlyTheSelectedAdmittedConnection() {
         val metrics = LoadMetrics()
