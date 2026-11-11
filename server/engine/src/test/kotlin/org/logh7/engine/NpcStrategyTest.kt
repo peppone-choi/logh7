@@ -970,6 +970,51 @@ class NpcStrategyTest {
         assertEquals(reserve, locked.warehouses.getValue(10))
     }
 
+    @Test fun dockedNpcReplacesLossesWithNewProductionWhenLogisticsSeatIsVacant() {
+        val base = galaxy.bases.single().copy(id = 1049, name = "オーディン")
+        val systems = galaxy.systems.map { if (it.grid == base.grid) it.copy(name = "ヴァルハラ") else it }
+        val world = Galaxy(systems, listOf(base), galaxy.starts)
+        val initial = stocks()
+        val fleet = initial.outfits.getValue(1)
+        val ship = fleet.activeShips!!.values.single()
+        val damaged = fleet.copy(baseId = base.id, position = OutfitPosition(base.grid, base.id),
+            activeShips = ActiveShipUnits(listOf(ship.copy(boats = ship.boats - 12))), activeGround = null)
+        val opening = initial.copy(
+            bases = mapOf(base.id to initial.bases.getValue(1000).copy(baseId = base.id, food = 10_000_000)),
+            outfits = mapOf(fleet.id to damaged),
+            warehouses = mapOf(10 to initial.warehouses.getValue(10).copy(baseId = base.id)))
+        val now = 5 * Justice.DAY
+        val produced = PlanetProduction(world, null, 0, PlanetProductionPolicy(), restored = opening).settle(1, now)
+        val depot = produced.bases.getValue(base.id)
+        val crew = UnitStack(3)
+        val required = ReplacementBoats.crewRequired(fleet).toInt()
+        assertTrue(depot.units.ships.getValue(stack) > 0)
+        assertTrue(depot.units.troops.getValue(crew) >= required)
+        val session = simulation.copy(gameMillis = now * 1000)
+        fun decide(source: PlanetStocks, blocked: Boolean = false) = NpcStrategy.advance(session, world, players(), source,
+            mutableListOf(), warehouseBlocked = { _, _ -> blocked })
+
+        val restored = decide(produced)
+        assertEquals(ship, restored.outfits.getValue(fleet.id).activeShips!!.values.single())
+        assertEquals(required, restored.outfits.getValue(fleet.id).units.troops[crew])
+        assertEquals((depot.units.ships[stack] ?: 0) - 1, restored.bases.getValue(base.id).units.ships[stack] ?: 0)
+        assertEquals((depot.units.troops[crew] ?: 0) - required, restored.bases.getValue(base.id).units.troops[crew] ?: 0)
+        assertEquals(depot.units.work, restored.bases.getValue(base.id).units.work)
+        assertEquals(ship.boats - 12, restored.warehouses.getValue(10).spareShips.values[stack])
+        assertEquals(restored, decide(restored))
+
+        val staffed = produced.copy(logisticsOfficers = mapOf(10002 to LogisticsOffice.EMPIRE_FIRST))
+        assertTrue(LogisticsOfficePolicy(world).staffed(staffed, fleet.country, fleet.kind))
+        val shortCrew = produced.copy(bases = mapOf(base.id to depot.copy(units = UnitInventory(
+            depot.units.ships, depot.units.troops - crew, depot.units.work))))
+        for ((source, blocked) in listOf(staffed to false, shortCrew to false, produced to true)) {
+            val skipped = decide(source, blocked)
+            assertEquals(damaged.activeShips, skipped.outfits.getValue(fleet.id).activeShips)
+            assertEquals(source.bases, skipped.bases)
+            assertEquals(source.warehouses, skipped.warehouses)
+        }
+    }
+
     @Test fun depotRepairSkipsGuardShipsAndHumanCommandedOutfits() {
         val initial = stocks()
         val damaged = TacticalLosses.apply(initial.outfits.getValue(1), 1, 40)
