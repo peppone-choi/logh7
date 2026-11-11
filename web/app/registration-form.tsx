@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { FormEvent } from "react";
+
+// Server render and hydration see false; the client snapshot flips it once React handlers are attached.
+const noSubscription = () => () => {};
 
 const serverErrors = {
   invalid_account: { field: "account", message: "영문, 숫자, 마침표(.), 밑줄(_), 하이픈(-)으로 1~30자를 입력하세요." },
@@ -28,6 +31,7 @@ type Result = { kind: "idle" | "pending" }
 export default function RegistrationForm({ login }: { login: { host: string; port: number } | null }) {
   const [result, setResult] = useState<Result>({ kind: "idle" });
   const [showPassword, setShowPassword] = useState(false);
+  const hydrated = useSyncExternalStore(noSubscription, () => true, () => false);
   const accountInput = useRef<HTMLInputElement>(null);
   const passwordInput = useRef<HTMLInputElement>(null);
   const successTitle = useRef<HTMLHeadingElement>(null);
@@ -126,7 +130,7 @@ export default function RegistrationForm({ login }: { login: { host: string; por
           <label htmlFor="account">게임 아이디</label>
           <p id="account-hint" className="hint">1~30자 · 영문, 숫자, 마침표(.), 밑줄(_), 하이픈(-)</p>
         </div>
-        <input id="account" name="account" ref={accountInput} required readOnly={pending}
+        <input id="account" name="account" ref={accountInput} required readOnly={pending} disabled={!hydrated}
           autoComplete="username" autoCapitalize="none" spellCheck={false} onChange={() => clearFieldError("account")}
           aria-invalid={error?.field === "account" || undefined}
           aria-describedby={error?.field === "account" ? "account-error account-hint" : "account-hint"} />
@@ -139,10 +143,10 @@ export default function RegistrationForm({ login }: { login: { host: string; por
         </div>
         <div className="password-row">
           <input id="password" name="password" ref={passwordInput} type={showPassword ? "text" : "password"}
-            required readOnly={pending} autoComplete="new-password" autoCapitalize="none" spellCheck={false}
+            required readOnly={pending} disabled={!hydrated} autoComplete="new-password" autoCapitalize="none" spellCheck={false}
             onChange={() => clearFieldError("password")} aria-invalid={error?.field === "password" || undefined}
             aria-describedby={error?.field === "password" ? "password-error password-hint" : "password-hint"} />
-          <button type="button" className="reveal" aria-pressed={showPassword} disabled={pending}
+          <button type="button" className="reveal" aria-pressed={showPassword} disabled={pending || !hydrated}
             onClick={() => setShowPassword(visible => !visible)}>비밀번호 표시</button>
         </div>
         {error?.field === "password" && <p id="password-error" className="error">{error.message}</p>}
@@ -151,7 +155,7 @@ export default function RegistrationForm({ login }: { login: { host: string; por
         <p className="error" role="alert">{error?.field === null ? error.message : ""}</p>
         <p className="hint submission-status" role="status">{pending ? "계정을 만드는 중입니다." : ""}</p>
         <p className="sr-only" role="status">{result.kind === "error" && result.announce ? error?.message : ""}</p>
-        <button type="submit" className="submit" aria-disabled={pending || undefined}>
+        <button type="submit" className="submit" disabled={!hydrated} aria-disabled={pending || undefined}>
           계정 만들기
         </button>
       </div>
