@@ -804,7 +804,9 @@ class GameExchangeTest {
         game.accept(0x30, encrypted(hex("100601000003e9"), 4))
         assertEquals(listOf(1001L), characters.entries("user"))
         assertTrue(characters.entries("other").isEmpty())
-        assertFails { game.accept(0x30, encrypted(hex("0205"), 5)) }
+        val rejection = assertNotNull(game.accept(0x30, encrypted(hex("0205"), 5)))
+        val (_, body) = Envelope.decode(LegacyBlowfish(b).decrypt(rejection.copyOfRange(8, rejection.size)), serverSequence)
+        assertContentEquals(LoginMessages.sessionRejection(), body)
     }
     @Test fun unsupportedNativeMembershipStopsBeforeAnyActorJoinEvenWithoutAnAdmissionAdapter() {
         for(country in listOf(CountryId(42),null,CountryId(3)))for(withAdapter in listOf(true,false)) {

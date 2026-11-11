@@ -898,8 +898,12 @@ class GameExchange(
     }
     private fun refuseGameAdmissionForMaintenance(): OutboundBatch? {
         if (maintenance?.refuses() != true) return null
+        return rejectGameAdmission(LoginMessages.SessionRejection.MAINTENANCE)
+    }
+
+    private fun rejectGameAdmission(reason: LoginMessages.SessionRejection = LoginMessages.SessionRejection.GENERIC): OutboundBatch {
         state = State.REJECTED
-        return handshake.stageAll(listOf(LoginMessages.sessionRejection(LoginMessages.SessionRejection.MAINTENANCE)), clearHeader = 0)
+        return handshake.stageAll(listOf(LoginMessages.sessionRejection(reason)), clearHeader = 0)
     }
 
     private fun acceptCore(type: Int, data: ByteArray): OutboundBatch? {
@@ -3118,16 +3122,14 @@ class GameExchange(
                         check(gameLoggedIn && !gameStarted && !joining && body.size == 2)
                         // A game connection can authenticate before maintenance and request entry afterwards.
                         refuseGameAdmissionForMaintenance()?.let { return it }
-                        val character = checkNotNull(currentCharacter(identity.account))
-                        val profile=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).getValue(identity.account)
+                        val character = currentCharacter(identity.account) ?: return rejectGameAdmission()
+                        val profile = WorldCharacters.profiles(characters.profiles(), navigation?.snapshot())[identity.account]
+                            ?: return rejectGameAdmission()
                         val canEnter=if(profile.country==null)
                             world?.galaxy?.unaffiliatedStart!=null && profile.character.generated &&
                                 profile.shipStyle.value in setOf("empire","alliance") && profile.shipStyle.nativePower==character.power
                         else profile.canEnterNativeCountry(world?.lobbyCountryDefinitions()?.first ?: org.logh7.engine.CountryCatalogLoader.current())
-                        if(!canEnter) {
-                            state=State.REJECTED
-                            return handshake.stageAll(listOf(LoginMessages.sessionRejection()),clearHeader=0)
-                        }
+                        if (!canEnter) return rejectGameAdmission()
                         if (admission != null) {
                             joining = true; joinRequested = true
                             pendingJoin = admission.join(identity.account, profile.copy(character=character), connection, checkNotNull(generation))
