@@ -56,7 +56,9 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
 
     @Synchronized fun set(account: String, password: String) {
         require(validName(account) && validPassword(password)) { "invalid account or password" }
-        write(fresh() + (account to AccountPassword.hash(password)))
+        val accounts = fresh()
+        if (account in accounts) replacePasswordAndRevoke(accounts, account, password)
+        else write(accounts + (account to AccountPassword.hash(password)))
     }
 
     @Synchronized fun create(account: String, password: String): Boolean {
@@ -98,8 +100,11 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
         return true
     }
 
-    private fun replacePasswordAndRevoke(accounts: Map<String, String>, account: String, password: String) {
-        write(accounts + (account to AccountPassword.hash(password)))
+    private fun replacePasswordAndRevoke(accounts: Map<String, String>, account: String, password: String) =
+        writeAndRevoke(accounts + (account to AccountPassword.hash(password)), account)
+
+    private fun writeAndRevoke(accounts: Map<String, String>, account: String) {
+        write(accounts)
         recoveryVersions.merge(account, 1L, Long::plus)
     }
 
@@ -117,7 +122,8 @@ class FileAccounts(private val path: Path, private val reserveRemovedNames: Bool
         val accounts = fresh()
         val stored = accounts[account] ?: return false
         if (stored == REMOVED) return false
-        write(if (reserveRemovedNames) accounts + (account to REMOVED) else accounts - account)
+        val next = if (reserveRemovedNames) accounts + (account to REMOVED) else accounts - account
+        writeAndRevoke(next, account)
         return true
     }
 
