@@ -24,6 +24,21 @@ internal object GroundTransfer {
      * ships use the full wire bound of 10, every other hull 2. The manual table has no column. */
     fun capacity(kind:Int):Int = ProductionUnits.definitions.singleOrNull {it.ship && it.kind==kind}?.name
         ?.let {if(it.startsWith("兵員輸送艦") || it.startsWith("揚陸艦"))CARRIER_SLOTS else WARSHIP_SLOTS} ?: WARSHIP_SLOTS
+    fun freeBerths(roster:ActiveGroundUnits,ships:List<ActiveShipUnit>):Map<Int,Int> =
+        ships.associate {ship->ship.id to (capacity(ship.stack.kind)-roster.values.count {it.carrier==ship.id})}
+
+    /** Both manual transfer and NPC loading keep the unit and prefer its original carrier when available. */
+    fun board(roster:ActiveGroundUnits,ships:List<ActiveShipUnit>,selected:List<ActiveGroundUnit>):ActiveGroundUnits {
+        val free=freeBerths(roster,ships).toMutableMap()
+        val placements=selected.associate {unit->
+            val carrier=ships.firstOrNull {it.id==unit.origin && free.getValue(it.id)>0}
+                ?: ships.first {free.getValue(it.id)>0}
+            free[carrier.id]=free.getValue(carrier.id)-1
+            unit.id to unit.copy(carrier=carrier.id,base=0,origin=0)
+        }
+        return ActiveGroundUnits(roster.values.map {placements[it.id] ?: it})
+    }
+
     fun evaluate(r:GroundTransferRequest,s:SessionState,p:Navigator?,stocks:PlanetStocks):GroundTransferResult {
         fun reject(reason:LogisticsRejection)=GroundTransferResult(p,stocks,reason)
         val member=s.participants[r.account]
@@ -45,29 +60,24 @@ internal object GroundTransfer {
                 it.tactical?.retreat!=null || it.attack!=null || it.shot!=null})return reject(LogisticsRejection.BUSY)
         val alive=ships.values.filter {it.boats>0}.sortedBy {it.id}
         if(alive.isEmpty())return reject(LogisticsRejection.STOCK)
-        val locations=roster.values.associateBy {it.id}.toMutableMap()
         val selected=roster.values.filter {if(r.action==GroundTransferAction.UNLOAD)
             it.carrier>0 || it.base==0 || it.base==base && it.origin>0
             else it.carrier==0 && (it.base==base || it.base==0)}.sortedBy {it.id}
-        if(r.action==GroundTransferAction.UNLOAD) {
-            for(u in selected)locations[u.id]=u.copy(carrier=0,base=base,origin=0)
+        val loaded=if(r.action==GroundTransferAction.UNLOAD) {
+            val ids=selected.map {it.id}.toSet()
+            ActiveGroundUnits(roster.values.map {if(it.id in ids)it.copy(carrier=0,base=base,origin=0) else it})
         } else {
-            val occupied=alive.associate {ship->ship.id to roster.values.count {it.carrier==ship.id}}.toMutableMap()
-            val free=alive.sumOf {maxOf(0,capacity(it.stack.kind)-occupied.getValue(it.id))}
-            if(occupied.values.any {it>CARRIER_SLOTS} || selected.size>free ||
+            val free=freeBerths(roster,alive)
+            if(alive.any {capacity(it.stack.kind)-free.getValue(it.id)>CARRIER_SLOTS} ||
+                selected.size>free.values.sumOf {maxOf(0,it)} ||
                 o.kind==OutfitKind.TRANSPORT && selected.isNotEmpty() && selected.size>TransportActions.freeUnitSlots(o,stocks.strategic.transports))
                 return reject(LogisticsRejection.STOCK)
-            for(u in selected) {
-                val carrier=alive.firstOrNull {it.id==u.origin && occupied.getValue(it.id)<capacity(it.stack.kind)}
-                    ?: alive.firstOrNull {occupied.getValue(it.id)<capacity(it.stack.kind)} ?: return reject(LogisticsRejection.STOCK)
-                occupied[carrier.id]=occupied.getValue(carrier.id)+1
-                locations[u.id]=u.copy(carrier=carrier.id,base=0,origin=0)
-            }
+            board(roster,alive,selected)
         }
-        val moved=roster.values.filter {it!=locations.getValue(it.id)}.map {it.id}
+        val moved=roster.values.zip(loaded.values).mapNotNull {(before,after)->before.id.takeIf {before!=after}}
         if(moved.isEmpty())return GroundTransferResult(p,stocks)
         if(p.mcp<COST)return reject(LogisticsRejection.CP)
-        val changed=o.copy(activeGround=ActiveGroundUnits(roster.values.map {locations.getValue(it.id)}))
+        val changed=o.copy(activeGround=loaded)
         return GroundTransferResult(p.paidWith(org.logh7.engine.strategy.CpBalance(p.pcp.toLong(),(p.mcp-COST).toLong())),stocks.copy(outfits=stocks.outfits+(o.id to changed)),
             changed=true,moved=moved)
     }

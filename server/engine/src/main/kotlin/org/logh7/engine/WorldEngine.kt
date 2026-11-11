@@ -237,7 +237,10 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             npcPolicy.copy(enabled=npcPolicy.enabled && worldStateCommitter!=null),rules.speed,movements::add,support::add,postures::add,ground::add,groundBattles::add,occupations::add,strategicMovements::add,commands::add,fortressSunk::add,
             settleOfficeRecovery = { old, updated, players -> settleOfficeRecovery(session.gameMillis / 1000, old, updated, players) },
             assignmentBlocked = { stocks, payload -> assignmentBlocked(session, stocks, payload) },
-            npcWarehouseBlocked = { stocks, outfit -> logistics.blocksSupply(session, stocks, setOf(outfit)) },
+            npcWarehouseBlocked = { stocks, outfit ->
+                logistics.blocksSupply(session, stocks, setOf(outfit)) ||
+                    formations.blocksBase(session, stocks.outfits.getValue(outfit).baseId)
+            },
             originalBerthClaims = if(npcPolicy.enabled && npcPolicy.strategic && worldStateCommitter!=null && session.ended==null)
                 originalBerthClaims(session.generation) else emptyList(),
             onCoupDockCancellations = { cancelledDocking.addAll(it) })

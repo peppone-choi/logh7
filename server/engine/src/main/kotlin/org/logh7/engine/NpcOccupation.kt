@@ -29,6 +29,60 @@ internal object NpcOccupation {
     fun hasCarrier(outfit:OutfitStock,base:GalaxyBase,stocks:PlanetStocks)=
         outfit.activeShips?.values.orEmpty().any { available(it,stocks) && aboard(outfit,it,base).isNotEmpty() }
 
+    /** Reuse actual warehouse/base inventory and the same ground IDs and berths as manual loading. */
+    fun loadAtHome(outfit:OutfitStock,goal:GalaxyBase,stocks:PlanetStocks,mayAllocate:()->Boolean):PlanetStocks {
+        val ships=outfit.activeShips?.values.orEmpty().filter {available(it,stocks)}.sortedBy {it.id}
+        if(ships.isEmpty() || hasCarrier(outfit,goal,stocks))return stocks
+        val roster=outfit.activeGround ?: if(GroundUnits.quantities(outfit.units).isEmpty()) ActiveGroundUnits(emptyList())
+            else return stocks // The world initializes historical quantities before offering them for transfer.
+        val slots=GroundTransfer.freeBerths(roster,ships).values.sumOf {maxOf(0,it)}
+            .coerceAtMost(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
+        if(slots==0)return stocks
+        val kinds=UnitSpecifications.crews.filter {
+            it.power==outfit.shipStyle.nativePower && it.type!=3 && GroundBattleRules.admitsCrewType(goal,it.type)
+        }.map {it.kind}.toSet()
+        val ready=roster.values.filter {it.carrier==0 && it.base==0 && it.order==null && it.stack.kind in kinds}
+            .sortedBy {it.id}.take(slots)
+        if(ready.isNotEmpty()) {
+            val loaded=outfit.copy(activeGround=GroundTransfer.board(roster,ships,ready))
+            return stocks.copy(outfits=stocks.outfits+(outfit.id to loaded))
+        }
+        val room=minOf(slots.toLong(),GridEntryRules.MAX_UNITS_PER_CAMP-GridForces.mobileUnits(outfit)).toInt()
+        if(room<=0)return stocks
+        val warehouse=stocks.warehouses.getValue(outfit.warehouseId)
+        fun select(units:UnitInventory):Map<UnitStack,Int> {
+            var remaining=room
+            return buildMap {
+                for((stack,count) in units.troops.entries.sortedWith(compareBy({it.key.kind},{it.key.level}))) {
+                    if(remaining==0)break
+                    if(stack.kind !in kinds)continue
+                    val moved=minOf(remaining,count)
+                    put(stack,moved)
+                    remaining-=moved
+                }
+            }
+        }
+        val reserve=select(warehouse.units)
+        val transfer=UnitTransfer(troops=reserve.ifEmpty {
+            if(!mayAllocate())return stocks
+            select(stocks.bases.getValue(outfit.baseId).units)
+        })
+        if(transfer.troops.isEmpty())return stocks
+        return try {
+            val staged=if(reserve.isNotEmpty())stocks else StockAssignment.applyTransfer(stocks,outfit,transfer,0)
+            val commissioned=ReplacementBoats.reorganize(staged,outfit.id,transfer)
+            val next=commissioned.outfits.getValue(outfit.id)
+            val ground=checkNotNull(next.activeGround)
+            val added=ground.values.filter {it.id>=stocks.nextShipId}
+            check(added.size==transfer.troops.values.sum() && added.size<=slots)
+            val loaded=next.copy(activeGround=GroundTransfer.board(ground,ships,added))
+            commissioned.copy(outfits=commissioned.outfits+(outfit.id to loaded))
+        } catch (_: IllegalArgumentException) {
+            // Capacity, depleted stock or identity exhaustion leaves the source untouched.
+            stocks
+        }
+    }
+
     fun canFinishPosture(outfit:OutfitStock,ship:ActiveShipUnit,state:TacticalPosture,order:TacticalPostureOrder,
         stocks:PlanetStocks,galaxy:Galaxy,eliminated:Set<CountryId>):Boolean {
         if(!eligible(outfit,stocks,eliminated) || outfit.positionIn(galaxy)!=OutfitPosition(state.grid) ||
