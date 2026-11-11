@@ -146,7 +146,7 @@ internal object NpcStrategy {
 
     /** Find a strategic route and budget the entire leg before consuming its first jump. */
     private fun missionRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
-        stocks:PlanetStocks,goal:GalaxyBase,preferred:Int?,returning:Boolean=false):Plan? {
+        stocks:PlanetStocks,goal:GalaxyBase,preferred:Int?,returning:Boolean=false,reserveInPort:Boolean=false):Plan? {
         val position=outfit.positionIn(galaxy)
         val origin=position.grid
         val camp=Camp(outfit.country,false)
@@ -195,9 +195,10 @@ internal object NpcStrategy {
         val live=outfit.activeShips!!.values.filter {it.boats>0}
         val balances=OutfitSupplies.distribution(outfit)
         val fuel=depot(stocks,outfit,galaxy)?.supplies?.toLong() ?: 0L
-        fun canPay(jumps:Int,available:Long=fuel)=live.all {
+        fun canCarry(jumps:Int)=live.all {
             maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it)).toLong()>=it.boats.toLong()*jumps
-        } && jumpShortfall(live,balances,jumps)<=available
+        }
+        fun canPay(jumps:Int,available:Long=fuel)=canCarry(jumps) && jumpShortfall(live,balances,jumps)<=available
         val returnJumps=if(returning)0 else depots.minOfOrNull {toGoal[it.grid]} ?: return null
         val roundTrip=forward+returnJumps
         if(canPay(roundTrip)) {
@@ -218,12 +219,15 @@ internal object NpcStrategy {
             return Plan(OutfitPosition(origin,berth.id),roundTrip)
         }
         val combined=localBerths.sumOf {it.second}
-        fun collectLocally(jumps:Int):Plan? = localBerths.firstOrNull()?.first?.takeIf {canPay(jumps,combined)}
+        fun collectLocally(jumps:Int):Plan? = localBerths.firstOrNull()?.first
             ?.let {Plan(OutfitPosition(origin,it.id),jumps,partialDepotLoad=true)}
+        fun reserve(jumps:Int):Plan? =
+            if(reserveInPort && position.baseId!=0 && canCarry(jumps))collectLocally(jumps) else null
+        fun pooled(jumps:Int):Plan? = if(canPay(jumps,combined))collectLocally(jumps) else null
 
         // A stocked staging depot must shorten the remaining route, so a short sortie cannot oscillate between depots.
         val closer=depots.filter {toGoal[it.grid]<forward && stocks.bases.getValue(it.id).supplies>0}
-        if(closer.isEmpty())return collectLocally(roundTrip)
+        if(closer.isEmpty())return pooled(roundTrip) ?: reserve(roundTrip)
         val first=IntArray(5000)
         val fromOrigin=distances(origin,first,live.minOf {maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it))/it.boats})
         val stages=closer.filter {fromOrigin[it.grid]>0}
@@ -236,8 +240,9 @@ internal object NpcStrategy {
             val stage=stages.firstOrNull {canPay(fromOrigin[it.grid],available)} ?: continue
             return Plan(OutfitPosition(origin,berth.id),fromOrigin[stage.grid])
         }
-        return collectLocally(roundTrip) ?:
-            stages.firstOrNull {canPay(fromOrigin[it.grid],combined)}?.let {collectLocally(fromOrigin[it.grid])}
+        return pooled(roundTrip) ?:
+            stages.firstOrNull {canPay(fromOrigin[it.grid],combined)}?.let {collectLocally(fromOrigin[it.grid])} ?:
+            reserve(minOf(roundTrip,stages.minOfOrNull {fromOrigin[it.grid]} ?: roundTrip))
     }
 
     /** Reserve real cargo for every remaining jump to a reachable safe depot. */
@@ -249,7 +254,7 @@ internal object NpcStrategy {
      * (`evidence:guess`, 2026-11-04 replacement policy).
      */
     private fun target(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,
-        players:Collection<Navigator>,eliminated:Set<CountryId>,preferred:Int?=null):Plan? {
+        players:Collection<Navigator>,eliminated:Set<CountryId>,preferred:Int?=null,mayReserve:Boolean=false):Plan? {
         val position=outfit.positionIn(galaxy)
         val origin=position.grid
         val camp=Camp(outfit.country,false)
@@ -264,7 +269,8 @@ internal object NpcStrategy {
         if(objective!=null && beatable(origin)) {
             if(objective.grid==origin && position.baseId==0)return null
             if(objective.grid in candidates && objective.grid!=origin)
-                missionRoute(galaxy,forces,outfit,stocks,objective,preferred)?.let {return it}
+                missionRoute(galaxy,forces,outfit,stocks,objective,preferred,
+                    reserveInPort=mayReserve && outfit.strategy?.expeditionBase==objective.id)?.let {return it}
         }
         val homeStock=stocks.bases[outfit.baseId]
         val needsTroops=nationalGoal!=null && outfit.activeGround?.values.orEmpty().none {it.base==nationalGoal.id}
@@ -672,7 +678,8 @@ internal object NpcStrategy {
                 pending?.awaitingDockSupply == true && needsDockSupply(outfit)
             if(pending?.destination!=null && now>=pending.arrivesAt!!) {
                 val destination=pending.destination
-                val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys,destination)
+                val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys,destination,
+                    mayReserve=!warehouseBlocked(stocks,id))
                 val relief=if(normal?.infantryBerth==true || (normal?.missionJumps ?: 0)>0)null
                     else reliefRoute(galaxy,forces(),outfit,stocks,destination)
                 val planned=relief?.let {OutfitPosition(it.next,if(it.jumps==1)it.base.id else 0)} ?: normal?.position
@@ -758,7 +765,8 @@ internal object NpcStrategy {
                         }
                     }
                 }
-                val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys)
+                val normal=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys,
+                    mayReserve=!warehouseBlocked(stocks,id))
                 val destination=normal?.position
                 val waitingAtHome=expedition!=null && position.baseId==outfit.baseId && destination==null
                 val relief=if(waitingAtHome || normal?.infantryBerth==true || (normal?.missionJumps ?: 0)>0)null
