@@ -155,16 +155,27 @@ class TransportActionsTest {
         val s=assertNotNull(act(plan(),stocks()).stocks);val pack=s.strategic.transports.single()
         val aboard=assertNotNull(act(load(pack.id),s).stocks)
         assertEquals(StrategyActionRejection.LOCATION,act(load(pack.id),aboard).rejection,"while the destination holds, only it accepts the cargo")
-        // The alliance takes the destination while the package is aboard: the carrier unloads back at Odin instead.
-        val captured=aboard.copy(bases=aboard.bases+(1050 to aboard.bases.getValue(1050).copy(owner=Allegiance.fromLegacy(3))))
+        val assault=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(4),base=1050)))
+        val attackers=OutfitStock(201,3,OutfitKind.GROUND,1050,301,
+            units=UnitInventory(troops=assault.quantities()),activeGround=assault)
+        val contested=aboard.copy(outfits=aboard.outfits+(201 to attackers),nextShipId=3,
+            warehouses=aboard.warehouses+(301 to OutfitWarehouse(301,3,OutfitKind.PATROL,1050)))
+        val occupations=mutableListOf<BaseOccupation>()
+        val captured=BaseOccupationOperations.advance(session,galaxy,mutableMapOf("captain" to captain),contested,
+            10000,1,occupations,mutableListOf())
+        assertEquals(1050,occupations.single().base)
+        assertEquals(Power.ALLIANCE.country,occupations.single().country)
+        assertEquals(aboard.strategic.transports,captured.strategic.transports)
         val staleLoad=act(load(pack.id).copy(value=1),captured)
         assertEquals(StrategyActionRejection.QUOTE_CHANGED,staleLoad.rejection)
         assertEquals(captured,staleLoad.stocks)
         assertEquals(captain,staleLoad.player)
         val rerouted=act(load(pack.id).copy(value=2),captured);assertNull(rerouted.rejection)
         val after=assertNotNull(rerouted.stocks);assertTrue(after.strategic.transports.isEmpty())
+        assertEquals(840,rerouted.player?.mcp)
         assertEquals(5000,after.bases.getValue(1049).supplies);assertEquals(4,after.bases.getValue(1049).units.ships[cargo])
         assertEquals(100,after.bases.getValue(1050).supplies,"the enemy receives nothing")
+        assertEquals(StrategyActionRejection.TARGET,act(load(pack.id).copy(value=2),after).rejection)
     }
     @Test fun cancellingReturnsAnUnloadedPackageAndASunkCarrierLosesItsShare() {
         val s=assertNotNull(act(plan(),stocks()).stocks);val id=s.strategic.transports.single().id
