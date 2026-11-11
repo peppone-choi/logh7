@@ -100,17 +100,25 @@ class FileAccountsTest {
         assertFalse(reloaded.recoverPassword("pilot", afterRestore, "another"))
     }
 
+    private enum class CredentialChange { RECOVERY, PASSWORD, OPERATOR_RESET, OPERATOR_REMOVE }
+
     @Test fun recoveryClosesTheOldLobbyAndRejectsAnIssuedTicketWithoutClosingOtherAccounts() =
-        exerciseCredentialRevocation(recover = true)
+        exerciseCredentialRevocation(CredentialChange.RECOVERY)
 
     @Test fun passwordChangeRevokesLiveConnectionsAndUnusedTicketsOnlyAfterThePasswordWasStored() =
-        exerciseCredentialRevocation(recover = false)
+        exerciseCredentialRevocation(CredentialChange.PASSWORD)
 
-    private fun exerciseCredentialRevocation(recover: Boolean) {
+    @Test fun operatorResetRevokesLiveConnectionsAndUnusedTickets() =
+        exerciseCredentialRevocation(CredentialChange.OPERATOR_RESET)
+
+    @Test fun operatorRemovalRevokesLiveConnectionsAndUnusedTickets() =
+        exerciseCredentialRevocation(CredentialChange.OPERATOR_REMOVE)
+
+    private fun exerciseCredentialRevocation(change: CredentialChange) {
         val file = directory.resolve("accounts.properties")
         Files.writeString(file, "pilot=original\nother=original\n")
         val accounts = FileAccounts(file)
-        val code = if (recover) assertNotNull(accounts.issueRecoveryCode("pilot", "original")) else null
+        val code = if (change == CredentialChange.RECOVERY) assertNotNull(accounts.issueRecoveryCode("pilot", "original")) else null
         val characterFile = directory.resolve("characters.properties")
         val pilot = CharacterMessages.Generate(4, 10000, 2, 0, 0, "Existing", "Pilot", 30, 1, 1,
             1000001, List(8) { 50 }, 0, 0, 0, 9, 3, 3, "ExistingShip", 1)
@@ -155,8 +163,20 @@ class FileAccountsTest {
                     SyntheticClient(sessionPort, LoadMetrics()).use { game ->
                         startGame(gameTicket(old), game)
                         assertExistingPilot(game)
-                        if (recover) {
+                        if (change == CredentialChange.RECOVERY) {
                             assertTrue(accounts.recoverPassword("pilot", checkNotNull(code), "changed"))
+                        } else if (change == CredentialChange.OPERATOR_RESET) {
+                            accounts.set("pilot", "changed")
+                        } else if (change == CredentialChange.OPERATOR_REMOVE) {
+                            val blockedWrite = Files.createDirectory(directory.resolve("accounts.properties.tmp"))
+                            try {
+                                assertFailsWith<IOException> { accounts.remove("pilot") }
+                            } finally {
+                                Files.delete(blockedWrite)
+                            }
+                            old.send(SyntheticClient.opcode(0x2003)); old.expect(0x2004)
+                            assertExistingPilot(game)
+                            assertTrue(accounts.remove("pilot"))
                         } else {
                             assertFalse(accounts.changePassword("pilot", "wrong", "changed"))
                             old.send(SyntheticClient.opcode(0x2003)); old.expect(0x2004)
@@ -185,6 +205,10 @@ class FileAccountsTest {
                         other.send(SyntheticClient.opcode(0x2003))
                         other.expect(0x2004)
                         login("pilot", "original", 0x7002)
+                        if (change == CredentialChange.OPERATOR_REMOVE) {
+                            login("pilot", "changed", 0x7002)
+                            accounts.set("pilot", "changed")
+                        }
                         SyntheticClient(sessionPort, LoadMetrics()).use { fresh ->
                             enter(login("pilot", "changed"), fresh)
                             SyntheticClient(sessionPort, LoadMetrics()).use { rejoined ->
