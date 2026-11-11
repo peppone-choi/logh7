@@ -211,6 +211,12 @@ pub fn apply(root: &Path, patch: &Path, trusted: Option<&str>) -> Result<usize, 
 /// 해시 확인 없이 원래대로 돌린다. 보관 중 중단되면 상태에 그 항목이 없고 대상 파일도 아직 그대로다.
 fn install(root: &Path, patch: &Path, entry: &Entry, state: &mut String) -> Result<(), String> {
     let destination = target(root, &entry.path)?;
+    // Write the bytes we checked, even if the source is edited after the preflight.
+    let bytes =
+        fs::read(patch.join(&entry.path)).map_err(|_| "적용할 패치 파일을 읽지 못했습니다")?;
+    if sha256(&bytes) != entry.hash {
+        return Err("패치 파일 해시가 목록과 다릅니다".into());
+    }
     let original = destination.exists();
     if original {
         let backup = root.join(BACKUP).join(&entry.path);
@@ -234,7 +240,7 @@ fn install(root: &Path, patch: &Path, entry: &Entry, state: &mut String) -> Resu
             .map_err(|_| "패치 상태를 기록하지 못했습니다".to_string())
     };
     record(&format!("{state}{PENDING}\n"))?;
-    fs::copy(patch.join(&entry.path), &destination).map_err(|_| "패치 파일을 쓰지 못했습니다")?;
+    fs::write(&destination, bytes).map_err(|_| "패치 파일을 쓰지 못했습니다")?;
     record(state)
 }
 /// Windows에서는 백신·색인기 등이 상태 파일을 잠깐 열고 있으면 바꿔 넣기가 실패한다(2026-11-06 실측).
@@ -427,6 +433,27 @@ mod tests {
             b"edited",
             &fs::read(root.join("exe/String.txt")).unwrap()[..]
         );
+    }
+
+    #[test]
+    fn install_rechecks_a_source_changed_after_preflight_before_touching_the_target() {
+        let (root, patch) = setup("source-changed-after-preflight");
+        let (_, files) = manifest(&fs::read_to_string(patch.join(MANIFEST)).unwrap()).unwrap();
+        let entry = &files[0];
+        assert_eq!(
+            hash_file(&patch.join(&entry.path), "source").unwrap(),
+            entry.hash
+        );
+        fs::write(patch.join(&entry.path), b"modified after check").unwrap();
+        let mut state = String::from("LOGH7-PATCH-STATE-1\n");
+        assert!(
+            install(&root, &patch, entry, &mut state)
+                .unwrap_err()
+                .contains("해시")
+        );
+        assert_eq!(fs::read(root.join(&entry.path)).unwrap(), b"original");
+        assert!(!root.join(STATE).exists() && !root.join(BACKUP).exists());
+        assert_eq!(state, "LOGH7-PATCH-STATE-1\n");
     }
 
     #[test]
