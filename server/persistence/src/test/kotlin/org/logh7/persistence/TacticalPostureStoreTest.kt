@@ -59,6 +59,22 @@ class TacticalPostureStoreTest {
         Files.writeString(nav,"LOGH7-NAV-16\n"+rows.drop(1).joinToString("\n"){it.substringBeforeLast('\t')}+"\n")
         FileNavigationStore(nav).use {assertEquals(player.copy(posture=null),it.load().getValue("pilot"))}
     }
+    @Test fun autonomousAnchorAndLandingOrdersReopenTogether() {
+        val anchor=TacticalPosture(2017,TacticalShipMode.ANCHORED,1049,autonomousAnchor=true)
+        val pending=TacticalPosture(2017,order=TacticalPostureOrder(0,TacticalShipMode.ANCHORED,1049,100,110))
+        val ships=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32),posture=anchor),
+            ActiveShipUnit(2,UnitStack(32),posture=pending)))
+        val order=TacticalGroundOrder(TacticalGroundAction.DEPLOY,0,2017,1,1049,100,125)
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(0),carrier=1,order=order)))
+        val outfit=OutfitStock(1,2,OutfitKind.PATROL,1049,10,0,UnitInventory(ships.quantities(),troops.quantities()),
+            activeShips=ships,activeGround=troops,position=OutfitPosition(2017))
+        val stock=PlanetStocks(1,0,mapOf(1049 to PlanetStock(1049,3,0,0,0,0)),mapOf(1 to outfit),
+            mapOf(10 to OutfitWarehouse(10,2,OutfitKind.PATROL,1049)),nextShipId=4)
+        val path=directory.resolve("autonomous")
+        FilePlanetStockStore(path).use {it.save(stock)}
+        assertTrue(Files.readString(path).startsWith("LOGH7-STOCK-58\t"))
+        FilePlanetStockStore(path).use {assertEquals(stock,it.load())}
+    }
     @Test fun postureExtensionPreservesExistingMotionCargoDamageSupportAttackShotAndReloadFields() {
         val point=TacticalPoint(1f,2f)
         val state=NpcTacticalState(TacticalMotion(2017,100,TacticalPose(point,0.4f),0f,0.4f,listOf(point)),100,100)

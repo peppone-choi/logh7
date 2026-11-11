@@ -167,13 +167,22 @@ internal object NpcStrategy {
             balances.getValue(unit.id)<required
         }
         if(candidates.isNotEmpty() && beatable(origin) && !short && (position.baseId!=0 || home!=null)) {
-            if(origin in candidates)return null
-            // Revalidate a reserved route first, then try other enemies in distance order.
+            val occupationGrid=NpcOccupation.goal(outfit,stocks,galaxy,eliminated)
+                ?.takeIf {it.grid in candidates && NpcOccupation.hasCarrier(outfit,it,stocks)}?.grid
+            // Try the national objective first, then retain local contact and reserved routes.
             val goals=candidates.sortedWith(compareBy<Int> {
-                if(preferred!=null && distance(preferred,it)<distance(origin,it))0 else 1
+                when {
+                    it==occupationGrid -> 0
+                    it==origin -> 1
+                    preferred!=null && distance(preferred,it)<distance(origin,it) -> 2
+                    else -> 3
+                }
             }.thenBy {distance(origin,it)}.thenBy {it})
-            val firstHops=goals.asSequence().flatMap {steps(galaxy,forces,outfit,origin,it,preferred)}.distinct()
+            val firstHops=goals.asSequence().flatMap {
+                if(it==origin)sequenceOf(origin) else steps(galaxy,forces,outfit,origin,it,preferred).asSequence()
+            }.distinct()
             for(grid in firstHops) {
+                if(grid==origin)return null
                 val next=OutfitPosition(grid)
                 if(home==null)return next
                 val projected=outfit.copy(position=next)

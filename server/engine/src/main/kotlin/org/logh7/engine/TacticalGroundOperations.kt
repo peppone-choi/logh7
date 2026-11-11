@@ -20,7 +20,7 @@ data class TacticalGroundOrder(val action:TacticalGroundAction,val character:Int
             eliminated:Set<CountryId>,now:Long,onlineViewer:Int?=null):Set<TacticalGroundOrder> =
             TacticalGroundOperations.pending(stocks,grid,players,galaxy,eliminated,now,onlineViewer)
     }
-    init {require(character>0 && grid in 0..4999 && carrier in 1..999999 && base in 1..65535 &&
+    init {require((character>0 || character==0 && !issuedByOfflineAi && action==TacticalGroundAction.DEPLOY) && grid in 0..4999 && carrier in 1..999999 && base in 1..65535 &&
         acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL &&
         (!issuedByOfflineAi || action==TacticalGroundAction.DEPLOY))}
 }
@@ -50,9 +50,16 @@ internal object TacticalGroundOperations {
         return returning+reserved<=TransportActions.freeUnitSlots(o,stocks.strategic.transports)
     }
     private fun validOrder(o:OutfitStock,order:TacticalGroundOrder,units:List<ActiveGroundUnit>,base:GalaxyBase,
-        players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy,now:Long):Boolean {
-        val p=players.singleOrNull {it.characterId==order.character} ?: return false
+        players:Collection<Navigator>,stocks:PlanetStocks,galaxy:Galaxy,now:Long,eliminated:Set<CountryId> = emptySet()):Boolean {
         val carrier=o.activeShips?.values?.singleOrNull {it.id==order.carrier} ?: return false
+        if(order.character==0) {
+            val state=berth(o,carrier.id,order.grid,stocks)
+            return operational(carrier,stocks) && state?.mode==TacticalShipMode.ANCHORED && state.base==order.base &&
+                o.positionIn(galaxy)==OutfitPosition(order.grid) &&
+                NpcOccupation.goal(o,stocks,galaxy,eliminated)==base &&
+                units.all {it.carrier==carrier.id && admits(base,it)}
+        }
+        val p=players.singleOrNull {it.characterId==order.character} ?: return false
         return operational(carrier,stocks) && !BattleDeath.deceased(stocks,p.characterId) &&
             !stocks.social.justice.detained(p.characterId) &&
             p.generation==stocks.generation && (p.hull?.woundedUntil ?: 0)<=now &&
@@ -84,7 +91,7 @@ internal object TacticalGroundOperations {
                         val commander=players.singleOrNull {it.characterId==order.character} ?: continue
                         if(!TacticalOfflineAi.occupationTargetMatches(commander,stocks,order.base))continue
                     }
-                    if(validOrder(outfit,order,units,base,players,stocks,galaxy,now))add(order)
+                    if(validOrder(outfit,order,units,base,players,stocks,galaxy,now,eliminated))add(order)
                 }
             }
         }
@@ -97,7 +104,7 @@ internal object TacticalGroundOperations {
                 order.action==TacticalGroundAction.DEPLOY && order.base==base.id && order.grid==base.grid
             }==true}.groupBy {checkNotNull(it.order)}
             landedCount(base,troops)+pending.entries.sumOf {(order,units)->
-                if(delegated(order,session,players,stocks) && validOrder(outfit,order,units,base,players.values,stocks,galaxy,now))units.size else 0
+                if(delegated(order,session,players,stocks) && validOrder(outfit,order,units,base,players.values,stocks,galaxy,now,session.eliminated.keys))units.size else 0
             }
         }
 
@@ -221,7 +228,7 @@ internal object TacticalGroundOperations {
             val units=o.activeGround!!.values.filter {it.order==order}
             val base=galaxy.bases.singleOrNull {it.id==order.base && it.grid==order.grid}
             val valid=session.ended==null && o.country !in session.eliminated && delegated(order,session,players,next) &&
-                base!=null && validOrder(o,order,units,base,players.values,next,galaxy,now)
+                base!=null && validOrder(o,order,units,base,players.values,next,galaxy,now,session.eliminated.keys)
             if(valid && now<order.readyAt)continue
             val completed=valid && (order.action!=TacticalGroundAction.DEPLOY ||
                 next.outfits.values.filter {TacticalAuthority.camp(it,next)==TacticalAuthority.camp(o,next)}.sumOf {other->

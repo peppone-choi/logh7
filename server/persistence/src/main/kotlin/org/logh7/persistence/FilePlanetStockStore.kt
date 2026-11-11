@@ -42,6 +42,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
         val rawHeader = lines.firstOrNull()?.split('\t').orEmpty()
+            .let { if(it.firstOrNull()=="LOGH7-STOCK-58") it.drop(1) else it }
         val groundAtSea = rawHeader.firstOrNull() == "LOGH7-STOCK-57"
         val encodedHeader = if (groundAtSea) rawHeader.drop(1) else rawHeader
         val defenseBreaches = encodedHeader.firstOrNull() == "LOGH7-STOCK-56"
@@ -371,6 +372,10 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val positions = tactics || stocks.outfits.values.any { it.position != null }
         val bytes = buildString {
             // The optional prefixes protect rollback without changing any inventory rows.
+            if (stocks.outfits.values.any { outfit ->
+                outfit.activeShips?.values?.any { it.posture?.let { p -> p.autonomousAnchor || p.order?.character==0 }==true }==true ||
+                    outfit.activeGround?.values?.any { it.order?.character==0 }==true
+            }) append("LOGH7-STOCK-58\t")
             if (stocks.outfits.values.any { it.isGroundOutfitAtSea() }) append("LOGH7-STOCK-57\t")
             if (stocks.strategic.operations.any { it.defenseBreached }) append("LOGH7-STOCK-56\t")
             if (stocks.deletedCharacters.isNotEmpty()) append("LOGH7-STOCK-55\t")

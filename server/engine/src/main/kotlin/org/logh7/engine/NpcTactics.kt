@@ -105,8 +105,14 @@ internal object NpcTactics {
                 outfit=outfit.copy(activeShips=ActiveShipUnits(outfit.activeShips.values.map {it.copy(motionCommander=0)}))
                 stocks=stocks.copy(outfits=stocks.outfits+(outfitId to outfit))
             }
+            val (occupation,reserved)=NpcOccupation.advance(outfit,position.grid,session,galaxy,players,stocks,now,scale,movements) {
+                audience(session,position.grid,players)
+            }
+            stocks=occupation
+            outfit=stocks.outfits.getValue(outfitId)
             val surviving=outfit.activeShips?.values.orEmpty().filter {it.boats>0}
-            val live=surviving.filter {it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
+            val live=surviving.filter {it.id !in reserved &&
+                it.posture?.let {s->s.grid==position.grid && (s.mode.requiresBase || s.order!=null)}!=true}
             if(live.isEmpty())continue
             val behavior=policy.behavior(session.generation,outfitId)
             val camp=TacticalAuthority.camp(outfit,stocks)

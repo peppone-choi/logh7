@@ -195,6 +195,8 @@ internal class TacticalBootstrap(private val snapshot: WorldSnapshot,private val
     val groundOrders by lazy {
         TacticalGroundOrder.pending(snapshot.planetStocks,viewer.grid,snapshot.navigators.values,galaxy,eliminated,
             snapshot.session?.gameSeconds ?: 0,onlineViewer=viewer.characterId)
+            // Autonomous troops have no issuing character for a native command reply.
+            .filterTo(linkedSetOf()) {it.character>0}
     }
     private fun groundOrderReplies():List<ByteArray> = groundOrders.map {order->TacticalGroundMessages.reply(TacticalGroundMessages.Command(
         if(order.action==TacticalGroundAction.DEPLOY)TacticalGroundMessages.Action.DEPLOY else TacticalGroundMessages.Action.WITHDRAW,
