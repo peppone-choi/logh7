@@ -52,7 +52,7 @@ internal object NpcOccupation {
         outfit.activeShips?.values.orEmpty().any { available(it,stocks) && aboard(outfit,it,base).isNotEmpty() }
 
     /** Reuse actual warehouse/base inventory and the same ground IDs and berths as manual loading. */
-    fun loadAtHome(outfit:OutfitStock,goal:GalaxyBase,stocks:PlanetStocks,mayAllocate:()->Boolean):PlanetStocks {
+    fun loadAtBerth(outfit:OutfitStock,goal:GalaxyBase,stocks:PlanetStocks,berth:Int,mayAllocate:()->Boolean):PlanetStocks {
         val ships=outfit.activeShips?.values.orEmpty().filter {available(it,stocks)}.sortedBy {it.id}
         if(ships.isEmpty() || hasCarrier(outfit,goal,stocks))return stocks
         val roster=outfit.activeGround ?: if(GroundUnits.quantities(outfit.units).isEmpty()) ActiveGroundUnits(emptyList())
@@ -87,11 +87,11 @@ internal object NpcOccupation {
         val reserve=select(warehouse.units)
         val transfer=UnitTransfer(troops=reserve.ifEmpty {
             if(!mayAllocate())return stocks
-            select(stocks.bases.getValue(outfit.baseId).units)
+            select(stocks.bases.getValue(berth).units)
         })
         if(transfer.troops.isEmpty())return stocks
         return try {
-            val staged=if(reserve.isNotEmpty())stocks else StockAssignment.applyTransfer(stocks,outfit,transfer,0)
+            val staged=if(reserve.isNotEmpty())stocks else StockAssignment.applyTransfer(stocks,outfit,transfer,0,berth)
             val commissioned=ReplacementBoats.reorganize(staged,outfit.id,transfer)
             val next=commissioned.outfits.getValue(outfit.id)
             val ground=checkNotNull(next.activeGround)

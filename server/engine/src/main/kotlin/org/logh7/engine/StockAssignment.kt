@@ -74,13 +74,16 @@ internal object StockAssignment {
         return StockAssignmentResult(actor, next, changed = next != stocks)
     }
 
-    fun applyTransfer(stocks: PlanetStocks, outfit: OutfitStock, transfer: UnitTransfer, supplies: Int): PlanetStocks {
+    fun applyTransfer(stocks: PlanetStocks, outfit: OutfitStock, transfer: UnitTransfer, supplies: Int,
+        sourceBaseId:Int=outfit.baseId): PlanetStocks {
         require(transfer.ships.keys.all { key ->
             ProductionUnits.definitions.any { it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower }
         } && transfer.troops.keys.all { key ->
             ProductionUnits.definitions.any { !it.ship && it.kind == key.kind && it.power == outfit.shipStyle.nativePower }
         })
-        val base = stocks.bases.getValue(outfit.baseId)
+        val base = stocks.bases.getValue(sourceBaseId)
+        require(sourceBaseId==outfit.baseId || base.country==outfit.country && base.camp==0 &&
+            outfit.position?.baseId==sourceBaseId)
         val warehouse = stocks.warehouses.getValue(outfit.warehouseId)
         val moved = ReplacementBoats.moveStored(base.units, base.spareShips, warehouse.units, warehouse.spareShips, transfer)
         require(warehouseShipIncreaseFits(base.units.ships, base.spareShips, moved.source.ships, moved.sourceSpare) &&
