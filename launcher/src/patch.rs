@@ -136,9 +136,7 @@ fn target(root: &Path, relative: &str) -> Result<PathBuf, String> {
     Ok(root.join(path))
 }
 
-fn manifest(patch: &Path) -> Result<(String, Vec<Entry>), String> {
-    let text = fs::read_to_string(patch.join(MANIFEST))
-        .map_err(|_| "patch.manifest를 UTF-8로 읽지 못했습니다")?;
+fn manifest(text: &str) -> Result<(String, Vec<Entry>), String> {
     let mut lines = text.trim_start_matches('\u{feff}').lines();
     if lines.next().map(str::trim) != Some("LOGH7-PATCH-1") {
         return Err("지원하지 않는 패치 형식입니다".into());
@@ -162,11 +160,18 @@ fn manifest(patch: &Path) -> Result<(String, Vec<Entry>), String> {
     Ok((client, files))
 }
 
-pub fn apply(root: &Path, patch: &Path) -> Result<usize, String> {
+pub fn apply(root: &Path, patch: &Path, trusted: Option<&str>) -> Result<usize, String> {
     if root.join(STATE).exists() {
         return Err("이미 패치가 적용돼 있습니다. 먼저 --revert-patch로 되돌리세요".into());
     }
-    let (client, files) = manifest(patch)?;
+    let text = fs::read_to_string(patch.join(MANIFEST))
+        .map_err(|_| "patch.manifest를 UTF-8로 읽지 못했습니다")?;
+    if let Some(key) = trusted {
+        let signature = fs::read_to_string(patch.join("patch.manifest.sig"))
+            .map_err(|_| "패치 목록 서명을 읽지 못했습니다")?;
+        crate::signature::verify(key, text.as_bytes(), &signature)?;
+    }
+    let (client, files) = manifest(&text)?;
     if hash_file(&root.join(CLIENT), "클라이언트 실행 파일을 읽지 못했습니다")? != client
     {
         return Err("이 패치가 지원하지 않는 클라이언트입니다. 파일을 바꾸지 않았습니다".into());
@@ -357,12 +362,15 @@ mod tests {
     #[test]
     fn apply_backs_up_and_revert_restores_exactly() {
         let (root, patch) = setup("roundtrip");
-        assert_eq!(2, apply(&root, &patch).unwrap());
+        assert_eq!(2, apply(&root, &patch, None).unwrap());
         assert_eq!(
             b"korean",
             &fs::read(root.join("exe/String.txt")).unwrap()[..]
         );
-        assert!(apply(&root, &patch).is_err(), "a second apply is refused");
+        assert!(
+            apply(&root, &patch, None).is_err(),
+            "a second apply is refused"
+        );
         assert_eq!(2, revert(&root).unwrap());
         assert_eq!(
             b"original",
@@ -379,7 +387,7 @@ mod tests {
         manifest.push_str(&format!("file\tEXE/STRING.TXT\t{}\n", sha256(b"korean")));
         fs::write(patch.join(MANIFEST), manifest).unwrap();
 
-        assert!(apply(&root, &patch).unwrap_err().contains("중복"));
+        assert!(apply(&root, &patch, None).unwrap_err().contains("중복"));
         assert_eq!(fs::read(root.join("exe/String.txt")).unwrap(), b"original");
         assert!(!root.join("exe/dinput8.dll").exists());
         assert!(!root.join(STATE).exists());
@@ -390,14 +398,14 @@ mod tests {
     fn wrong_client_damaged_patch_unsafe_path_and_changed_file_are_refused() {
         let (root, patch) = setup("refuse");
         fs::write(root.join(CLIENT), b"other").unwrap();
-        assert!(apply(&root, &patch).is_err());
+        assert!(apply(&root, &patch, None).is_err());
         assert_eq!(
             b"original",
             &fs::read(root.join("exe/String.txt")).unwrap()[..]
         );
         fs::write(root.join(CLIENT), b"client").unwrap();
         fs::write(patch.join("exe/dinput8.dll"), b"tampered").unwrap();
-        assert!(apply(&root, &patch).is_err());
+        assert!(apply(&root, &patch, None).is_err());
         for path in [
             "../outside.txt",
             CLIENT,
@@ -409,7 +417,7 @@ mod tests {
             assert!(validate_path(path).is_err(), "{path}");
         }
         fs::write(patch.join("exe/dinput8.dll"), b"dll").unwrap();
-        apply(&root, &patch).unwrap();
+        apply(&root, &patch, None).unwrap();
         fs::write(root.join("exe/String.txt"), b"edited").unwrap();
         assert!(
             revert(&root).is_err(),
@@ -426,13 +434,13 @@ mod tests {
         let (root, patch) = setup("midway");
         // The second target is occupied by a directory, so it cannot be backed up or written.
         fs::create_dir_all(root.join("exe/dinput8.dll")).unwrap();
-        let failure = apply(&root, &patch).unwrap_err();
+        let failure = apply(&root, &patch, None).unwrap_err();
         assert!(failure.contains("되돌렸습니다"), "{failure}");
         // A failure on the very first file changes nothing and leaves no backup behind.
         let (first, patch_first) = setup("first");
         fs::remove_file(first.join("exe/String.txt")).unwrap();
         fs::create_dir_all(first.join("exe/String.txt")).unwrap();
-        let failure = apply(&first, &patch_first).unwrap_err();
+        let failure = apply(&first, &patch_first, None).unwrap_err();
         assert!(failure.contains("바꾼 파일은 없습니다"), "{failure}");
         assert!(!first.join(STATE).exists() && !first.join(BACKUP).exists());
         assert_eq!(
@@ -442,13 +450,13 @@ mod tests {
         assert!(!root.join(STATE).exists() && !root.join(BACKUP).exists());
         // Once the obstacle is gone the same patch applies normally.
         fs::remove_dir(root.join("exe/dinput8.dll")).unwrap();
-        assert_eq!(2, apply(&root, &patch).unwrap());
+        assert_eq!(2, apply(&root, &patch, None).unwrap());
     }
 
     #[test]
     fn an_interrupted_copy_is_reverted_without_a_hash_match() {
         let (root, patch) = setup("crash");
-        apply(&root, &patch).unwrap();
+        apply(&root, &patch, None).unwrap();
         // As if power was lost while the last file was being written.
         fs::write(root.join("exe/dinput8.dll"), b"d").unwrap();
         let mut state = fs::read_to_string(root.join(STATE)).unwrap();
@@ -461,7 +469,7 @@ mod tests {
         );
         assert!(!root.join("exe/dinput8.dll").exists());
         // Without the marker the same half-written file is protected as a user change.
-        apply(&root, &patch).unwrap();
+        apply(&root, &patch, None).unwrap();
         fs::write(root.join("exe/dinput8.dll"), b"d").unwrap();
         assert!(revert(&root).is_err());
     }
@@ -472,7 +480,7 @@ mod tests {
         use std::os::windows::fs::OpenOptionsExt;
 
         let (root, patch) = setup("state-locked");
-        apply(&root, &patch).unwrap();
+        apply(&root, &patch, None).unwrap();
         let state = root.join(STATE);
         let lock = fs::OpenOptions::new()
             .read(true)
@@ -490,7 +498,7 @@ mod tests {
 
         assert_eq!(2, revert(&root).unwrap());
         assert!(!state.exists() && !root.join(BACKUP).exists());
-        assert_eq!(2, apply(&root, &patch).unwrap());
+        assert_eq!(2, apply(&root, &patch, None).unwrap());
     }
 
     #[test]
@@ -502,7 +510,7 @@ mod tests {
         let mut permissions = fs::metadata(&locked).unwrap().permissions();
         permissions.set_readonly(true);
         fs::set_permissions(&locked, permissions.clone()).unwrap();
-        let failure = apply(&root, &patch).unwrap_err();
+        let failure = apply(&root, &patch, None).unwrap_err();
         // The untouched pending file is recognised as already original, so the rollback completes.
         assert!(failure.contains("되돌렸습니다"), "{failure}");
         assert_eq!(
@@ -524,6 +532,6 @@ mod tests {
             &fs::read(root.join("exe/String.txt")).unwrap()[..]
         );
         assert!(!root.join(STATE).exists());
-        assert_eq!(2, apply(&root, &patch).unwrap());
+        assert_eq!(2, apply(&root, &patch, None).unwrap());
     }
 }

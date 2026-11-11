@@ -203,10 +203,56 @@ def safe_failure_output(launcher, root):
     fail(["--config", config, "--revert-patch"], "패치 되돌리기: 패치 상태 항목 형식")
 
 
+def authenticated_apply(launcher, root):
+    # Public key and signature for the manifest containing the original fixture payload.
+    key = ("2a1e627c3b3c56dfed444c3059264f401e85830af77bc8f5500e378aa2bb609989"
+           "39a069d88abd768bce989c9d01e51071e9c38d0beafc663cd9d933dca42fd2")
+    signature = ("1345a240698740864848ee7f068bc1d5f889af5af42fee2c4620d87564859434"
+                 "16e9c4f3b89f5edc0d3131abfd6d8e0703716c26d0b92f40180b0e1ea390d19a")
+    client = root / "apply-client"
+    patch = root / "signed-patch"
+    for tree in (client, patch):
+        (tree / "exe").mkdir(parents=True)
+    config = root / "apply.ini"
+    config.write_text("host=127.0.0.1\nport=47900\naccount=fixture\nclient_root=apply-client\n",
+                      encoding="utf-8")
+    (client / "exe/G7MTClient.exe").write_bytes(b"fixture")
+    destination = client / "exe/a.dll"
+    destination.write_bytes(b"previous")
+
+    def write_package(payload):
+        client_hash = hashlib.sha256(b"fixture").hexdigest()
+        payload_hash = hashlib.sha256(payload).hexdigest()
+        (patch / "patch.manifest").write_bytes(
+            f"LOGH7-PATCH-1\nclient\t{client_hash}\nfile\texe/a.dll\t{payload_hash}\n".encode())
+        (patch / "exe/a.dll").write_bytes(payload)
+
+    def apply():
+        return subprocess.run([launcher, "--config", config, "--apply-patch", patch, "--trust-key", key],
+                              capture_output=True, encoding="utf-8", timeout=15)
+
+    write_package(b"first")
+    missing = apply()
+    assert missing.returncode == 1 and "패치 목록 서명을 읽지 못했습니다" in missing.stderr, missing
+    (patch / "patch.manifest.sig").write_text(signature + "\n", encoding="ascii")
+    write_package(b"substituted")
+    tampered = apply()
+    assert tampered.returncode == 1 and "서명" in tampered.stderr, tampered
+    assert destination.read_bytes() == b"previous"
+    assert not (client / "logh7-patch.state").exists() and not (client / "logh7-patch-backup").exists()
+    write_package(b"first")
+    accepted = apply()
+    assert accepted.returncode == 0 and destination.read_bytes() == b"first", accepted
+    reverted = subprocess.run([launcher, "--config", config, "--revert-patch"],
+                              capture_output=True, encoding="utf-8", timeout=15)
+    assert reverted.returncode == 0 and destination.read_bytes() == b"previous", reverted
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="logh7-https-") as folder:
         launcher = Path(sys.argv[1]).resolve()
         root = Path(folder)
         exercise(launcher, root)
         safe_failure_output(launcher, root)
-    print("HTTPS trust, hostname, redirect refusal, versioned download resume, and safe failure output passed")
+        authenticated_apply(launcher, root)
+    print("HTTPS trust, download resume, authenticated apply, rollback, and safe failure output passed")
