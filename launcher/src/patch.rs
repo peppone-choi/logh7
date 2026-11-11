@@ -10,6 +10,7 @@
 //! 설치 목록을 `logh7-patch.state`에 남긴다. 되돌리기는 설치한 파일이 그대로일 때만
 //! 원래 파일을 복원하거나 새로 더한 파일을 지운다. 원본 실행 파일은 바꾸지 않는다.
 use std::{
+    collections::HashSet,
     fs,
     path::{Component, Path, PathBuf},
 };
@@ -99,7 +100,33 @@ fn hash_file(path: &Path, failure: &str) -> Result<String, String> {
         .map_err(|_| failure.to_string())
 }
 
-/// 패치 경로는 클라이언트 루트 아래 상대 경로만 허용하고 원본 실행 파일은 막는다.
+fn validate_path(relative: &str) -> Result<(), String> {
+    let first = relative.split('/').next().unwrap_or_default();
+    let reserved = [MANIFEST, "patch.manifest.sig", STATE, BACKUP, NEXT];
+    if relative.contains(['\\', ':'])
+        || relative
+            .split('/')
+            .any(|part| part.is_empty() || part.ends_with([' ', '.']))
+        || relative.eq_ignore_ascii_case(CLIENT)
+        || reserved.iter().any(|name| first.eq_ignore_ascii_case(name))
+    {
+        return Err("허용하지 않는 패치 경로입니다".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_paths<'a>(paths: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    let mut seen = HashSet::new();
+    for path in paths {
+        validate_path(path)?;
+        if !seen.insert(path.to_uppercase()) {
+            return Err("패치 목록에 중복 경로가 있습니다".into());
+        }
+    }
+    Ok(())
+}
+
+// Preserve recovery of paths recorded by older launchers.
 fn target(root: &Path, relative: &str) -> Result<PathBuf, String> {
     let path = Path::new(relative);
     let plain = path.components().all(|c| matches!(c, Component::Normal(_)));
@@ -144,8 +171,8 @@ pub fn apply(root: &Path, patch: &Path) -> Result<usize, String> {
     {
         return Err("이 패치가 지원하지 않는 클라이언트입니다. 파일을 바꾸지 않았습니다".into());
     }
+    validate_paths(files.iter().map(|entry| entry.path.as_str()))?;
     for entry in &files {
-        target(root, &entry.path)?;
         if hash_file(
             &patch.join(&entry.path),
             "적용할 패치 파일을 읽지 못했습니다",
@@ -346,6 +373,20 @@ mod tests {
     }
 
     #[test]
+    fn windows_aliases_in_the_manifest_cannot_overwrite_the_original_backup() {
+        let (root, patch) = setup("path-alias");
+        let mut manifest = fs::read_to_string(patch.join(MANIFEST)).unwrap();
+        manifest.push_str(&format!("file\tEXE/STRING.TXT\t{}\n", sha256(b"korean")));
+        fs::write(patch.join(MANIFEST), manifest).unwrap();
+
+        assert!(apply(&root, &patch).unwrap_err().contains("중복"));
+        assert_eq!(fs::read(root.join("exe/String.txt")).unwrap(), b"original");
+        assert!(!root.join("exe/dinput8.dll").exists());
+        assert!(!root.join(STATE).exists());
+        assert!(!root.join(BACKUP).exists());
+    }
+
+    #[test]
     fn wrong_client_damaged_patch_unsafe_path_and_changed_file_are_refused() {
         let (root, patch) = setup("refuse");
         fs::write(root.join(CLIENT), b"other").unwrap();
@@ -357,7 +398,16 @@ mod tests {
         fs::write(root.join(CLIENT), b"client").unwrap();
         fs::write(patch.join("exe/dinput8.dll"), b"tampered").unwrap();
         assert!(apply(&root, &patch).is_err());
-        assert!(target(&root, "../outside.txt").is_err() && target(&root, CLIENT).is_err());
+        for path in [
+            "../outside.txt",
+            CLIENT,
+            "exe//G7MTClient.exe",
+            "exe/G7MTClient.exe.",
+            "LOGH7-PATCH.STATE",
+            "logh7-patch-backup/exe/String.txt",
+        ] {
+            assert!(validate_path(path).is_err(), "{path}");
+        }
         fs::write(patch.join("exe/dinput8.dll"), b"dll").unwrap();
         apply(&root, &patch).unwrap();
         fs::write(root.join("exe/String.txt"), b"edited").unwrap();
