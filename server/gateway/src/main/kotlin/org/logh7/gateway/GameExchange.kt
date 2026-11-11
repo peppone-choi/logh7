@@ -1646,7 +1646,10 @@ class GameExchange(
                                 (if (accepted) listOf(world.outfitParty(org.logh7.protocol.OutfitPartyMessages.Query(
                                     query.outfit, query.base, 0), checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value, checkNotNull(result.stocks), characterById=::currentCharacterById),
                                     world.outfitWarehouse(query.base, query.outfit, character.id.toInt(), checkNotNull(currentProfile(identity.account,character.id.toInt()).country).value, checkNotNull(result.stocks)))
-                                else emptyList()) + result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty()
+                                else emptyList()) + result.recovery?.let { completedWork(it.copy(player = player), character) }.orEmpty() +
+                                (if (result.rejection == LogisticsRejection.CARGO_LOADED) listOf(
+                                    ChatMessages.invalidCommand(opcode, "[재편성] 적재 화물은 반출입에서 내리세요.")
+                                ) else emptyList())
                         }
                         return null
                     }

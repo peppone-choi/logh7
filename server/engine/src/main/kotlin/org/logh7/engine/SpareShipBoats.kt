@@ -12,6 +12,8 @@ class SpareShipBoats(values: Map<UnitStack, Int> = emptyMap()) {
 }
 
 internal object ReplacementBoats {
+    class LoadedCargo : IllegalArgumentException("Unload transport packages before reducing the fleet")
+
     /** A remainder occupies one selectable native unit, while retaining its physical boat count. */
     fun selectable(warehouse: OutfitWarehouse): UnitInventory {
         return selectable(warehouse.units,warehouse.spareShips)
@@ -76,18 +78,14 @@ internal object ReplacementBoats {
         val projected=next.outfits.getValue(outfitId).copy(activeShips=ActiveShipUnits(nextUnits))
         val cargo=TransportActions.carriedCargo(outfit,ready.strategic.transports)
         if(cargo.isNotEmpty()) {
-            require(TransportActions.boats(projected)>=TransportActions.boats(outfit)) {
-                "Unload transport packages before returning live boats"
-            }
+            if(TransportActions.boats(projected)<TransportActions.boats(outfit))throw LoadedCargo()
             val cargoSupplies=cargo.sumOf {it.first.toLong()}
             val previousCapacity=OutfitSupplies.capacity(outfit)-outfit.supplies.toLong()
             val nextCapacity=OutfitSupplies.capacity(projected)-projected.supplies.toLong()
             val previousSlots=TransportActions.freeUnitSlots(outfit,ready.strategic.transports)
             val nextSlots=TransportActions.freeUnitSlots(projected,ready.strategic.transports)
             // Existing damage can leave the cargo over capacity. An edit may keep or improve that state.
-            require(nextCapacity>=minOf(cargoSupplies,previousCapacity) && nextSlots>=minOf(0,previousSlots)) {
-                "Unload transport packages before reducing cargo capacity"
-            }
+            if(nextCapacity<minOf(cargoSupplies,previousCapacity) || nextSlots<minOf(0,previousSlots))throw LoadedCargo()
         }
         for (unit in previous.filter {it.id !in retained}) {
             val size=UnitSpecifications.ships.single {it.kind==unit.stack.kind}.number
