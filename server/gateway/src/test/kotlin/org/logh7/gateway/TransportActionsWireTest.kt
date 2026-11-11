@@ -158,6 +158,41 @@ class TransportActionsWireTest {
         }
     }
 
+    @Test fun cancelDirectoryFollowsTheSourceCampAndKeepsCargoUntilControlReturns() {
+        val state = State()
+        val source = state.stocks.bases.getValue(1050)
+        val blocked = TransportPackage(2, CountryId(2), 1050, 1049, 200)
+        val available = TransportPackage(3, CountryId(2), 1049, 1050, 100)
+        state.stocks = state.stocks.copy(
+            bases = state.stocks.bases + (1050 to source.copy(camp = 1)),
+            strategic = state.stocks.strategic.copy(transports = listOf(blocked, available), lastTransportId = 3))
+
+        fun server(name: String) = LoadFixture(directory.resolve(name), 1, LoadMetrics(), galaxy, ticking = false,
+            navigationStore = state.navigation, stockStore = state.inventory, worldStateCommitter = state)
+        server("source-rebel").use { fixture ->
+            val client = fixture.join(fixture.account(0), true, false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            next(client, 0x0f01)
+            assertEquals(listOf(available.id), listed(client, 29))
+            val before = state.stocks
+            action(client, 29, blocked.id, StrategyActionRejection.LOCATION.ordinal + 1)
+            assertEquals(1000, state.players.getValue("load-000").mcp)
+            assertEquals(before, state.stocks)
+        }
+
+        state.stocks = state.stocks.copy(bases = state.stocks.bases + (1050 to source))
+        server("source-restored").use { fixture ->
+            val client = fixture.join(fixture.account(0), true, false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            next(client, 0x0f01)
+            assertEquals(listOf(blocked.id, available.id), listed(client, 29))
+            action(client, 29, blocked.id, warehouse = source.baseId)
+            assertEquals(920, state.players.getValue("load-000").mcp)
+            assertEquals(source.supplies + blocked.supplies, state.stocks.bases.getValue(source.baseId).supplies)
+            assertEquals(listOf(available), state.stocks.strategic.transports)
+        }
+    }
+
     @Test fun capturedHomeDepotHidesCargoAndRejectsPreviouslyListedLoadAndUnload() {
         val state = State()
         val home = galaxy.bases.first().copy(id = 1051, name = "Home Depot")
