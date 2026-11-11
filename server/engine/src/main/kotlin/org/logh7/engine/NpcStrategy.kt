@@ -237,11 +237,12 @@ internal object NpcStrategy {
         }
         fun pooled(jumps:Int):Plan? = if(canPay(jumps,combined))collectLocally(jumps) else null
 
-        // A staging depot must shorten the route. An underway fleet may finish its funded jump
-        // into a safe berth even if its stock was consumed after the jump was reserved.
+        // A staging depot must shorten the route. An underway expedition can also finish
+        // a funded leg to a safe port that can replenish its temporarily empty stock.
         fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
-        val closer=depots.filter {toGoal[it.grid]<forward &&
-            (stocked(it) || position.baseId==0 && it.grid==preferred)}
+        val closer=depots.filter {base->toGoal[base.grid]<forward &&
+            (stocked(base) || position.baseId==0 && (base.grid==preferred ||
+                outfit.strategy?.expeditionBase!=null && producesSupplies(stocks.bases.getValue(base.id))))}
         if(closer.isEmpty())return pooled(roundTrip) ?: reserve(roundTrip)
         val first=IntArray(5000)
         val fromOrigin=distances(origin,first,live.minOf {maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it))/it.boats})
