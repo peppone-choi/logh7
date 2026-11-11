@@ -86,4 +86,37 @@ class NpcOccupationTest {
         assertEquals(0,troop(s).base)
         assertEquals(TacticalShipMode.ANCHORED,ship(s).posture!!.mode)
     }
+
+    @Test fun vacantGovernmentsSelectOneExpeditionFromActualProductionWithoutSettingNationalGoals() {
+        val odin=base.copy(id=1049,grid=2487,kind=0,name="オーディン")
+        val heinessen=base.copy(id=1177,grid=2015,kind=0,name="ハイネセン")
+        val world=Galaxy(listOf(GalaxySystem(3,2487,4,"ヴァルハラ",2),GalaxySystem(4,2015,4,"バーラト",3)),
+            listOf(odin,heinessen),mapOf(Power.EMPIRE to 2487,Power.ALLIANCE to 2015))
+        val initial=PlanetStocks(1,0,mapOf(
+            odin.id to PlanetStock(odin.id,2,0,100,0,0,units=UnitInventory(work=mapOf("T0" to 24))),
+            heinessen.id to PlanetStock(heinessen.id,3,0,100,0,0,units=UnitInventory(troops=mapOf(UnitStack(4) to 2)))))
+        val stock=InitialOutfitDeployment(world).initialize(initial)
+        val empire=stock.outfits.values.filter {it.power==2 && it.kind==OutfitKind.FLEET}.sortedBy {it.id}
+        val alliance=stock.outfits.values.filter {it.power==3 && it.kind==OutfitKind.FLEET}.sortedBy {it.id}
+        val noProduction=stock.copy(bases=stock.bases.mapValues {(_,base)->base.copy(units=UnitInventory())})
+        assertNull(NpcOccupation.goal(empire.first(),noProduction,world,emptySet()))
+        assertNull(NpcOccupation.goal(alliance.first(),noProduction,world,emptySet()))
+        assertEquals(heinessen,NpcOccupation.goal(empire.first(),stock,world,emptySet()))
+        assertNull(NpcOccupation.goal(empire.last(),stock,world,emptySet()))
+        assertEquals(odin,NpcOccupation.goal(alliance.first(),stock,world,emptySet()))
+        assertNull(NpcOccupation.goal(alliance.first(),stock,world,setOf(CountryId(2))))
+        assertTrue(stock.social.goals.national.isEmpty())
+
+        val loaded=NpcOccupation.loadAtHome(alliance.first(),odin,stock){true}
+        val carrier=loaded.outfits.getValue(alliance.first().id)
+        assertTrue(NpcOccupation.hasCarrier(carrier,odin,loaded))
+        assertTrue(loaded.bases.getValue(heinessen.id).units.troops.isEmpty())
+        val governed=loaded.copy(strategic=loaded.strategic.copy(
+            offices=listOf(OfficeHolding(132,heinessen.id,10000,CountryId(3)))))
+        assertNull(NpcOccupation.goal(carrier,governed,world,emptySet()))
+        val directed=governed.copy(social=SocialState(goals=GoalState(national=mapOf(3 to NationalGoal(odin.id,10000,now)))))
+        assertEquals(odin,NpcOccupation.goal(carrier,directed,world,emptySet()))
+        assertEquals(odin,NpcOccupation.goal(alliance.last(),directed,world,emptySet()))
+        assertNull(NpcOccupation.goal(carrier.copy(commanderId=10001),directed,world,emptySet()))
+    }
 }
