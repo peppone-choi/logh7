@@ -494,7 +494,24 @@ internal object NpcStrategy {
                     publishDeployment(deployed, position.grid, position.grid)
                     continue
                 }
-                if (position.baseId != 0) outfit = replaceBoatsAtHome(repairAtDepot(outfit))
+                if (position.baseId != 0) {
+                    outfit = replaceBoatsAtHome(repairAtDepot(outfit))
+                    stocks=stocks.copy(outfits=stocks.outfits+(id to outfit))
+                    if(outfit.guard==null && position.baseId==outfit.baseId &&
+                        !TacticalContact.contested(forces()[position.grid].orEmpty()) && !warehouseBlocked(stocks,id)) {
+                        val objective=NpcOccupation.goal(outfit,stocks,galaxy,session.eliminated.keys)
+                        if(objective!=null) {
+                            val loaded=NpcOccupation.loadAtHome(outfit,objective,stocks) {
+                                !logisticsOffice.staffed(stocks,outfit.country,outfit.kind)
+                            }
+                            if(loaded!=stocks) {
+                                stocks=loaded
+                                outfit=stocks.outfits.getValue(id)
+                                forceCache=null
+                            }
+                        }
+                    }
+                }
                 val destination=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys)
                 val relief=reliefRoute(galaxy,forces(),outfit,stocks)
                 if(relief==null && destination?.grid==position.grid) {
