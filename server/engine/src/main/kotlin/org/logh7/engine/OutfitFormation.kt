@@ -140,12 +140,12 @@ object OutfitFormationPolicy {
         if(outfit.guard!=null || outfit.country!=p.country || outfit.kind!=r.kind)return reject(StrategyActionRejection.AUTHORITY)
         if(outfit.positionIn(galaxy)!=OutfitPosition(p.grid,r.base))return reject(StrategyActionRejection.LOCATION)
         val ships=outfit.activeShips ?: return reject(StrategyActionRejection.TROOPS)
+        if(stocks.strategic.transports.any {it.carrier==outfit.id})return reject(StrategyActionRejection.CARGO_LOADED)
         val ground=outfit.activeGround?.values.orEmpty()
         val removed=(ships.values.map {it.id}+ground.map {it.id}).toSet()
         if(ships.values.any {it.damaged>0 || it.support!=null || it.shot!=null || it.attack!=null || it.reload!=null ||
                 it.tactical?.retreat!=null || it.posture?.order!=null} || ground.any {it.order!=null || it.strength<1000 ||
                 it.base==0 && it.carrier==0 || it.base>0 && it.base!=r.base} || outfit.strategy?.destination!=null ||
-            stocks.strategic.transports.any {it.carrier==outfit.id} ||
             stocks.strategic.suppressions.any {it.outfit==outfit.id} || stocks.civic.active.any {it.outfit==outfit.id} ||
             stocks.strategic.operations.any {it.live && it.country==outfit.country && outfit.id in it.outfits} ||
             stocks.tacticalCommands.orders.any {it.command.units.any {id->id in removed} || it.command.target in removed} ||

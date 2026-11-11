@@ -74,7 +74,7 @@ data class StrategicIdentity(val id:Int,val country:CountryId?,val rank:Int,val 
         this(id,when(power) {2,3->CountryId(power);else->throw IllegalArgumentException("Invalid legacy character country")},rank,origin,abilities,age)
     init {require(id>0 && rank in 0..20 && abilities.size==8 && abilities.all {it in 0..255})}
 }
-enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET,CREW,QUOTE_CHANGED }
+enum class StrategyActionRejection { SESSION,IDENTITY,COMMAND,CARD,AUTHORITY,LOCATION,BUSY,TROOPS,MAXIMUM,RANK,CP,STORAGE,RESOURCE,POINTS,TARGET,CREW,QUOTE_CHANGED,CARGO_LOADED }
 data class CompleteRepairQuote(val supplies:Int,val damagedShips:Int,val damagedFlagships:Int,val cp:CpPool?=null)
 data class StrategyActionResult(val player:Navigator?,val stocks:PlanetStocks?,val rejection:StrategyActionRejection?=null,
     val changed:Boolean=false,val recovery:NavigationResult?=null,val readyAt:Long=0,

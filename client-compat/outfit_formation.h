@@ -51,6 +51,7 @@ static bool readOutfitFormationBegin(void* record) {
             state.message=responseStatus==16 ? L"결성에 필요한 승조원이 부족합니다." : responseStatus==11 ? L"CP가 부족합니다." :
                 responseStatus==13 ? L"현재 재고나 군수물자가 부족합니다." : responseStatus==9 ? L"편성·창고·그리드 한도를 확인하세요." :
                 responseStatus==15 ? L"편집 예약이나 부대가 만료됐습니다. 닫고 다시 여세요." :
+                responseStatus==18 ? L"적재 화물이 남아 있습니다. 반출입에서 화물을 내린 뒤 해산하세요." :
                 L"명령 거부 · 직무·장소·손상·진행 중 명령을 확인하세요.";
         }
     }
