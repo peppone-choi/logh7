@@ -233,6 +233,27 @@ class SecureWriterTest {
             } finally { f.cleanup() }
         }
     }
+    @Test fun staleGenerationFrameClosesTheExchangeWithoutWritingOrProcessingTheFrame() {
+        var currentGeneration = 1L
+        val access = object : GameAdmission {
+            override val generation get() = currentGeneration
+            override val running = true
+            override fun join(account: String, character: CharacterMessages.Generate, connection: String, generation: Long) =
+                CompletableFuture.completedFuture(Admission.ACCEPTED)
+            override fun disconnect(account: String, connection: String) = Unit
+        }
+        val f = fixture(admission = access, purpose = SessionTickets.Purpose.GAME)
+        try {
+            assertNotNull(f.exchange.acceptOutbound(0x30, encrypted(byteArrayOf(2, 0), 2))).let(f::write)
+            f.held.complete(0); f.channel.runPendingTasks()
+            currentGeneration = 2L
+            assertNull(f.exchange.acceptOutbound(0x30, encrypted(byteArrayOf(3, 0), 3)))
+            assertEquals(GameExchange.State.CLOSED, f.exchange.state)
+            assertNull(f.exchange.takePendingWorld())
+            assertEquals(0, f.h.pendingBatches)
+            assertEquals(1, f.held.writes.size)
+        } finally { f.cleanup() }
+    }
     @Test fun asynchronousFinishJoinUsesTheBoundWriterAndIgnoresLateAdmissionAfterClose() {
         var now = Instant.EPOCH
         val clock = object : Clock() {

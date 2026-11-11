@@ -862,8 +862,10 @@ class GameExchange(
     private fun recoveryVersion(account: String) = (accounts as? FileAccounts)?.recoveryVersion(account) ?: 0L
     private fun recovered(ticket: SessionTickets.Ticket) = recoveryVersion(ticket.account) != ticket.recoveryVersion
     internal fun accountRecovered() = ticket?.let(::recovered) == true
+    internal fun sessionGenerationChanged() = ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
+        generation != admission.generation
     fun obsolete() = defectedLogout || accountRecovered() || ticket?.purpose == SessionTickets.Purpose.GAME && admission != null &&
-        (generation != admission.generation || !admission.running && !sessionEndingAvailable())
+        (sessionGenerationChanged() || !admission.running && !sessionEndingAvailable())
     // ByteArray convenience is retained for codec callers. Gateway always writes the bound outbound batch.
     fun finishJoin(result: Admission): ByteArray? = finishJoinOutbound(result)?.bytes
     fun accept(type: Int, data: ByteArray): ByteArray? = acceptOutbound(type, data)?.bytes
@@ -908,7 +910,10 @@ class GameExchange(
 
     private fun acceptCore(type: Int, data: ByteArray): OutboundBatch? {
         check(state != State.CLOSED && state != State.REJECTED)
-        check(!obsolete()) { "Session ended or changed" }
+        if (obsolete()) {
+            close()
+            return null
+        }
         val characters = if (ticket?.purpose == SessionTickets.Purpose.GAME) characters else characterProvider()
         if (state == State.KEY_EXCHANGE) {
             val response = handshake.accept(type, data)

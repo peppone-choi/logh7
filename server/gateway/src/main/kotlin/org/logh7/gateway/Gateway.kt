@@ -409,6 +409,7 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         if (port != updatePort) {
                                             val (type, data) = Frames.decodePayload(payload)
                                             exchange.acceptOutbound(type, data)?.let { response -> SecureWriter.write(ctx, exchange, response) }
+                                            if (exchange.state == GameExchange.State.CLOSED) { ctx.close(); return }
                                             val join = exchange.takePendingJoin()
                                             val operation = exchange.takePendingWorld()
                                             val pending = join?.thenApply { exchangeResult -> ({
@@ -436,7 +437,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                                         waiting = true
                                         pending.whenComplete { finish, failure ->
                                             ctx.executor().execute {
-                                                if (exchange.accountRecovered()) { exchange.close(); ctx.close() }
+                                                if (exchange.accountRecovered() || failure == null && exchange.sessionGenerationChanged()) {
+                                                    exchange.close(); ctx.close()
+                                                }
                                                 else if(ctx.channel().isActive && failure!=null && exchange.sessionEndingAvailable()) {
                                                     waiting=false;refreshRequested=false
                                                     counters.notificationsQueued.addAndGet(-notifications.size.toLong());notifications.clear();notificationBytes=0
