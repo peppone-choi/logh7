@@ -335,6 +335,29 @@ class GamePresenceBattlefieldTest {
         }
     }
 
+    @Test fun strategicBurstPublishesOneMapPerCommitAndKeepsEveryDeparture() {
+        val hub = GamePresence()
+        val received = mutableListOf<List<ByteArray>>()
+        hub.update(GamePresence.Member("viewer", character, player, received::add))
+        val committed = snapshot.copy(session = SessionSimulation(SessionRules.load()).snapshot(),
+            navigators = mapOf("pilot" to player))
+        val world = WorldBootstrap(galaxy)
+        for (id in 1..160) {
+            hub.strategicMovement(NpcStrategicMovement(1, id, 2400, 2401, 100, listOf(id), recipients),
+                committed, world) { null }
+        }
+        assertEquals(listOf(0x0b0d), received.flatten().map(::opcode))
+        assertEquals(1, received.size)
+
+        val next = committed.copy(revision = committed.revision + 1)
+        for (id in 161..162) {
+            hub.strategicMovement(NpcStrategicMovement(1, id, 2487, 2488, 101, listOf(id), recipients),
+                next, world) { null }
+        }
+        assertEquals(listOf(0x0b0d, 0x0b0d, 0x0425, 0x0425), received.flatten().map(::opcode))
+        assertEquals(listOf(161, 162), received.flatten().filter { opcode(it) == 0x0425 }.map { ByteBuffer.wrap(it).getInt(21) })
+    }
+
     @Test fun defeatExitSurvivesTheStrategicMovementPublicationOfItsCommittedReturn() {
         val hub = GamePresence()
         val received = mutableListOf<List<ByteArray>>()
