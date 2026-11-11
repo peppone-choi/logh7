@@ -10,6 +10,37 @@ import java.nio.file.Path
 import kotlin.test.*
 
 class ReorganizationWireTest {
+    @Test fun groundPreviewReportsAvailableLandingShipSlotsWithoutChangingTheRoster() {
+        val state = State(10000)
+        val infantry = UnitStack(0)
+        val landingShip = UnitStack(84)
+        val ships = ActiveShipUnits(listOf(ActiveShipUnit(1, landingShip), ActiveShipUnit(2, landingShip, boats = 0)))
+        val outfit = state.stocks.outfits.getValue(1).copy(kind = OutfitKind.GROUND, activeShips = ships,
+            units = UnitInventory(ships.quantities(), mapOf(infantry to 1, UnitStack(3) to 1)))
+        val warehouse = state.stocks.warehouses.getValue(101).copy(kind = OutfitKind.PATROL, outfitId = 0,
+            units = UnitInventory(troops = mapOf(infantry to 1)))
+        state.stocks = state.stocks.copy(outfits = mapOf(1 to outfit), warehouses = mapOf(101 to warehouse), nextShipId = 3)
+
+        fixture(state, "ground-preview").use { server ->
+            val client = server.join(server.account(0), true, false).client
+            start(client)
+            val before = state.stocks
+            val balance = state.players
+            val saves = state.saves
+            val preview = query().copy(kind = OutfitKind.GROUND.wire, mode = 0,
+                moves = LogisticsMessages.Moves(emptyList(), emptyList()))
+            client.send(LogisticsMessages.encode(preview))
+            val reply = client.expect(0x0c02)
+            assertEquals(0, ByteBuffer.wrap(reply).int)
+            val capacity = LogisticsMessages.reorganization(reply.copyOfRange(4, reply.size))
+            assertEquals(9, capacity.maxTroops)
+            assertEquals(0, capacity.maxCrew)
+            assertEquals(before, state.stocks)
+            assertEquals(balance, state.players)
+            assertEquals(saves, state.saves)
+        }
+    }
+
     @Test fun warehouseRemainderCanBeCommissionedAndReturnedAfterReconnectWithoutRefilling() {
         val state=State(10000)
         val stack=UnitStack(32)

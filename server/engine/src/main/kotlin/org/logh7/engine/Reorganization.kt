@@ -73,9 +73,14 @@ internal object Reorganization {
         val baselineCrew=outfit.units.troops.filterKeys { it.kind in crewKinds }.values.sumOf { it.toLong() }
         // 0052f700 adds max_crew to the editor's baseline crew. Sending
         // the absolute requirement doubles its crew limit.
-        // Additional infantry transport capacity is not reconstructed yet.
-        // Preserve the editor's existing infantry baseline, never invent slots.
-        return ReorganizationCapacity(0,Math.toIntExact(crew),Math.toIntExact(crew-baselineCrew),shipRows(projected))
+        val additionalTroops = if (outfit.kind == OutfitKind.GROUND) {
+            // The editor adds the returned transport allowance to its existing troop count.
+            val baseline = GroundUnits.quantities(outfit.units).values.sum()
+            val slots = checkNotNull(projected.activeShips).values.filter { it.boats > 0 }
+                .sumOf { GroundTransfer.capacity(it.stack.kind) }
+            maxOf(0, slots - baseline)
+        } else 0
+        return ReorganizationCapacity(additionalTroops,Math.toIntExact(crew),Math.toIntExact(crew-baselineCrew),shipRows(projected))
     }
 
     private fun shipRows(outfit:OutfitStock):List<ReorganizationShip> =
