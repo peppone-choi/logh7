@@ -259,9 +259,20 @@ internal object NpcStrategy {
             reserve(minOf(roundTrip,stages.minOfOrNull {fromOrigin[it.grid]} ?: roundTrip))
     }
 
-    /** Reserve real cargo for every remaining jump to a reachable safe depot. */
-    fun returnDistance(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks):Int? =
-        if(!eligible(outfit,stocks) || outfit.positionIn(galaxy).baseId!=0)null else home(galaxy,forces,outfit,stocks)?.jumps
+    /** Reserve cargo for the active leg and keep the fallback to a safe depot. */
+    fun returnDistance(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,stocks:PlanetStocks,
+        eliminated:Set<CountryId> = emptySet()):Int? {
+        val position=outfit.positionIn(galaxy)
+        if(!eligible(outfit,stocks) || position.baseId!=0)return null
+        val fallback=home(galaxy,forces,outfit,stocks)?.jumps
+        val current=outfit.strategy ?: return fallback
+        if(current.expeditionBase==null)return fallback
+        val goal=NpcOccupation.goal(outfit,stocks,galaxy,eliminated)?.takeIf {
+            it.id==current.expeditionBase && it.grid!=position.grid && NpcOccupation.hasCarrier(outfit,it,stocks)
+        } ?: return fallback
+        val leg=missionRoute(galaxy,forces,outfit,stocks,goal,current.destination) ?: return fallback
+        return maxOf(fallback ?: 0,leg.missionJumps)
+    }
     /**
      * Next adjacent grid: towards the nearest enemy it can take on (at most twice its own mobile units), or, when
      * every enemy outmatches it, a stronger enemy shares its grid or its fuel runs short, back towards a reachable own depot
