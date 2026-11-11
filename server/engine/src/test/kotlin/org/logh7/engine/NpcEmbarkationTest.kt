@@ -58,14 +58,14 @@ class NpcEmbarkationTest {
         assertTrue(troops(locked).isEmpty())
         assertEquals(before.bases,locked.bases)
         val outfit=before.outfits.getValue(1)
-        assertEquals(before,NpcOccupation.loadAtHome(outfit,goal,before) {false})
+        assertEquals(before,NpcOccupation.loadAtBerth(outfit,goal,before,home.id) {false})
         val veteran=infantry.copy(level=1)
         val reserve=before.warehouses.getValue(10).copy(units=UnitInventory(troops=mapOf(veteran to 1,tank to 1,crew to 1)))
         val supplied=before.copy(warehouses=mapOf(10 to reserve))
-        val loaded=NpcOccupation.loadAtHome(outfit,goal,supplied) {false}
+        val loaded=NpcOccupation.loadAtBerth(outfit,goal,supplied,home.id) {false}
         assertEquals(listOf(ActiveGroundUnit(2,veteran,carrier=1)),troops(loaded))
         assertEquals(mapOf(tank to 1,crew to 1),loaded.warehouses.getValue(10).units.troops)
         assertEquals(before.bases,loaded.bases)
-        assertEquals(loaded,NpcOccupation.loadAtHome(loaded.outfits.getValue(1),goal,loaded) {true})
+        assertEquals(loaded,NpcOccupation.loadAtBerth(loaded.outfits.getValue(1),goal,loaded,home.id) {true})
     }
 }
