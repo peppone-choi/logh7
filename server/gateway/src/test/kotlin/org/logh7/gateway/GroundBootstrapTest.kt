@@ -81,6 +81,16 @@ class GroundBootstrapTest {
         assertTrue(TacticalBootstrap(delegated,galaxy,viewer){null}.groundOrders.isEmpty())
         val witness=viewer.copy(characterId=10001)
         assertEquals(setOf(aiOrder),TacticalBootstrap(delegated,galaxy,witness){null}.groundOrders)
+        val autonomousTroops=ActiveGroundUnits(troops.values.map {if(it.id==2)it.copy(order=order.copy(character=0)) else it})
+        val autonomousStock=delegatedStock.copy(
+            outfits=mapOf(1 to reserved.copy(commanderId=0,activeGround=autonomousTroops)),
+            social=SocialState(goals=GoalState(national=mapOf(Power.EMPIRE.country.value to NationalGoal(1049,viewer.characterId,250)))))
+        val autonomous=delegated.copy(planetStocks=autonomousStock)
+        assertEquals(setOf(order.copy(character=0)),TacticalGroundOrder.pending(
+            autonomousStock,viewer.grid,listOf(viewer),galaxy,emptySet(),250))
+        val observing=TacticalBootstrap(autonomous,galaxy,witness){null}
+        assertTrue(observing.groundOrders.isEmpty())
+        assertTrue(observing.initialize().none {ByteBuffer.wrap(it).getShort(4).toInt()==0x040f})
         val captured=delegated.copy(planetStocks=delegatedStock.copy(bases=stocks.bases))
         assertTrue(TacticalBootstrap(captured,galaxy,witness){null}.groundOrders.isEmpty())
         val replaced=delegated.copy(planetStocks=delegatedStock.copy(

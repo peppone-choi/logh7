@@ -8,14 +8,15 @@ internal object TacticalPostureCodec {
         (state.order?.let {
             listOf(it.character,it.mode.wire,it.base,it.acceptedAt,it.readyAt) +
                 if(it.issuedByOfflineAi) listOf(1) else emptyList()
-        } ?: emptyList()))
+        } ?: emptyList()) + if(state.autonomousAnchor) listOf("n") else emptyList())
         .joinToString("~")
     fun decode(text:String):TacticalPosture {
         require(text.length in 5..100)
-        val f=text.split('~');require(f.size==3 || f.size==8 || f.size==9 && f[8]=="1")
+        val autonomous=text.endsWith("~n")
+        val f=text.removeSuffix("~n").split('~');require(f.size==3 || f.size==8 || f.size==9 && f[8]=="1")
         fun mode(index:Int)=requireNotNull(TacticalShipMode.entries.singleOrNull {it.wire==f[index].toInt()})
         return TacticalPosture(f[0].toInt(),mode(1),f[2].toInt(),if(f.size>=8)
-            TacticalPostureOrder(f[3].toInt(),mode(4),f[5].toInt(),f[6].toLong(),f[7].toLong(),issuedByOfflineAi=f.size==9) else null)
+            TacticalPostureOrder(f[3].toInt(),mode(4),f[5].toInt(),f[6].toLong(),f[7].toLong(),issuedByOfflineAi=f.size==9) else null,autonomousAnchor=autonomous)
             .also {require(encode(it)==text)}
     }
 }

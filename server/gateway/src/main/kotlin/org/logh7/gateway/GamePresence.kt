@@ -314,6 +314,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
     @Synchronized fun ground(event:org.logh7.engine.TacticalGroundResult,snapshot:org.logh7.engine.WorldSnapshot,
         galaxy:org.logh7.engine.Galaxy,characterById:(Int)->CharacterMessages.Generate?) {
         val order=event.order
+        if(event.cancelled && order.character==0)return
         val deploy=order.action==org.logh7.engine.TacticalGroundAction.DEPLOY
         members.values.filter {it.player.generation==event.generation && it.player.grid==order.grid &&
             event.recipients[it.character.id.toInt()]==it.connection}.forEach {viewer ->
@@ -340,6 +341,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
         }
     }
     @Synchronized fun posture(event:org.logh7.engine.TacticalPostureResult,snapshot:org.logh7.engine.WorldSnapshot) {
+        if(event.cancelled && event.character==0)return
         val ids=event.units.keys.toList()
         val packet=if(event.cancelled && event.sortie)org.logh7.protocol.TacticalGroundMessages.reply(
             org.logh7.protocol.TacticalGroundMessages.Command(org.logh7.protocol.TacticalGroundMessages.Action.SORTIE,event.character,ids),event.seconds,0,false)

@@ -13,7 +13,8 @@ private fun validPosture(mode:TacticalShipMode,base:Int)=
 /** Accepted target, distinct from the current posture until the actor commits execution. */
 data class TacticalPostureOrder(val character:Int,val mode:TacticalShipMode,val base:Int,
     val acceptedAt:Long,val readyAt:Long,val issuedByOfflineAi:Boolean=false) {
-    init {require(character>0 && validPosture(mode,base) &&
+    init {require((character>0 || character==0 && !issuedByOfflineAi &&
+        (mode==TacticalShipMode.ANCHORED || mode==TacticalShipMode.SAILING)) && validPosture(mode,base) &&
         acceptedAt in 0..0xffffffffL && readyAt in acceptedAt..0xffffffffL &&
         (!issuedByOfflineAi || mode==TacticalShipMode.ANCHORED))}
 
@@ -26,6 +27,6 @@ data class TacticalPostureOrder(val character:Int,val mode:TacticalShipMode,val 
 
 /** Grid-scoped state shared by personal flagships and commissioned ship units. */
 data class TacticalPosture(val grid:Int,val mode:TacticalShipMode=TacticalShipMode.SAILING,val base:Int=0,
-    val order:TacticalPostureOrder?=null) {
-    init {require(grid in 0..4999 && validPosture(mode,base))}
+    val order:TacticalPostureOrder?=null,val autonomousAnchor:Boolean=false) {
+    init {require(grid in 0..4999 && validPosture(mode,base) && (!autonomousAnchor || mode==TacticalShipMode.ANCHORED))}
 }

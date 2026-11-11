@@ -10,7 +10,8 @@ data class TacticalPostureChange(val units:List<Int>,val mode:TacticalShipMode,v
 data class TacticalPostureResult(val generation:Long,val grid:Int,val seconds:Long,val character:Int,
     val mode:TacticalShipMode,val base:Int,val units:Map<Int,TacticalPose>,val recipients:Map<Int,String>,
     val spot:Int=0,val spotOwner:Int=0,val cancelled:Boolean=false,val sortie:Boolean=false) {
-    init {require(generation>0 && grid in 0..4999 && seconds in 0..0xffffffffL && character>0 && base in 0..65535 &&
+    init {require(generation>0 && grid in 0..4999 && seconds in 0..0xffffffffL &&
+        (character>0 || character==0 && !sortie && (mode==TacticalShipMode.ANCHORED || mode==TacticalShipMode.SAILING)) && base in 0..65535 &&
         (base>0)==mode.requiresBase && units.size in 1..32 && units.keys.all {it>0} && spot>=0 && spotOwner>=0 &&
         recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()} &&
         (!sortie || mode==TacticalShipMode.ANCHORED && units.size==1))}
@@ -22,7 +23,7 @@ internal object TacticalPostureOperations {
         o.activeShips?.values?.singleOrNull {it.id==id}?.let {Ship(o,it)}}.singleOrNull()
     private fun replace(stocks:PlanetStocks,s:Ship,unit:ActiveShipUnit)=stocks.copy(outfits=stocks.outfits+
         (s.outfit.id to s.outfit.copy(activeShips=ActiveShipUnits(s.outfit.activeShips!!.values.map {if(it.id==unit.id)unit else it}))))
-    private fun target(mode:TacticalShipMode,base:Int,grid:Int,camp:Camp,point:TacticalPoint,galaxy:Galaxy,stocks:PlanetStocks,seconds:Long):Boolean {
+    internal fun target(mode:TacticalShipMode,base:Int,grid:Int,camp:Camp,point:TacticalPoint,galaxy:Galaxy,stocks:PlanetStocks,seconds:Long):Boolean {
         if(!mode.requiresBase)return base==0
         val b=galaxy.bases.singleOrNull {it.id==base && it.grid==grid} ?: return false
         val stock=stocks.bases[base] ?: return false
@@ -146,15 +147,17 @@ internal object TacticalPostureOperations {
             val commander=commanders.entries.singleOrNull {it.value.characterId==order.character}
             val p=commander?.value
             val context=session.ended==null && s.outfit.country !in session.eliminated &&
-                p!=null && p.generation==session.generation && p.country !in session.eliminated &&
-                session.participants[commander.key]?.country !in session.eliminated &&
-                (!order.issuedByOfflineAi || TacticalOfflineAi.canFinishOccupationOrder(session,commander.key,p,stocks,order.base)) &&
-                order.canBeExecutedBy(p,state.grid,now,stocks) && owned(s,p,galaxy,stocks)
+                (if(order.character==0) NpcOccupation.canFinishPosture(s.outfit,s.unit,state,order,stocks,galaxy,session.eliminated.keys)
+                else p!=null && p.generation==session.generation && p.country !in session.eliminated &&
+                    session.participants[commander.key]?.country !in session.eliminated &&
+                    (!order.issuedByOfflineAi || TacticalOfflineAi.canFinishOccupationOrder(session,commander.key,p,stocks,order.base)) &&
+                    order.canBeExecutedBy(p,state.grid,now,stocks) && owned(s,p,galaxy,stocks))
             if(order.readyAt>now && context)continue
             val at=pose(s,state.grid,minOf(now,order.readyAt),players.values,stocks,galaxy)
-            val valid=context && p!=null &&
-                    target(order.mode,order.base,state.grid,TacticalAuthority.camp(p,stocks),at.position,galaxy,stocks,minOf(now,order.readyAt))
-            val changed=if(valid)TacticalPosture(state.grid,order.mode,order.base) else state.copy(order=null)
+            val valid=context && target(order.mode,order.base,state.grid,TacticalAuthority.camp(s.outfit,stocks),
+                at.position,galaxy,stocks,minOf(now,order.readyAt))
+            val changed=if(valid)TacticalPosture(state.grid,order.mode,order.base,
+                autonomousAnchor=order.character==0 && order.mode==TacticalShipMode.ANCHORED) else state.copy(order=null)
             var unit=s.unit.copy(posture=changed)
             if(valid) {
                 val motion=TacticalMotion(state.grid,if(order.mode.requiresBase)minOf(now,order.readyAt) else now,at,0f,at.direction,listOf(at.position))
