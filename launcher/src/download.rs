@@ -198,6 +198,7 @@ pub fn download(
     let lower = name.to_string_lossy().to_ascii_lowercase();
     if lower.ends_with(".partial")
         || lower.ends_with(".partial-next")
+        || lower.ends_with(".partial-lock")
         || lower.ends_with(['.', ' '])
     {
         return Err("내려받기 임시 디렉터리와 충돌하는 이름입니다".into());
@@ -250,6 +251,30 @@ pub fn download(
         return Err("지원하지 않는 패치 목록입니다".into());
     }
     validate_paths(files.iter().map(|(path, _)| path.as_str()))?;
+    #[cfg(windows)]
+    let _lock = {
+        use std::os::windows::fs::OpenOptionsExt;
+        const FILE_FLAG_DELETE_ON_CLOSE: u32 = 0x04000000;
+        let mut lock_name = staging.file_name().unwrap().to_os_string();
+        lock_name.push("-lock");
+        let lock_path = out.with_file_name(lock_name);
+        fs::create_dir_all(lock_path.parent().unwrap())
+            .map_err(|_| "임시 다운로드 디렉터리를 만들지 못했습니다")?;
+        // The kernel releases the lock even when the launcher is killed.
+        let lock = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .share_mode(0)
+            .custom_flags(FILE_FLAG_DELETE_ON_CLOSE)
+            .open(lock_path)
+            .map_err(
+                |_| "같은 경로의 다운로드가 진행 중이거나 임시 잠금 파일에 접근할 수 없습니다",
+            )?;
+        if out.exists() {
+            return Err("받을 디렉터리가 이미 있습니다".into());
+        }
+        lock
+    };
     // 이어받기(파일 단위): 이전 시도의 `.partial`에서 목록 해시와 같은 내용만 빈 새 디렉터리로 옮겨 쓴다.
     // - 새 디렉터리에는 목록 철자 그대로 쓰므로 대소문자가 다른 옛 이름이나 옛 파일/디렉터리 충돌이 남지 않는다.
     // - 옛 디렉터리는 표준 `remove_dir_all`로 지운다. 이 함수는 심볼릭 링크·정션을 따라가지 않는다
