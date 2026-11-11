@@ -18,6 +18,39 @@ class NpcStrategyTest {
     private fun advance(at:Long,stocks:PlanetStocks,players:MutableMap<String,Navigator>,events:MutableList<NpcStrategicMovement>)=
         NpcStrategy.advance(simulation.copy(gameMillis=at*1000),galaxy,players,stocks,events)
 
+    @Test fun dockedNpcSortiesAgainstDeployedEnemyInItsOwnSystemWithoutWarping() {
+        val before = stocks()
+        val observers = players()
+        observers["pilot"] = observers.getValue("pilot").copy(grid = 2487, mode = 5)
+        val movements = mutableListOf<NpcStrategicMovement>()
+        val after = advance(0, before, observers, movements)
+        val fleet = after.outfits.getValue(1)
+        assertEquals(OutfitPosition(2487), fleet.position)
+        assertEquals(3000, fleet.supplies)
+        assertEquals(before.bases.getValue(1000).supplies - fleet.supplies, after.bases.getValue(1000).supplies)
+        assertTrue(observers.getValue("pilot").cpPaused)
+        assertEquals(NpcStrategicMovement(1, 1, 2487, 2487, 0, listOf(1), mapOf(10000 to "current")),
+            movements.single())
+        assertEquals(after, advance(0, after, observers, movements))
+        assertEquals(1, movements.size)
+    }
+
+    @Test fun localDefenseDoesNotLaunchAgainstDockedOrOverwhelmingEnemies() {
+        val before = stocks()
+        val enemy = players().getValue("pilot").copy(grid = 2487, mode = 5)
+        val docked = mutableMapOf("pilot" to enemy.copy(baseId = 1000, mode = 1))
+        val overwhelming = (0..2).associate { index ->
+            "enemy$index" to enemy.copy(characterId = enemy.characterId + index)
+        }.toMutableMap()
+        for (observers in listOf(docked, overwhelming)) {
+            val events = mutableListOf<NpcStrategicMovement>()
+            val after = advance(0, before, observers, events)
+            assertEquals(before.outfits.getValue(1).position, after.outfits.getValue(1).position)
+            assertEquals(before.bases, after.bases)
+            assertTrue(events.isEmpty())
+        }
+    }
+
     @Test fun awardedOriginalOnlyHoldsItsVacantFleetAtTheStartingBerth() {
         val base=galaxy.bases.single().copy(id=1049)
         val world=Galaxy(galaxy.systems,listOf(base),galaxy.starts)

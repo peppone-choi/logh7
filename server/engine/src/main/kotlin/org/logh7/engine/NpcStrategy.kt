@@ -13,12 +13,13 @@ data class NpcStrategicState(val nextDecisionAt:Long,val destination:Int?=null,v
     }
 }
 /**
- * A committed strategic grid change of uncommanded NPC fleets, and of an offline captain's reserved warp
+ * A committed strategic warp or local sortie of an uncommanded fleet, or an offline captain's reserved warp
  * (outfit 0 and no units for a flagship without a deployed fleet; the flagship has no ship-unit ID).
  */
 data class NpcStrategicMovement(val generation:Long,val outfit:Int,val source:Int,val destination:Int,
     val seconds:Long,val units:List<Int>,val recipients:Map<Int,String>) {
-    init {require(generation>0 && outfit>=0 && source in 0..4999 && destination in 0..4999 && source!=destination &&
+    init {require(generation>0 && outfit>=0 && source in 0..4999 && destination in 0..4999 &&
+        (source!=destination || outfit>0 && units.isNotEmpty()) &&
         seconds in 0..0xffffffffL && units.size in 0..300 && (outfit>0 || units.isEmpty()) &&
         units.distinct().size==units.size && units.all {it in 1..999999} &&
         recipients.keys.all {it>0} && recipients.values.all {it.isNotBlank()})}
@@ -35,6 +36,21 @@ internal object NpcStrategy {
         if(count !in 1..300)return false
         return GridEntryRules.evaluate(GridForces.state(galaxy,target,forces),GridEntry(Camp(outfit.country,false),count.toInt(),false))==GridEntryVerdict.ALLOWED
     }
+    private fun canDefendLocally(galaxy: Galaxy, forces: Map<Int, List<GridForces.Force>>, outfit: OutfitStock,
+        grid: Int): Boolean {
+        val camp = Camp(outfit.country, false)
+        val count = GridForces.mobileUnits(outfit)
+        val local = forces[grid].orEmpty()
+        if (count !in 1..GridEntryRules.MAX_UNITS_PER_CAMP.toLong() ||
+            local.none { it.camp != camp && it.deployedShip } || hostile(forces, grid, camp) > count * 2) return false
+        val state = GridForces.state(galaxy, grid, forces)
+        // The docked outfit is already included in the camp total.
+        val withoutOutfit = state.copy(presences = state.presences.map {
+            if (it.camp == camp) it.copy(units = it.units - count.toInt()) else it
+        })
+        return GridEntryRules.evaluate(withoutOutfit, GridEntry(camp, count.toInt(), false)) == GridEntryVerdict.ALLOWED
+    }
+
     private fun neighbors(grid:Int):List<Int> {
         val x=grid%100;val y=grid/100
         return (-1..1).flatMap {dy->(-1..1).mapNotNull {dx->
@@ -295,6 +311,20 @@ internal object NpcStrategy {
             stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to docked))
             forceCache=null
         }
+        fun publishDeployment(moved: OutfitStock, source: Int, destination: Int) {
+            for((account,player) in players.toMap())if(player.grid==destination && !player.cpPaused &&
+                player.generation==session.generation && player.country !in session.eliminated &&
+                session.participants[account]?.country !in session.eliminated && !BattleDeath.deceased(stocks,player.characterId) &&
+                (player.hull?.woundedUntil ?: 0)<=now && TacticalContact.active(galaxy,player,players.values,stocks,session.eliminated.keys)) {
+                players[account]=player.copy(cpPaused=true,cpRecoveryAt=now,
+                    commandRange=TacticalCommandRange(now,command=50),motion=null,retreat=null,charge=null,
+                    attack=null,fire=player.fire?.copy(pending=null))
+            }
+            val audience=session.participants.mapNotNull {(account,member)->players[account]?.takeIf {
+                member.online && it.generation==session.generation}?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
+            movements+=NpcStrategicMovement(session.generation,moved.id,source,destination,now,
+                moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
+        }
         for(id in original.outfits.keys.sorted()) {
             var outfit=stocks.outfits.getValue(id)
             val position=outfit.positionIn(galaxy)
@@ -363,19 +393,22 @@ internal object NpcStrategy {
                 if(planned.baseId!=0)moved=replenishAtBerth(moved)
                 stocks=stocks.copy(outfits=stocks.outfits+(id to moved))
                 forceCache=null // Later arrivals must see this move when checking the 300-unit cap.
-                for((account,player) in players.toMap())if(player.grid==destination && !player.cpPaused &&
-                    player.generation==session.generation && player.country !in session.eliminated &&
-                    session.participants[account]?.country !in session.eliminated && !BattleDeath.deceased(stocks,player.characterId) &&
-                    (player.hull?.woundedUntil ?: 0)<=now && TacticalContact.active(galaxy,player,players.values,stocks,session.eliminated.keys)) {
-                    players[account]=player.copy(cpPaused=true,cpRecoveryAt=now,
-                        commandRange=TacticalCommandRange(now,command=50),motion=null,retreat=null,charge=null,
-                        attack=null,fire=player.fire?.copy(pending=null))
-                }
-                val audience=session.participants.mapNotNull {(account,member)->players[account]?.takeIf {
-                    member.online && it.generation==session.generation}?.let {it.characterId to checkNotNull(member.connection)}}.toMap()
-                movements+=NpcStrategicMovement(session.generation,id,position.grid,destination,now,
-                    moved.activeShips!!.values.filter {it.boats>0}.map {it.id},audience)
+                publishDeployment(moved, position.grid, destination)
             } else if(pending?.destination==null && (pending==null || now>=pending.nextDecisionAt)) {
+                if (position.baseId != 0 && outfit.guard == null &&
+                    canDefendLocally(galaxy, forces(), outfit, position.grid) &&
+                    canDepart(stocks, outfit, galaxy) && !warehouseBlocked(stocks, id)) {
+                    val (inventory, provisioned) = checkNotNull(supplied(stocks, outfit, galaxy, departing = false))
+                    val deployed = provisioned.copy(position = OutfitPosition(position.grid),
+                        strategy = NpcStrategicState(now + 21600),
+                        activeShips = ActiveShipUnits(provisioned.activeShips!!.values.map {
+                            it.copy(tactical = null, motionCommander = 0, posture = null)
+                        }))
+                    stocks = inventory.copy(outfits = inventory.outfits + (id to deployed))
+                    forceCache = null
+                    publishDeployment(deployed, position.grid, position.grid)
+                    continue
+                }
                 if (position.baseId != 0) outfit = replaceBoatsAtHome(repairAtDepot(outfit))
                 val destination=target(galaxy,forces(),outfit,stocks,players.values,session.eliminated.keys)
                 val relief=reliefRoute(galaxy,forces(),outfit,stocks)

@@ -507,7 +507,7 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             val updated=update(member,event.seconds)
             val packets=mutableListOf<ByteArray>()
             GridForceReport.message(snapshot,world.galaxy,player,event.seconds)?.let {packets+=it}
-            if(player.grid==event.source && player.baseId==0 && player.cpPaused &&
+            if(event.source!=event.destination && player.grid==event.source && player.baseId==0 && player.cpPaused &&
                 previous.player.grid==event.source && previous.player.cpPaused)event.units.chunked(255).forEach {
                 packets+=org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,event.destination,it)
             }
