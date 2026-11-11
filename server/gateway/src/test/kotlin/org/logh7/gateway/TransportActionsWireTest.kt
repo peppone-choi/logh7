@@ -1,5 +1,6 @@
 package org.logh7.gateway
 
+import kotlinx.coroutines.runBlocking
 import java.nio.ByteBuffer
 import java.nio.file.Path
 import org.junit.jupiter.api.Test
@@ -132,20 +133,36 @@ class TransportActionsWireTest {
         }
         next(client,0x1201);return selections
     }
-    @Test fun aLostDestinationRemovesUnloadedCargoFromLoadingButKeepsCancellationAndRerouting() {
+    @Test fun captureChangesLoadingOptionsOnTheSameConnectionAndKeepsCancellationAndRerouting() = runBlocking {
         val state=State()
         val source=state.stocks.bases.getValue(1049)
-        val destination=state.stocks.bases.getValue(1050)
         val unloaded=TransportPackage(2,CountryId(2),1049,1050,100)
         val boats=TransportActions.boats(state.stocks.outfits.getValue(200))
         val aboard=unloaded.copy(id=3,carrier=200,carrierBoats=boats,survivingBoats=boats)
+        val defenders=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),base=1050,strength=1)))
+        val attackers=ActiveGroundUnits(listOf(ActiveGroundUnit(3,UnitStack(4),base=1050)))
+        val defense=OutfitStock(201,2,OutfitKind.GROUND,1050,301,
+            units=UnitInventory(troops=defenders.quantities()),activeGround=defenders)
+        val attack=OutfitStock(202,3,OutfitKind.GROUND,1050,302,
+            units=UnitInventory(troops=attackers.quantities()),activeGround=attackers)
         state.stocks=state.stocks.copy(
-            bases=state.stocks.bases+(1050 to destination.copy(owner=Allegiance.fromLegacy(3))),
+            outfits=state.stocks.outfits+mapOf(201 to defense,202 to attack),
+            warehouses=state.stocks.warehouses+mapOf(301 to OutfitWarehouse(301,2,OutfitKind.PATROL,1050),
+                302 to OutfitWarehouse(302,3,OutfitKind.PATROL,1050)),
+            deploymentInitialized=true,nextShipId=4,
             strategic=state.stocks.strategic.copy(transports=listOf(unloaded,aboard),lastTransportId=3))
         LoadFixture(directory.resolve("lost-destination"),1,LoadMetrics(),galaxy,ticking=false,
             navigationStore=state.navigation,stockStore=state.inventory,worldStateCommitter=state).use {fixture->
             val client=fixture.join(fixture.account(0),true,false).client
             client.send(SyntheticClient.opcode(0x0f00));next(client,0x0f01)
+            assertEquals(listOf(2,3),listed(client,65))
+            action(client,65,3,StrategyActionRejection.LOCATION.ordinal+1,intent=2)
+            assertEquals(1000,state.players.getValue("load-000").mcp)
+            assertEquals(Power.EMPIRE.country,fixture.engine.snapshot().planetStocks!!.bases.getValue(1050).country)
+            fixture.engine.submit(WorldCommand.AdvanceTo(5_000))
+            fixture.await("destination captured") {
+                fixture.engine.snapshot().planetStocks!!.bases.getValue(1050).country==Power.ALLIANCE.country
+            }
             assertEquals(listOf(2),listed(client,29))
             assertEquals(listOf(3),listedRows(client,65,expectedIntent=2).map {it.first})
             action(client,65,2,StrategyActionRejection.LOCATION.ordinal+1,intent=1)
@@ -155,6 +172,9 @@ class TransportActionsWireTest {
             action(client,65,3,warehouse=1049,intent=2)
             assertEquals(source.supplies+200,state.stocks.bases.getValue(1049).supplies)
             assertTrue(state.stocks.strategic.transports.isEmpty())
+            assertEquals(760,state.players.getValue("load-000").mcp)
+            action(client,65,3,StrategyActionRejection.TARGET.ordinal+1,intent=2)
+            assertEquals(760,state.players.getValue("load-000").mcp)
         }
     }
 
