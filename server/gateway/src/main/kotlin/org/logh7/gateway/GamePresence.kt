@@ -508,8 +508,8 @@ class GamePresence(private val npcDialogue:NpcCombatDialogue?=null,
             val packets=mutableListOf<ByteArray>()
             GridForceReport.message(snapshot,world.galaxy,player,event.seconds)?.let {packets+=it}
             if(event.source!=event.destination && player.grid==event.source && player.baseId==0 && player.cpPaused &&
-                previous.player.grid==event.source && previous.player.cpPaused)event.units.chunked(255).forEach {
-                packets+=org.logh7.protocol.TacticalRetreatMessages.warped(event.seconds,event.destination,it)
+                previous.player.grid==event.source && previous.player.cpPaused) {
+                packets+=org.logh7.protocol.TacticalRetreatMessages.warpNotifications(event.seconds,event.destination,event.units)
             }
             if(player.grid==event.destination && player.cpPaused) {
                 // Definitions/states replace caches but do not import a new native model.

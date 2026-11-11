@@ -74,4 +74,65 @@ class NpcStrategyWireTest {
             assertEquals(1,savedStocks.outfits.getValue(1).activeShips!!.values.single().id)
         }
     }
+
+    @Test fun largeNpcReturnRemovesEveryShipFromTheOccupiedBattlefieldOverTcp() = runBlocking {
+        val home = 2487
+        val battle = 2488
+        val galaxy = Galaxy(listOf(GalaxySystem(3,home,4,"Home",2),GalaxySystem(4,battle,4,"Front",3)),
+            listOf(GalaxyBase(1000,home,80,0,"Home",0,20f,86400,0,0f,2f)), Power.entries.associateWith { home })
+        var players = (0..1).associate { i -> "load-00$i" to Navigator(1, 10000 + i, Power.ALLIANCE, battle,
+            1000, 1000, 1000, cpPaused = true, hull = FlagshipHull(89, 0)) }
+        val stack = UnitStack(32)
+        val ships = (1..33).map { ActiveShipUnit(it, stack, supplies = 300) }
+        val retreating = OutfitStock(1, 2, OutfitKind.FLEET, 1000, 10,
+            units = UnitInventory(mapOf(stack to ships.size)), supplies = 9900, activeShips = ActiveShipUnits(ships),
+            position = OutfitPosition(battle), strategy = NpcStrategicState(21600, home, 3600))
+        val holding = OutfitStock(2, 2, OutfitKind.FLEET, 1000, 11, commanderId = 10010,
+            units = UnitInventory(mapOf(stack to 1)), activeShips = ActiveShipUnits(listOf(ActiveShipUnit(34, stack))),
+            position = OutfitPosition(battle))
+        var stocks = PlanetStocks(1, 0, mapOf(1000 to PlanetStock(1000,2,0,100000,100000,100000)),
+            outfits = mapOf(1 to retreating, 2 to holding),
+            warehouses = mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,1000,1),
+                11 to OutfitWarehouse(11,2,OutfitKind.FLEET,1000,2)),
+            deploymentInitialized = true, nextShipId = 35)
+        val nav = object : NavigationStore {
+            override fun load() = players
+            override fun save(players: Map<String, Navigator>) {}
+        }
+        val inventory = object : PlanetStockStore {
+            override fun load() = stocks
+            override fun save(stocks: PlanetStocks) {}
+        }
+        val commit = WorldStateCommitter { nextPlayers, nextStocks ->
+            players = nextPlayers.toMap()
+            stocks = checkNotNull(nextStocks)
+        }
+        fun through(client: SyntheticClient, opcode: Int): ByteArray {
+            repeat(500) {
+                val reply = client.receive()
+                if (ByteBuffer.wrap(reply).getShort(4).toInt() and 65535 == opcode) return reply
+            }
+            error("Missing opcode $opcode")
+        }
+        LoadFixture(directory, 2, LoadMetrics(), galaxy, ticking = false, navigationStore = nav, stockStore = inventory,
+            worldStateCommitter = commit, powerByIndex = { 3 }, npcStrategy = true).use { fixture ->
+            val clients = (0..1).map { i -> fixture.join(fixture.account(i), true, false).client.also { client ->
+                client.send(SyntheticClient.opcode(0x0f00)); through(client, 0x0f01)
+                client.send(SyntheticClient.opcode(0x0f02)); through(client, 0x0f03)
+            } }
+            fixture.engine.submit(WorldCommand.AdvanceTo(150000))
+            withTimeout(5000) {
+                while (fixture.engine.snapshot().planetStocks?.outfits?.get(1)?.position != OutfitPosition(home, 1000)) delay(1)
+            }
+            assertEquals(OutfitPosition(battle), stocks.outfits.getValue(2).position)
+            assertTrue(fixture.engine.snapshot().navigators.values.all { it.grid == battle && it.cpPaused })
+            for (client in clients) {
+                assertEquals(ships.map { it.id }.chunked(32), List(2) {
+                    val reply = ByteBuffer.wrap(through(client, 0x0425))
+                    assertEquals(home, reply.getInt(10))
+                    List(reply.get(20).toInt() and 255) { reply.getInt(21 + it * 4) }
+                })
+            }
+        }
+    }
 }

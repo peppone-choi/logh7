@@ -4,6 +4,8 @@ import java.nio.ByteBuffer
 
 /** Native 004940d0/0049c5a0 (0404), 004a5cc0 (0425). Author: Peppone Choi. */
 object TacticalRetreatMessages {
+    private const val MAX_WARP_UNITS = 32
+
     data class Retreat(val character: Int, val units: List<Int>) {
         init { require(character > 0 && units.size in 1..32 && units.all { it > 0 } && units.distinct().size == units.size) }
     }
@@ -24,8 +26,11 @@ object TacticalRetreatMessages {
         command.units.forEach(out::putInt)
         return LoginMessages.sessionMessage(0x0404, out.array()).also { if (!accepted) ByteBuffer.wrap(it).putInt(0, 1) }
     }
+    fun warpNotifications(seconds: Long, grid: Int, units: List<Int>): List<ByteArray> =
+        units.chunked(MAX_WARP_UNITS).map { warped(seconds, grid, it) }
+
     fun warped(seconds: Long, grid: Int, units: List<Int>): ByteArray {
-        require(seconds in 0..0xffffffffL && grid in 0..4999 && units.size in 1..32 && units.all { it > 0 })
+        require(seconds in 0..0xffffffffL && grid in 0..4999 && units.size in 1..MAX_WARP_UNITS && units.all { it > 0 })
         val out = ByteBuffer.allocate(15 + 4 * units.size).putInt(seconds.toInt()).putInt(grid).putInt(0)
             .putShort(5).put(units.size.toByte())
         units.forEach(out::putInt)
