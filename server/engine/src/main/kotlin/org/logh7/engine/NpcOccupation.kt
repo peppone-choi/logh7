@@ -1,9 +1,10 @@
 package org.logh7.engine
 
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
 
-/** A national objective directs regular uncommanded carriers (evidence:guess). */
+/** A national objective or a vacant government's expedition directs regular uncommanded carriers (evidence:guess). */
 internal object NpcOccupation {
     private fun eligible(outfit:OutfitStock,stocks:PlanetStocks,eliminated:Set<CountryId>) =
         outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) && outfit.country !in eliminated &&
@@ -11,10 +12,51 @@ internal object NpcOccupation {
 
     fun goal(outfit:OutfitStock,stocks:PlanetStocks,galaxy:Galaxy,eliminated:Set<CountryId>):GalaxyBase? {
         if(!eligible(outfit,stocks,eliminated))return null
-        val id=stocks.social.goals.national[outfit.country.value]?.base ?: return null
+        val id=stocks.social.goals.national[outfit.country.value]?.base
+            ?: return expedition(outfit,stocks,galaxy,eliminated)
         val owner=stocks.bases[id]?.country ?: return null
         if(owner==outfit.country || owner in eliminated)return null
         return galaxy.bases.singleOrNull {it.id==id}
+    }
+
+    private val infantry = UnitSpecifications.crews.filter {it.type!=3}.associateBy {it.kind}
+    private val infantryLines = ProductionUnits.definitions.filter {!it.ship && it.kind in infantry}
+        .associate {it.key to it.kind}
+
+    private fun expedition(outfit:OutfitStock,stocks:PlanetStocks,galaxy:Galaxy,eliminated:Set<CountryId>):GalaxyBase? {
+        if(outfit.kind!=OutfitKind.FLEET || outfit.guard!=null)return null
+        val sides=Capital.entries.map {CountryId(it.power)}
+        if(outfit.country !in sides)return null
+        val enemy=sides.single {it!=outfit.country}
+        if(enemy in eliminated)return null
+        val offices=OrganizationalOfficePolicy(galaxy)
+        val enemyCapital=offices.capital(stocks,enemy) ?: return null
+        if(offices.capital(stocks,outfit.country)==null ||
+            GoalActions.nationalCards.any {offices.holders(stocks,it,outfit.country).isNotEmpty()})return null
+        val target=galaxy.bases.singleOrNull {it.id==enemyCapital} ?: return null
+
+        fun embarked(fleet:OutfitStock)=hasCarrier(fleet,target,stocks) ||
+            fleet.activeGround?.values.orEmpty().any {it.base==target.id}
+        fun source(fleet:OutfitStock):Boolean {
+            val home=stocks.bases[fleet.baseId]?.takeIf {it.country==fleet.country && it.camp==0} ?: return false
+            fun suitable(kind:Int)=infantry[kind]?.let {
+                it.power==fleet.shipStyle.nativePower && GroundBattleRules.admitsCrewType(target,it.type)
+            }==true
+            return home.units.troops.keys.any {suitable(it.kind)} ||
+                home.units.work.keys.any {key->infantryLines[key]?.let(::suitable)==true} ||
+                stocks.warehouses[fleet.warehouseId]?.units?.troops?.keys.orEmpty().any {suitable(it.kind)} ||
+                fleet.activeGround?.values.orEmpty().any {it.base==0 && it.carrier==0 && suitable(it.stack.kind)}
+        }
+        fun distance(fleet:OutfitStock):Int {
+            val home=galaxy.bases.single {it.id==fleet.baseId}.grid
+            return maxOf(abs(home%100-target.grid%100),abs(home/100-target.grid/100))
+        }
+        // One expedition per side. Keep the committed troops on mission until they leave the target or are lost.
+        val selected=stocks.outfits.values.asSequence().filter {it.country==outfit.country && it.kind==OutfitKind.FLEET &&
+            it.guard==null && eligible(it,stocks,eliminated) && it.activeShips?.values.orEmpty().any {ship->available(ship,stocks)} &&
+            (embarked(it) || source(it))}
+            .minWithOrNull(compareBy<OutfitStock> {!embarked(it)}.thenBy(::distance).thenBy {it.id})
+        return target.takeIf {selected?.id==outfit.id}
     }
 
     private fun available(ship:ActiveShipUnit,stocks:PlanetStocks) =
@@ -38,8 +80,8 @@ internal object NpcOccupation {
         val slots=GroundTransfer.freeBerths(roster,ships).values.sumOf {maxOf(0,it)}
             .coerceAtMost(GroundBattleRules.BOX_CAPACITY_PER_FACTION)
         if(slots==0)return stocks
-        val kinds=UnitSpecifications.crews.filter {
-            it.power==outfit.shipStyle.nativePower && it.type!=3 && GroundBattleRules.admitsCrewType(goal,it.type)
+        val kinds=infantry.values.filter {
+            it.power==outfit.shipStyle.nativePower && GroundBattleRules.admitsCrewType(goal,it.type)
         }.map {it.kind}.toSet()
         val ready=roster.values.filter {it.carrier==0 && it.base==0 && it.order==null && it.stack.kind in kinds}
             .sortedBy {it.id}.take(slots)
