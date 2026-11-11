@@ -480,6 +480,43 @@ class NpcTacticsTest {
         assertEquals(3000,docked.outfits.getValue(1).supplies)
         assertEquals(97000,docked.bases.getValue(1000).supplies)
     }
+    @Test fun tacticalWithdrawalKeepsTheExpeditionAndCancelsItsOldJump() {
+        val state=state()
+        val original=state.stocks.outfits.getValue(1)
+        val home=galaxy.bases.single()
+        val objective=home.copy(id=1001,grid=2490,name="Objective")
+        val campaign=Galaxy(galaxy.systems+GalaxySystem(5,objective.grid,4,"Objective",3),
+            listOf(home,objective),galaxy.starts)
+        val ship=original.activeShips!!.values.single()
+        val troops=ActiveGroundUnits(listOf(ActiveGroundUnit(2,UnitStack(0),carrier=ship.id)))
+        val expedition=original.copy(activeGround=troops,units=UnitInventory(original.units.ships,troops.quantities()),
+            strategy=NpcStrategicState(now+21600,2487,now+3600,expeditionBase=objective.id))
+        val before=state.stocks.copy(bases=mapOf(
+            home.id to state.stocks.bases.getValue(home.id).copy(supplies=100000),
+            objective.id to PlanetStock(objective.id,3,0,0,0,0)
+        ),outfits=mapOf(expedition.id to OutfitSupplies.withBalances(expedition,mapOf(ship.id to 0))),
+            strategic=state.stocks.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to objective.id)),
+            nextShipId=maxOf(3,state.stocks.nextShipId))
+        val players=state.players.toMutableMap()
+        fun fight(at:Long,stock:PlanetStocks)=NpcTactics.advance(session.copy(gameMillis=at*1000),campaign,players,
+            stock,NpcTacticalPolicy(strategic=true),24,mutableListOf(),mutableListOf())
+
+        val preparing=fight(now,before)
+        val retreat=assertNotNull(preparing.outfits.getValue(1).activeShips!!.values.single().tactical!!.retreat)
+        val escaped=fight(retreat.completesAt,preparing)
+        val fleet=escaped.outfits.getValue(1)
+        assertEquals(OutfitPosition(home.grid),fleet.position)
+        assertEquals(NpcStrategicState(retreat.completesAt,expeditionBase=objective.id),fleet.strategy)
+        assertEquals(troops,fleet.activeGround)
+        assertEquals(0,fleet.supplies)
+        val jumps=mutableListOf<NpcStrategicMovement>()
+        val docked=NpcStrategy.advance(session.copy(gameMillis=retreat.completesAt*1000),campaign,players,escaped,jumps)
+        assertEquals(OutfitPosition(home.grid,home.id),docked.outfits.getValue(1).position)
+        assertEquals(objective.id,docked.outfits.getValue(1).strategy?.expeditionBase)
+        assertEquals(3000,docked.outfits.getValue(1).supplies)
+        assertTrue(jumps.isEmpty())
+    }
+
     @Test fun aReservedJumpCannotInterruptAnActiveTacticalWithdrawal() {
         val state=state(75);val original=state.stocks.outfits.getValue(1)
         val stocks=state.stocks.copy(outfits=mapOf(1 to OutfitSupplies.withBalances(original.copy(
