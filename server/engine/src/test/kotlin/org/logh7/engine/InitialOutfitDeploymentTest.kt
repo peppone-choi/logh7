@@ -71,13 +71,30 @@ class InitialOutfitDeploymentTest {
     @Test fun laterLossesAndExistingOperatorDeploymentsAreNeverRefilled() {
         val deployment = InitialOutfitDeployment(galaxy)
         val seeded = deployment.initialize(stocks())
-        val empty = seeded.copy(outfits=seeded.outfits.mapValues { (_,o) -> o.copy(units=UnitInventory(),supplies=0) })
+        val empty = seeded.copy(outfits=seeded.outfits.mapValues { (_,o) ->
+            o.copy(units=UnitInventory(),supplies=0,activeShips=ActiveShipUnits(emptyList()),activeGround=null) })
         assertSame(empty,deployment.initialize(empty))
         val legacy = empty.copy(deploymentInitialized=false)
         val migrated = deployment.initialize(legacy)
         assertEquals(empty.outfits,migrated.outfits); assertTrue(migrated.deploymentInitialized)
         val removed = empty.copy(outfits=emptyMap(),warehouses=emptyMap())
         assertSame(removed,deployment.initialize(removed))
+    }
+    @Test fun newFleetsAndPatrolsStoreCapacityWeightedInitialSupplies() {
+        val policy = InitialOutfitPolicy(fleetSupplies = 100_003, patrolSupplies = 10_001)
+        val seeded = InitialOutfitDeployment(galaxy, policy).initialize(stocks())
+        for (outfit in seeded.outfits.values.filter { it.kind != OutfitKind.GROUND }) {
+            val ships = assertNotNull(outfit.activeShips).values
+            val totalCapacity = ships.sumOf { OutfitSupplies.unitCapacity(it).toLong() }
+            assertEquals(if (outfit.kind == OutfitKind.FLEET) 100_003 else 10_001, outfit.supplies)
+            assertEquals(outfit.supplies, ships.sumOf { assertNotNull(it.supplies) })
+            for (ship in ships) {
+                val capacity = OutfitSupplies.unitCapacity(ship)
+                val floor = (capacity.toLong() * outfit.supplies / totalCapacity).toInt()
+                assertTrue(assertNotNull(ship.supplies) in maxOf(1, floor)..minOf(capacity, floor + 1))
+            }
+        }
+        assertTrue(seeded.outfits.values.filter { it.kind == OutfitKind.GROUND }.all { it.supplies == 1_000 })
     }
     @Test fun customOrOccupiedBasesDoNotReceiveTheOriginalCountriesManualArmies() {
         val g=Galaxy(galaxy.systems,galaxy.bases,galaxy.starts,
@@ -94,7 +111,8 @@ class InitialOutfitDeploymentTest {
     @Test fun freshGenerationResetsDeploymentButSameGenerationRetainsLosses() {
         val deployment = InitialOutfitDeployment(galaxy)
         var saved = deployment.initialize(stocks().copy(producedDays=0))
-        saved = saved.copy(outfits=saved.outfits.mapValues { (_,o) -> o.copy(units=UnitInventory(),activeShips=ActiveShipUnits(emptyList())) })
+        saved = saved.copy(outfits=saved.outfits.mapValues { (_,o) ->
+            o.copy(units=UnitInventory(),supplies=0,activeShips=ActiveShipUnits(emptyList()),activeGround=null) })
         val store = object : PlanetStockStore {
             override fun load() = saved
             override fun save(stocks: PlanetStocks) { saved = stocks }

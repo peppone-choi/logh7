@@ -86,7 +86,27 @@ class InitialOutfitDeployment(private val galaxy: Galaxy, private val policy: In
                 number=placement.number,supplies=supplies,shipStyle=style)) == null) { "Duplicate initial outfit identity" }
             warehouses.putIfAbsent(warehouse,OutfitWarehouse(warehouse,country,kind.warehouseKind,placement.base,if (shared) 0 else id,shipStyle=style))
         }
-        return stocks.copy(outfits=outfits,warehouses=warehouses,deploymentInitialized=true)
+        val commissioned = ActiveShips.initialize(stocks.copy(outfits = outfits, warehouses = warehouses, deploymentInitialized = true))
+        return commissioned.copy(outfits = commissioned.outfits.mapValues { (_, outfit) -> provision(outfit) })
+    }
+
+    private fun provision(outfit: OutfitStock): OutfitStock {
+        val ships = checkNotNull(outfit.activeShips).values
+        if (ships.isEmpty() || outfit.supplies == 0) return outfit
+        val capacityByUnit = ships.associate { it.id to OutfitSupplies.unitCapacity(it) }
+        val totalCapacity = capacityByUnit.values.sumOf(Int::toLong)
+        require(outfit.supplies <= totalCapacity) { "Initial supplies exceed ship capacity for outfit ${outfit.id}" }
+        var cumulativeCapacity = 0L
+        var assigned = 0
+        // Round cumulative shares in stable ID order so the full stock is placed.
+        val balances = capacityByUnit.mapValues { (_, capacity) ->
+            cumulativeCapacity += capacity
+            val cumulativeShare = (cumulativeCapacity * outfit.supplies / totalCapacity).toInt()
+            val share = cumulativeShare - assigned
+            assigned = cumulativeShare
+            share
+        }
+        return OutfitSupplies.withBalances(outfit, balances)
     }
     private fun inventory(power: Int, kind: OutfitKind): UnitInventory {
         if (kind == OutfitKind.GROUND)
