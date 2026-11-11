@@ -364,7 +364,7 @@ internal object TacticalCombat {
         if(session.ended==null)inventory=PirateActions.counter(session,galaxy,players,inventory,now,impacts)
         if(npcPolicy.enabled && session.ended==null) {
             if(npcPolicy.strategic)inventory=NpcStrategy.advance(session,galaxy,players,inventory,strategicMovements,
-                npcWarehouseBlocked,originalBerthClaims)
+                npcWarehouseBlocked,originalBerthClaims,production::infantryProduction)
             inventory=NpcTactics.advance(session,galaxy,players,inventory,npcPolicy,scale,impacts,movements)
         }
         val support=mutableListOf<TacticalSupportResult>()

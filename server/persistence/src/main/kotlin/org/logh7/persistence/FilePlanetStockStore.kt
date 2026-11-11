@@ -41,7 +41,9 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         if (!Files.exists(path)) return null
         require(Files.size(path) <= 4_000_000) { "Planet stock store is too large" }
         val lines = Files.readAllLines(path)
-        val rawHeader = lines.firstOrNull()?.split('\t').orEmpty()
+        val fields = lines.firstOrNull()?.split('\t').orEmpty()
+        val expeditions = fields.firstOrNull()=="LOGH7-STOCK-59"
+        val rawHeader = (if(expeditions) fields.drop(1) else fields)
             .let { if(it.firstOrNull()=="LOGH7-STOCK-58") it.drop(1) else it }
         val groundAtSea = rawHeader.firstOrNull() == "LOGH7-STOCK-57"
         val encodedHeader = if (groundAtSea) rawHeader.drop(1) else rawHeader
@@ -60,11 +62,11 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     "Invalid character deletion receipt"
                 }
             }
-            return loadCurrent(header.drop(1), lines.subList(1, lines.lastIndex), defenseBreaches, groundAtSea)
+            return loadCurrent(header.drop(1), lines.subList(1, lines.lastIndex), defenseBreaches, groundAtSea, expeditions)
                 .copy(deletedCharacters = deleted)
         }
-        if (header.firstOrNull() in currentVersions) return loadCurrent(header, lines.drop(1), defenseBreaches, groundAtSea)
-        require(!groundAtSea && !defenseBreaches && header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
+        if (header.firstOrNull() in currentVersions) return loadCurrent(header, lines.drop(1), defenseBreaches, groundAtSea, expeditions)
+        require(!expeditions && !groundAtSea && !defenseBreaches && header.size == 3 && header[0] in setOf("LOGH7-STOCK-1", "LOGH7-STOCK-2", "LOGH7-STOCK-3")) { "Invalid planet stock header" }
         val columns = when (header[0]) { "LOGH7-STOCK-1" -> 6; "LOGH7-STOCK-2" -> 10; else -> 11 }
         val rows = linkedMapOf<Int, PlanetStock>()
         for (line in lines.drop(1)) {
@@ -79,7 +81,7 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         }
         return PlanetStocks(header[1].toLong(), header[2].toLong(), rows)
     }
-    private fun loadCurrent(header: List<String>, lines: List<String>, defenseBreaches: Boolean, groundAtSea: Boolean): PlanetStocks {
+    private fun loadCurrent(header: List<String>, lines: List<String>, defenseBreaches: Boolean, groundAtSea: Boolean, expeditions:Boolean): PlanetStocks {
         val garrisonReports=header[0]=="LOGH7-STOCK-54"
         val homeReports=garrisonReports || header[0]=="LOGH7-STOCK-53"
         val entryAuthority=header[0]=="LOGH7-STOCK-52"
@@ -247,9 +249,13 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                         if(positions && f[13]!="-") OutfitPosition(f[13].toInt(),f[14].toInt()) else null,
                         if(grounds) ActiveGroundUnitCodec.decode(f[15],deployments,combat,aiGround) else null,
                         if(strategic && f[16]!="-")f[16].split(",").let {v->
-                            require(v.size==3 || v.size==4 && v[3]=="dock-supply") {"Invalid NPC strategic order"}
+                            val awaiting=v.getOrNull(3)=="dock-supply"
+                            val next=if(awaiting)4 else 3
+                            val expedition=v.getOrNull(next)
+                            require(v.size==next || expeditions && v.size==next+1 && expedition?.startsWith("expedition:")==true) {"Invalid NPC strategic order"}
                             org.logh7.engine.NpcStrategicState(v[0].toLong(),v[1].takeIf {it!="-"}?.toInt(),
-                                v[2].takeIf {it!="-"}?.toLong(),awaitingDockSupply=v.size==4)
+                                v[2].takeIf {it!="-"}?.toLong(),awaitingDockSupply=awaiting,
+                                expeditionBase=expedition?.removePrefix("expedition:")?.toInt())
                         } else null,
                         if(f.size==18 || outfitCountries && f[17]!="-")f[17].split(",").associate {e->e.split("=").let {(u,g)->u.toInt() to g.toInt()}} else null,
                         style)
@@ -371,7 +377,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
         val tactics = cargo || stocks.outfits.values.any {it.activeShips?.values?.any {u->u.tactical!=null}==true}
         val positions = tactics || stocks.outfits.values.any { it.position != null }
         val bytes = buildString {
-            // The optional prefixes protect rollback without changing any inventory rows.
+            // Optional prefixes protect rollback when a save uses newer features.
+            if(stocks.outfits.values.any {it.strategy?.expeditionBase!=null})append("LOGH7-STOCK-59\t")
             if (stocks.outfits.values.any { outfit ->
                 outfit.activeShips?.values?.any { it.posture?.let { p -> p.autonomousAnchor || p.order?.character==0 }==true }==true ||
                     outfit.activeGround?.values?.any { it.order?.character==0 }==true
@@ -401,7 +408,8 @@ class FilePlanetStockStore(private val path: Path, worldOwner: Path? = null) : P
                     (if(grounds) listOf(ActiveGroundUnitCodec.encode(outfit.activeGround)) else emptyList()) +
                     (if(strategic)listOf(outfit.strategy?.let {
                         "${it.nextDecisionAt},${it.destination ?: "-"},${it.arrivesAt ?: "-"}" +
-                            if(it.awaitingDockSupply) ",dock-supply" else ""
+                            (if(it.awaitingDockSupply) ",dock-supply" else "") +
+                            (it.expeditionBase?.let {base->",expedition:$base"} ?: "")
                     } ?: "-") else emptyList()) +
                     (if(outfitCountries)listOf(outfit.guard?.toSortedMap()?.entries?.joinToString(",") {"${it.key}=${it.value}"} ?: "-",outfit.shipStyle.value)
                         else if(strategic)outfit.guard?.let {g->listOf(g.toSortedMap().entries.joinToString(",") {"${it.key}=${it.value}"})}.orEmpty() else emptyList()))
