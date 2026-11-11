@@ -80,8 +80,9 @@ input[aria-invalid="true"] { border-color: var(--error); }
 .recovery-code { padding: .75rem; background: var(--input); overflow-wrap: anywhere; }
 .submit { background: var(--accent); border-color: transparent; color: var(--page); }
 .submit[aria-disabled="true"] { cursor: wait; }
+.submit:disabled { cursor: default; }
 @media (hover: hover) {
-  .submit:not([aria-disabled="true"]):hover { background: var(--accent-hover); }
+  .submit:enabled:not([aria-disabled="true"]):hover { background: var(--accent-hover); }
   .reveal:enabled:hover { border-color: var(--accent); }
 }
 

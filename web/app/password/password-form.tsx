@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { FormEvent } from "react";
+
+// Server render and hydration see false; the client snapshot flips it once React handlers are attached.
+const noSubscription = () => () => {};
 
 const definitions = {
   account: { label: "게임 아이디", type: "text", autoComplete: "username" },
@@ -33,6 +36,7 @@ const unavailable = "변경 결과를 확인하지 못했습니다. 새 비밀�
 export default function PasswordForm({ mode = "change" }: { mode?: Mode }) {
   const settings = modes[mode];
   const [result, setResult] = useState<Result>({ kind: "idle" });
+  const hydrated = useSyncExternalStore(noSubscription, () => true, () => false);
   const form = useRef<HTMLFormElement>(null);
   const successTitle = useRef<HTMLHeadingElement>(null);
   const error = result.kind === "error" ? result : null;
@@ -136,7 +140,7 @@ export default function PasswordForm({ mode = "change" }: { mode?: Mode }) {
               <div className="field" key={name}>
                 <label htmlFor={id}>{label}</label>
                 <input id={id} name={name} type={type} autoComplete={autoComplete} required
-                  readOnly={pending} autoCapitalize="none" spellCheck={false}
+                  readOnly={pending} disabled={!hydrated} autoCapitalize="none" spellCheck={false}
                   onChange={() => { if (fieldError) setResult({ kind: "idle" }); }}
                   aria-invalid={Boolean(fieldError) || undefined}
                   aria-describedby={[fieldError && `${id}-error`, hint && `${id}-hint`].filter(Boolean).join(" ") || undefined} />
@@ -146,7 +150,7 @@ export default function PasswordForm({ mode = "change" }: { mode?: Mode }) {
             );
           })}
           {error && !error.field && <p className="error" role="alert">{error.message}</p>}
-          <button type="submit" className="submit" aria-disabled={pending || undefined}>
+          <button type="submit" className="submit" disabled={!hydrated} aria-disabled={pending || undefined}>
             {pending ? `${settings.action} 중…` : settings.action}
           </button>
           <noscript><p className="error">이 양식을 사용하려면 브라우저에서 자바스크립트를 켜고 새로고침해 주세요.</p></noscript>
