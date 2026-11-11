@@ -15,9 +15,10 @@ def cleaned(**changes):
 
 
 class FakeBackground:
-    def __init__(self, reports, code=0): self.reports=iter(reports); self.paths=[]; self.code=code
+    def __init__(self, reports, code=0): self.reports=iter(reports); self.paths=[]; self.options=[]; self.code=code
     def run(self, source, destination, seconds, **options):
         self.paths.append(destination)
+        self.options.append(options)
         destination.mkdir()
         (destination/'run.json').write_text(json.dumps(next(self.reports)), encoding='utf-8')
         return self.code
@@ -29,9 +30,9 @@ class MultiplayerReconnectTest(unittest.TestCase):
         self.temporary=tempfile.TemporaryDirectory(prefix='reconnect-test-',dir=work)
         self.addCleanup(self.temporary.cleanup)
         self.out=Path(self.temporary.name)
-    def run_client(self, background, allowance=1):
+    def run_client(self, background, allowance=1, launcher_login=False):
         return multiplayer.run_client(background, Path('original'), Path('copy'), 'multi0',
-            self.out, 0, 60, 47900, object(), allowance)
+            self.out, 0, 60, 47900, object(), allowance, launcher_login=launcher_login)
     def test_reconnect_uses_fresh_evidence_and_stops_without_another_request(self):
         background=FakeBackground([cleaned(),cleaned(reconnect_requested=False)])
         self.assertEqual(0,self.run_client(background))
@@ -40,6 +41,17 @@ class MultiplayerReconnectTest(unittest.TestCase):
     def test_plain_stop_does_not_restart(self):
         background=FakeBackground([cleaned(reconnect_requested=False)])
         self.assertEqual(0,self.run_client(background));self.assertEqual(1,len(background.paths))
+        self.assertTrue(background.options[0]['ui_login'])
+        self.assertTrue(background.options[0]['manual_login'])
+    def test_launcher_login_keeps_owned_ui_commands_after_reconnect(self):
+        background=FakeBackground([cleaned(),cleaned(reconnect_requested=False)])
+        self.assertEqual(0,self.run_client(background, launcher_login=True))
+        self.assertEqual(2,len(background.options))
+        for options in background.options:
+            self.assertFalse(options['ui_login'])
+            self.assertFalse(options['manual_login'])
+            self.assertTrue(options['ui_control'])
+            self.assertTrue(options['render_capture'])
     def test_incomplete_cleanup_or_hash_never_relaunches(self):
         cases=[dict(success=False),dict(process_stopped=False),dict(job_active_after_cleanup=1),
                dict(job_active_after_cleanup=False),dict(source_hash_unchanged=False),dict(job_active_after_cleanup=None)]
