@@ -147,6 +147,20 @@ class NpcOccupationTest {
         assertTrue(ships.all {OutfitSupplies.distribution(balanced).getValue(it.id) in it.boats*2..it.boats*3})
         assertEquals(empireFront.grid,balanced.strategy?.destination)
 
+        val thin=loaded.copy(outfits=loaded.outfits+(carrier.id to drained),bases=loaded.bases+
+            (home.baseId to loaded.bases.getValue(home.baseId).copy(supplies=0))+
+            (depot.id to loaded.bases.getValue(depot.id).copy(supplies=100)))
+        val reserve=advance(thin,time(21600))
+        val reserving=reserve.outfits.getValue(carrier.id)
+        assertEquals(depot.id,reserving.positionIn(world).baseId)
+        assertEquals(100,reserving.supplies)
+        assertEquals(0,reserve.bases.getValue(depot.id).supplies)
+        assertNull(reserving.strategy?.destination)
+        val reservedByPlayer=NpcStrategy.advance(time(21600),world,mutableMapOf(),thin,mutableListOf(),
+            warehouseBlocked={_,id->id==carrier.id})
+        assertEquals(0,reservedByPlayer.outfits.getValue(carrier.id).supplies)
+        assertEquals(100,reservedByPlayer.bases.getValue(depot.id).supplies)
+
         val short=loaded.copy(outfits=loaded.outfits+(carrier.id to drained),bases=loaded.bases+
             (home.baseId to loaded.bases.getValue(home.baseId).copy(supplies=0))+
             (depot.id to loaded.bases.getValue(depot.id).copy(supplies=100_000)))
