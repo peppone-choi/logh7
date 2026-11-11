@@ -147,7 +147,7 @@ internal object NpcStrategy {
         return fallback
     }
     private data class Plan(val position:OutfitPosition,val missionJumps:Int=0,val partialDepotLoad:Boolean=false,
-        val infantryBerth:Boolean=false,val waitingForSupplies:Boolean=false)
+        val infantryBerth:Boolean=false,val waitingForSupplies:Boolean=false,val remainingJumps:Int=0)
 
     /** Find a strategic route and budget the entire leg before consuming its first jump. */
     private fun missionRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
@@ -251,7 +251,8 @@ internal object NpcStrategy {
                 .thenBy {toGoal[it.grid]}.thenBy {fromOrigin[it.grid]}.thenBy {it.id})
         stages.firstOrNull {canPay(fromOrigin[it.grid])}?.let {stage->
             val next=first[stage.grid]
-            return Plan(OutfitPosition(next,if(next==stage.grid)stage.id else 0),fromOrigin[stage.grid])
+            return Plan(OutfitPosition(next,if(next==stage.grid)stage.id else 0),fromOrigin[stage.grid],
+                remainingJumps=toGoal[stage.grid])
         }
         for((berth,available) in alternatives) {
             val stage=stages.firstOrNull {canPay(fromOrigin[it.grid],available)} ?: continue
@@ -493,14 +494,14 @@ internal object NpcStrategy {
                 .groupingBy {it.base}.eachCount()
             val targets=galaxy.bases.filter {stocks.bases[it.id]?.let {base->base.country==enemy && base.camp==0}==true}
             val canAllocate=!logisticsOffice.staffed(stocks,country,OutfitKind.FLEET)
+            fun available(fleet:OutfitStock)=fleet.country==country && fleet.kind==OutfitKind.FLEET &&
+                fleet.guard==null && eligible(fleet,stocks) && (fleet.strategy?.nextDecisionAt ?: 0)<=now &&
+                (secured || canDepart(stocks,fleet,galaxy)) &&
+                claimsByFleet[fleet.id].orEmpty().none {it.vacantFleet(fleet,stocks,galaxy,players)!=null} &&
+                !warehouseBlocked(stocks,fleet.id)
             val choices=stocks.outfits.values.asSequence().filter {fleet->
-                (retained==null || fleet.id==retained.id) && fleet.country==country &&
-                    fleet.kind==OutfitKind.FLEET && fleet.guard==null && eligible(fleet,stocks) &&
-                    (retained!=null || fleet.positionIn(galaxy).baseId==fleet.baseId) && depot(stocks,fleet,galaxy)!=null &&
-                    (fleet.strategy?.nextDecisionAt ?: 0)<=now &&
-                    (secured || canDepart(stocks,fleet,galaxy)) &&
-                    claimsByFleet[fleet.id].orEmpty().none {it.vacantFleet(fleet,stocks,galaxy,players)!=null} &&
-                    !warehouseBlocked(stocks,fleet.id)
+                (retained?.id==fleet.id || retained==null && fleet.positionIn(galaxy).baseId==fleet.baseId) &&
+                    depot(stocks,fleet,galaxy)!=null && available(fleet)
             }.flatMap {fleet->
                 val grid=fleet.positionIn(galaxy).grid
                 if(TacticalContact.contested(forces()[grid].orEmpty()))return@flatMap emptySequence()
@@ -543,6 +544,37 @@ internal object NpcStrategy {
                 continue@countryLoop
             }
             waiting?.let {(base,_)->setStrategy(checkNotNull(retained),NpcStrategicState(now,expeditionBase=base.id))}
+            if(retained!=null)continue
+
+            // A ship-only screen cannot dislodge the remaining garrison. Rotate one carrier home while others cover it.
+            val camp=Camp(country,false)
+            var rotation:Triple<OutfitStock,GalaxyBase,Int>?=null
+            for(fleet in stocks.outfits.values.sortedBy {it.id}) {
+                val position=fleet.positionIn(galaxy)
+                if(position.baseId!=0 || fleet.country!=country || fleet.kind!=OutfitKind.FLEET || fleet.guard!=null)continue
+                val local=forces()[position.grid].orEmpty()
+                if(local.none {it.camp==Camp(enemy,false) && it.base && it.units>0} ||
+                    hostileShips(forces(),position.grid,camp)>0)continue
+                val ships=fleet.activeShips?.values.orEmpty().filter {it.boats>0}
+                if(local.none {it.camp==camp && it.deployedShips>ships.size} ||
+                    ships.none {it.boats>it.damaged && GroundTransfer.capacity(it.stack.kind)>0} ||
+                    fleet.activeGround?.values.orEmpty().any {it.carrier>0} ||
+                    TacticalAuthority.camp(fleet,stocks)!=camp || !available(fleet))continue
+                val home=galaxy.bases.single {it.id==fleet.baseId}
+                val homeStock=stocks.bases.getValue(home.id)
+                if(home.grid==position.grid || homeStock.country!=country || homeStock.camp!=0 ||
+                    forces()[home.grid].orEmpty().any {it.camp!=camp && it.combatPresence})continue
+                val kinds=stocks.warehouses.getValue(fleet.warehouseId).units.troops.keys +
+                    if(canAllocate)homeStock.units.troops.keys else emptySet()
+                val objective=targets.asSequence().filter {it.grid==position.grid && (garrisons[it.id] ?: 0)>0 &&
+                    kinds.any {kind->NpcOccupation.canLand(kind.kind,fleet,it)}}
+                    .minWithOrNull(compareBy({garrisons.getValue(it.id)},{it.id})) ?: continue
+                val returnLeg=missionRoute(galaxy,forces(),fleet,stocks,home,null,returning=true,
+                    producesSupplies=producesSupplies) ?: continue
+                if(returnLeg.remainingJumps<(rotation?.third ?: Int.MAX_VALUE))
+                    rotation=Triple(fleet,objective,returnLeg.remainingJumps)
+            }
+            rotation?.let {(fleet,objective,_)->setStrategy(fleet,NpcStrategicState(now,expeditionBase=objective.id))}
         }
         fun repairAtDepot(outfit:OutfitStock):OutfitStock {
             val ships=outfit.activeShips!!

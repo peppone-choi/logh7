@@ -72,6 +72,47 @@ class NpcOccupationTest {
         assertEquals(5,troop(s).id)
     }
 
+    @Test fun oneCarrierReturnsForInfantryWhileTheOtherFleetCoversTheGarrison() {
+        val original=stocks(1f)
+        val home=base.copy(id=1001,grid=2487)
+        val friendlyPort=base.copy(id=1002)
+        val world=Galaxy(
+            listOf(GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,grid,4,"Front",3)),
+            listOf(home,base,friendlyPort),mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to grid))
+        val ship=ship(original).copy(tactical=null)
+        val fleet=original.outfits.getValue(1).copy(baseId=home.id,supplies=3000,
+            units=UnitInventory(ships=mapOf(ship.stack to 1)),activeShips=ActiveShipUnits(listOf(ship)),activeGround=null)
+        val screen=fleet.copy(id=3,warehouseId=30,activeShips=ActiveShipUnits(listOf(ship.copy(id=7))))
+        val defense=original.outfits.getValue(2)
+        val initial=original.copy(
+            bases=original.bases+mapOf(home.id to PlanetStock(home.id,2,0,100_000,0,0,
+                units=UnitInventory(troops=mapOf(UnitStack(0) to 2))),friendlyPort.id to PlanetStock(friendlyPort.id,2,0,0,0,0)),
+            outfits=mapOf(fleet.id to fleet,screen.id to screen,defense.id to defense),
+            warehouses=original.warehouses+mapOf(fleet.warehouseId to original.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id),
+                screen.warehouseId to OutfitWarehouse(screen.warehouseId,2,OutfitKind.FLEET,home.id,screen.id)),
+            strategic=original.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to base.id)),
+            social=SocialState(),nextShipId=8)
+        fun advance(offset:Long,state:PlanetStocks)=NpcStrategy.advance(time(offset),world,mutableMapOf(),state,mutableListOf())
+        val withoutCover=initial.copy(outfits=initial.outfits-screen.id,warehouses=initial.warehouses-screen.warehouseId)
+        assertNull(advance(0,withoutCover).outfits.getValue(fleet.id).strategy?.expeditionBase)
+        val hostileShip=ActiveShipUnit(8,UnitStack(119))
+        val withEnemy=initial.copy(outfits=initial.outfits+(defense.id to defense.copy(position=OutfitPosition(grid),
+            activeShips=ActiveShipUnits(listOf(hostileShip)),units=UnitInventory(mapOf(hostileShip.stack to 1),defense.units.troops))),
+            nextShipId=9)
+        assertNull(advance(0,withEnemy).outfits.getValue(fleet.id).strategy?.expeditionBase)
+
+        val reserved=advance(0,initial)
+        assertEquals(base.id,reserved.outfits.getValue(fleet.id).strategy?.expeditionBase)
+        assertEquals(home.grid,reserved.outfits.getValue(fleet.id).strategy?.destination)
+        assertNull(reserved.outfits.getValue(screen.id).strategy?.expeditionBase)
+        val docked=advance(3600,reserved)
+        assertEquals(OutfitPosition(home.grid,home.id),docked.outfits.getValue(fleet.id).position)
+        val ready=advance(25200,docked)
+        assertTrue(NpcOccupation.hasCarrier(ready.outfits.getValue(fleet.id),base,ready))
+        assertEquals(grid,ready.outfits.getValue(fleet.id).strategy?.destination)
+        assertEquals(OutfitPosition(grid),ready.outfits.getValue(screen.id).position)
+    }
+
     @Test fun assigningACommanderCancelsQueuedLandingAndPreservesTheCargo() {
         var s=advance(stocks(1f),0)
         s=TacticalPostureOperations.advance(time(10),galaxy,mutableMapOf(),s,mutableListOf())
