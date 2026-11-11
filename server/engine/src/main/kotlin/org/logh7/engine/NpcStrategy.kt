@@ -171,7 +171,8 @@ internal object NpcStrategy {
             return passable[grid]==1
         }
         if(!traversable(goal.grid))return null
-        fun distances(start:Int,first:IntArray?=null,limit:Int=4999):IntArray {
+        fun distances(start:Int,first:IntArray?=null,limit:Int=4999,
+            accepts:(Int)->Boolean={true},record:(Int,Int)->Unit={_,_->}):IntArray {
             val distances=IntArray(5000){-1}
             val queue=ArrayDeque<Int>()
             distances[start]=0
@@ -184,9 +185,10 @@ internal object NpcStrategy {
                 val next=if(at==origin && preferred in neighbors)listOf(checkNotNull(preferred))+neighbors.filter {it!=preferred}
                     else neighbors
                 for(grid in next) {
-                    if(distances[grid]>=0 || !traversable(grid))continue
+                    if(distances[grid]>=0 || !accepts(grid) || !traversable(grid))continue
                     distances[grid]=jumps
                     if(first!=null)first[grid]=if(at==start)grid else first[at]
+                    record(at,grid)
                     queue.addLast(grid)
                 }
             }
@@ -237,30 +239,47 @@ internal object NpcStrategy {
         }
         fun pooled(jumps:Int):Plan? = if(canPay(jumps,combined))collectLocally(jumps) else null
 
-        // A staging depot must shorten the route. An underway expedition can also finish
-        // a funded leg to a safe port that can replenish its temporarily empty stock.
+        // A staging depot must advance a departure from port. At sea, reaching an equally
+        // distant depot can finish the funded leg and leave a strictly forward route to plan there.
         fun stocked(base:GalaxyBase)=stocks.bases.getValue(base.id).supplies>0
-        val closer=depots.filter {base->toGoal[base.grid]<forward &&
-            (stocked(base) || position.baseId==0 && (base.grid==preferred ||
+        val underway=position.baseId==0
+        val closer=depots.filter {base->(toGoal[base.grid]<forward || underway && toGoal[base.grid]==forward) &&
+            (stocked(base) || underway && (base.grid==preferred ||
                 outfit.strategy?.expeditionBase!=null && producesSupplies(stocks.bases.getValue(base.id))))}
         if(closer.isEmpty())return pooled(roundTrip) ?: reserve(roundTrip)
+        data class Stage(val base:GalaxyBase,val next:Int,val jumps:Int)
         val first=IntArray(5000)
-        val fromOrigin=distances(origin,first,live.minOf {maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it))/it.boats})
-        val stages=closer.filter {fromOrigin[it.grid]>0}
-            .sortedWith(compareByDescending<GalaxyBase>(::stocked)
-                .thenBy {toGoal[it.grid]}.thenBy {fromOrigin[it.grid]}.thenBy {it.id})
-        stages.firstOrNull {canPay(fromOrigin[it.grid])}?.let {stage->
-            val next=first[stage.grid]
-            return Plan(OutfitPosition(next,if(next==stage.grid)stage.id else 0),fromOrigin[stage.grid],
-                remainingJumps=toGoal[stage.grid])
+        val limit=live.minOf {maxOf(balances.getValue(it.id),OutfitSupplies.unitCapacity(it))/it.boats}
+        val leastRemaining=IntArray(5000)
+        leastRemaining[origin]=forward
+        val fromOrigin=distances(origin,first,limit) {previous,grid->
+            leastRemaining[grid]=minOf(leastRemaining[previous],toGoal[grid])
+        }
+        val detours=mutableMapOf<Int,Pair<IntArray,IntArray>>()
+        val stages=closer.mapNotNull {base->
+            val grid=base.grid
+            if(fromOrigin[grid]<=0)return@mapNotNull null
+            val remaining=toGoal[grid]
+            if(leastRemaining[grid]>=remaining)return@mapNotNull Stage(base,first[grid],fromOrigin[grid])
+            // A path that passes closer to the objective than its depot can lose that depot on the next decision.
+            val (jumps,firstSteps)=detours.getOrPut(remaining) {
+                val hops=IntArray(5000)
+                distances(origin,hops,limit,accepts={toGoal[it]>=remaining}) to hops
+            }
+            jumps[grid].takeIf {it>0}?.let {Stage(base,firstSteps[grid],it)}
+        }.sortedWith(compareByDescending<Stage> {stocked(it.base)}
+            .thenBy {toGoal[it.base.grid]}.thenBy {it.jumps}.thenBy {it.base.id})
+        stages.firstOrNull {canPay(it.jumps)}?.let {stage->
+            return Plan(OutfitPosition(stage.next,if(stage.next==stage.base.grid)stage.base.id else 0),stage.jumps,
+                remainingJumps=toGoal[stage.base.grid])
         }
         for((berth,available) in alternatives) {
-            val stage=stages.firstOrNull {canPay(fromOrigin[it.grid],available)} ?: continue
-            return Plan(OutfitPosition(origin,berth.id),fromOrigin[stage.grid])
+            val stage=stages.firstOrNull {canPay(it.jumps,available)} ?: continue
+            return Plan(OutfitPosition(origin,berth.id),stage.jumps)
         }
         return pooled(roundTrip) ?:
-            stages.firstOrNull {canPay(fromOrigin[it.grid],combined)}?.let {collectLocally(fromOrigin[it.grid])} ?:
-            reserve(minOf(roundTrip,stages.minOfOrNull {fromOrigin[it.grid]} ?: roundTrip))
+            stages.firstOrNull {canPay(it.jumps,combined)}?.let {collectLocally(it.jumps)} ?:
+            reserve(minOf(roundTrip,stages.minOfOrNull {it.jumps} ?: roundTrip))
     }
 
     /** Reserve cargo for the active leg and keep the fallback to a safe depot. */

@@ -509,6 +509,38 @@ class NpcOccupationTest {
         assertEquals(88,assertNotNull(departing.outfits.getValue(fleet.id).strategy?.destination)%100)
     }
 
+    @Test fun expeditionFinishesTheLegWhenItsLastHopDoesNotReduceDistanceToTheObjective() {
+        val home=base.copy(id=1001,grid=2487)
+        val stage=base.copy(id=1002,grid=2190)
+        val objective=base.copy(id=1003,grid=2492)
+        val world=Galaxy(listOf(GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,stage.grid,4,"Stage",2),
+            GalaxySystem(5,objective.grid,4,"Objective",3)),listOf(home,stage,objective),
+            mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to objective.grid))
+        val original=stocks(12f)
+        val ship=ActiveShipUnit(1,UnitStack(32))
+        val fleet=original.outfits.getValue(1).copy(baseId=home.id,position=OutfitPosition(home.grid,home.id),
+            strategy=NpcStrategicState(now,expeditionBase=objective.id),activeShips=ActiveShipUnits(listOf(ship)))
+        val funded=OutfitSupplies.withBalances(fleet,mapOf(ship.id to ship.boats*3))
+        val parked=original.copy(bases=mapOf(
+            home.id to PlanetStock(home.id,2,0,0,0,0),
+            stage.id to PlanetStock(stage.id,2,0,1000,0,0),
+            objective.id to PlanetStock(objective.id,3,0,0,0,0)
+        ),outfits=mapOf(fleet.id to funded),social=SocialState(),
+            strategic=original.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to objective.id)),
+            warehouses=mapOf(fleet.warehouseId to original.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id)))
+        val moves=mutableListOf<NpcStrategicMovement>()
+        fun advance(offset:Long,stock:PlanetStocks)=NpcStrategy.advance(time(offset),world,mutableMapOf(),stock,moves)
+
+        var stock=parked
+        for(offset in listOf(0L,3600L,25200L,28800L,50400L,54000L))stock=advance(offset,stock)
+        val docked=stock.outfits.getValue(fleet.id)
+        assertEquals(OutfitPosition(stage.grid,stage.id),docked.positionIn(world))
+        assertEquals(objective.id,docked.strategy?.expeditionBase)
+        assertEquals(fleet.activeGround,docked.activeGround)
+        assertEquals(listOf(2388,2289,stage.grid),moves.map {it.destination})
+        assertEquals(1000,docked.supplies)
+    }
+
     @Test fun underwayExpeditionCanFinishAReachableLegToAnEmptyProductivePort() {
         val home=base.copy(id=1001,grid=2487)
         val stage=base.copy(id=1002,grid=2490)
