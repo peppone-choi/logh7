@@ -43,8 +43,12 @@ class InitialOutfitWireTest {
                 val bytes = client.request(ByteBuffer.allocate(10).putShort(0x0330).putInt(id).putInt(1049).array(),0x0331,"outfitUnit")
                 val unit = ByteBuffer.wrap(bytes); unit.position(6)
                 assertEquals(1,unit.get().toInt()); assertEquals(id,unit.int)
-                assertEquals(expected.activeShips!!.values.single { it.id == id }.stack.kind,unit.short.toInt())
+                val ship = expected.activeShips!!.values.single { it.id == id }
+                assertEquals(ship.stack.kind,unit.short.toInt())
                 assertEquals(4,unit.get().toInt()); assertEquals(2487,unit.int); assertEquals(1,unit.int)
+                val supplies = unit.getInt(37)
+                assertEquals(assertNotNull(ship.supplies),supplies)
+                assertTrue(supplies > 0)
             }
             assertContentEquals(first,client.request(request,0x032f,"outfitPartyAgain"))
             assertEquals(stocks,fixture.engine.snapshot().planetStocks)
