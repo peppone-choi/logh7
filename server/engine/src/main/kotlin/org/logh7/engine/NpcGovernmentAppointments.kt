@@ -7,7 +7,9 @@ internal object NpcGovernmentAppointments {
     private const val ALLIANCE_RESOURCES_CHAIR = 139
     private const val ALLIANCE_GOVERNOR = 190
     private const val ALLIANCE_CAPITAL_ADMINISTRATOR = 192
-    val refreshedCards = setOf(EMPIRE_GOVERNOR, ALLIANCE_STATE_CHAIR, ALLIANCE_GOVERNOR, ALLIANCE_CAPITAL_ADMINISTRATOR)
+    private val empireFormation = InitialGovernment.EMPIRE_AUXILIARY_FORMATION
+    val refreshedCards = setOf(EMPIRE_GOVERNOR, ALLIANCE_STATE_CHAIR, ALLIANCE_GOVERNOR, ALLIANCE_CAPITAL_ADMINISTRATOR,
+        InitialGovernment.EMPIRE_MILITARY_MINISTER, 22, empireFormation)
 
     fun settle(galaxy: Galaxy, stocks: PlanetStocks, identities: List<StrategicIdentity>,
         players: Collection<Navigator>, eliminated: Set<CountryId>): PlanetStocks {
@@ -69,6 +71,19 @@ internal object NpcGovernmentAppointments {
                 if (stateChair != null) next = appoint(next, stateChair, capital, InitialGovernment.ALLIANCE_RESOURCES_CHAIR, 1)
             }
             next = appoint(next, role, player.baseId, id, rank)
+        }
+        val empire = Power.EMPIRE.country
+        val formation = policy.role(empireFormation, empire)
+        val capital = policy.capital(next, empire)
+        if (formation != null && capital != null && LogisticsOfficePolicy(galaxy, catalog).seat(LogisticsOffice.EMPIRE_SECOND, next) != null) {
+            for (player in candidates) {
+                if (player.country != empire || player.baseId == capital || player.mode !in 1..4 ||
+                    next.bases[player.baseId]?.let { it.belongsTo(empire) && it.camp == 0 } != true ||
+                    OutfitFormationPolicy.available(next, player.baseId, catalog.shipStyle(empire), OutfitKind.GROUND)
+                        .none { (code, count) -> count > 0 && OutfitFormationPolicy.stack(code).first }) continue
+                val appointed = appoint(next, formation, capital, player.characterId, registered.getValue(player.characterId).rank)
+                if (appointed !== next) return appointed
+            }
         }
         return next
     }

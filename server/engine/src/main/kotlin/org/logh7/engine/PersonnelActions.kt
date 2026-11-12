@@ -60,9 +60,16 @@ internal object PersonnelActions {
         player.copy(hull=FlagshipHull(kind,now,clockScale=clockScale),energy=null,motion=null,
             retreat=null,charge=null,fire=null,attack=null,commandRange=null,posture=null)
 
+    private fun limitedRank(rank:Int)=when(rank) {
+        2->LimitedRank.MARSHAL;3->LimitedRank.SENIOR_ADMIRAL;4->LimitedRank.ADMIRAL
+        5->LimitedRank.VICE_ADMIRAL;6->LimitedRank.REAR_ADMIRAL;7->LimitedRank.COMMODORE
+        else->null
+    }
+
     /** W pp.35–36: one unique first place per military ladder, using its round-opening ranking and quotas. */
     fun promoteMonthly(stocks:PlanetStocks,identities:List<StrategicIdentity>,eliminated:Set<CountryId>,at:Long,
-        promoted:MutableList<MonthlyPromotion>,countries:CountryCatalog=CountryCatalogLoader.current()):PlanetStocks {
+        promoted:MutableList<MonthlyPromotion>,countries:CountryCatalog=CountryCatalogLoader.current(),
+        actingNpcMinister:Boolean=false):PlanetStocks {
         if(identities.size>4096 || identities.distinctBy {it.id}.size!=identities.size)return stocks
         var next=stocks
         for((country,people) in identities.groupBy {it.country}) {
@@ -72,15 +79,19 @@ internal object PersonnelActions {
             val ranks=when(family.ranks) {"empire"->Power.EMPIRE;"alliance"->Power.ALLIANCE;else->continue}
             val byRank=people.filterNot {BattleDeath.deceased(stocks,it.id)}.groupBy {ladderRank(stocks,it,ranks)}
             val usePeerage=ranks==Power.EMPIRE && family.peerage=="empire"
-            val quota=checkNotNull(RankRules.capacity(ranks,LimitedRank.COMMODORE))
-            for(rank in 8..20) {
+            // The Imperial minister can promote through senior admiral; marshals require the emperor.
+            val npcPromotions=country==Power.EMPIRE.country && actingNpcMinister
+            for(rank in (if(npcPromotions)4 else 8)..20) {
                 val source=byRank[rank].orEmpty()
                 val destination=byRank[rank-1].orEmpty()
-                if(source.isEmpty() || rank==8 && destination.size>=quota)continue
+                val quota=limitedRank(rank-1)?.let {RankRules.capacity(ranks,it)}
+                if(source.isEmpty() || quota!=null && destination.size>=quota)continue
                 val winner=LadderRules.topIds(ranks,source.map {ladderEntry(stocks,it,usePeerage)})
                     .singleOrNull()?.toInt() ?: continue
                 if(winner !in next.strategic.people && next.strategic.people.size>=4096)continue
-                val merit=if(destination.isEmpty())0L else destination.sumOf {TacticalPersonnel.merit(stocks,it.id)}/destination.size
+                if(rank<8 && (stocks.social.justice.detained(winner) || CoupActions.rebel(stocks,winner,country)))continue
+                val merit=if(rank<8 || destination.isEmpty())0L
+                    else destination.sumOf {TacticalPersonnel.merit(stocks,it.id)}/destination.size
                 next=changeRank(next,winner,rank-1,merit)
                 promoted+=MonthlyPromotion(winner,country,rank-1,at)
             }
@@ -136,8 +147,7 @@ internal object PersonnelActions {
                     LadderRules.topIds(ranks,entries)
                 }
                 if((r.target.toString() in top)!=(r.command==0))return reject(StrategyActionRejection.RANK)
-                val limited=when(changedRank){2->LimitedRank.MARSHAL;3->LimitedRank.SENIOR_ADMIRAL;4->LimitedRank.ADMIRAL;
-                    5->LimitedRank.VICE_ADMIRAL;6->LimitedRank.REAR_ADMIRAL;7->LimitedRank.COMMODORE;else->null}
+                val limited=limitedRank(changedRank)
                 if(limited!=null) {
                     val count=people.counts.getOrPut(changedRank) {eligible.count {ladder(it)==changedRank}}
                     val capacity=RankRules.capacity(ranks,limited) ?: return reject(StrategyActionRejection.RANK)

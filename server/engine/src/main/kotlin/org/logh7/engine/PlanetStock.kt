@@ -252,10 +252,17 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val players=civicPlayers(generation)
         val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
         if(days>initialized.producedDays && lastMonth>=firstMonth) {
+            if (Power.EMPIRE.country !in eliminated) monthly=InitialGovernment.restoreMilitaryOffices(galaxy,monthly)
             val people=checkNotNull(supplier)()
             if(people.isNotEmpty())for(month in firstMonth..lastMonth) {
                 val at=startSeconds+month*PoliticianLadder.PERIOD_DAYS*Justice.DAY
-                monthly=PersonnelActions.promoteMonthly(monthly,people,eliminated,at,promoted)
+                val empire=Power.EMPIRE.country
+                val minister=OrganizationalOfficePolicy(galaxy).holders(monthly,InitialGovernment.EMPIRE_MILITARY_MINISTER,empire)
+                    .singleOrNull()?.character
+                val actingNpcMinister=InitialGovernment.roster(monthly).any { it.id==minister && it.country==empire &&
+                    ProposalActions.rank(monthly,it.id,empire,it.rank)==2 && !BattleDeath.deceased(monthly,it.id) &&
+                    !monthly.social.justice.detained(it.id) && !CoupActions.rebel(monthly,it.id,empire) }
+                monthly=PersonnelActions.promoteMonthly(monthly,people,eliminated,at,promoted,actingNpcMinister=actingNpcMinister)
                 monthly=AbilityAging.monthly(PoliticianLadder.monthly(galaxy,monthly,people,month),people,month)
             }
             // The current positions are known only for the latest crossed review.

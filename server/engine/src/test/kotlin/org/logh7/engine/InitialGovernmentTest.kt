@@ -30,7 +30,7 @@ class InitialGovernmentTest {
 
     @Test fun startingOfficesUseTheNormalWorldStateAndOnlyReseedOnGenerationChange() {
         val fresh = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy()).settle(1, 0)
-        val expected = mapOf(1 to 901, 2 to 901, 5 to 902, 6 to 902, 132 to 903, 139 to 904)
+        val expected = mapOf(1 to 901, 2 to 901, 5 to 902, 6 to 902, 17 to 905, 22 to 906, 132 to 903, 139 to 904)
         assertEquals(expected, offices.all(fresh).associate { it.card to it.character })
         assertEquals(901, fresh.social.succession.emperor)
         assertEquals(0, fresh.social.succession.rival)
@@ -93,5 +93,56 @@ class InitialGovernmentTest {
         val withoutMinister = offices.set(initial, OfficeHolding(6, 1049, 902), remove = true)
         assertEquals(withoutMinister, NpcGovernmentAppointments.settle(galaxy, withoutMinister, people, listOf(empire), emptySet()))
         assertEquals(initial, NpcGovernmentAppointments.settle(galaxy, initial, people, listOf(alliance), setOf(Power.ALLIANCE.country)))
+    }
+
+    @Test fun restoredMilitaryAuthoritiesPromoteAndAuthorizeFormationFromTheGovernorsRecruitment() {
+        val empire = Power.EMPIRE.country
+        val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000, baseId = 1050, mode = 4)
+        val troop = UnitStack(1)
+        val fresh = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy()).settle(1, 0)
+        val preUpgrade = offices.set(offices.set(fresh, OfficeHolding(17, 1049, 905), remove = true),
+            OfficeHolding(22, 1049, 906), remove = true)
+        val initial = preUpgrade.copy(bases = preUpgrade.bases + (1050 to preUpgrade.bases.getValue(1050)
+            .copy(governorId = player.characterId, units = UnitInventory(troops = mapOf(troop to 1)))),
+            strategic = preUpgrade.strategic.copy(people = preUpgrade.strategic.people - 905 - 906 +
+                (player.characterId to StrategicPerson(rank = 1, militaryRank = 7))))
+        val identities = InitialGovernment.roster(initial).map { StrategicIdentity(it.id, it.country, it.rank, 0, InitialGovernment.baselineAbilities) } +
+            StrategicIdentity(player.characterId, empire, 7, 0, InitialGovernment.baselineAbilities)
+        val production = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy(), restored = initial, civicPlayers = { listOf(player) })
+        production.identities = { identities }
+        val first = production.settle(1, 30 * Justice.DAY)
+        assertEquals(905, offices.holders(first, 17).single().character)
+        assertEquals(906, offices.holders(first, 22).single().character)
+        assertEquals(6, first.strategic.people.getValue(player.characterId).militaryRank)
+        assertTrue(offices.holders(first, 25).isEmpty())
+        val second = production.settle(1, 60 * Justice.DAY)
+        assertEquals(1, second.strategic.people.getValue(player.characterId).rank)
+        assertEquals(5, second.strategic.people.getValue(player.characterId).militaryRank)
+        assertEquals(player.characterId, offices.holders(second, 25).single().character)
+        assertEquals(player.characterId, second.bases.getValue(1050).governorId)
+
+        val request = OutfitFormationRequest(StrategyActionRequest("pilot", "c", player.characterId, empire,
+            1, 25, 25, 1), FormationPhase.BEGIN, 1050, OutfitKind.GROUND)
+        val service = OutfitFormationService { 0L }
+        val session = SessionSimulation(SessionRules.load()).also { it.join("pilot", player.power, false, "c") }.exportState()
+        assertEquals(StrategyActionRejection.AUTHORITY, service.evaluate(galaxy, request, session, player, first).rejection)
+        val begin = service.evaluate(galaxy, request, session, player, second)
+        assertNull(begin.rejection)
+        val select = request.copy(phase = FormationPhase.SET_UNIT, target = begin.lease,
+            unit = OutfitFormationPolicy.code(troop, true), amount = 1)
+        assertNull(service.evaluate(galaxy, select, session, player, second).rejection)
+        val formed = service.evaluate(galaxy, select.copy(phase = FormationPhase.COMMIT), session, player, second)
+        assertNull(formed.rejection)
+        assertEquals(680, formed.player?.mcp)
+        assertNull(formed.stocks?.bases?.getValue(1050)?.units?.troops?.get(troop))
+        assertEquals(1, formed.stocks?.outfits?.getValue(formed.outfit)?.units?.troops?.get(troop))
+        assertEquals(1050, formed.stocks?.outfits?.getValue(formed.outfit)?.activeGround?.values?.single()?.base)
+
+        val dismissed = offices.set(first, OfficeHolding(17, 1049, 905), remove = true)
+        assertEquals(dismissed, InitialGovernment.restoreMilitaryOffices(galaxy, dismissed))
+        val withoutMinister = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy(), restored = dismissed,
+            civicPlayers = { listOf(player) }).also { it.identities = { identities } }.settle(1, 60 * Justice.DAY)
+        assertEquals(6, withoutMinister.strategic.people.getValue(player.characterId).militaryRank)
+        assertTrue(offices.holders(withoutMinister, 25).isEmpty())
     }
 }
