@@ -332,6 +332,20 @@ internal object NpcStrategy {
             val homeBase=galaxy.bases.single {it.id==outfit.baseId}
             val safe=forces[homeBase.grid].orEmpty().none {it.camp!=camp && it.combatPresence}
             if(safe) {
+                if(mayReserve && position.baseId==0 && securedExpedition(outfit,stocks) &&
+                    hostile(forces,origin,camp)==0L && needsDockSupply(outfit)) {
+                    val captured=galaxy.bases.single {it.id==outfit.strategy?.expeditionBase}
+                    val ships=outfit.activeShips.values.filter {it.boats>0}
+                    val berths=ships.mapNotNull {it.posture?.takeIf {pose->pose.grid==origin && pose.mode.requiresBase}?.base}
+                    val hostileFortress=galaxy.bases.any {base->base.grid==origin && base.kind==1 &&
+                        stocks.bases[base.id]?.let(TacticalAuthority::camp)?.let {it!=camp && it.country !in eliminated}==true}
+                    // Leave enough for a departure from home and its first return jump.
+                    val returnAndDeparture=distance(origin,homeBase.grid)+2
+                    if(captured.grid==origin && !hostileFortress && stocks.bases.getValue(captured.id).supplies>0 &&
+                        berths.all {it==captured.id} &&
+                        jumpShortfall(ships,OutfitSupplies.distribution(outfit),returnAndDeparture)>homeStock.supplies)
+                        return Plan(OutfitPosition(origin,captured.id))
+                }
                 if(nationalGoal!=null && outfit.strategy?.expeditionBase==nationalGoal.id && origin==homeBase.grid &&
                     !LogisticsOfficePolicy(galaxy).staffed(stocks,outfit.country,outfit.kind)) {
                     val berth=galaxy.bases.asSequence().filter {it.grid==origin && it.id!=position.baseId}

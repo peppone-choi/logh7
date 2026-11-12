@@ -119,4 +119,44 @@ class NpcObjectiveRoutingTest {
         assertTrue(rearmed.bases.getValue(1000).units.troops.isEmpty())
         assertNotNull(fleet(rearmed).strategy?.destination)
     }
+
+    @Test fun securedExpeditionRefuelsAtTheCapturedBerthBeforeReturningToADryHome() {
+        val route=map(2487,2490,stage=2480)
+        val neighboringPlanet=route.bases.last().copy(id=1003)
+        val world=Galaxy(route.systems,route.bases+neighboringPlanet,route.starts)
+        val seeded=stock(world,0)
+        val initial=seeded.copy(bases=seeded.bases+(1003 to seeded.bases.getValue(1003).copy(owner=Allegiance.Country(alliance))))
+        val landed=ActiveGroundUnits(ground.values.map {it.copy(carrier=0,base=1002,origin=ship.id)})
+        val carrier=OutfitSupplies.withBalances(fleet(initial).copy(
+            position=OutfitPosition(2480),activeGround=landed,
+            strategy=NpcStrategicState(0,expeditionBase=1002)),mapOf(ship.id to 7*ship.boats))
+        val captured=initial.copy(outfits=mapOf(carrier.id to carrier),social=SocialState(),
+            strategic=initial.strategic.copy(capitals=mapOf(empire to 1000,alliance to 1001)))
+        val blocked=NpcStrategy.advance(session,world,mutableMapOf(),captured,mutableListOf(),
+            warehouseBlocked={_,_->true})
+        assertEquals(captured.bases,blocked.bases)
+        assertEquals(carrier.position,fleet(blocked).position)
+        val fortress=Galaxy(route.systems,route.bases+neighboringPlanet.copy(kind=1),route.starts)
+        val exposed=advance(0,fortress,captured,mutableListOf())
+        assertEquals(captured.bases,exposed.bases)
+        assertEquals(carrier.position,fleet(exposed).position)
+
+        val moves=mutableListOf<NpcStrategicMovement>()
+        val docked=advance(0,world,captured,moves)
+        val dockedCarrier=fleet(docked)
+        assertEquals(OutfitPosition(2480,1002),dockedCarrier.position)
+        assertEquals(10*ship.boats,dockedCarrier.supplies)
+        assertEquals(captured.bases.getValue(1002).supplies-3*ship.boats,docked.bases.getValue(1002).supplies)
+        assertEquals(landed,dockedCarrier.activeGround)
+        assertTrue(moves.isEmpty())
+
+        var returning=docked
+        repeat(7) {
+            returning=advance(checkNotNull(fleet(returning).strategy).nextDecisionAt,world,returning,moves)
+            returning=advance(checkNotNull(fleet(returning).strategy?.arrivesAt),world,returning,moves)
+        }
+        assertEquals(OutfitPosition(2487,1000),fleet(returning).position)
+        assertEquals(3*ship.boats,fleet(returning).supplies)
+        assertEquals(landed,fleet(returning).activeGround)
+    }
 }
