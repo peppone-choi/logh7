@@ -547,7 +547,6 @@ internal object NpcStrategy {
             val canAllocate=!logisticsOffice.staffed(stocks,country,OutfitKind.FLEET)
             fun available(fleet:OutfitStock)=fleet.country==country && fleet.kind==OutfitKind.FLEET &&
                 fleet.guard==null && eligible(fleet,stocks) && (fleet.strategy?.nextDecisionAt ?: 0)<=now &&
-                (secured || canDepart(stocks,fleet,galaxy)) &&
                 claimsByFleet[fleet.id].orEmpty().none {it.vacantFleet(fleet,stocks,galaxy,players)!=null} &&
                 !warehouseBlocked(stocks,fleet.id)
             val choices=stocks.outfits.values.asSequence().filter {fleet->
@@ -584,11 +583,12 @@ internal object NpcStrategy {
                     if(route.missionJumps<(waiting?.second ?: Int.MAX_VALUE))waiting=base to route.missionJumps
                     continue
                 }
-                if(secured && route.position.grid==fleet.positionIn(galaxy).grid) {
-                    // Load the next infantry at home before moving to the berth that can fuel it.
+                if(route.position.grid==fleet.positionIn(galaxy).grid) {
+                    // Prepare the infantry before using the local berth identified by the fuel plan.
                     setStrategy(fleet,NpcStrategicState(now,expeditionBase=base.id))
                     continue@countryLoop
                 }
+                if(!secured && !canDepart(stocks,fleet,galaxy))continue
                 val (inventory,provisioned)=supplied(stocks,fleet,galaxy,departing=false,missionJumps=route.missionJumps) ?: continue
                 stocks=inventory
                 setStrategy(provisioned,NpcStrategicState(now,expeditionBase=base.id))
@@ -610,7 +610,7 @@ internal object NpcStrategy {
                 if(local.none {it.camp==camp && it.deployedShips>ships.size} ||
                     ships.none {it.boats>it.damaged && GroundTransfer.capacity(it.stack.kind)>0} ||
                     fleet.activeGround?.values.orEmpty().any {it.carrier>0} ||
-                    TacticalAuthority.camp(fleet,stocks)!=camp || !available(fleet))continue
+                    TacticalAuthority.camp(fleet,stocks)!=camp || !available(fleet) || !canDepart(stocks,fleet,galaxy))continue
                 val home=galaxy.bases.single {it.id==fleet.baseId}
                 val homeStock=stocks.bases.getValue(home.id)
                 if(home.grid==position.grid || homeStock.country!=country || homeStock.camp!=0 ||
