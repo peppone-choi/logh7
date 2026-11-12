@@ -547,8 +547,18 @@ internal object NpcStrategy {
                 val current=checkNotNull(NpcOccupation.goal(retained,stocks,galaxy,session.eliminated.keys))
                 val strategy=checkNotNull(retained.strategy)
                 val berth=depot(stocks,retained,galaxy) ?: continue
-                if(strategy.nextDecisionAt>now)continue
+                val position=retained.positionIn(galaxy)
+                val canLoadAtHome=strategy.destination==null && berth.baseId==retained.baseId && berth.supplies>0 &&
+                    eligible(retained,stocks) && !warehouseBlocked(stocks,retained.id) &&
+                    !TacticalContact.contested(forces()[position.grid].orEmpty())
+                val early=strategy.nextDecisionAt>now
+                if(early && (!canLoadAtHome || stocks.outfits.values.none { other->
+                        other.id!=retained.id && (other.position?.baseId ?: other.baseId)==berth.baseId &&
+                            (other.strategy?.nextDecisionAt ?: 0)<=now && eligible(other,stocks) &&
+                            !warehouseBlocked(stocks,other.id)
+                    }))continue
                 if(!NpcOccupation.hasCarrier(retained,current,stocks)) {
+                    if(early)continue
                     if(retained.activeGround?.values.orEmpty().none {it.base==current.id})
                         rearmAtForwardBerth(retained) {listOf(current)}
                     continue
@@ -556,11 +566,7 @@ internal object NpcStrategy {
                 val route=missionRoute(galaxy,forces(),retained,stocks,current,null,reserveInPort=true,
                     producesSupplies=producesSupplies)
                 if(route!=null) {
-                    val position=retained.positionIn(galaxy)
-                    if(strategy.destination==null && berth.baseId==retained.baseId &&
-                        (route.position==position || route.position.grid!=position.grid) &&
-                        berth.supplies>0 && eligible(retained,stocks) &&
-                        !warehouseBlocked(stocks,retained.id) && !TacticalContact.contested(forces()[position.grid].orEmpty())) {
+                    if(canLoadAtHome && (route.position==position || route.position.grid!=position.grid)) {
                         // Reserve this leg before other NPC outfits take routine stock from the same depot.
                         val (inventory,loaded)=checkNotNull(supplied(stocks,retained,galaxy,departing=false,
                             missionJumps=route.missionJumps,allowPartialLoad=true))
@@ -569,6 +575,7 @@ internal object NpcStrategy {
                     if(!route.waitingForSupplies || strategy.destination!=null ||
                         berth.baseId==retained.baseId)continue
                 }
+                if(early)continue
                 route
             } else null
             val garrisons=stocks.outfits.values.asSequence().filter {it.country==enemy}
