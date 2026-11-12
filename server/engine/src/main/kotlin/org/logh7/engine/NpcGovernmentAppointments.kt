@@ -96,7 +96,8 @@ internal object NpcGovernmentAppointments {
                 it.commanderId == 0 && it.activeGround?.values.orEmpty().isNotEmpty() }
                 .groupBy { it.positionIn(galaxy) }
             for (player in candidates) {
-                if (player.country != empire || player.mode !in 1..4) continue
+                if (player.country != empire || player.mode !in 1..4 ||
+                    next.bases[player.baseId]?.let { it.belongsTo(empire) && it.camp == 0 } != true) continue
                 val rank = registered.getValue(player.characterId).rank
                 for (outfit in vacancies[OutfitPosition(player.grid, player.baseId)].orEmpty().sortedBy { it.id }) {
                     val appointed = appoint(next, groundCommand, outfit.id, player.characterId, rank)
