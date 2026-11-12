@@ -147,7 +147,8 @@ internal object NpcStrategy {
         return fallback
     }
     private data class Plan(val position:OutfitPosition,val missionJumps:Int=0,val partialDepotLoad:Boolean=false,
-        val infantryBerth:Boolean=false,val waitingForSupplies:Boolean=false,val remainingJumps:Int=0,val goalJumps:Int=0)
+        val infantryBerth:Boolean=false,val waitingForSupplies:Boolean=false,val remainingJumps:Int=0,val goalJumps:Int=0,
+        val refuelBeforeReturn:Boolean=false)
 
     /** Find a strategic route and budget the entire leg before consuming its first jump. */
     private fun missionRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
@@ -332,6 +333,20 @@ internal object NpcStrategy {
             val homeBase=galaxy.bases.single {it.id==outfit.baseId}
             val safe=forces[homeBase.grid].orEmpty().none {it.camp!=camp && it.combatPresence}
             if(safe) {
+                if(mayReserve && position.baseId==0 && securedExpedition(outfit,stocks) &&
+                    hostile(forces,origin,camp)==0L && needsDockSupply(outfit)) {
+                    val captured=galaxy.bases.single {it.id==outfit.strategy?.expeditionBase}
+                    val ships=outfit.activeShips.values.filter {it.boats>0}
+                    val berths=ships.mapNotNull {it.posture?.takeIf {pose->pose.grid==origin && pose.mode.requiresBase}?.base}
+                    val hostileFortress=galaxy.bases.any {base->base.grid==origin && base.kind==1 &&
+                        stocks.bases[base.id]?.let(TacticalAuthority::camp)?.let {it!=camp && it.country !in eliminated}==true}
+                    // Leave enough for a departure from home and its first return jump.
+                    val returnAndDeparture=distance(origin,homeBase.grid)+2
+                    if(captured.grid==origin && !hostileFortress && stocks.bases.getValue(captured.id).supplies>0 &&
+                        berths.all {it==captured.id} &&
+                        jumpShortfall(ships,OutfitSupplies.distribution(outfit),returnAndDeparture)>homeStock.supplies)
+                        return Plan(OutfitPosition(origin,captured.id),refuelBeforeReturn=true)
+                }
                 if(nationalGoal!=null && outfit.strategy?.expeditionBase==nationalGoal.id && origin==homeBase.grid &&
                     !LogisticsOfficePolicy(galaxy).staffed(stocks,outfit.country,outfit.kind)) {
                     val berth=galaxy.bases.asSequence().filter {it.grid==origin && it.id!=position.baseId}
@@ -795,6 +810,12 @@ internal object NpcStrategy {
                 activeShips=ActiveShipUnits(replenished.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,posture=null)}))
             stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to docked))
             forceCache=null
+            if(mission?.refuelBeforeReturn==true && canDepart(stocks,docked,galaxy)) {
+                val next=target(galaxy,forces(),docked,stocks,players.values,session.eliminated.keys,
+                    producesSupplies=producesSupplies)?.position?.grid
+                if(next!=null && next!=destination.grid)
+                    setStrategy(docked,checkNotNull(docked.strategy).copy(destination=next,arrivesAt=now+3600))
+            }
         }
         fun publishDeployment(moved: OutfitStock, source: Int, destination: Int) {
             for((account,player) in players.toMap())if(player.grid==destination && !player.cpPaused &&
