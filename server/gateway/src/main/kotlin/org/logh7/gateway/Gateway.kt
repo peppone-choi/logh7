@@ -234,7 +234,9 @@ class Gateway(private val captureDirectory: Path? = null, private val accounts: 
                 val current = admission?.generation ?: 1L
                 deleteLobbyCharacter(account, generation, character, current, characterStores.get(current), stock)
             }),accounts)
-        successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,currentCharacters()::characterById,
+        successionSubscription=presence?.let {p->stock?.observeSuccession {event->p.succession(event,{id->
+            currentCharacters().characterById(id) ?: WorldCharacters.governmentProfiles(navigation?.snapshot())
+                .singleOrNull {it.character.id.toInt()==id}?.character},
             {country->org.logh7.engine.CountryCatalogLoader.current().countries[country.value]?.name})}}
         tidalSubscription=presence?.let {p->stock?.observeTides {event->
             p.tides(event,navigation!!.snapshot(),world!!.galaxy,currentCharacters()::characterById)

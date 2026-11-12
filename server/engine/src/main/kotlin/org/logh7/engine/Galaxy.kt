@@ -17,7 +17,8 @@ data class GalaxyBase(val id: Int, val grid: Int, val model: Int, val kind: Int,
 class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, starts: Map<Power, Int>,
     val defaultCell: Int = 1, terrain: List<String>? = null,
     countryStarts:Map<CountryId,Int> = emptyMap(),initialOwners:Map<Int,Allegiance> = emptyMap(),
-    val unaffiliatedStart:UnaffiliatedStart?=null,sargassoCells:Set<Int> = emptySet()) {
+    val unaffiliatedStart:UnaffiliatedStart?=null,sargassoCells:Set<Int> = emptySet(),
+    val initialGovernment: Boolean = false) {
     private val sargassoCells = sargassoCells.toSet()
     /** Keep existing two-country consumers consistent when their own starts are explicitly edited. */
     val starts:Map<Power,Int> = starts.mapValues {(power,grid)->countryStarts[power.country] ?: grid}
@@ -174,8 +175,11 @@ class Galaxy(val systems: List<GalaxySystem>, val bases: List<GalaxyBase>, start
             require(schema!="4" || unaffiliated!=null) {"World schema 4 requires an unaffiliated start"}
             val sargasso = p.getProperty("terrain.sargasso").orEmpty().trim().takeIf { it.isNotEmpty() }
                 ?.split(',')?.map { it.trim().toInt() }?.toSet().orEmpty()
+            val initialGovernment = p.getProperty("initial.government")?.toBooleanStrict()
+                ?: (p.getProperty("unverified.physical") == "local-model-class-orbit-defaults")
             return Galaxy(systems, bases, mapOf(Power.EMPIRE to int("start.empire"), Power.ALLIANCE to int("start.alliance")),
-                terrain = terrain,countryStarts=countryStarts,initialOwners=owners,unaffiliatedStart=unaffiliated,sargassoCells=sargasso)
+                terrain = terrain,countryStarts=countryStarts,initialOwners=owners,unaffiliatedStart=unaffiliated,
+                sargassoCells=sargasso,initialGovernment=initialGovernment)
         }
     }
 }

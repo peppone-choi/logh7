@@ -14,6 +14,34 @@ import kotlin.test.*
 class CardCharacterWorldTest {
     @TempDir lateinit var directory:Path
 
+    @Test fun freshGovernmentHoldersAreAvailableOverTheNativeOfficeProtocol() {
+        val regular = Galaxy(galaxy.systems + GalaxySystem(4, 2015, 4, "Alliance", 3),
+            listOf(galaxy.bases[0].copy(name = Capital.EMPIRE.baseName),
+                galaxy.bases[1].copy(grid = 2015, name = Capital.ALLIANCE.baseName)),
+            mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015), initialGovernment = true)
+        LoadFixture(directory, 1, LoadMetrics(), regular, ticking = false).use { fixture ->
+            val client = fixture.join(fixture.account(0), true, false).client
+            fun next(opcode: Int): ByteBuffer {
+                repeat(100) {
+                    val message = ByteBuffer.wrap(client.receive())
+                    if (message.getShort(4).toInt() == opcode) return message
+                }
+                error("Expected opcode $opcode")
+            }
+            client.send(SyntheticClient.opcode(0x0f00))
+            next(0x0f01)
+            for ((card, id) in mapOf(1 to 901, 2 to 901, 5 to 902, 6 to 902, 132 to 903)) {
+                client.send(ByteBuffer.allocate(4).putShort(0x034e).putShort(card.toShort()).array())
+                val reply = next(0x034f)
+                assertEquals(0, reply.getInt(0))
+                assertEquals(1, reply.get(8).toInt())
+                assertEquals(id, reply.getInt(9))
+            }
+            client.send(ByteBuffer.allocate(6).putShort(0x0322).putInt(902).array())
+            assertEquals(902, next(0x0323).getInt(6))
+        }
+    }
+
     @Test fun encryptedPagesReturnTheLastHolderWithoutOverflowingTheNativeResponse() {
         val seats=(1..65).map {galaxy.bases.first().copy(id=it,grid=if(it==1)2487 else 2400+it)}
         val systems=seats.map {GalaxySystem(it.id+2,it.grid,4,"System "+it.id,2)}

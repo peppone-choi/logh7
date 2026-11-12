@@ -336,8 +336,11 @@ class GameExchange(
         player.hull?.let { hull -> org.logh7.engine.Flagships.find(hull.kind)?.let {
             character.copy(shipKind=it.kind,shipType=it.type) } } ?: character
     private val traceOpcodes = System.getenv("LOGH7_TRACE_OPCODES") == "1"
-    private fun currentCharacterById(id:Int):CharacterMessages.Generate? = characters.characterById(id)?.let {
-        WorldCharacters.view(it,navigation?.snapshot())
+    private fun currentCharacterById(id:Int):CharacterMessages.Generate? {
+        val snapshot=navigation?.snapshot()
+        val data=characters.characterById(id) ?: WorldCharacters.governmentProfiles(snapshot)
+            .singleOrNull {it.character.id.toInt()==id}?.character
+        return data?.let {WorldCharacters.view(it,snapshot)}
     }
     private fun currentCharacter(account:String):CharacterMessages.Generate? = characters.character(account)?.let {
         WorldCharacters.view(it,navigation?.snapshot())
@@ -1845,7 +1848,9 @@ class GameExchange(
                         val id = java.nio.ByteBuffer.wrap(body).getInt(2)
                         val actor = checkNotNull(currentCharacter(identity.account))
                         val target = checkNotNull(currentCharacterById(id))
-                        val profiles=WorldCharacters.profiles(characters.profiles(),navigation?.snapshot()).values.associateBy {it.character.id.toInt()}
+                        val snapshot=navigation?.snapshot()
+                        val profiles=(WorldCharacters.profiles(characters.profiles(),snapshot).values+
+                            WorldCharacters.governmentProfiles(snapshot)).associateBy {it.character.id.toInt()}
                         val viewer=profiles[actor.id.toInt()];val subject=profiles[id]
                         require(WorldCharacters.mayReadPrivateDetail(viewer,subject)) { "Character detail requires friendly affiliation" }
                         val country=WorldCharacters.friendlyCountry(viewer,subject)

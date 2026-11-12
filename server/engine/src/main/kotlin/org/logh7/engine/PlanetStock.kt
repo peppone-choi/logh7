@@ -136,8 +136,11 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         val previous = current
         require(previous == null || previous.generation <= generation) { "Inventory belongs to a newer session" }
         val reached = (seconds - startSeconds) / 86400
-        val initial = ActiveShips.initialize(deployment.initialize(previous?.takeIf { it.generation == generation } ?: PlanetStocks(generation, 0,
-            galaxy.conditions.mapValues { (_, base) -> PlanetStock(base.baseId, galaxy.initialOwners.getValue(base.baseId), base.camp, base.supplies, base.food, 100_000) })))
+        val generationStocks = previous?.takeIf { it.generation == generation } ?: InitialGovernment.seed(galaxy,
+            PlanetStocks(generation, 0, galaxy.conditions.mapValues { (_, base) ->
+                PlanetStock(base.baseId, galaxy.initialOwners.getValue(base.baseId), base.camp, base.supplies, base.food, 100_000)
+            }), startSeconds)
+        val initial = ActiveShips.initialize(deployment.initialize(generationStocks))
         // Upgrade old rows at their existing watermark; never replay already-produced days.
         val initialized = if (initial.bases.values.all { it.economy != null }) initial else initial.copy(bases = initial.bases.mapValues { (id, stock) ->
             if (stock.economy != null) stock else galaxy.conditions.getValue(id).let { base ->
