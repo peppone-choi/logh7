@@ -148,8 +148,9 @@ static void __fastcall receivedOutfitPagePacket(void* world,void*,unsigned opcod
             publishOutfitGround(world,record,(opcode&65535)==0x0b04 ? 0x40 : 0x41,1+reason);
     }
     matchLobbySelectionRefusal(world,opcode,record);
-    if((opcode&65535)==0x032f && (at<BYTE>(record,8)==4 || at<BYTE>(record,8)==6 ||
-        at<BYTE>(record,8)==7 || at<BYTE>(record,8)==fuelStatusMode))return;
+    // Modes 4 and above belong to the revival decoder. Native dispatch would
+    // replace the single party record that the logistics editors read.
+    if((opcode&65535)==0x032f && at<BYTE>(record,8)>=4)return;
     if(groundOrderReplied(opcode,static_cast<const BYTE*>(record)))return;
     if(groundPanelConsumes(opcode,static_cast<const BYTE*>(record)))return;
     bool consume=(opcode&65535)==0x032f && at<BYTE>(record,8)==2;
