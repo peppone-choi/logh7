@@ -90,6 +90,10 @@ internal object PersonnelActions {
                     .singleOrNull()?.toInt() ?: continue
                 if(winner !in next.strategic.people && next.strategic.people.size>=4096)continue
                 if(rank<8 && (stocks.social.justice.detained(winner) || CoupActions.rebel(stocks,winner,country)))continue
+                // An NPC promotion releases the command seat. Defer it while the outfit is underway.
+                if(rank<8 && stocks.outfits.values.any {
+                    it.country==country && it.commanderId==winner && it.position?.baseId==0
+                })continue
                 val merit=if(rank<8 || destination.isEmpty())0L
                     else destination.sumOf {TacticalPersonnel.merit(stocks,it.id)}/destination.size
                 next=changeRank(next,winner,rank-1,merit)

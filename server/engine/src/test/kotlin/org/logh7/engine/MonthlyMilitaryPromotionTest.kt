@@ -80,4 +80,25 @@ class MonthlyMilitaryPromotionTest {
             engine.drainAndClose()
         }
     }
+
+    @Test fun npcMinisterDefersTheLeadingCommandersPromotionUntilTheOutfitBerths() {
+        val commander = 10000
+        val outfit = OutfitStock(265, country, OutfitKind.GROUND, 1048, 1, commanderId = commander,
+            position = OutfitPosition(2487))
+        val initial = stocks(mapOf(commander to StrategicPerson(rank = 1, militaryRank = 4, merit = 20)))
+            .copy(outfits = mapOf(outfit.id to outfit),
+                warehouses = mapOf(1 to OutfitWarehouse(1, country, OutfitKind.PATROL, 1048)))
+        val roster = listOf(identity(commander, 4), identity(10001, 4))
+        val promoted = mutableListOf<PersonnelActions.MonthlyPromotion>()
+        assertEquals(initial, PersonnelActions.promoteMonthly(initial, roster, emptySet(), 30 * 86400L, promoted,
+            actingNpcMinister = true))
+        assertTrue(promoted.isEmpty())
+
+        val berthed = initial.copy(outfits = mapOf(outfit.id to outfit.copy(position = OutfitPosition(2487, 1048))))
+        val after = PersonnelActions.promoteMonthly(berthed, roster, emptySet(), 60 * 86400L, promoted,
+            actingNpcMinister = true)
+        assertEquals(listOf(PersonnelActions.MonthlyPromotion(commander, country, 3, 60 * 86400L)), promoted)
+        assertEquals(3, after.strategic.people.getValue(commander).militaryRank)
+        assertEquals(0, after.outfits.getValue(outfit.id).commanderId)
+    }
 }
