@@ -11,6 +11,22 @@ class InitialGovernmentTest {
         mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015), initialGovernment = true)
     private val offices = OrganizationalOfficePolicy(galaxy)
 
+    @Test fun initialNpcGovernmentAllowsExpeditionsUntilAPlayerCanSetTheNationalGoal() {
+        val empire = Power.EMPIRE.country
+        val alliance = Power.ALLIANCE.country
+        val fresh = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy()).settle(1, 0)
+        assertEquals(alliance, NpcOccupation.expeditionEnemy(empire, fresh, galaxy, emptySet()))
+        assertEquals(empire, NpcOccupation.expeditionEnemy(alliance, fresh, galaxy, emptySet()))
+
+        val playerViceChair = offices.set(fresh, OfficeHolding(133, 1177, 10000, alliance))
+        assertNull(NpcOccupation.expeditionEnemy(alliance, playerViceChair, galaxy, emptySet()))
+        assertEquals(alliance, NpcOccupation.expeditionEnemy(empire, playerViceChair, galaxy, emptySet()))
+
+        val withGoal = fresh.copy(social = fresh.social.copy(goals = GoalState(
+            national = mapOf(empire.value to NationalGoal(1177, 901, 0)))))
+        assertNull(NpcOccupation.expeditionEnemy(empire, withGoal, galaxy, emptySet()))
+    }
+
     @Test fun startingOfficesUseTheNormalWorldStateAndOnlyReseedOnGenerationChange() {
         val fresh = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy()).settle(1, 0)
         val expected = mapOf(1 to 901, 2 to 901, 5 to 902, 6 to 902, 132 to 903)

@@ -3,7 +3,7 @@ package org.logh7.engine
 import kotlin.math.atan2
 import kotlin.math.hypot
 
-/** A national objective or a vacant government's expedition directs regular uncommanded carriers (evidence:guess). */
+/** A national objective or a government without a player goal setter directs uncommanded carriers (evidence:guess). */
 internal object NpcOccupation {
     private fun eligible(outfit:OutfitStock,stocks:PlanetStocks,eliminated:Set<CountryId>) =
         outfit.kind in setOf(OutfitKind.FLEET,OutfitKind.PATROL) && outfit.country !in eliminated &&
@@ -30,8 +30,11 @@ internal object NpcOccupation {
         if(country in eliminated || stocks.social.goals.national.containsKey(country.value))return null
         if(enemy in eliminated)return null
         val offices=OrganizationalOfficePolicy(galaxy)
-        if(offices.capital(stocks,enemy)==null || offices.capital(stocks,country)==null ||
-            GoalActions.nationalCards.any {offices.holders(stocks,it,country).isNotEmpty()})return null
+        if(offices.capital(stocks,enemy)==null || offices.capital(stocks,country)==null)return null
+        val npcOfficials=InitialGovernment.roster(stocks).filter {it.country==country}.map {it.id}.toSet()
+        if(GoalActions.nationalCards.any {card ->
+            offices.holders(stocks,card,country).any {it.character !in npcOfficials}
+        })return null
         return enemy
     }
 
