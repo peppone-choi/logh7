@@ -1,5 +1,6 @@
 package org.logh7.gateway
 
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.logh7.engine.*
@@ -26,6 +27,46 @@ class RetirementWireTest {
         }
         error("No card rows")
     }
+    @Test fun monthlyGovernorAppointmentUpdatesTheOriginalConnectionAndPermitsRecruitment() = runBlocking<Unit> {
+        val galaxy = Galaxy(listOf(GalaxySystem(3, 2487, 4, "Home", 2)), listOf(
+            GalaxyBase(1049, 2487, 80, 0, Capital.EMPIRE.baseName, 0, 20f, 86400, 0, 0f, 2f),
+            GalaxyBase(1050, 2487, 80, 0, "Province", 0, 30f, 86400, 0, 0f, 2f)),
+            Power.entries.associateWith { 2487 }, initialGovernment = true)
+        var players = mapOf("load-000" to Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000,
+            baseId = 1050, mode = 4, cpRecoveryAt = SessionRules.load().startSeconds))
+        var stocks: PlanetStocks? = null
+        val navigation = object : NavigationStore {
+            override fun load() = players
+            override fun save(value: Map<String, Navigator>) { players = value }
+        }
+        val stockStore = object : PlanetStockStore {
+            override fun load() = stocks
+            override fun save(value: PlanetStocks) { stocks = value }
+        }
+        val committer = WorldStateCommitter { nav, inventory -> players = nav; stocks = inventory }
+        fun action(command: Int, card: Int, value: Int, token: Int): ByteArray =
+            ByteBuffer.allocate(31).putShort(0x1200).putInt(10000).putShort(0x7f00)
+                .putShort(command.toShort()).putShort(card.toShort()).putShort(value.toShort())
+                .putInt(0).put(0).putInt(0).putShort(0).putInt(0).putShort(token.toShort()).array()
+        LoadFixture(directory, 1, LoadMetrics(), galaxy, ticking = false, navigationStore = navigation,
+            stockStore = stockStore, worldStateCommitter = committer).use { fixture ->
+            val client = fixture.join(fixture.account(0), false, false).client
+            client.send(SyntheticClient.opcode(0x0f00))
+            next(client, 0x0f01)
+            client.send(action(84, 0, 0, 41))
+            assertEquals(0, ByteBuffer.wrap(next(client, 0x1200)).getShort(16).toInt())
+            assertTrue(67 to 0 in cards(next(client, 0x0356)))
+            fixture.engine.submit(WorldCommand.AdvanceTo(30 * Justice.DAY * 1000 / SessionRules.load().speed))
+            assertTrue(54 to 1050 in cards(next(client, 0x0356)))
+            val before = checkNotNull(fixture.engine.snapshot().planetStocks).bases.getValue(1050)
+            val kind = ProductionActions.kinds(2, false).first().kind
+            client.send(action(ProductionActions.RECRUIT, 54, kind, 42))
+            assertEquals(0, ByteBuffer.wrap(next(client, 0x1200)).getShort(16).toInt())
+            val after = checkNotNull(fixture.engine.snapshot().planetStocks).bases.getValue(1050)
+            assertEquals(before.units.troops.getOrDefault(UnitStack(kind), 0) + 1, after.units.troops[UnitStack(kind)])
+        }
+    }
+
     @Test fun retiringDropsTheCommandCardAndRankInTheSameConnection() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2487,4,"Home",2)),
             listOf(GalaxyBase(1049,2487,80,0,Capital.EMPIRE.baseName,0,20f,86400,0,0f,2f)),
