@@ -7,6 +7,22 @@ import kotlin.test.*
 
 class WorldCharactersTest {
     private val character=CharacterMessages.Generate(0,10000,2,0,0,"Alpha","Pilot",30,1,1,0,List(8){50},0,0,0,10,0,0,"Ship",0)
+    @Test fun startingGovernmentProfilesAreVisibleOnlyInTheirWorldGeneration() {
+        val stocks = PlanetStocks(1, 0, mapOf(1049 to PlanetStock(1049, 2, 0, 100, 0, 0)),
+            strategic = StrategicState(people = mapOf(902 to StrategicPerson(rank = 1, merit = 1))))
+        val session = SessionSnapshot(1, 100, 0, 0, emptyMap(), 0, 1, null)
+        val world = WorldSnapshot(0, 0, session, planetStocks = stocks)
+        val minister = WorldCharacters.governmentProfiles(world).single()
+        assertEquals(902L, minister.character.id)
+        assertEquals("리히텐라데", minister.character.surname)
+        assertEquals(Power.EMPIRE.country, WorldCharacters.identities(emptyMap(), world).single().country)
+        val projected = WorldCharacters.view(minister.character, world)
+        assertEquals(1L, projected.merit)
+        assertTrue(BootstrapMessages.character(projected, 0, 0,
+            offices = listOf(BootstrapMessages.OfficeCard(6, 1049))).isNotEmpty())
+        assertTrue(WorldCharacters.identities(emptyMap(), world.copy(session = session.copy(generation = 2))).isEmpty())
+    }
+
     @Test fun observerAndReconnectViewsUseStrategicRankAndTotalMeritAlongsideSavedAi() {
         val galaxy=Galaxy(listOf(GalaxySystem(3,2488,4,"Home",2)),
             listOf(GalaxyBase(1000,2488,80,0,"Home",0,20f,86400,0,0f,2f)),Power.entries.associateWith {2488})

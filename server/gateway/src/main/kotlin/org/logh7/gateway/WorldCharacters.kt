@@ -28,9 +28,21 @@ internal object WorldCharacters {
         profiles(stored,snapshot).values.mapNotNull {it.country}.groupingBy {it}.eachCount()
 
     fun identities(stored:Map<String,CharacterProfile>,snapshot:WorldSnapshot?):List<StrategicIdentity> =
-        profiles(stored,snapshot).values.sortedBy {it.character.id}.map {profile->
+        (profiles(stored,snapshot).values + governmentProfiles(snapshot)).sortedBy {it.character.id}.map {profile->
             val c=profile.character
             StrategicIdentity(c.id.toInt(),profile.country,c.rank,c.origin,c.abilities.toList(),c.age)
+        }
+
+    fun governmentProfiles(snapshot: WorldSnapshot?): List<CharacterProfile> =
+        InitialGovernment.roster(snapshot?.planetStocks?.takeIf { it.generation == snapshot.session?.generation }).map { official ->
+            val power = official.country.value
+            val hull = Flagships.rankDefault(power, official.rank)
+            CharacterProfile.legacy(CharacterMessages.Generate(
+                category = 4, id = official.id.toLong(), power = power, origin = 0, gender = 0,
+                surname = official.surname, givenName = official.givenName, age = 0, birthMonth = 1,
+                birthDay = 1, face = 1000001, abilities = InitialGovernment.baselineAbilities, bonus = 0,
+                special = 0, title = 0, rank = official.rank, shipType = hull.type, shipKind = hull.kind,
+                shipName = "", check = 0, generated = false))
         }
 
     fun view(character:CharacterMessages.Generate,snapshot:WorldSnapshot?):CharacterMessages.Generate {
