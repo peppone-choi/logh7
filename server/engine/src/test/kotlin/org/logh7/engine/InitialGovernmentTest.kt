@@ -8,6 +8,7 @@ class InitialGovernmentTest {
         listOf(GalaxySystem(3, 2487, 4, "Empire", 2), GalaxySystem(4, 2015, 4, "Alliance", 3)),
         listOf(GalaxyBase(1049, 2487, 80, 0, Capital.EMPIRE.baseName, 0, 20f, 86400, 0, 0f, 2f),
             GalaxyBase(1050, 2487, 80, 0, "Planet", 0, 30f, 86400, 0, 0f, 2f),
+            GalaxyBase(1048, 2487, 80, 0, "Forward base", 0, 40f, 86400, 0, 0f, 2f),
             GalaxyBase(1177, 2015, 80, 0, Capital.ALLIANCE.baseName, 0, 20f, 86400, 0, 0f, 2f)),
         mapOf(Power.EMPIRE to 2487, Power.ALLIANCE to 2015), initialGovernment = true)
     private val offices = OrganizationalOfficePolicy(galaxy)
@@ -170,6 +171,19 @@ class InitialGovernmentTest {
         val appointed = review(initial)
         assertEquals(player.characterId, offices.holders(appointed, 50).single().character)
         assertEquals(troop, appointed.outfits.getValue(265).activeGround?.values?.single())
+
+        val deployment = galaxy.bases.single { it.id == 1048 }
+        val deployed = outfit.copy(position = OutfitPosition(deployment.grid, deployment.id),
+            activeGround = ActiveGroundUnits(listOf(troop.copy(base = deployment.id))))
+        val relocated = initial.copy(outfits = initial.outfits + (outfit.id to deployed))
+        val local = player.copy(grid = deployment.grid, baseId = deployment.id)
+        assertEquals(player.characterId, review(relocated, local).outfits.getValue(outfit.id).commanderId)
+        val base = relocated.bases.getValue(deployment.id)
+        for (inaccessible in listOf(base.copy(owner = Allegiance.Country(Power.ALLIANCE.country)), base.copy(camp = 1))) {
+            val changed = relocated.copy(bases = relocated.bases + (base.baseId to inaccessible))
+            assertEquals(deployed, review(changed, local).outfits.getValue(outfit.id))
+        }
+
         val occupied = initial.copy(outfits = initial.outfits + (265 to outfit.copy(commanderId = 10001)))
         assertEquals(10001, review(occupied).outfits.getValue(265).commanderId)
         val noInspector = offices.set(initial, OfficeHolding(34, 1049, 907), remove = true)
