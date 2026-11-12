@@ -231,6 +231,8 @@ VM은 헤드리스 부팅과 자동 로그인을 확인했으나 Guest Control �
 
 run-83에서 실제 오른쪽 드래그로 후면→측면→정면 회전을 확인했다. 두 소유 프로세스의 종료·잔류 Job 0·원본 해시 보존도 확인했다. 캡처는 `work/native-multiplayer-20261028/camera83-oblique.png`, `camera83-front.png`다.
 
+`{"key":115}`는 소유 창에 F4를 보내 3D/2D 전술 보기를 전환한다(`gin7manual.pdf`, p.23). 반플리트 정박 저장의 `native-15`에서 원본 전술 화면과 선택표의 투영 좌표가 바뀌는 것을 확인했다.
+
 ### 상대 접속을 유지한 한쪽 재실행 (2026-10-28)
 
 작성: Peppone Choi

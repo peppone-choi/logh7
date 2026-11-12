@@ -9,7 +9,7 @@ rpc.exports.scrollmouse=function(delta) {
   testMouseDelta.z=Math.max(-1200,Math.min(1200,testMouseDelta.z+delta));
 };
 rpc.exports.setkey = function(value) {
-  if(![0,8,9,13,27,67,68,88].includes(value))throw new Error('Only release, Backspace, Tab, Enter, Escape and tactical C/D/X are supported');
+  if(![0,8,9,13,27,67,68,88,115].includes(value))throw new Error('Only release, Backspace, Tab, Enter, Escape and tactical C/D/X/F4 are supported');
   testKey = value;
   testControl = false;
 };
