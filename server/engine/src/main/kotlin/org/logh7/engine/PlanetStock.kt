@@ -134,8 +134,16 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
     private fun settleResources(stock:PlanetStock,base:BaseCondition,stocks:PlanetStocks,
         dayEnd:Long,countries:CountryCatalog):PlanetStock {
         val economy=stock.nextDay(base,policy)
-        val built=units.advance(economy,stock,ProductionActions.shipyard(galaxy,stocks,base.baseId,dayEnd),countries)
-        return GoalActions.lean(built,economy.supplies-stock.supplies,stocks.social.goals.focus[base.baseId],policy.maximumStock)
+        val shipyard=ProductionActions.shipyard(galaxy,stocks,base.baseId,dayEnd)
+        val planned=economy.supplies-stock.supplies
+        val (built,manufactured)=if(base.habitability==0 && planned>0 && stock.country?.value in countries.countries &&
+            (units.forCountry(base.baseId,stock.country,countries).isNotEmpty() || stock.units.work.isNotEmpty())) {
+            val ratio=policy.economy.suppliesPerMineral
+            val mineralUsed=((planned.toLong()+ratio-1)/ratio).toInt()
+            val unconverted=economy.copy(supplies=stock.supplies,mineral=economy.mineral+mineralUsed)
+            units.advanceWithSupplyBudget(unconverted,stock,shipyard,countries,planned)
+        } else units.advance(economy,stock,shipyard,countries) to planned
+        return GoalActions.lean(built,manufactured,stocks.social.goals.focus[base.baseId],policy.maximumStock)
     }
 
     /** Strategic planning checks production potential, without spending the next day's rations or fuel. */
