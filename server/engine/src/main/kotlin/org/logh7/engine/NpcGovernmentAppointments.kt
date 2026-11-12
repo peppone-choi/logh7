@@ -7,9 +7,11 @@ internal object NpcGovernmentAppointments {
     private const val ALLIANCE_RESOURCES_CHAIR = 139
     private const val ALLIANCE_GOVERNOR = 190
     private const val ALLIANCE_CAPITAL_ADMINISTRATOR = 192
+    private const val EMPIRE_GROUND_COMMANDER = 50
     private val empireFormation = InitialGovernment.EMPIRE_AUXILIARY_FORMATION
     val refreshedCards = setOf(EMPIRE_GOVERNOR, ALLIANCE_STATE_CHAIR, ALLIANCE_GOVERNOR, ALLIANCE_CAPITAL_ADMINISTRATOR,
-        InitialGovernment.EMPIRE_MILITARY_MINISTER, 22, empireFormation)
+        InitialGovernment.EMPIRE_MILITARY_MINISTER, 22, empireFormation,
+        InitialGovernment.EMPIRE_GRENADIER_INSPECTOR, EMPIRE_GROUND_COMMANDER)
 
     fun settle(galaxy: Galaxy, stocks: PlanetStocks, identities: List<StrategicIdentity>,
         players: Collection<Navigator>, eliminated: Set<CountryId>): PlanetStocks {
@@ -82,7 +84,27 @@ internal object NpcGovernmentAppointments {
                     OutfitFormationPolicy.available(next, player.baseId, catalog.shipStyle(empire), OutfitKind.GROUND)
                         .none { (code, count) -> count > 0 && OutfitFormationPolicy.stack(code).first }) continue
                 val appointed = appoint(next, formation, capital, player.characterId, registered.getValue(player.characterId).rank)
-                if (appointed !== next) return appointed
+                if (appointed !== next) {
+                    next = appointed
+                    break
+                }
+            }
+        }
+        val groundCommand = policy.role(EMPIRE_GROUND_COMMANDER, empire)
+        if (groundCommand != null && policy.holders(next, InitialGovernment.EMPIRE_GRENADIER_INSPECTOR, empire).isNotEmpty()) {
+            val vacancies = next.outfits.values.filter { it.country == empire && it.kind == OutfitKind.GROUND &&
+                it.commanderId == 0 && it.activeGround?.values.orEmpty().isNotEmpty() }
+                .groupBy { it.positionIn(galaxy) }
+            for (player in candidates) {
+                if (player.country != empire || player.mode !in 1..4) continue
+                val rank = registered.getValue(player.characterId).rank
+                for (outfit in vacancies[OutfitPosition(player.grid, player.baseId)].orEmpty().sortedBy { it.id }) {
+                    val appointed = appoint(next, groundCommand, outfit.id, player.characterId, rank)
+                    if (appointed !== next) {
+                        next = appointed
+                        break
+                    }
+                }
             }
         }
         return next

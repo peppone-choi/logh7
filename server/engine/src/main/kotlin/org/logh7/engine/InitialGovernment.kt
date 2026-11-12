@@ -5,6 +5,7 @@ object InitialGovernment {
     private const val EMPIRE_EMPEROR = 901
     internal const val EMPIRE_MILITARY_MINISTER = 17
     internal const val EMPIRE_AUXILIARY_FORMATION = 25
+    internal const val EMPIRE_GRENADIER_INSPECTOR = 34
     internal const val ALLIANCE_CHAIR = 903
     internal const val ALLIANCE_RESOURCES_CHAIR = 904
     data class Official(val id: Int, val country: CountryId, val rank: Int,
@@ -13,6 +14,7 @@ object InitialGovernment {
     private val militaryOfficials = listOf(
         Official(905, Power.EMPIRE.country, 2, "에렌베르크", "", listOf(EMPIRE_MILITARY_MINISTER)),
         Official(906, Power.EMPIRE.country, 2, "슈타인호프", "", listOf(22)),
+        Official(907, Power.EMPIRE.country, 3, "오프레서", "", listOf(EMPIRE_GRENADIER_INSPECTOR)),
     )
     private val officials = listOf(
         Official(EMPIRE_EMPEROR, Power.EMPIRE.country, 0, "프리드리히", "4세", listOf(1, 2)),
@@ -36,11 +38,19 @@ object InitialGovernment {
         val capital = offices.capital(stocks, empire) ?: return stocks
         var next = stocks
         for (official in militaryOfficials) {
-            if (official.id in next.strategic.people) continue
+            if (official.id in next.strategic.people || next.strategic.people.size >= 4096) continue
             val card = official.cards.single()
             val role = offices.role(card, empire) ?: continue
             if (!offices.active(next, role, capital) ||
                 galaxy.facilitiesAt(capital, next, CountryCatalogLoader.current()).none { it.kind == role.facility }) continue
+            if (card == EMPIRE_GRENADIER_INSPECTOR) {
+                val minister = militaryOfficials.first()
+                val rank = ProposalActions.rank(next, minister.id, empire, minister.rank)
+                if (BattleDeath.deceased(next, minister.id) || next.social.justice.detained(minister.id) ||
+                    CoupActions.rebel(next, minister.id, empire) ||
+                    !offices.authorized(next, role, capital, minister.id, rank) ||
+                    !offices.eligible(next, role, minister.id, rank, official.id, official.rank)) continue
+            }
             next = next.copy(strategic = next.strategic.copy(
                 people = next.strategic.people + (official.id to StrategicPerson(rank = official.rank))))
             if (offices.holders(next, card, empire).isEmpty())

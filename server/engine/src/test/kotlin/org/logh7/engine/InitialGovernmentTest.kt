@@ -30,7 +30,7 @@ class InitialGovernmentTest {
 
     @Test fun startingOfficesUseTheNormalWorldStateAndOnlyReseedOnGenerationChange() {
         val fresh = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy()).settle(1, 0)
-        val expected = mapOf(1 to 901, 2 to 901, 5 to 902, 6 to 902, 17 to 905, 22 to 906, 132 to 903, 139 to 904)
+        val expected = mapOf(1 to 901, 2 to 901, 5 to 902, 6 to 902, 17 to 905, 22 to 906, 34 to 907, 132 to 903, 139 to 904)
         assertEquals(expected, offices.all(fresh).associate { it.card to it.character })
         assertEquals(901, fresh.social.succession.emperor)
         assertEquals(0, fresh.social.succession.rival)
@@ -144,5 +144,36 @@ class InitialGovernmentTest {
             civicPlayers = { listOf(player) }).also { it.identities = { identities } }.settle(1, 60 * Justice.DAY)
         assertEquals(6, withoutMinister.strategic.people.getValue(player.characterId).militaryRank)
         assertTrue(offices.holders(withoutMinister, 25).isEmpty())
+    }
+
+    @Test fun npcInspectorFillsTheLocalVacantGroundCommandAndRespectsTheExistingHolder() {
+        val empire = Power.EMPIRE.country
+        val player = Navigator(1, 10000, Power.EMPIRE, 2487, 1000, 1000, 1000, baseId = 1050, mode = 4)
+        val troop = ActiveGroundUnit(1804, UnitStack(1), base = 1050)
+        val outfit = OutfitStock(265, empire, OutfitKind.GROUND, 1050, 297888,
+            units = UnitInventory(troops = mapOf(troop.stack to 1)), activeGround = ActiveGroundUnits(listOf(troop)))
+        val fresh = PlanetProduction(galaxy, null, 0, PlanetProductionPolicy()).settle(1, 0)
+        val warehouse = OutfitWarehouse(outfit.warehouseId, empire, OutfitKind.PATROL, 1050, 0)
+        val initial = fresh.copy(outfits = fresh.outfits + (outfit.id to outfit),
+            warehouses = fresh.warehouses + (warehouse.id to warehouse), nextShipId = troop.id + 1,
+            strategic = fresh.strategic.copy(people = fresh.strategic.people +
+                (player.characterId to StrategicPerson(rank = 1, militaryRank = 5))))
+        val people = listOf(StrategicIdentity(player.characterId, empire, 5, 0, InitialGovernment.baselineAbilities))
+        fun review(stocks: PlanetStocks, candidate: Navigator = player) =
+            NpcGovernmentAppointments.settle(galaxy, stocks, people, listOf(candidate), emptySet())
+
+        val outside = review(initial, player.copy(baseId = 1049))
+        assertEquals(0, outside.outfits.getValue(265).commanderId)
+        val junior = initial.copy(strategic = initial.strategic.copy(people = initial.strategic.people +
+            (player.characterId to StrategicPerson(rank = 1, militaryRank = 11))))
+        assertEquals(0, review(junior).outfits.getValue(265).commanderId)
+        val appointed = review(initial)
+        assertEquals(player.characterId, offices.holders(appointed, 50).single().character)
+        assertEquals(troop, appointed.outfits.getValue(265).activeGround?.values?.single())
+        val occupied = initial.copy(outfits = initial.outfits + (265 to outfit.copy(commanderId = 10001)))
+        assertEquals(10001, review(occupied).outfits.getValue(265).commanderId)
+        val noInspector = offices.set(initial, OfficeHolding(34, 1049, 907), remove = true)
+        assertEquals(0, review(noInspector).outfits.getValue(265).commanderId)
+        assertEquals(noInspector, InitialGovernment.restoreMilitaryOffices(galaxy, noInspector))
     }
 }
