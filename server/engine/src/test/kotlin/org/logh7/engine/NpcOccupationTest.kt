@@ -32,6 +32,41 @@ class NpcOccupationTest {
     private fun advance(s:PlanetStocks,offset:Long,movements:MutableList<TacticalMovement> = mutableListOf())=
         NpcTactics.advance(time(offset),galaxy,mutableMapOf(),s,NpcTacticalPolicy(),1,mutableListOf(),movements)
 
+    @Test fun openingExpeditionUsesTheForwardBerthWithoutReturningHome() {
+        val home=base.copy(id=1001,grid=2485)
+        val depot=base.copy(id=1002,grid=2486)
+        val world=Galaxy(listOf(GalaxySystem(3,home.grid,4,"Home",2),GalaxySystem(4,depot.grid,4,"Depot",2),
+            GalaxySystem(5,grid,4,"Front",3)),listOf(home,depot,base),mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to grid))
+        val ship=ActiveShipUnit(1,UnitStack(32))
+        val infantry=UnitStack(0)
+        val fleet=OutfitStock(1,2,OutfitKind.FLEET,home.id,10,0,UnitInventory(ships=mapOf(ship.stack to 1)),
+            activeShips=ActiveShipUnits(listOf(ship)),position=OutfitPosition(depot.grid,depot.id))
+        val original=stocks(12f)
+        val initial=original.copy(bases=original.bases+mapOf(
+            home.id to PlanetStock(home.id,2,0,0,0,0),
+            depot.id to PlanetStock(depot.id,2,0,1200,0,0,units=UnitInventory(troops=mapOf(infantry to 1)))),
+            outfits=mapOf(fleet.id to fleet),warehouses=mapOf(10 to OutfitWarehouse(10,2,OutfitKind.FLEET,home.id,1)),
+            strategic=original.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to base.id)),
+            social=SocialState())
+        fun advance(offset:Long,stock:PlanetStocks)=NpcStrategy.advance(time(offset),world,mutableMapOf(),stock,mutableListOf())
+        val dry=initial.copy(bases=initial.bases+(depot.id to initial.bases.getValue(depot.id).copy(supplies=0)))
+        val held=advance(0,dry)
+        assertEquals(dry.bases,held.bases)
+        assertNull(held.outfits.getValue(fleet.id).strategy?.expeditionBase)
+
+        val reserved=advance(0,initial)
+        val prepared=reserved.outfits.getValue(fleet.id)
+        assertEquals(base.id,prepared.strategy?.expeditionBase)
+        assertTrue(NpcOccupation.hasCarrier(prepared,base,reserved))
+        assertEquals(initial.bases.getValue(home.id),reserved.bases.getValue(home.id))
+        assertTrue(reserved.bases.getValue(depot.id).units.troops.isEmpty())
+        assertEquals(0,reserved.bases.getValue(depot.id).supplies)
+        val underway=advance(3600,reserved).outfits.getValue(fleet.id)
+        assertEquals(900,underway.supplies)
+        assertEquals(prepared.activeGround,underway.activeGround)
+        assertEquals(0,underway.positionIn(world).baseId)
+    }
+
     @Test fun openingExpeditionLoadsInfantryAtHomeAndFuelAtAnotherBerth() {
         val home=base.copy(id=1001,grid=2486)
         val depot=home.copy(id=1002)
