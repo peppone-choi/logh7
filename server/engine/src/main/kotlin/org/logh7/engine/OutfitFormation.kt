@@ -54,7 +54,7 @@ object OutfitFormationPolicy {
         val policy=OrganizationalOfficePolicy(galaxy,countries)
         val role=policy.role(r.identity.card,country) ?: return StrategyActionRejection.CARD
         if(role.camp!=0 || r.kind !in kinds(role.card))return StrategyActionRejection.CARD
-        val rank=stocks.strategic.people[p.characterId]?.rank ?: r.identity.rank
+        val rank=ProposalActions.rank(stocks,p.characterId,country,r.identity.rank,countries)
         if(rank !in role.ranks || policy.holders(stocks,role.card,country).none {it.character==p.characterId})
             return StrategyActionRejection.AUTHORITY
         val base=stocks.bases[r.base] ?: return StrategyActionRejection.LOCATION
