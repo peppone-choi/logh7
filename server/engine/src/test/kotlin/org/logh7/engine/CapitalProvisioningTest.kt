@@ -58,6 +58,24 @@ class CapitalProvisioningTest {
         assertEquals(0,next.bases.getValue(1049).food)
     }
 
+    @Test fun supplyForecastUsesTheSameFiniteCapitalRationsAsTheNextSettlement() {
+        val second=galaxy.bases[1].copy(id=1041,name="Second")
+        val world=Galaxy(galaxy.systems,(galaxy.bases+second).reversed(),galaxy.starts)
+        val saved=Store(stock(100,world,adults=60_000))
+        val production=PlanetProduction(world,saved,0,policy)
+        val before=production.settle(1,0)
+        val forecast=production.supplyForecast(before)
+        val first=before.bases.getValue(1040)
+        val later=before.bases.getValue(1041)
+        assertTrue(forecast(first))
+        assertFalse(forecast(later))
+        assertEquals(before,saved.value)
+
+        val after=production.settle(1,86400)
+        assertTrue(after.bases.getValue(first.baseId).supplies>first.supplies)
+        assertEquals(later.supplies,after.bases.getValue(later.baseId).supplies)
+    }
+
     @Test fun dailyHarvestCannotBeBorrowedFromAFutureDayDuringCatchup() {
         val initial=stock(0,adults=60_000)
         val one=PlanetProduction(galaxy,Store(initial),0,policy).settle(1,86400)
