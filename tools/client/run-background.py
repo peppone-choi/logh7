@@ -368,6 +368,12 @@ def run(source, out, seconds, wrapper=None, instance_root=None, render_capture=F
                                 finally:
                                     if control:
                                         script.exports_sync.setkey(0)
+                        elif "centerCamera" in action:
+                            point = action["centerCamera"]
+                            if not isinstance(point, list) or len(point) != 2 or not all(type(v) is int and 0 <= v <= 4095 for v in point):
+                                raise ValueError("Camera centering requires owned-window coordinates")
+                            script.exports_sync.centercamera(*point)
+                            time.sleep(0.15)
                         elif "drag" in action or "rightDrag" in action:
                             button = 2 if "rightDrag" in action else 1
                             points = action["rightDrag" if button == 2 else "drag"]
