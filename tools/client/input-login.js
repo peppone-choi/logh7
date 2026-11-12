@@ -34,6 +34,12 @@ Process.attachModuleObserver({onAdded(module) {
     const keys=([1,2].includes(testKey)?testKey:0)|(testControl?8:0);
     if(!post(gameWindow,0x200,keys,position))throw new Error('Cannot queue owned mouse movement');
   };
+  rpc.exports.centercamera=function(x,y) {
+    const position=mousePosition(x,y);
+    if(!post(gameWindow,0x200,0,position) || !post(gameWindow,0x204,2,position) ||
+       !post(gameWindow,0x205,0,position) || !post(gameWindow,0x206,2,position) ||
+       !post(gameWindow,0x205,0,position))throw new Error('Cannot queue owned right double-click');
+  };
   rpc.exports.setmouse=function(x,y,down,button=1,control=false) {
     if(button==null)button=1; // Frida supplies a null binary argument to legacy three-argument calls.
     if(![1,2].includes(button))throw new Error('Only owned left/right mouse buttons are supported');
