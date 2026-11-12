@@ -73,6 +73,13 @@ static bool readTradeAction(void* record) {
             tradeQuote.available=!reply;
             state.pending=false;
             state.message=reply ? tradeRejection(reply,command) : L"견적을 확인한 뒤 실행하세요.";
+            // 39's busy quote may carry the open route's remaining game seconds; legacy -1 or 0 keeps the generic line.
+            static wchar_t routeBusy[64];const unsigned left=at<unsigned>(record,20);
+            if(command==39 && reply==7 && left>=1 && left<=604800) {
+                const unsigned hours=(left+3599)/3600;
+                swprintf_s(routeBusy,L"무역로 운영 중 · 조회 시 남은 게임 시간 %u일 %u시간",hours/24,hours%24);
+                state.message=routeBusy;
+            }
         }
         memset(static_cast<BYTE*>(record)+4,0,32);return true;
     }

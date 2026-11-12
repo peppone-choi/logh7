@@ -201,14 +201,18 @@ object StrategyActionMessages {
         return AppointmentDirectoryMessages.people(AppointmentDirectoryMessages.Query(q.character,SEARCH,q.command,q.card,q.base,q.raw),characters)
     }
     data class Selection(val id:Int,val name:String,val rank:Int=0)
-    private fun tradeRecord(q:Query,flag:Int,status:Int=0,amount:Int=0,tariff:Int=0):ByteArray {
+    private fun tradeRecord(q:Query,flag:Int,status:Int=0,amount:Int=0,tariff:Int=0,routeRemainingSeconds:Int=0):ByteArray {
         val payload=q.raw.copyOf()
         ByteBuffer.wrap(payload).putShort(10,status.toShort()).put(16,flag.toByte()).putShort(21,tariff.toShort()).putInt(23,amount)
+        // The route quote request's argument (-1) is unused in the response. Old clients ignore it.
+        if(routeRemainingSeconds>0)ByteBuffer.wrap(payload).putInt(17,routeRemainingSeconds)
         return LoginMessages.sessionMessage(0x1200,payload)
     }
-    fun tradeQuote(q:Query,status:Int,amount:Int,tariff:Int,currency:StrategyCurrencyLabel?):List<ByteArray> {
+    fun tradeQuote(q:Query,status:Int,amount:Int,tariff:Int,currency:StrategyCurrencyLabel?,
+        routeRemainingSeconds:Int=0):List<ByteArray> {
         require(q.isTradeQuote)
-        return currency?.records(q.raw).orEmpty() + tradeRecord(q,20,status,amount,tariff) +
+        require(routeRemainingSeconds in 0..604800 && (routeRemainingSeconds==0 || q.command==39 && status!=0))
+        return currency?.records(q.raw).orEmpty() + tradeRecord(q,20,status,amount,tariff,routeRemainingSeconds) +
             LoginMessages.sessionMessage(0x1201,byteArrayOf())
     }
     data class ProductionProgress(val yard:Int,val buildingUntil:Long,val kind:Int?,val shipReadyAt:Long,val stock:Int,

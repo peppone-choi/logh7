@@ -197,6 +197,18 @@ class StrategyActionMessagesTest {
         assertEquals(7200,StrategyActionMessages.query(transport(40,44,3,0,7200,5000,0)).argument)
         assertFailsWith<IllegalArgumentException> {StrategyActionMessages.query(transport(40,44,3,0,7200,5000,0,true))}
     }
+    @Test fun aBusyRouteQuoteCarriesItsRemainingSecondsInTheArgumentWord() {
+        val body=transport(39,0,1050,0,-1,0,0,true)
+        ByteBuffer.wrap(body).putShort(29,37)
+        val query=StrategyActionMessages.query(body)
+        val reply=ByteBuffer.wrap(StrategyActionMessages.tradeQuote(query,7,0,0,null,86401).first())
+        assertEquals(7,reply.getShort(16).toInt())
+        assertEquals(20,reply.get(22).toInt())
+        assertEquals(86401,reply.getInt(23))
+        assertEquals(0,reply.getInt(29))
+        assertEquals(37,reply.getShort(33).toInt())
+        assertEquals(-1,ByteBuffer.wrap(StrategyActionMessages.tradeQuote(query,7,0,0,null).first()).getInt(23))
+    }
     @Test fun routeAndIntelligenceDistinguishDirectoryFreeQuoteAndLegacyExecution() {
         val route=StrategyActionMessages.query(transport(39,0,1050,0,-1,0,0,true))
         assertTrue(route.isTradeQuote)

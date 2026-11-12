@@ -2417,7 +2417,9 @@ class GameExchange(
                                     pendingWorld=administration.social(request).thenApply {result ->
                                         val quote=result.tradeQuote
                                         org.logh7.protocol.StrategyActionMessages.tradeQuote(query,result.rejection?.let {it.ordinal+1} ?: 0,
-                                            quote?.amount ?: 0,quote?.tariff ?: 0,quote?.let {currencyLabel(country)})
+                                            quote?.amount ?: 0,quote?.tariff ?: 0,
+                                            quote?.takeIf {result.rejection==null}?.let {currencyLabel(country)},
+                                            routeRemainingSeconds=quote?.routeRemainingSeconds ?: 0)
                                     }
                                     return null
                                 }

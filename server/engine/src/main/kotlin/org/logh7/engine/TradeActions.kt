@@ -41,7 +41,7 @@ data class TradeState(val routes:Map<Int,TradeRoute> = emptyMap(),
 }
 
 object TradeActions {
-    data class Quote(val amount:Int,val tariff:Int=0)
+    data class Quote(val amount:Int,val tariff:Int=0,val routeRemainingSeconds:Int=0)
     const val QUOTE_PHASE=1
     const val TARIFF=17
     const val DIPLOMACY=20
@@ -134,7 +134,12 @@ object TradeActions {
                 if(p.baseId==0 || p.mode !in 1..4)return reject(SocialRejection.LOCATION)
                 if(s.bases[p.baseId]?.let {it.country==i.country && it.camp==0}!=true)return reject(SocialRejection.LOCATION)
                 if(i.target !in routeTargets(g,s,p,catalog))return reject(SocialRejection.TARGET)
-                if(t.routes[i.characterId]?.let {it.until>now}==true)return reject(SocialRejection.BUSY)
+                val remaining=t.routes[i.characterId]?.until?.minus(now) ?: 0
+                if(remaining>0) {
+                    return if(r.phase==QUOTE_PHASE)SocialResult(p,s,SocialRejection.BUSY,
+                        tradeQuote=Quote(0,routeRemainingSeconds=minOf(remaining,ROUTE_DAYS*Justice.DAY).toInt()))
+                    else reject(SocialRejection.BUSY)
+                }
                 route=TradeRoute(i.characterId,p.baseId,i.target,now+ROUTE_DAYS*Justice.DAY,now,i.country)
                 routeIncome=routeProfit(s,route,g).toInt()
                 if(r.phase==QUOTE_PHASE)return SocialResult(p,s,tradeQuote=Quote(routeIncome))
