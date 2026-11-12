@@ -19,17 +19,22 @@ internal object CapitalProvisioning {
         }
     }
 
+    fun source(stock:PlanetStock,base:BaseCondition,capitals:Map<CountryId,Int>):Int? =
+        if(base.habitability!=0 || stock.camp!=0) null
+        else capitals[stock.country]?.takeIf {it!=stock.baseId}
+
+    fun missingRation(stock:PlanetStock,policy:PlanetProductionPolicy):Int {
+        val people=stock.economy ?: return 0
+        val per = policy.economy.foodPeoplePerUnit
+        val required = (people.population.toLong() + per - 1) / per
+        return minOf(required-stock.food,policy.maximumStock.toLong()-stock.food).coerceAtLeast(0).toInt()
+    }
+
     /** The stock topped up to today's ration and the amount shipped, or null when nothing is shipped. */
     fun topUp(stock: PlanetStock, base: BaseCondition, policy: PlanetProductionPolicy, capitals: Map<CountryId, Int>,
         availableFood: Int): Pair<PlanetStock, Int>? {
-        val people = stock.economy ?: return null
-        val country=stock.country ?: return null
-        if (base.habitability != 0 || stock.camp != 0 ||
-            country !in capitals || stock.baseId == capitals[country]) return null
-        val per = policy.economy.foodPeoplePerUnit
-        val required = (people.population.toLong() + per - 1) / per
-        val missing = required - stock.food
-        val amount = minOf(missing, availableFood.toLong(), maxOf(0L, policy.maximumStock.toLong() - stock.food)).toInt()
+        if(source(stock,base,capitals)==null)return null
+        val amount=minOf(missingRation(stock,policy),availableFood)
         if (amount <= 0) return null
         return stock.copy(food = stock.food + amount) to amount
     }
