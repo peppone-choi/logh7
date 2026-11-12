@@ -412,7 +412,7 @@ static bool updateStrategyAction(void*) {
         if(command==3)swprintf_s(label,L"작위: %ls",titles[state.strategyValue%6]);else swprintf_s(label,L"훈장 종류: %u",state.strategyValue+1);taxText(4,label);}
     else if(repairSupport==1 && repairQuote.ready) {
         swprintf_s(label,L"수리 · 기함 %u척 / 함정 %u척",repairQuote.flagships,repairQuote.ships);taxText(4,label);
-    } else taxText(4,army && !state.strategyOutfit ? L"부대 지휘 직무 필요" : L"");
+    } else taxText(4,army && !state.strategyOutfit ? L"부대 지휘 직무 필요" : command==84 ? L"동맹식 계급에서 공적 0이면 월간 정산 때 소령 전신" : L"");
     unsigned cost=command==1 || estate ? 640 : command==2 ? 320 : command==46 || command==47 || command==48 || command==49 || command==50 || command==51 ? 80 : 160;
     if(repairSupport==1 && repairQuote.ready) {
         const wchar_t* cp=repairQuote.payment==1 ? L"MCP 160" : repairQuote.payment==2 ? L"대체 PCP 320" :
