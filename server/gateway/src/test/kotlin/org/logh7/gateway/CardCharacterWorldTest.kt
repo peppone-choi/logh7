@@ -30,7 +30,7 @@ class CardCharacterWorldTest {
             }
             client.send(SyntheticClient.opcode(0x0f00))
             next(0x0f01)
-            for ((card, id) in mapOf(1 to 901, 2 to 901, 5 to 902, 6 to 902, 17 to 905, 22 to 906, 132 to 903, 139 to 904)) {
+            for ((card, id) in mapOf(1 to 901, 2 to 901, 5 to 902, 6 to 902, 17 to 905, 22 to 906, 34 to 907, 132 to 903, 139 to 904)) {
                 client.send(ByteBuffer.allocate(4).putShort(0x034e).putShort(card.toShort()).array())
                 val reply = next(0x034f)
                 assertEquals(0, reply.getInt(0))
