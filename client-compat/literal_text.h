@@ -4,6 +4,8 @@
 #include <cwchar>
 static constexpr unsigned koreanLiteralPushes[]={0x4c6e7e,0x4c6ed2,0x4c7207};
 static constexpr unsigned koreanSelectionLogPush=0x570d9f;
+// The confirmation formats pass the unit label after an integer argument.
+static constexpr unsigned koreanConfirmationUnitPushes[]={0x572ac3,0x572b37,0x572d68};
 struct KoreanWideLiteralPush { unsigned address,original; };
 static constexpr KoreanWideLiteralPush koreanWideLiteralPushes[]={
     {0x594b79,0x78d958}, // day suffix, wcscat into native lobby buffer
@@ -25,6 +27,12 @@ static bool installKoreanLiteralText() {
         memcmp(reinterpret_cast<void*>(koreanSelectionLogPush),selectionExpected,sizeof(selectionExpected))) return false;
     for (unsigned address:koreanLiteralPushes)
         if (memcmp(reinterpret_cast<void*>(address),expected,sizeof(expected))) return false;
+    const BYTE unitExpected[]={0x68,0x34,0xbf,0x78,0};
+    const auto unitOriginal=reinterpret_cast<const char*>(0x78bf34);
+    const auto unitTranslated=logh::koreanStaticResource(unitOriginal);
+    if (unitTranslated==unitOriginal) return false;
+    for (unsigned address:koreanConfirmationUnitPushes)
+        if (memcmp(reinterpret_cast<void*>(address),unitExpected,sizeof(unitExpected))) return false;
     for (const auto& row:koreanWideLiteralPushes) {
         BYTE oldPush[5]={0x68};memcpy(oldPush+1,&row.original,4);
         const auto entry=logh::koreanWideResource(reinterpret_cast<const wchar_t*>(row.original));
@@ -38,6 +46,9 @@ static bool installKoreanLiteralText() {
         if (!patchBytes(reinterpret_cast<void*>(address),expected,replacement,sizeof(expected))) return false;
     memcpy(replacement+1,&selectionTranslated,sizeof(selectionTranslated));
     if (!patchBytes(reinterpret_cast<void*>(koreanSelectionLogPush),selectionExpected,replacement,sizeof(selectionExpected))) return false;
+    memcpy(replacement+1,&unitTranslated,sizeof(unitTranslated));
+    for (unsigned address:koreanConfirmationUnitPushes)
+        if (!patchBytes(reinterpret_cast<void*>(address),unitExpected,replacement,sizeof(unitExpected))) return false;
     for (const auto& row:koreanWideLiteralPushes) {
         BYTE oldPush[5]={0x68},newPush[5]={0x68};memcpy(oldPush+1,&row.original,4);
         const auto text=logh::koreanWideEntry(row.original)->text;

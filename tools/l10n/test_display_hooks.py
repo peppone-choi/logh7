@@ -121,6 +121,15 @@ class DisplayHookTests(unittest.TestCase):
             self.assertEqual(b'\x68\x4c\x19\x77\0',self.raw(int(value,16),5))
         self.assertEqual(b'\xc3',self.raw(0x5923a0,1)) # Disabled trace function.
 
+    def test_confirmation_unit_suffix_uses_guarded_native_pushes(self):
+        header = (catalog.ROOT / 'client-compat/literal_text.h').read_text('utf-8')
+        values = re.search(r'koreanConfirmationUnitPushes\[\]=\{([^}]+)\}', header).group(1)
+        self.assertEqual(3, len(values.split(',')))
+        for value in values.split(','):
+            self.assertEqual(b'\x68\x34\xbf\x78\0', self.raw(int(value, 16), 5))
+        document = catalog.read_json(catalog.ROOT / 'l10n/exe-ui.ko.json')
+        self.assertEqual('유닛', document['entries']['78bf34'])
+
     def test_exact_dialog_copies_exclude_formats_and_general_names(self):
         header=(catalog.ROOT/'client-compat/dialog_text.h').read_text('utf-8')
         document=catalog.read_json(catalog.ROOT/'l10n/exe-ui.ko.json')
