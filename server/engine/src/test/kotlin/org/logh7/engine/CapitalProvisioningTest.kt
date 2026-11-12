@@ -147,4 +147,25 @@ class CapitalProvisioningTest {
         assertEquals(0,complete.bases.getValue(1040).food)
         assertEquals(0,complete.bases.getValue(1049).food)
     }
+
+    @Test fun completedFortressRecipeCanUseMinedMineralAndManufactureItsOwnSupplies() {
+        val world=Galaxy(listOf(galaxy.systems[0],galaxy.systems[1].copy(name="イゼルローン")),
+            listOf(galaxy.bases[0],galaxy.bases[1].copy(name="イゼルローン")),galaxy.starts)
+        fun settle(adults:Int):PlanetStock {
+            val initial=stock(1000,world,adults)
+            val fortress=initial.bases.getValue(1040).copy(supplies=0,mineral=0,
+                units=UnitInventory(work=mapOf("T0" to 60)))
+            val ready=initial.copy(bases=initial.bases+(fortress.baseId to fortress))
+            return PlanetProduction(world,Store(ready),0,policy).settle(1,86400).bases.getValue(fortress.baseId)
+        }
+        val short=settle(55_000)
+        assertTrue(short.units.troops.isEmpty())
+        assertEquals(110,short.supplies)
+        assertEquals(0,short.mineral)
+
+        val complete=settle(60_000)
+        assertEquals(1,complete.units.troops[UnitStack(0)])
+        assertEquals(0,complete.supplies)
+        assertEquals(0,complete.mineral)
+    }
 }

@@ -52,8 +52,13 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
         country?.takeIf {it.value in catalog.countries}?.let {modelLines[catalog.shipStyle(it).nativePower]?.get(base)}.orEmpty()
 
     fun advance(stock: PlanetStock, dayStart: PlanetStock, shipyardOpen: Boolean? = null,
-        countries:CountryCatalog=this.countries ?: CountryCatalogLoader.current()): PlanetStock {
-        val country=stock.country?.takeIf {it.value in countries.countries} ?: return stock
+        countries:CountryCatalog=this.countries ?: CountryCatalogLoader.current()): PlanetStock =
+        advanceWithSupplyBudget(stock,dayStart,shipyardOpen,countries,0).first
+
+    /** Make only the supplies a valid recipe needs before turning the remaining mineral into general stock. */
+    fun advanceWithSupplyBudget(stock:PlanetStock,dayStart:PlanetStock,shipyardOpen:Boolean?,
+        countries:CountryCatalog,supplyBudget:Int):Pair<PlanetStock,Int> {
+        val country=stock.country?.takeIf {it.value in countries.countries} ?: return stock to 0
         val style=countries.shipStyle(country)
         val people = checkNotNull(stock.economy)
         val startPeople = checkNotNull(dayStart.economy)
@@ -62,7 +67,7 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
         val farm = if (base.habitability != 0) startPeople.adults.toLong() / policyEconomy.foodWorkersPerUnit else 0
         val available = if (dayStart.food >= maximumStock) dayStart.food.toLong() else minOf(maximumStock.toLong(), dayStart.food + farm)
         val needed = (startPeople.population.toLong() + policyEconomy.foodPeoplePerUnit - 1) / policyEconomy.foodPeoplePerUnit
-        if (available < needed || stock.camp != 0 || people.adults == 0) return stock
+        if (available < needed || stock.camp != 0 || people.adults == 0) return stock to 0
         // U-08: a built or paused shipyard overrides the original facility list.
         val shipyard = shipyardOpen ?: galaxy.facilities.getValue(stock.baseId).any { it.kind == 10 }
         val ships = stock.units.ships.toMutableMap(); val troops = stock.units.troops.toMutableMap()
@@ -79,6 +84,9 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
             modelLines[unit.power]?.get(stock.baseId)?.singleOrNull {it.unit.key==key}
         }
         var food = stock.food; var mineral = stock.mineral; var supplies = stock.supplies; var population = people.population; var adults = people.adults
+        var manufactured=0
+        val ratio=policyEconomy.suppliesPerMineral
+        fun mineralsFor(amount:Int)=((amount.toLong()+ratio-1)/ratio).toInt()
         for (line in (configured.values+pending).sortedBy { it.unit.key }) {
             val unit = line.unit
             if (unit.ship && !shipyard) continue
@@ -94,18 +102,33 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
                 val supplyCost = count.toLong() * if (unit.ship) unit.hours.toLong() * policy.suppliesPerShipHour else policy.suppliesPerTroop.toLong()
                 val foodCost = if (unit.ship) 0 else count.toLong() * policy.foodPerTroop
                 val peopleCost = if (unit.ship) 0 else count.toLong() * policy.peoplePerUnit
+                val missingSupplies=(supplyCost-supplies).coerceAtLeast(0)
                 if (count <= 0 || (key !in target && target.size >= if (unit.ship) 99 else 24) ||
-                    mineralCost > mineral || supplyCost > supplies || foodCost > food || peopleCost > adults) { hours = unit.hours; break }
+                    mineralCost > mineral || missingSupplies > supplyBudget-manufactured ||
+                    foodCost > food || peopleCost > adults) { hours = unit.hours; break }
+                val newTotal=manufactured+missingSupplies.toInt()
+                val conversionCost=mineralsFor(newTotal)-mineralsFor(manufactured)
+                if(mineralCost+conversionCost>mineral){hours=unit.hours;break}
                 target[key] = (target[key] ?: 0) + count
-                mineral -= mineralCost.toInt(); supplies -= supplyCost.toInt(); food -= foodCost.toInt()
+                manufactured=newTotal
+                mineral -= mineralCost.toInt()+conversionCost
+                supplies = (supplies.toLong()+missingSupplies-supplyCost).toInt()
+                food -= foodCost.toInt()
                 population -= peopleCost.toInt(); adults -= peopleCost.toInt()
                 hours -= unit.hours
                 if(finishing) {hours=0;break}
             }
             if(finishing && hours==0)work.remove(unit.key) else work[unit.key] = hours
         }
+        // A partially used mineral unit contributes its unused capacity to the rest of this day's production.
+        val paidMinerals=mineralsFor(manufactured)
+        val remainingCapacity=(mineral.toLong()+paidMinerals)*ratio-manufactured
+        val extra=minOf((supplyBudget-manufactured).toLong(),remainingCapacity).toInt()
+        manufactured+=extra
+        supplies+=extra
+        mineral-=mineralsFor(manufactured)-paidMinerals
         return stock.copy(supplies = supplies, food = food, mineral = mineral, economy = people.copy(population = population, adults = adults),
             units = UnitInventory(ships, troops, work),
-            productionCountry=if(stock.productionCountry!=null || style.nativePower!=country.value)country else null)
+            productionCountry=if(stock.productionCountry!=null || style.nativePower!=country.value)country else null) to manufactured
     }
 }
