@@ -160,4 +160,32 @@ class NpcObjectiveRoutingTest {
         assertEquals(3*ship.boats,fleet(returning).supplies)
         assertEquals(landed,fleet(returning).activeGround)
     }
+
+    @Test fun waitingExpeditionLoadsRealHomeStockBeforeRoutineNpcResupply() {
+        val world=map(2487,2483)
+        val initial=stock(world,100)
+        val expedition=fleet(initial).copy(id=2,strategy=NpcStrategicState(0,expeditionBase=1001))
+        val patrolShip=ship.copy(id=3)
+        val patrol=OutfitStock(1,2,OutfitKind.PATROL,1000,11,units=UnitInventory(ships=mapOf(ship.stack to 1)),
+            activeShips=ActiveShipUnits(listOf(patrolShip)),strategy=NpcStrategicState(0,awaitingDockSupply=true))
+        val state=initial.copy(outfits=mapOf(patrol.id to patrol,expedition.id to expedition),nextShipId=4,
+            warehouses=mapOf(10 to initial.warehouses.getValue(10).copy(outfitId=expedition.id),
+                11 to OutfitWarehouse(11,2,OutfitKind.PATROL,1000)),
+            social=SocialState(),strategic=initial.strategic.copy(capitals=mapOf(empire to 1000,alliance to 1001)))
+        val stocked=NpcStrategy.advance(session,world,mutableMapOf(),state,mutableListOf(),producesSupplies={true})
+        assertEquals(100,stocked.outfits.getValue(expedition.id).supplies)
+        assertEquals(ground,stocked.outfits.getValue(expedition.id).activeGround)
+        assertEquals(0,stocked.outfits.getValue(patrol.id).supplies)
+        assertEquals(0,stocked.bases.getValue(1000).supplies)
+        val depot=state.bases.getValue(1000)
+        val funded=state.copy(bases=state.bases+(1000 to depot.copy(supplies=8*ship.boats)))
+        val departing=advance(0,world,funded,mutableListOf())
+        assertEquals(8*ship.boats,departing.outfits.getValue(expedition.id).supplies)
+        assertEquals(3600L,departing.outfits.getValue(expedition.id).strategy?.arrivesAt)
+        assertEquals(0,departing.outfits.getValue(patrol.id).supplies)
+        val locked=NpcStrategy.advance(session,world,mutableMapOf(),state,mutableListOf(),
+            warehouseBlocked={_,_->true},producesSupplies={true})
+        assertEquals(0,locked.outfits.getValue(expedition.id).supplies)
+        assertEquals(100,locked.bases.getValue(1000).supplies)
+    }
 }

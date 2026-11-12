@@ -546,8 +546,8 @@ internal object NpcStrategy {
             val waitingAtForwardBerth=if(retained!=null && !secured) {
                 val current=checkNotNull(NpcOccupation.goal(retained,stocks,galaxy,session.eliminated.keys))
                 val strategy=checkNotNull(retained.strategy)
-                if(depot(stocks,retained,galaxy)==null ||
-                    strategy.nextDecisionAt>now)continue
+                val berth=depot(stocks,retained,galaxy) ?: continue
+                if(strategy.nextDecisionAt>now)continue
                 if(!NpcOccupation.hasCarrier(retained,current,stocks)) {
                     if(retained.activeGround?.values.orEmpty().none {it.base==current.id})
                         rearmAtForwardBerth(retained) {listOf(current)}
@@ -556,8 +556,18 @@ internal object NpcStrategy {
                 val route=missionRoute(galaxy,forces(),retained,stocks,current,null,reserveInPort=true,
                     producesSupplies=producesSupplies)
                 if(route!=null) {
+                    val position=retained.positionIn(galaxy)
+                    if(strategy.destination==null && berth.baseId==retained.baseId &&
+                        (route.position==position || route.position.grid!=position.grid) &&
+                        berth.supplies>0 && eligible(retained,stocks) &&
+                        !warehouseBlocked(stocks,retained.id) && !TacticalContact.contested(forces()[position.grid].orEmpty())) {
+                        // Reserve this leg before other NPC outfits take routine stock from the same depot.
+                        val (inventory,loaded)=checkNotNull(supplied(stocks,retained,galaxy,departing=false,
+                            missionJumps=route.missionJumps,allowPartialLoad=true))
+                        stocks=inventory.copy(outfits=inventory.outfits+(retained.id to loaded))
+                    }
                     if(!route.waitingForSupplies || strategy.destination!=null ||
-                        retained.positionIn(galaxy).baseId==retained.baseId)continue
+                        berth.baseId==retained.baseId)continue
                 }
                 route
             } else null

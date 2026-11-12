@@ -128,8 +128,49 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
     fun snapshot(generation: Long) = current?.takeIf { it.generation == generation }
     fun infantryProduction(base:Int,country:CountryId):List<Int> =
         units.forCountry(base,country).filterNot {it.unit.ship}.map {it.unit.kind}
-    fun producesSupplies(stock:PlanetStock):Boolean =
-        stock.economy!=null && stock.nextDay(galaxy.conditions.getValue(stock.baseId),policy).supplies>stock.supplies
+    private fun productionStopped(stocks:PlanetStocks,bombs:List<Bomb>,base:Int,dayEnd:Long)=
+        EspionageActions.disabled(stocks,base,dayEnd) || bombs.any {EspionageActions.stopsProductionAt(it,dayEnd)}
+
+    private fun settleResources(stock:PlanetStock,base:BaseCondition,stocks:PlanetStocks,
+        dayEnd:Long,countries:CountryCatalog):PlanetStock {
+        val economy=stock.nextDay(base,policy)
+        val built=units.advance(economy,stock,ProductionActions.shipyard(galaxy,stocks,base.baseId,dayEnd),countries)
+        return GoalActions.lean(built,economy.supplies-stock.supplies,stocks.social.goals.focus[base.baseId],policy.maximumStock)
+    }
+
+    /** Strategic planning checks production potential, without spending the next day's rations or fuel. */
+    fun supplyForecast(stocks:PlanetStocks):(PlanetStock)->Boolean {
+        val dayEnd=startSeconds+(stocks.producedDays+1)*86400L
+        val bombs by lazy {stocks.social.justice.bombs.values.groupBy(Bomb::base)}
+        fun stopped(base:Int)=productionStopped(stocks,bombs[base].orEmpty(),base,dayEnd)
+        val rations by lazy {
+            val capitals=CapitalProvisioning.capitals(galaxy,stocks)
+            val countries=CountryCatalogLoader.current()
+            val food=capitals.values.associateWith {id->
+                val capital=stocks.bases.getValue(id)
+                if(stopped(id) || capital.economy==null)capital.food
+                else settleResources(capital,galaxy.conditions.getValue(id),stocks,dayEnd,countries).food
+            }.toMutableMap()
+            buildMap {
+                for((id,stock) in stocks.bases.toSortedMap()) {
+                    val source=capitals[stock.country] ?: continue
+                    if(stopped(id))continue
+                    val (_,amount)=CapitalProvisioning.topUp(stock,galaxy.conditions.getValue(id),policy,
+                        capitals,food.getValue(source)) ?: continue
+                    put(id,amount)
+                    food[source]=food.getValue(source)-amount
+                }
+            }
+        }
+        return forecast@{stock->
+            if(stock.economy==null || stopped(stock.baseId))return@forecast false
+            val base=galaxy.conditions.getValue(stock.baseId)
+            if(stock.nextDay(base,policy).supplies>stock.supplies)return@forecast true
+            if(base.habitability!=0)return@forecast false
+            val ration=rations[stock.baseId] ?: return@forecast false
+            stock.copy(food=stock.food+ration).nextDay(base,policy).supplies>stock.supplies
+        }
+    }
     fun settle(session:SessionState)=settle(session.generation,session.gameMillis/1000,session.eliminated.keys)
     fun settle(generation: Long, seconds: Long,eliminated:Set<CountryId> = emptySet()): PlanetStocks {
         require(generation > 0 && seconds in startSeconds..0xffffffffL)
@@ -170,8 +211,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                     var next=previousDay
                     val base=galaxy.conditions.getValue(id)
                     // Production catches up before combat explodes pending bombs, so include their historical intervals.
-                    val stopped=EspionageActions.disabled(initialized,id,dayEnd) ||
-                        bombs[id].orEmpty().any {EspionageActions.stopsProductionAt(it,dayEnd)}
+                    val stopped=productionStopped(initialized,bombs[id].orEmpty(),id,dayEnd)
                     val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
                     val lord=initialized.strategic.fiefs[id]?.takeIf {character->
                         val death=initialized.strategic.people[character]?.deceasedAt ?: 0L
@@ -192,13 +232,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                         val source=checkNotNull(capital)
                         bases[source.baseId]=source.copy(food=source.food-amount)
                     }
-                    val settled = if (stopped) previousDay else {
-                        val economy = next.nextDay(base, policy)
-                        val built = units.advance(economy, next,
-                            ProductionActions.shipyard(galaxy, initialized, id, dayEnd), countryDefinitions)
-                        GoalActions.lean(built, economy.supplies - next.supplies,
-                            initialized.social.goals.focus[id], policy.maximumStock)
-                    }
+                    val settled = if (stopped) previousDay else settleResources(next,base,initialized,dayEnd,countryDefinitions)
                     bases[id] = settled.copy(treasury = Math.addExact(previousDay.treasury, if (lord != null) 0 else revenue.local))
                 }
                 // Carry projected losses across daily bills; actual ship losses keep their separate backlog cap.
