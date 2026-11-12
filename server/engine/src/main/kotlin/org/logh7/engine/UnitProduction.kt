@@ -85,6 +85,7 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
         }
         var food = stock.food; var mineral = stock.mineral; var supplies = stock.supplies; var population = people.population; var adults = people.adults
         var manufactured=0
+        var recruitingMinerals=0
         val ratio=policyEconomy.suppliesPerMineral
         fun mineralsFor(amount:Int)=((amount.toLong()+ratio-1)/ratio).toInt()
         for (line in (configured.values+pending).sortedBy { it.unit.key }) {
@@ -104,11 +105,19 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
                 val peopleCost = if (unit.ship) 0 else count.toLong() * policy.peoplePerUnit
                 val missingSupplies=(supplyCost-supplies).coerceAtLeast(0)
                 if (count <= 0 || (key !in target && target.size >= if (unit.ship) 99 else 24) ||
-                    mineralCost > mineral || missingSupplies > supplyBudget-manufactured ||
-                    foodCost > food || peopleCost > adults) { hours = unit.hours; break }
+                    missingSupplies > supplyBudget-manufactured || foodCost > food || peopleCost > adults) {
+                    hours = unit.hours
+                    break
+                }
                 val newTotal=manufactured+missingSupplies.toInt()
                 val conversionCost=mineralsFor(newTotal)-mineralsFor(manufactured)
-                if(mineralCost+conversionCost>mineral){hours=unit.hours;break}
+                if(mineralCost+conversionCost>mineral) {
+                    // Keep ore for one troop unit across days. Larger batches still share the remaining ore with general supply.
+                    if(!unit.ship && supplyBudget>0 && mineralCost<=maximumStock)
+                        recruitingMinerals=policy.mineralPerTroop
+                    hours=unit.hours
+                    break
+                }
                 target[key] = (target[key] ?: 0) + count
                 manufactured=newTotal
                 mineral -= mineralCost.toInt()+conversionCost
@@ -122,7 +131,8 @@ internal class UnitProduction(private val galaxy: Galaxy, private val policy: Un
         }
         // A partially used mineral unit contributes its unused capacity to the rest of this day's production.
         val paidMinerals=mineralsFor(manufactured)
-        val remainingCapacity=(mineral.toLong()+paidMinerals)*ratio-manufactured
+        val convertibleMineral=(mineral-recruitingMinerals).coerceAtLeast(0)
+        val remainingCapacity=(convertibleMineral.toLong()+paidMinerals)*ratio-manufactured
         val extra=minOf((supplyBudget-manufactured).toLong(),remainingCapacity).toInt()
         manufactured+=extra
         supplies+=extra
