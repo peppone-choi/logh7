@@ -147,7 +147,8 @@ internal object NpcStrategy {
         return fallback
     }
     private data class Plan(val position:OutfitPosition,val missionJumps:Int=0,val partialDepotLoad:Boolean=false,
-        val infantryBerth:Boolean=false,val waitingForSupplies:Boolean=false,val remainingJumps:Int=0,val goalJumps:Int=0)
+        val infantryBerth:Boolean=false,val waitingForSupplies:Boolean=false,val remainingJumps:Int=0,val goalJumps:Int=0,
+        val refuelBeforeReturn:Boolean=false)
 
     /** Find a strategic route and budget the entire leg before consuming its first jump. */
     private fun missionRoute(galaxy:Galaxy,forces:Map<Int,List<GridForces.Force>>,outfit:OutfitStock,
@@ -344,7 +345,7 @@ internal object NpcStrategy {
                     if(captured.grid==origin && !hostileFortress && stocks.bases.getValue(captured.id).supplies>0 &&
                         berths.all {it==captured.id} &&
                         jumpShortfall(ships,OutfitSupplies.distribution(outfit),returnAndDeparture)>homeStock.supplies)
-                        return Plan(OutfitPosition(origin,captured.id))
+                        return Plan(OutfitPosition(origin,captured.id),refuelBeforeReturn=true)
                 }
                 if(nationalGoal!=null && outfit.strategy?.expeditionBase==nationalGoal.id && origin==homeBase.grid &&
                     !LogisticsOfficePolicy(galaxy).staffed(stocks,outfit.country,outfit.kind)) {
@@ -809,6 +810,12 @@ internal object NpcStrategy {
                 activeShips=ActiveShipUnits(replenished.activeShips!!.values.map {it.copy(tactical=null,motionCommander=0,posture=null)}))
             stocks=stocks.copy(outfits=stocks.outfits+(outfit.id to docked))
             forceCache=null
+            if(mission?.refuelBeforeReturn==true && canDepart(stocks,docked,galaxy)) {
+                val next=target(galaxy,forces(),docked,stocks,players.values,session.eliminated.keys,
+                    producesSupplies=producesSupplies)?.position?.grid
+                if(next!=null && next!=destination.grid)
+                    setStrategy(docked,checkNotNull(docked.strategy).copy(destination=next,arrivesAt=now+3600))
+            }
         }
         fun publishDeployment(moved: OutfitStock, source: Int, destination: Int) {
             for((account,player) in players.toMap())if(player.grid==destination && !player.cpPaused &&

@@ -148,11 +148,12 @@ class NpcObjectiveRoutingTest {
         assertEquals(10*ship.boats,dockedCarrier.supplies)
         assertEquals(captured.bases.getValue(1002).supplies-3*ship.boats,docked.bases.getValue(1002).supplies)
         assertEquals(landed,dockedCarrier.activeGround)
+        assertEquals(3600L,dockedCarrier.strategy?.arrivesAt)
         assertTrue(moves.isEmpty())
 
         var returning=docked
-        repeat(7) {
-            returning=advance(checkNotNull(fleet(returning).strategy).nextDecisionAt,world,returning,moves)
+        repeat(7) {jump->
+            if(jump>0)returning=advance(checkNotNull(fleet(returning).strategy).nextDecisionAt,world,returning,moves)
             returning=advance(checkNotNull(fleet(returning).strategy?.arrivesAt),world,returning,moves)
         }
         assertEquals(OutfitPosition(2487,1000),fleet(returning).position)
