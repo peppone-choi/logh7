@@ -113,6 +113,38 @@ class OrganizationOfficesTest {
         assertFalse(policy.authorized(s,OrganizationOffices.all.getValue(169),1177,10000,1))
         assertFalse(policy.active(s,alias,1177))
     }
+    @Test fun chancellorConcurrentWithEmperorOrCivilMinisterCanAppointAndDismissCabinet() {
+        val role=OrganizationOffices.all.getValue(7)
+        val chancellor=OfficeHolding(5,1049,10000)
+        for((rank,concurrentCard) in listOf(0 to 1,1 to 6)) {
+            val concurrent=OfficeHolding(concurrentCard,1049,10000)
+            val initial=policy.set(policy.set(stock(),chancellor),concurrent)
+            val appointment=request(role,rank,1)
+            val dismissal=OfficeDismissalRequest("actor","c",10000,Power.EMPIRE,1,10001,role.card,rank,2)
+            assertEquals(listOf(1049),policy.available(initial,10000,2,rank)[role.card])
+            val appointed=GarrisonAppointment.evaluate(galaxy,appointment,session(2),player(2),initial)
+            assertNull(appointed.rejection)
+            assertEquals(840,appointed.player?.mcp)
+            val filled=assertNotNull(appointed.stocks)
+            assertEquals(listOf(OfficeHolding(role.card,1049,10001)),policy.holders(filled,role.card))
+
+            val dismissed=OfficeDismissal.evaluate(galaxy,dismissal,session(2),appointed.player,filled)
+            assertNull(dismissed.rejection)
+            assertTrue(policy.holders(assertNotNull(dismissed.stocks),role.card).isEmpty())
+            for(removed in listOf(chancellor,concurrent)) {
+                val without=policy.set(initial,removed,remove=true)
+                assertFalse(role.card in policy.available(without,10000,2,rank))
+                val denied=GarrisonAppointment.evaluate(galaxy,appointment,session(2),player(2),without)
+                assertEquals(AppointmentRejection.AUTHORITY,denied.rejection)
+                assertEquals(1000,denied.player?.mcp)
+                val deniedDismissal=OfficeDismissal.evaluate(galaxy,dismissal,session(2),appointed.player,
+                    policy.set(filled,removed,remove=true))
+                assertEquals(DismissalRejection.AUTHORITY,deniedDismissal.rejection)
+                assertEquals(840,deniedDismissal.player?.mcp)
+            }
+        }
+    }
+
     @Test fun simultaneousLogisticsCardsNeverOverwriteOrDismissEachOther() {
         val first=OfficeHolding(24,1049,10000);val second=OfficeHolding(25,1049,10000)
         val both=policy.set(policy.set(stock(),first),second)

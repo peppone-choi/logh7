@@ -140,7 +140,12 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy,private val configure
     fun authorized(stocks:PlanetStocks,role:OrganizationalOffice,seat:Int,character:Int,rank:Int?=null):Boolean {
         if(!active(stocks,role,seat))return false
         val authority=role.authority?.let {this.role(it,role.country)} ?: return false
-        if(rank!=null && rank !in authority.ranks && !(authority.canonical==2 && rank==0))return false
+        if(rank!=null && rank !in authority.ranks && !(authority.canonical==2 && rank==0)) {
+            // Native card 5 describes a chancellor who concurrently holds card 1 or card 6.
+            val concurrentCard=when(rank) {0->1;1->6;else->null}
+            if(authority.card!=5 || concurrentCard==null ||
+                holders(stocks,concurrentCard,role.country).none {it.character==character})return false
+        }
         return holders(stocks,authority.card,role.country).any {it.character==character &&
             // Local commanders/governors appoint only within their own outfit/base.
             (authority.scope==OfficeScope.NATIONAL || it.seat==seat)}
