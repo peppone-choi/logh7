@@ -550,13 +550,18 @@ internal object NpcStrategy {
                 claimsByFleet[fleet.id].orEmpty().none {it.vacantFleet(fleet,stocks,galaxy,players)!=null} &&
                 !warehouseBlocked(stocks,fleet.id)
             val choices=stocks.outfits.values.asSequence().filter {fleet->
-                (retained?.id==fleet.id || retained==null && fleet.positionIn(galaxy).baseId==fleet.baseId) &&
+                (retained==null || retained.id==fleet.id) &&
+                    stocks.bases[fleet.baseId]?.let {it.country==country && it.camp==0}==true &&
                     depot(stocks,fleet,galaxy)!=null && available(fleet)
             }.flatMap {fleet->
-                val grid=fleet.positionIn(galaxy).grid
+                val berth=fleet.positionIn(galaxy)
+                val grid=berth.grid
                 if(TacticalContact.contested(forces()[grid].orEmpty()))return@flatMap emptySequence()
-                val baseKinds=if(canAllocate)infantryProduction(fleet.baseId,country)+
-                    stocks.bases.getValue(fleet.baseId).units.troops.keys.map {it.kind} else emptyList()
+                val infantryBase=if(retained==null)berth.baseId else fleet.baseId
+                val baseKinds=if(canAllocate) {
+                    val production=if(infantryBase==fleet.baseId)infantryProduction(fleet.baseId,country) else emptyList()
+                    production+stocks.bases.getValue(infantryBase).units.troops.keys.map {it.kind}
+                } else emptyList()
                 val depotKinds=if(canAllocate && secured)galaxy.bases.asSequence().filter {it.grid==grid && it.id!=fleet.baseId}
                     .map {stocks.bases.getValue(it.id)}.filter {it.country==country && it.camp==0}
                     .flatMap {it.units.troops.keys.asSequence().map {stack->stack.kind}}.toList() else emptyList()
@@ -576,20 +581,31 @@ internal object NpcStrategy {
             }==true
             var waiting:Pair<GalaxyBase,Int>?=null
             for((fleet,base) in choices) {
-                val route=missionRoute(galaxy,forces(),fleet,stocks,base,null,reserveInPort=productiveHome,
+                val berth=fleet.positionIn(galaxy)
+                val startingAtForwardBerth=retained==null && berth.baseId!=fleet.baseId
+                val prepared=if(startingAtForwardBerth)
+                    NpcOccupation.loadAtBerth(fleet,base,stocks,berth.baseId) {canAllocate} else stocks
+                val carrier=prepared.outfits.getValue(fleet.id)
+                if(startingAtForwardBerth && !NpcOccupation.hasCarrier(carrier,base,prepared))continue
+                val preparedForces=if(prepared==stocks)forces()
+                    else GridForces.collect(galaxy,prepared.generation,players.values,prepared,session.eliminated.keys)
+                val route=missionRoute(galaxy,preparedForces,carrier,prepared,base,null,reserveInPort=productiveHome,
                     producesSupplies=producesSupplies) ?: continue
                 if(route.waitingForSupplies) {
                     // Prefer an immediately funded mission, then the shortest leg the home sector can provision.
                     if(route.missionJumps<(waiting?.second ?: Int.MAX_VALUE))waiting=base to route.missionJumps
                     continue
                 }
-                if(route.position.grid==fleet.positionIn(galaxy).grid) {
+                if(route.position.grid==berth.grid) {
                     // Prepare the infantry before using the local berth identified by the fuel plan.
-                    setStrategy(fleet,NpcStrategicState(now,expeditionBase=base.id))
+                    if(prepared!=stocks)forceCache=preparedForces
+                    stocks=prepared
+                    setStrategy(carrier,NpcStrategicState(now,expeditionBase=base.id))
                     continue@countryLoop
                 }
-                if(!secured && !canDepart(stocks,fleet,galaxy))continue
-                val (inventory,provisioned)=supplied(stocks,fleet,galaxy,departing=false,missionJumps=route.missionJumps) ?: continue
+                if(!secured && !canDepart(prepared,carrier,galaxy))continue
+                val (inventory,provisioned)=supplied(prepared,carrier,galaxy,departing=false,missionJumps=route.missionJumps) ?: continue
+                if(prepared!=stocks)forceCache=preparedForces
                 stocks=inventory
                 setStrategy(provisioned,NpcStrategicState(now,expeditionBase=base.id))
                 continue@countryLoop
