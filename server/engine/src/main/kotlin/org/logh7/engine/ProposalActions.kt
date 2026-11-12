@@ -117,7 +117,7 @@ object ProposalActions {
         val held=policy.held(s,candidate).filter {it.country==country}.map {it.card}.toSet()
         return policy.available(s,actor,power,rank).flatMap {(card,seats)->
             val role=checkNotNull(policy.role(card,country))
-            if(FleetOffice.of(card)!=null || card in held || !role.eligible(rank,candidateRank))emptyList()
+            if(FleetOffice.of(card)!=null || card in held || !policy.eligible(s,role,actor,rank,candidate,candidateRank))emptyList()
             else seats.filter {role.scope!=OfficeScope.OUTFIT || candidate !in s.outfits.getValue(it).members()}.map {card to it}
         }.sortedWith(compareBy({it.first},{it.second}))
     }

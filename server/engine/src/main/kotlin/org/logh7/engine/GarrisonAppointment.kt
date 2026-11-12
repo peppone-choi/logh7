@@ -49,7 +49,8 @@ internal object GarrisonAppointment {
         if(r.target<=0 || r.target==r.characterId || r.targetCountry!=player.country ||
             BattleDeath.deceased(stocks,r.target) || stocks.social.justice.detained(r.target))
             return reject(AppointmentRejection.TARGET)
-        if(!role.eligible(actorRank,ProposalActions.rank(stocks,r.target,country,r.targetRank,countries)))
+        if(!policy.eligible(stocks,role,r.characterId,actorRank,r.target,
+            ProposalActions.rank(stocks,r.target,country,r.targetRank,countries)))
             return reject(AppointmentRejection.RANK)
         if(player.cpPaused || player.navigationPending)return reject(AppointmentRejection.BUSY)
         val current=policy.holders(stocks,r.targetCard,country).filter {it.seat==seat}

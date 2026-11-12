@@ -215,6 +215,7 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
         // Personnel rules run once per crossed 30-day boundary, in order.
         var monthly=result
         val promoted=mutableListOf<PersonnelActions.MonthlyPromotion>()
+        val players=civicPlayers(generation)
         val firstMonth=initialized.producedDays/PoliticianLadder.PERIOD_DAYS+1;val lastMonth=days/PoliticianLadder.PERIOD_DAYS
         if(days>initialized.producedDays && lastMonth>=firstMonth) {
             val people=checkNotNull(supplier)()
@@ -223,10 +224,11 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                 monthly=PersonnelActions.promoteMonthly(monthly,people,eliminated,at,promoted)
                 monthly=AbilityAging.monthly(PoliticianLadder.monthly(galaxy,monthly,people,month),people,month)
             }
+            // The current positions are known only for the latest crossed review.
+            monthly=NpcGovernmentAppointments.settle(galaxy,monthly,people,players.orEmpty(),eliminated)
         }
         // A throne vacated by death or removal is filled at the next settlement (SuccessionActions).
         if(monthly.social.succession.anyVacant())supplier?.invoke()?.let {monthly=SuccessionActions.accede(galaxy,monthly,it,seconds)}
-        val players=civicPlayers(generation)
         val settled=CivicActions.settle(galaxy,SuccessionActions.ranked(StrategyActions.settle(monthly,seconds,galaxy,players,eliminated=eliminated),supplier?.invoke().orEmpty(),g=galaxy),seconds,players,eliminated=eliminated)
         val withCargo = TransportActions.settleCargo(settled,previous)
         if (withCargo == previous) return checkNotNull(previous)

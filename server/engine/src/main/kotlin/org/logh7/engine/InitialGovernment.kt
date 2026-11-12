@@ -2,13 +2,16 @@ package org.logh7.engine
 
 /** Original starting office holders (web manual pp.60, 66). Local IDs are below the lottery range. */
 object InitialGovernment {
+    internal const val ALLIANCE_CHAIR = 903
+    internal const val ALLIANCE_RESOURCES_CHAIR = 904
     data class Official(val id: Int, val country: CountryId, val rank: Int,
         val surname: String, val givenName: String, val cards: List<Int>)
 
     private val officials = listOf(
         Official(901, Power.EMPIRE.country, 0, "프리드리히", "4세", listOf(1, 2)),
         Official(902, Power.EMPIRE.country, 1, "리히텐라데", "클라우스 폰", listOf(5, 6)),
-        Official(903, Power.ALLIANCE.country, 1, "샌포드", "로열", listOf(132)),
+        Official(ALLIANCE_CHAIR, Power.ALLIANCE.country, 1, "샌포드", "로열", listOf(132)),
+        Official(ALLIANCE_RESOURCES_CHAIR, Power.ALLIANCE.country, 1, "황", "루이", listOf(139)),
     )
     val baselineAbilities: List<Int> = List(8) { 50 }
 

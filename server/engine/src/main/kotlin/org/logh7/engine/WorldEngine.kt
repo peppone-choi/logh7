@@ -691,7 +691,12 @@ class WorldEngine(scope: CoroutineScope, private val rules: SessionRules = Sessi
             val changed=(if(monthly) {
                 val oldChairs=old.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
                 val newChairs=inventory.strategic.offices.filter {it.card==PoliticianLadder.CHAIRMAN_CARD}.toSet()
-                (changedPeople+((oldChairs-newChairs)+(newChairs-oldChairs)).map {it.character}).distinct()
+                val appointments=officePolicy?.takeIf { InitialGovernment.roster(inventory).isNotEmpty() }?.let {policy ->
+                    val before=NpcGovernmentAppointments.refreshedCards.flatMap {policy.holders(old,it)}.toSet()
+                    val after=NpcGovernmentAppointments.refreshedCards.flatMap {policy.holders(inventory,it)}.toSet()
+                    (before-after)+(after-before)
+                }.orEmpty()
+                (changedPeople+((oldChairs-newChairs)+(newChairs-oldChairs)+appointments).map {it.character}).distinct()
             } else changedPeople).filterNot {it in deferredCharacterRefresh}
             if(changed.isNotEmpty())for(observer in characterRefreshObservers)try {observer(changed)}
             catch(failure:Exception){System.err.println("Character refresh delivery failed: ${failure.javaClass.simpleName}")}

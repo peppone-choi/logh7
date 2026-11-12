@@ -137,12 +137,19 @@ class OrganizationalOfficePolicy(private val galaxy:Galaxy,private val configure
         if (held(stocks, character).any { it.card == role.card }) return false
         return seats.any { role.scope != OfficeScope.OUTFIT || character !in stocks.outfits.getValue(it).members() }
     }
+    internal fun officeRank(stocks:PlanetStocks,office:OrganizationalOffice,character:Int,ladderRank:Int):Int =
+        if(stocks.strategic.people[character]?.rank==1 && (1 in office.ranks || office.card==5)) 1 else ladderRank
+    fun eligible(stocks:PlanetStocks,role:OrganizationalOffice,actor:Int,actorRank:Int,target:Int,targetRank:Int):Boolean {
+        val authority=role.authority?.let {this.role(it,role.country)} ?: return false
+        return role.eligible(officeRank(stocks,authority,actor,actorRank),officeRank(stocks,role,target,targetRank))
+    }
     fun authorized(stocks:PlanetStocks,role:OrganizationalOffice,seat:Int,character:Int,rank:Int?=null):Boolean {
         if(!active(stocks,role,seat))return false
         val authority=role.authority?.let {this.role(it,role.country)} ?: return false
-        if(rank!=null && rank !in authority.ranks && !(authority.canonical==2 && rank==0)) {
+        val officeRank=rank?.let {officeRank(stocks,authority,character,it)}
+        if(officeRank!=null && officeRank !in authority.ranks && !(authority.canonical==2 && officeRank==0)) {
             // Native card 5 describes a chancellor who concurrently holds card 1 or card 6.
-            val concurrentCard=when(rank) {0->1;1->6;else->null}
+            val concurrentCard=when(officeRank) {0->1;1->6;else->null}
             if(authority.card!=5 || concurrentCard==null ||
                 holders(stocks,concurrentCard,role.country).none {it.character==character})return false
         }

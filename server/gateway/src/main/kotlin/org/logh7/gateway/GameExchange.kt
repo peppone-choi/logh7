@@ -3096,7 +3096,8 @@ class GameExchange(
                                             target.id!=character.id && countryOf[target.id.toInt()]==country &&
                                                 !org.logh7.engine.BattleDeath.deceased(inventory,target.id.toInt()) &&
                                                 !inventory.social.justice.detained(target.id.toInt()) &&
-                                                role.eligible(actorRank,scope.rank(inventory,target.id.toInt(),target.rank)) &&
+                                                policy.eligible(inventory,role,character.id.toInt(),actorRank,target.id.toInt(),
+                                                    scope.rank(inventory,target.id.toInt(),target.rank)) &&
                                                 policy.cardCount(inventory,target.id.toInt())<14 &&
                                                 policy.canTakeAnySeat(inventory, role, target.id.toInt(), seats)
                                         }
