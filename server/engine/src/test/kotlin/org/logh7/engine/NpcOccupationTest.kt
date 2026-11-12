@@ -67,6 +67,39 @@ class NpcOccupationTest {
         assertEquals(0,underway.positionIn(world).baseId)
     }
 
+    @Test fun waitingExpeditionCanChooseAShorterObjectiveFromItsForwardBerth() {
+        val home=base.copy(id=1001,grid=2485)
+        val depot=base.copy(id=1002,grid=2487)
+        val nearer=base.copy(id=1003,grid=2489)
+        val distant=base.copy(grid=2492)
+        val sites=listOf(home,depot,nearer,distant)
+        val world=Galaxy(sites.mapIndexed {index,site->
+            GalaxySystem(3+index,site.grid,4,site.name,if(site==home || site==depot)2 else 3)
+        },sites,mapOf(Power.EMPIRE to home.grid,Power.ALLIANCE to distant.grid))
+        val initial=stocks(12f)
+        val fleet=initial.outfits.getValue(1).copy(baseId=home.id,position=OutfitPosition(depot.grid,depot.id),
+            activeShips=ActiveShipUnits(listOf(ActiveShipUnit(1,UnitStack(32)))),
+            strategy=NpcStrategicState(now,expeditionBase=distant.id))
+        val waiting=initial.copy(bases=sites.associate {site->
+            site.id to PlanetStock(site.id,if(site==home || site==depot)2 else 3,0,0,0,0)
+        },outfits=mapOf(fleet.id to fleet),
+            warehouses=mapOf(fleet.warehouseId to initial.warehouses.getValue(fleet.warehouseId).copy(baseId=home.id)),
+            strategic=initial.strategic.copy(capitals=mapOf(CountryId(2) to home.id,CountryId(3) to distant.id)),
+            social=SocialState())
+        fun decide(stock:PlanetStocks)=NpcStrategy.advance(time(0),world,mutableMapOf(),stock,mutableListOf(),
+            producesSupplies={it.baseId==depot.id})
+        val revised=decide(waiting)
+        val carrier=revised.outfits.getValue(fleet.id)
+        assertEquals(nearer.id,carrier.strategy?.expeditionBase)
+        assertEquals(fleet.activeGround,carrier.activeGround)
+        assertEquals(fleet.position,carrier.position)
+        assertEquals(waiting.bases,revised.bases)
+        assertEquals(0,carrier.supplies)
+
+        val supplied=waiting.copy(bases=waiting.bases+(depot.id to waiting.bases.getValue(depot.id).copy(supplies=3000)))
+        assertEquals(distant.id,decide(supplied).outfits.getValue(fleet.id).strategy?.expeditionBase)
+    }
+
     @Test fun openingExpeditionLoadsInfantryAtHomeAndFuelAtAnotherBerth() {
         val home=base.copy(id=1001,grid=2486)
         val depot=home.copy(id=1002)
