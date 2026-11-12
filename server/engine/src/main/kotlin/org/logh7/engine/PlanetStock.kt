@@ -206,13 +206,24 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
             var upkeepProjection=initialized
             repeat(Math.toIntExact(days - initialized.producedDays)) {day->
                 val dayEnd=Math.addExact(startSeconds,Math.multiplyExact(initialized.producedDays+day+1,86400L))
+                // Reserve every eligible base's resident ration before spending capital food on recruiting.
+                val remainingRations=mutableMapOf<Int,Long>()
+                val rations=buildMap {
+                    for((id,stock) in bases) {
+                        val source=CapitalProvisioning.source(stock,galaxy.conditions.getValue(id),capitals) ?: continue
+                        if(productionStopped(initialized,bombs[id].orEmpty(),id,dayEnd))continue
+                        val amount=CapitalProvisioning.missingRation(stock,policy)
+                        if(amount==0)continue
+                        put(id,amount)
+                        remainingRations[source]=remainingRations.getOrDefault(source,0L)+amount
+                    }
+                }
                 for(id in order) {
                     val previousDay=bases.getValue(id)
-                    var next=previousDay
                     val base=galaxy.conditions.getValue(id)
                     // Production catches up before combat explodes pending bombs, so include their historical intervals.
                     val stopped=productionStopped(initialized,bombs[id].orEmpty(),id,dayEnd)
-                    val revenue=PlanetTaxRevenue.assess(next,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
+                    val revenue=PlanetTaxRevenue.assess(previousDay,base,policy.tax,BudgetActions.rate(initialized,id,policy.tax.remittanceRate))
                     val lord=initialized.strategic.fiefs[id]?.takeIf {character->
                         val death=initialized.strategic.people[character]?.deceasedAt ?: 0L
                         // evidence:guess — resume remittance after death. Same-tick production precedes combat.
@@ -223,16 +234,30 @@ internal class PlanetProduction(private val galaxy: Galaxy, private val store: P
                         // Cap each credit so catch-up never sums income that a daily settlement would discard.
                         lordBalances[lord]=minOf(0xffffffffL,held+revenue.collected)
                     } else if(revenue.central>0) {
-                        val country=checkNotNull(next.country)
+                        val country=checkNotNull(previousDay.country)
                         national[country]=Math.addExact(national[country] ?: 0,revenue.central)
                     }
-                    val capital=capitals[next.country]?.let(bases::getValue)
-                    if(!stopped)CapitalProvisioning.topUp(next,base,policy,capitals,capital?.food ?: 0)?.let {(fed,amount)->
-                        next=fed
-                        val source=checkNotNull(capital)
-                        bases[source.baseId]=source.copy(food=source.food-amount)
+                    val source=CapitalProvisioning.source(previousDay,base,capitals)?.let(bases::getValue)
+                    val settled = when {
+                        stopped -> previousDay
+                        source==null -> settleResources(previousDay,base,initialized,dayEnd,countryDefinitions)
+                        else -> {
+                            val demand=rations.getOrDefault(id,0)
+                            val later=remainingRations.getOrDefault(source.baseId,0L)-demand
+                            remainingRations[source.baseId]=later
+                            val ration=minOf(demand,source.food)
+                            val fed=previousDay.copy(food=previousDay.food+ration)
+                            val surplus=(source.food-ration-later).coerceAtLeast(0)
+                            val extra=if(surplus>0 &&
+                                (units.forCountry(id,fed.country,countryDefinitions).any {!it.unit.ship} ||
+                                    fed.units.work.keys.any {it.startsWith('T')}))
+                                minOf(surplus,(policy.maximumStock.toLong()-fed.food).coerceAtLeast(0)).toInt() else 0
+                            val built=settleResources(fed.copy(food=fed.food+extra),base,initialized,dayEnd,countryDefinitions)
+                            val unused=minOf(extra,built.food)
+                            bases[source.baseId]=source.copy(food=source.food-ration-(extra-unused))
+                            built.copy(food=built.food-unused)
+                        }
                     }
-                    val settled = if (stopped) previousDay else settleResources(next,base,initialized,dayEnd,countryDefinitions)
                     bases[id] = settled.copy(treasury = Math.addExact(previousDay.treasury, if (lord != null) 0 else revenue.local))
                 }
                 // Carry projected losses across daily bills; actual ship losses keep their separate backlog cap.

@@ -124,4 +124,27 @@ class CapitalProvisioningTest {
         assertEquals(100_000,fortress.economy!!.population)
         assertTrue(fortress.units.work.values.any {it==24},"fed workers advance the existing production recipes")
     }
+
+    @Test fun recruitingUsesOnlyCapitalFoodLeftAfterAllResidentRations() {
+        val second=galaxy.bases[1].copy(id=1041,name="Second")
+        val world=Galaxy(listOf(galaxy.systems[0],galaxy.systems[1].copy(name="イゼルローン")),
+            listOf(second,galaxy.bases[0],galaxy.bases[1].copy(name="イゼルローン")),galaxy.starts)
+        fun settle(capitalFood:Int):PlanetStocks {
+            val initial=stock(capitalFood,world,60_000)
+            val first=initial.bases.getValue(1040)
+            val ready=initial.copy(bases=initial.bases+(1040 to first.copy(units=UnitInventory(work=mapOf("T0" to 60)))))
+            return PlanetProduction(world,Store(ready),0,policy).settle(1,86400)
+        }
+        val short=settle(279)
+        assertEquals(100_000,short.bases.getValue(1041).economy?.population)
+        assertTrue(short.bases.getValue(1040).units.troops.isEmpty())
+        assertEquals(99,short.bases.getValue(1049).food)
+
+        val complete=settle(280)
+        assertEquals(100_000,complete.bases.getValue(1041).economy?.population)
+        assertEquals(99_000,complete.bases.getValue(1040).economy?.population)
+        assertEquals(1,complete.bases.getValue(1040).units.troops[UnitStack(0)])
+        assertEquals(0,complete.bases.getValue(1040).food)
+        assertEquals(0,complete.bases.getValue(1049).food)
+    }
 }
